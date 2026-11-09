@@ -1,0 +1,16 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Nie instalujemy wersji opublikowanych w ostatnich 3 dniach (ochrona przed złośliwymi wydaniami).
+minimumReleaseAge: 4320
+
+onlyBuiltDependencies:
+  - '@swc/core'
+  - esbuild
+  - '@nestjs/core'
+  - sharp
+
+# Skrypt analityczny zależności Swagger UI; nie jest potrzebny.
+ignoredBuiltDependencies:
+  - '@scarf/scarf'

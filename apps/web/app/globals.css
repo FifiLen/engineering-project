@@ -1,0 +1,24 @@
+/* Tokeny z design systemu (ADR 0007). Pełny system komponentów powstaje w iteracjach 1 i 7. */
+:root {
+  --bg: #f6f6f3;
+  --surface: #ffffff;
+  --line: #e3e3de;
+  --ink: #16181d;
+  --muted: #6b6e75;
+  --accent: #2b3ff5;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d;
+    --surface: #1f2229;
+    --line: #2e323b;
+    --ink: #f6f6f3;
+    --muted: #a3a6ad;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body { font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); }

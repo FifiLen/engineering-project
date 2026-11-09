@@ -1,0 +1,49 @@
+# System wypożyczania hulajnóg elektrycznych (projekt inżynierski)
+
+Projekt jednoosobowy. Priorytet: jakość i dokumentacja pomocna przy obronie. Komunikacja i dokumentacja po polsku, kod i identyfikatory po angielsku.
+
+## Najważniejsze zasady
+- Klienci znają tylko API, hulajnogi znają tylko broker MQTT, cała logika biznesowa jest w backendzie.
+- Backend to monolit modularny (NestJS 12, ESM, Fastify). Moduł nie czyta tabel innego modułu bezpośrednio.
+- Hulajnogi są symulowane (`apps/simulator`) i mówią protokołem z `docs/kontrakty/asyncapi-mqtt.yaml`.
+- Każda decyzja architektoniczna = ADR w `docs/adr/` (szablon 0000). Zmiana decyzji = nowy ADR, starych nie edytujemy.
+- Nie zgadujemy danych geograficznych ani wersji pakietów: sprawdzamy je. Instalujemy tylko wersje starsze niż 3 dni.
+
+## Dokumentacja (czytaj przed większą zmianą)
+- `docs/arc42/` architektura, `docs/adr/` decyzje, `docs/model-danych/` schemat, `docs/kontrakty/` AsyncAPI.
+- `docs/iteracje/` plan iteracji 0–8 i definicja „zrobione”; `docs/dziennik.md` dziennik prac.
+- Definicja „zrobione”: kod + testy + aktualne diagramy i kontrakty + ADR + wpis w dzienniku + scenariusz demo.
+
+## Struktura
+- `apps/api` NestJS, `apps/web` Next.js (strona + /admin), `apps/mobile` Expo, `apps/simulator` Node + mqtt.js
+- `packages/shared` schematy Zod (kontrakt MQTT), formatowanie kwot; `packages/db` migracje SQL, schemat Drizzle, dane startowe
+- `infra/` Docker Compose: PostGIS, Mosquitto, MinIO, OSRM (woj. śląskie)
+
+## Polecenia
+- `pnpm infra:up` infrastruktura; `pnpm db:migrate`, `pnpm db:places`, `pnpm db:seed`
+- `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (testy bazy wymagają DATABASE_URL)
+- Po każdej migracji: `pnpm db:pull` (regeneruje `packages/db/src/schema`, nie edytować ręcznie; wyjątek: `telemetry.ts`).
+- Zależności Expo: `pnpm --filter @hulajnogi/mobile exec expo install <pakiet>`.
+
+## Zasady danych
+- Kwoty w groszach (liczby całkowite); portfel jako księga `wallet_ledger` tylko do dopisywania.
+- Cennik wersjonowany; przejazd pamięta wersję z chwili startu. Rezerwacja to pierwszy stan przejazdu.
+- Spójność pilnuje baza (indeksy częściowe). Idempotencja: commandId, idempotency_key, provider_event_id.
+- Czas w UTC, geometria SRID 4326. Błędy API: `{ code, message, details }`.
+- Migracje piszemy ręcznie w SQL w `packages/db/migrations`; wykonanej migracji nie zmieniamy.
+
+## Kierunek wizualny
+Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny kolor akcji), #E3E3DE, #6B6E75; ostrzeżenia #8F5500, błędy #C62F2F. Inter; liczby zawsze Medium. Makiety: kanwa „Moodboardy – system hulajnóg” w claude.ai.
+
+## Stan: iteracja 0 (w toku)
+Gotowe: monorepo, Docker Compose, migrator i migracja 0001, schemat Drizzle, dane startowe, pakiet shared, szkielety api/web/mobile/simulator; testy przechodzą.
+Do zrobienia:
+- [ ] `.github/workflows/ci.yml`: lint, typecheck, testy z kontenerem postgis/postgis:16-3.4, build
+- [ ] README z instrukcją uruchomienia
+- [ ] ADR 0021 (migracje SQL + schemat Drizzle z bazy), ADR 0022 (NestJS 12 i ESM w całym repo, zastępuje część ADR 0009), ADR 0023 (TypeScript 6.0)
+- [ ] Wpis w `docs/dziennik.md`, aktualizacja `docs/iteracje/iteracja-00-fundament.md`
+- [ ] Pełny przebieg `pnpm lint && pnpm typecheck && pnpm test && pnpm build`
+- [ ] Autor: `pnpm db:places` i weryfikacja współrzędnych w Rybniku
+
+## Otwarte decyzje
+Nazwa marki ([nazwa]); wartości biznesowe (ceny, czas rezerwacji, minimalne saldo, próg baterii, limit w wolnej strefie, wiek, opłata za parkowanie poza strefą, zwrot salda; w seedzie są wartości deweloperskie); naliczanie czasu przy utracie łączności.

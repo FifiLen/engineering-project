@@ -1,0 +1,13 @@
+{
+  "city": "Rybnik",
+  "note": "Współrzędne uzupełnia `pnpm db:places` (geokodowanie OpenStreetMap przez Nominatim). Po uruchomieniu sprawdź nazwy w polu osmDisplayName i popraw zapytania, jeśli trafiły w złe miejsce.",
+  "serviceArea": { "code": "AREA-RYBNIK", "name": "Obszar działania: Rybnik", "centerPlace": "P-01", "radiusM": 3500 },
+  "places": [
+    { "code": "P-01", "name": "Rynek", "query": "Rynek, Rybnik", "type": "PARKING", "radiusM": 45, "capacity": 25 },
+    { "code": "P-02", "name": "Dworzec PKP", "query": "Rybnik, stacja kolejowa, Dworcowa", "type": "PARKING", "radiusM": 50, "capacity": 40 },
+    { "code": "P-03", "name": "Kampus", "query": "Rudzka 13, Rybnik", "type": "PARKING", "radiusM": 50, "capacity": 30 },
+    { "code": "P-04", "name": "Focus", "query": "Focus Mall, Rybnik", "type": "PARKING", "radiusM": 45, "capacity": 20 },
+    { "code": "P-05", "name": "Plaza", "query": "Plaza, Rybnik", "type": "PARKING", "radiusM": 45, "capacity": 20 },
+    { "code": "S-01", "name": "Okolice Rynku", "query": "Rynek, Rybnik", "type": "SLOW", "radiusM": 180, "speedLimitKmh": 10 }
+  ]
+}

@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+**/dist
+**/.next
+**/.expo
+docs/model-danych/schema.sql
+packages/db/migrations
