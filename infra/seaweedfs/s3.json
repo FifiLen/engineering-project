@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "hulajnogi",
+      "credentials": [{ "accessKey": "hulajnogi", "secretKey": "hulajnogi-dev-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

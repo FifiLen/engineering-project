@@ -12,7 +12,7 @@ flowchart TB
     DB[("PostgreSQL + PostGIS<br/>dane, kolejka pg-boss")]
     MQ["Broker MQTT<br/>Mosquitto"]
     SIM["Symulator floty<br/>Node.js + mqtt.js"]
-    FS[("MinIO<br/>zdjęcia")]
+    FS[("SeaweedFS (S3)<br/>zdjęcia")]
     OSRM["OSRM<br/>trasy"]
 
     M -- "HTTPS, WebSocket" --> API

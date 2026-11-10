@@ -8,3 +8,5 @@ dist/
 .env.local
 coverage/
 infra/osrm/data/
+*.tsbuildinfo
+next-env.d.ts

@@ -1,6 +1,18 @@
 import 'reflect-metadata';
+import { join } from 'node:path';
 import { createApp } from './bootstrap.js';
 import { loadConfig } from './config.js';
+
+/** Wczytuje .env z katalogu głównego repozytorium; zmienne ustawione w powłoce mają pierwszeństwo. */
+function loadRootEnv(path: string) {
+  try {
+    process.loadEnvFile(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+}
+
+loadRootEnv(join(import.meta.dirname, '..', '..', '..', '.env'));
 
 const config = loadConfig();
 const app = await createApp(config, { logger: config.NODE_ENV !== 'test' });

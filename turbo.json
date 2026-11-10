@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [".env"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -7,6 +8,7 @@
     },
     "dev": {
       "dependsOn": ["^build"],
+      "env": ["WEB_PORT"],
       "cache": false,
       "persistent": true
     },

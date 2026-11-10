@@ -76,7 +76,7 @@ sequenceDiagram
     participant A as Aplikacja
     participant API as Backend API
     participant DB as PostGIS
-    participant FS as MinIO
+    participant FS as SeaweedFS (S3)
     participant MQ as Broker MQTT
     A->>API: POST /rentals/ID/end
     API->>DB: czy pozycja jest w strefie parkowania

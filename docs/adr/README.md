@@ -12,7 +12,7 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0006 | [Strona promocyjna i panel w jednej aplikacji Next.js](0006-jedna-aplikacja-nextjs.md) | zaakceptowana |
 | 0007 | [Kierunek wizualny: styl produktowy](0007-kierunek-wizualny.md) | zaakceptowana |
 | 0008 | [Monorepo w TypeScript (pnpm i Turborepo)](0008-monorepo-typescript.md) | zaakceptowana |
-| 0009 | [Backend w NestJS z adapterem Fastify](0009-backend-nestjs-fastify.md) | zaakceptowana |
+| 0009 | [Backend w NestJS z adapterem Fastify](0009-backend-nestjs-fastify.md) | zaakceptowana; wersja frameworka zastąpiona przez 0022 |
 | 0010 | [PostgreSQL z PostGIS i Drizzle ORM](0010-postgresql-postgis-drizzle.md) | zaakceptowana |
 | 0011 | [MQTT do komunikacji z hulajnogami](0011-mqtt-dla-hulajnog.md) | zaakceptowana |
 | 0012 | [Aktualizacje na żywo przez Socket.IO](0012-socket-io.md) | zaakceptowana |
@@ -24,3 +24,7 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0018 | [Płatności przez Stripe w trybie testowym](0018-platnosci-stripe.md) | zaakceptowana |
 | 0019 | [Uwierzytelnianie: kod SMS dla użytkowników, hasło z TOTP dla operatorów](0019-uwierzytelnianie.md) | zaakceptowana |
 | 0020 | [Obszar działania: Rybnik](0020-obszar-dzialania-rybnik.md) | zaakceptowana |
+| 0021 | [Migracje pisane w SQL, schemat Drizzle generowany z bazy](0021-migracje-sql-schemat-drizzle-z-bazy.md) | zaakceptowana |
+| 0022 | [NestJS 12 i moduły ESM w całym repozytorium](0022-nestjs-12-esm.md) | zaakceptowana |
+| 0023 | [TypeScript 6.0](0023-typescript-6.md) | zaakceptowana |
+| 0024 | [Magazyn plików zgodny z S3: SeaweedFS](0024-magazyn-plikow-seaweedfs.md) | zaakceptowana |

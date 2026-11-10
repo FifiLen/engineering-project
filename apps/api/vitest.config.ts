@@ -1,5 +1,13 @@
+import { join } from 'node:path';
 import swc from 'unplugin-swc';
 import { defineConfig } from 'vitest/config';
+
+// Testy bazy czytają DATABASE_URL także z .env w katalogu głównym; zmienna z powłoki ma pierwszeństwo.
+try {
+  process.loadEnvFile(join(import.meta.dirname, '..', '..', '.env'));
+} catch {
+  // Brak .env: testy bazy zostaną pominięte, jeśli DATABASE_URL nie jest ustawiona.
+}
 
 // SWC zachowuje metadane dekoratorów potrzebne do wstrzykiwania zależności w NestJS.
 export default defineConfig({

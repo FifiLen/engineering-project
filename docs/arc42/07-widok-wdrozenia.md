@@ -2,7 +2,7 @@
 
 ## 7.1. Środowisko deweloperskie
 
-Docker Compose uruchamia: PostgreSQL z PostGIS, Mosquitto, MinIO, OSRM (wycinek województwa śląskiego z Geofabrik). Backend, aplikacja webowa i symulator działają lokalnie w trybie deweloperskim. Aplikacja mobilna działa w Expo na telefonie lub emulatorze.
+Docker Compose uruchamia: PostgreSQL z PostGIS, Mosquitto, SeaweedFS (magazyn zgodny z S3), OSRM (wycinek województwa śląskiego z Geofabrik). Backend, aplikacja webowa i symulator działają lokalnie w trybie deweloperskim. Aplikacja mobilna działa w Expo na telefonie lub emulatorze.
 
 SMS-y w tym środowisku nie są wysyłane, kod trafia do logów backendu.
 
@@ -17,7 +17,7 @@ flowchart TB
         SIM["Symulator"]
         DB[("PostgreSQL + PostGIS")]
         MQ["Mosquitto"]
-        FS[("MinIO")]
+        FS[("SeaweedFS (S3)")]
         OSRM["OSRM"]
     end
     Internet --> C
