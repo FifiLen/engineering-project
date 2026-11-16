@@ -12,6 +12,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { z } from 'zod';
 import { api, ApiRequestError, errorMessage } from '../../lib/api';
 import { t } from '../../lib/i18n';
+import { useSession } from '../../lib/session';
 import { ConfirmDialog } from './confirm-dialog';
 import { AlertIcon } from './icons';
 import { fieldLabel, valueLabel } from './labels';
@@ -93,6 +94,10 @@ function issuesToErrors(issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>
 export function ResourceForm<T extends { id: string; version: number }>(props: ResourceFormProps<T>) {
   const { resource, basePath, id, fields, defaults, title, recordLabel, aside } = props;
   const router = useRouter();
+  // Bez uprawnienia do zapisu formularz jest tylko do odczytu; decyzję podejmuje API (ADR 0028).
+  const { can } = useSession();
+  const canWrite = can(resource.permissions.write);
+  const canDelete = resource.deleteMode !== 'none' && can(resource.permissions.delete ?? resource.permissions.write);
   const [record, setRecord] = useState<T | null>(null);
   const [values, setValues] = useState<Values>(defaults);
   const [errors, setErrors] = useState<Errors>({});
@@ -222,9 +227,11 @@ export function ResourceForm<T extends { id: string; version: number }>(props: R
           <Link className="btn" href={basePath}>
             {t('common.cancel')}
           </Link>
-          <button type="submit" className="btn primary" disabled={saving || (record !== null && changed.length === 0)}>
-            {record ? t('common.save') : t('common.create')}
-          </button>
+          {canWrite && (
+            <button type="submit" className="btn primary" disabled={saving || (record !== null && changed.length === 0)}>
+              {record ? t('common.save') : t('common.create')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -279,7 +286,7 @@ export function ResourceForm<T extends { id: string; version: number }>(props: R
             const hint = spec.hint ? t.dynamic(`resource.${resource.name}.hints.${spec.name}`) : null;
             const describedBy =
               [error && `${inputId}-error`, hint && `${inputId}-hint`].filter(Boolean).join(' ') || undefined;
-            const disabled = spec.createOnly && record !== null;
+            const disabled = !canWrite || (spec.createOnly && record !== null);
             const common = { id: inputId, 'aria-invalid': Boolean(error), 'aria-describedby': describedBy, disabled };
             return (
               <div key={spec.name} className={spec.wide || spec.kind === 'textarea' ? 'field wide' : 'field'}>
@@ -377,7 +384,7 @@ export function ResourceForm<T extends { id: string; version: number }>(props: R
         {record && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {aside?.(record)}
-            {resource.deleteMode !== 'none' && (
+            {canDelete && (
               <div className="card side-card">
                 <h2>{t.dynamic(`resource.${resource.name}.removeTitle`)}</h2>
                 <p>{t.dynamic(`resource.${resource.name}.removeBody`)}</p>

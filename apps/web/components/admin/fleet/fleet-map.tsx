@@ -20,7 +20,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { api, API_URL, errorMessage } from '../../../lib/api';
+import { api, API_URL, errorMessage, getAccessToken, refreshSession } from '../../../lib/api';
+import { useSession } from '../../../lib/session';
 import { formatKm, formatRelative, formatTime, t } from '../../../lib/i18n';
 import { BellIcon, CloseIcon, LockIcon, WrenchIcon } from '../icons';
 import { valueLabel } from '../labels';
@@ -93,14 +94,23 @@ export function FleetMap() {
     api<ZoneCollection>('/zones')
       .then(setZones)
       .catch((e: unknown) => setError(errorMessage(e)));
-    const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(API_URL, { transports: ['websocket'] });
-    socket.on('connect', () => {
-      setLive(true);
-      void loadSnapshot();
-      // Potwierdzenie z kodem błędu obsłuży logowanie operatora (ADR 0035); token dochodzi z sesją panelu.
-      socket.emit('fleet.subscribe', () => undefined);
+    // Token dostępowy przy każdym połączeniu (także ponownym); serwer rozłącza klienta bez tokenu (ADR 0035).
+    const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(API_URL, {
+      transports: ['websocket'],
+      auth: (cb) => cb({ token: getAccessToken() }),
     });
-    socket.on('disconnect', () => setLive(false));
+    socket.on('connect', () => {
+      void loadSnapshot();
+      socket.emit('fleet.subscribe', (ack) => {
+        setLive(ack.ok);
+        if (!ack.ok) setError(t.dynamic(`error.${ack.code}`));
+      });
+    });
+    socket.on('disconnect', (reason) => {
+      setLive(false);
+      // Serwer rozłączył po wygaśnięciu tokenu: odświeżamy sesję i łączymy się ponownie.
+      if (reason === 'io server disconnect') void refreshSession().then((s) => s && socket.connect());
+    });
     socket.on('fleet.updates', (updates) =>
       setScooters((current) => {
         const next = new Map(current);
@@ -312,6 +322,7 @@ function ScooterPanel({
   lastCommand: CommandView | null;
   onClose: () => void;
 }) {
+  const { can } = useSession();
   const [details, setDetails] = useState<ScooterDetails | null>(null);
   const [commands, setCommands] = useState<CommandView[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -429,15 +440,19 @@ function ScooterPanel({
       )}
 
       <div className="panel-actions">
-        <button type="button" className="btn block" onClick={() => send('LOCK')}>
-          <LockIcon />
-          {t('command.LOCK')}
-        </button>
-        <button type="button" className="btn block" onClick={() => send('RING')}>
-          <BellIcon />
-          {t('command.RING')}
-        </button>
-        {details?.status === 'MAINTENANCE' ? (
+        {can('scooters.command') && (
+          <>
+            <button type="button" className="btn block" onClick={() => send('LOCK')}>
+              <LockIcon />
+              {t('command.LOCK')}
+            </button>
+            <button type="button" className="btn block" onClick={() => send('RING')}>
+              <BellIcon />
+              {t('command.RING')}
+            </button>
+          </>
+        )}
+        {!can('scooters.write') ? null : details?.status === 'MAINTENANCE' ? (
           <button type="button" className="btn dark block" onClick={() => setStatus('AVAILABLE')}>
             <WrenchIcon />
             {t('map.backToFleet')}

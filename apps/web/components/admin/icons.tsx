@@ -22,13 +22,14 @@ function Icon({ children, size = 18, ...props }: SVGProps<SVGSVGElement> & { siz
 
 type P = SVGProps<SVGSVGElement> & { size?: number };
 
-export const BrandMark = () => (
+/** Znak marki: biały na kobaltowym tle w nawigacji, kobaltowy na białym na ekranie logowania. */
+export const BrandMark = ({ size = 25, color = '#FFFFFF' }: { size?: number; color?: string }) => (
   <svg
-    width="25"
-    height="25"
+    width={size}
+    height={size}
     viewBox="0 0 1024 1024"
     fill="none"
-    stroke="#FFFFFF"
+    stroke={color}
     strokeWidth="72"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -110,3 +111,29 @@ export const WrenchIcon = (p: P) => (
     <path d="M14.5 6.5a4 4 0 0 0 5 5L12 19a2.1 2.1 0 0 1-3-3l7.5-7.5a4 4 0 0 0-2-2Z" />
   </Icon>
 );
+
+export const LogoutIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l-5-5 5-5M5 12h11" />
+  </Icon>
+);
+
+export const BackIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M15 5l-7 7 7 7" />
+  </Icon>
+);
+
+export const CopyIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="8" y="8" width="12" height="12" rx="2.5" />
+    <path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" />
+  </Icon>
+);
+
+export const CheckIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M5 12l5 5 9-10" />
+  </Icon>
+);
+

@@ -1,4 +1,4 @@
-import { ScooterForm } from '../../../../components/admin/fleet/scooters';
+import { ScooterForm } from '../../../../../components/admin/fleet/scooters';
 
 export default function NewScooterPage() {
   return (

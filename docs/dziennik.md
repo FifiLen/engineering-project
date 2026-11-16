@@ -351,3 +351,26 @@ Plan: [iteracja 2](iteracje/iteracja-02-konta-dostep.md).
 - Link zaproszenia operatora zwraca API (pokazany raz w panelu), bo nie ma jeszcze wysyłki e-maili; w produkcji potrzebny będzie adapter poczty.
 - Wersja robocza dokumentu nie ma blokady optymistycznej (tabela `content_page_versions` nie ma kolumny `version`); edycję wersji roboczej rozstrzyga ostatni zapis. Pełny moduł treści w iteracji 7.
 
+## Iteracja 2: logowanie w panelu (16 listopada 2026)
+
+**Co powstało**
+- Trasy panelu w dwóch grupach: `app/admin/(panel)` (nawigacja, wymagana sesja) i `app/admin/(auth)` (`/admin/logowanie`, `/admin/aktywacja`); adresy ekranów z iteracji 1 bez zmian.
+- `lib/api.ts`: token dostępowy tylko w pamięci karty, ciasteczko wysyłane wyłącznie do `/admin/auth/*`, przy 401 jedno wspólne odświeżenie i ponowienie żądania. `lib/session.tsx`: odtworzenie sesji z ciasteczka po przeładowaniu, odświeżenie minutę przed wygaśnięciem, przekierowanie do logowania z adresem powrotu (tylko w obrębie `/admin`), `can(uprawnienie)` dla komponentów.
+- Ekrany według makiet: hasło (`13-panel/admin-logowanie`), kod TOTP z liczbą pozostałych prób i polską odmianą (`dostep-logowanie-totp`), konfiguracja TOTP z kodem QR (`qrcode` 1.5.4, wydane ponad 3 dni temu) i kluczem do skopiowania (`dostep-totp-konfiguracja`), aktywacja z zaproszenia z listą wymagań hasła (`dostep-aktywacja`). Pole kodu to jedno pole `one-time-code` pod 6 komórkami (wklejanie i autouzupełnianie działają).
+- Nawigacja ukrywa ekrany bez uprawnienia; blok operatora (inicjały, imię, role, wylogowanie) zastąpił „Tryb deweloperski”. Lista bez `…write` nie ma przycisku dodawania ani zaznaczania, formularz jest tylko do odczytu, karta hulajnogi na mapie pokazuje komendy tylko z `scooters.command`, a zmianę statusu z `scooters.write`.
+- Mapa floty łączy się z Socket.IO z tokenem (funkcja `auth`, więc ponowne połączenie bierze aktualny token) i po rozłączeniu przez serwer odświeża sesję.
+- Etykiety ekranów logowania i komunikaty nowych kodów błędów w `messages/pl.json`.
+
+**Weryfikacja**
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build`: 201 testów, build panelu przechodzi.
+- W przeglądarce (panel `localhost:3002`, API `localhost:3001`, 1440×900): `/admin/mapa` bez sesji przekierowuje do `/admin/logowanie?next=%2Fadmin%2Fmapa`; administrator z danych startowych loguje się hasłem, konfiguruje TOTP (kod QR, klucz) i wraca na mapę, która wczytuje 40 hulajnóg i dołącza do pokoju `fleet`; przeładowanie `/admin/flota` odtwarza sesję z ciasteczka; wylogowanie usuwa sesję, a wejście na `/admin/modele` znów prowadzi do logowania; złe hasło daje „Nieprawidłowy e-mail lub hasło”; Dyspozytor nie widzi „Nowy model” ani zaznaczania, a formularz modelu ma 9 z 9 pól zablokowanych, bez zapisu i usuwania.
+- Po weryfikacji TOTP kont administratora i Dyspozytora w bazie deweloperskiej zostało zresetowane, a sesje operatorów unieważnione: przy pierwszym logowaniu autor konfiguruje własną aplikację uwierzytelniającą.
+
+**Błędy znalezione w trakcie**
+- Przy szerokości 1024 px kolumna boczna (560 px) i szerokie pole konfiguracji TOTP (520 px) nie mieściły się w oknie, a strona przewijała się w poziomie; kolumna boczna ma teraz `min(560px, 39vw)`, a formularz `max-width: 100%`.
+- Znak marki był biały na białym tle ekranu logowania; `BrandMark` przyjmuje kolor (na ekranie logowania `currentColor`, bo zmienna CSS w atrybucie `stroke` nie działała).
+- Serwer `next dev` innej sesji na porcie 3002 nie zauważył przeniesienia tras do grup i trzymał w `.next/dev/types` stare ścieżki, przez co lokalny `next build` nie przechodził kontroli typów. Za zgodą autora serwer został zatrzymany i uruchomiony ponownie (konfiguracja `web` z `.claude/launch.json`).
+
+**Zmiany względem planu**
+- Formularz bez uprawnienia do zapisu ma nadal tytuł „Edycja …” i przycisk „Anuluj”; tytuł dla trybu tylko do odczytu do poprawki razem z ekranami Operatorów i Ról.
+

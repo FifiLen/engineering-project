@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { ScooterModelList } from '../../../components/admin/fleet/scooter-models';
+import { ScooterModelList } from '../../../../components/admin/fleet/scooter-models';
 
 export default function ModelsPage() {
   return (

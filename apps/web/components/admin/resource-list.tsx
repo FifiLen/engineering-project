@@ -19,6 +19,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, ApiRequestError, errorMessage } from '../../lib/api';
 import { t } from '../../lib/i18n';
+import { useSession } from '../../lib/session';
 import { ConfirmDialog } from './confirm-dialog';
 import { FilterDrawer, type FilterSpec } from './filter-drawer';
 import { AlertIcon, ArrowDown, ArrowUp, CloseIcon, FilterIcon, PlusIcon, SearchIcon } from './icons';
@@ -51,6 +52,10 @@ const EMPTY: ListQuery = { filters: [], sort: [], page: 1, pageSize: 25, facets:
 export function ResourceList<T extends { id: string; version: number }>(props: ResourceListProps<T>) {
   const { resource, basePath, columns, quick, filters, rowLabel, summary, emptyIcon } = props;
   const router = useRouter();
+  // Panel ukrywa operacje bez uprawnień; decyzję podejmuje API (ADR 0028).
+  const { can } = useSession();
+  const canWrite = can(resource.permissions.write);
+  const canDelete = resource.deleteMode !== 'none' && can(resource.permissions.delete ?? resource.permissions.write);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const query = useMemo(() => {
@@ -170,10 +175,12 @@ export function ResourceList<T extends { id: string; version: number }>(props: R
           {data && summary && <div className="sub">{summary(data)}</div>}
         </div>
         <div className="actions">
-          <Link className="btn primary" href={`${basePath}/nowy`}>
-            <PlusIcon />
-            {t.dynamic(`resource.${resource.name}.new`)}
-          </Link>
+          {canWrite && (
+            <Link className="btn primary" href={`${basePath}/nowy`}>
+              <PlusIcon />
+              {t.dynamic(`resource.${resource.name}.new`)}
+            </Link>
+          )}
         </div>
       </div>
 
@@ -268,6 +275,7 @@ export function ResourceList<T extends { id: string; version: number }>(props: R
         <div className="table" role="table" aria-rowcount={data?.total}>
           <div className="row head" role="row" style={{ gridTemplateColumns: grid }}>
             <span role="columnheader">
+              {canDelete && (
               <input
                 type="checkbox"
                 className="cb"
@@ -278,6 +286,7 @@ export function ResourceList<T extends { id: string; version: number }>(props: R
                 }}
                 onChange={() => setSelected(allSelected ? new Set() : new Set(items.map((i) => i.id)))}
               />
+              )}
             </span>
             {columns.map(({ field }) => {
               const sortable = resource.fields[field]?.sortable;
@@ -336,10 +345,12 @@ export function ResourceList<T extends { id: string; version: number }>(props: R
               <div className="icon">{emptyIcon}</div>
               <h2>{t.dynamic(`resource.${resource.name}.emptyTitle`)}</h2>
               <p>{t.dynamic(`resource.${resource.name}.emptyBody`)}</p>
-              <Link className="btn primary" href={`${basePath}/nowy`}>
-                <PlusIcon />
-                {t.dynamic(`resource.${resource.name}.new`)}
-              </Link>
+              {canWrite && (
+                <Link className="btn primary" href={`${basePath}/nowy`}>
+                  <PlusIcon />
+                  {t.dynamic(`resource.${resource.name}.new`)}
+                </Link>
+              )}
             </div>
           )}
 
@@ -376,6 +387,7 @@ export function ResourceList<T extends { id: string; version: number }>(props: R
               }}
             >
               <span role="cell">
+                {canDelete && (
                 <input
                   type="checkbox"
                   className="cb"
@@ -388,6 +400,7 @@ export function ResourceList<T extends { id: string; version: number }>(props: R
                     setSelected(next);
                   }}
                 />
+                )}
               </span>
               {columns.map(({ field, render }, i) => (
                 <span key={field} role="cell">
@@ -470,7 +483,7 @@ export function ResourceList<T extends { id: string; version: number }>(props: R
       {selected.size > 0 && (
         <div className="bulk" role="toolbar" aria-label={t('list.selected', { count: selected.size })}>
           <span className="count">{t('list.selected', { count: selected.size })}</span>
-          {resource.deleteMode !== 'none' && (
+          {canDelete && (
             <button type="button" className="danger" onClick={() => setConfirm(true)}>
               {t.dynamic(`resource.${resource.name}.bulkRemove`)}
             </button>
