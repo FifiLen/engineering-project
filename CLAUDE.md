@@ -49,7 +49,7 @@ Gotowe: monorepo, Docker Compose (PostGIS, Mosquitto, SeaweedFS, OSRM), migracje
 Do zrobienia przed iteracją 1:
 - [x] Wymagania uczelni: „Plan dostosowania” z `docs/wymagania-uczelni.md` (ADR 0025–0031, migracja 0002, `packages/core`, plan iteracji 0–9, makieta wzorca widoku tabeli w `docs/projekt/ekrany/17-panel-wzorce/`). Makiety ról i uprawnień przed iteracją 2, pozostałych nowych ekranów przed iteracjami 7–8.
 - [x] Wypchnąć repozytorium na GitHuba i potwierdzić zielony przebieg `.github/workflows/ci.yml` (2026-11-16, commit `bea96ab`)
-- [ ] Autor: obejrzeć strefy na mapie (współrzędne w `packages/db/seed/rybnik-places.json`, wyniki OSM w dzienniku)
+- [x] Autor: obejrzeć strefy na mapie (współrzędne w `packages/db/seed/rybnik-places.json`; potwierdzone 2026-11-16)
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.

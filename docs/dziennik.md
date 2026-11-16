@@ -168,4 +168,5 @@ Pierwsze zapytania trafiły źle w dwóch miejscach: dla dworca nie było wyniku
 - Pierwszy przebieg `.github/workflows/ci.yml` dla commitu `bea96ab` ([przebieg 43861513114](https://github.com/FifiLen/engineering-project/actions/runs/43861513114)) zakończony sukcesem: instalacja z zamrożonym lockfile, lint, typy, migracje 0001–0002 na czystej bazie PostGIS 16-3.4, testy, build. `DATABASE_URL` jest ustawiona w zadaniu, więc testy bazy i API nie są pomijane.
 
 **Zmiany względem planu**
-- Iteracja 0 zakończona, łącznie z dostosowaniem do wymagań uczelni. Do iteracji 1 zostaje tylko sprawdzenie stref na mapie przez autora.
+- Iteracja 0 zakończona, łącznie z dostosowaniem do wymagań uczelni.
+- Autor obejrzał strefy na mapie i potwierdził współrzędne z `packages/db/seed/rybnik-places.json` (Rynek, dworzec PKP, kampus, Focus Park, Rybnik Plaza). Przed iteracją 1 nie zostało nic otwartego.
