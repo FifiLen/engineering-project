@@ -44,11 +44,11 @@ Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny 
 - `docs/projekt/ekrany/00-eksploracja/` to archiwum odrzuconych kierunków, nie implementować.
 - Kanwa w claude.ai jest archiwum; źródłem prawdy jest repozytorium. Nowe makiety można tworzyć jako HTML w `docs/projekt/ekrany/` według design systemu.
 
-## Stan: iteracja 0 zakończona lokalnie (2026-11-10)
-Gotowe: monorepo, Docker Compose (PostGIS, Mosquitto, SeaweedFS, OSRM), migrator i migracja 0001, schemat Drizzle, dane startowe ze sprawdzonymi współrzędnymi Rybnika, pakiet shared, szkielety api/web/mobile/simulator, CI, README, ADR 0021–0024. Pełny przebieg lint/typecheck/test/build przechodzi.
+## Stan: iteracja 0 zakończona (2026-11-16)
+Gotowe: monorepo, Docker Compose (PostGIS, Mosquitto, SeaweedFS, OSRM), migracje 0001–0002, schemat Drizzle, `packages/core`, dane startowe ze sprawdzonymi współrzędnymi Rybnika, pakiet shared, szkielety api/web/mobile/simulator, CI, README, ADR 0001–0031. Repozytorium: github.com/FifiLen/engineering-project (gałąź `main`); CI przechodzi na GitHub Actions.
 Do zrobienia przed iteracją 1:
 - [x] Wymagania uczelni: „Plan dostosowania” z `docs/wymagania-uczelni.md` (ADR 0025–0031, migracja 0002, `packages/core`, plan iteracji 0–9, makieta wzorca widoku tabeli w `docs/projekt/ekrany/17-panel-wzorce/`). Makiety ról i uprawnień przed iteracją 2, pozostałych nowych ekranów przed iteracjami 7–8.
-- [ ] Wypchnąć repozytorium na GitHuba i potwierdzić zielony przebieg `.github/workflows/ci.yml`; scalić gałąź `iteracja-0-domkniecie` z `main`
+- [x] Wypchnąć repozytorium na GitHuba i potwierdzić zielony przebieg `.github/workflows/ci.yml` (2026-11-16, commit `bea96ab`)
 - [ ] Autor: obejrzeć strefy na mapie (współrzędne w `packages/db/seed/rybnik-places.json`, wyniki OSM w dzienniku)
 
 ## Uwagi środowiskowe

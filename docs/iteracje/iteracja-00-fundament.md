@@ -1,6 +1,6 @@
 # Iteracja 0: fundament
 
-**Status:** zakończona lokalnie (10 listopada 2026); czeka na pierwszy przebieg CI w GitHub Actions i scalenie z `main`
+**Status:** zakończona (16 listopada 2026): fundament 10 listopada, dostosowanie do wymagań uczelni 16 listopada; pierwszy przebieg CI w GitHub Actions zielony, kod w gałęzi `main`
 
 ## Cel
 Przygotować repozytorium, infrastrukturę lokalną i dokumentację tak, żeby kolejne iteracje mogły skupić się wyłącznie na funkcjach.

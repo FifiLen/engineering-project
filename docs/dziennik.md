@@ -158,3 +158,14 @@ Pierwsze zapytania trafiły źle w dwóch miejscach: dla dworca nie było wyniku
 **Otwarte kwestie**
 - Makiety ról i uprawnień przed iteracją 2; treści, mediów, raportów i szablonów wydruków przed iteracjami 7 i 8.
 - Pasek boczny mieści się w wysokości 900 px z niewielkim zapasem; przy kolejnych pozycjach trzeba będzie zwijać grupy.
+
+## Repozytorium na GitHubie i pierwszy przebieg CI (16 listopada 2026)
+
+**Co powstało**
+- Repozytorium [FifiLen/engineering-project](https://github.com/FifiLen/engineering-project). Gałąź `iteracja-0-domkniecie` zastąpiła lokalny `main` (zawierała całą jego historię, więc nic nie zostało pominięte) i została wypchnięta jako `main`.
+
+**Weryfikacja**
+- Pierwszy przebieg `.github/workflows/ci.yml` dla commitu `bea96ab` ([przebieg 43861513114](https://github.com/FifiLen/engineering-project/actions/runs/43861513114)) zakończony sukcesem: instalacja z zamrożonym lockfile, lint, typy, migracje 0001–0002 na czystej bazie PostGIS 16-3.4, testy, build. `DATABASE_URL` jest ustawiona w zadaniu, więc testy bazy i API nie są pomijane.
+
+**Zmiany względem planu**
+- Iteracja 0 zakończona, łącznie z dostosowaniem do wymagań uczelni. Do iteracji 1 zostaje tylko sprawdzenie stref na mapie przez autora.
