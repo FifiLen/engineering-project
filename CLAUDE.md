@@ -49,7 +49,8 @@ Iteracja 0: monorepo, Docker Compose, migracje 0001–0002, `packages/core`, dan
 Iteracja 1 (`docs/iteracje/iteracja-01-symulator-telemetria.md`): symulator z własnym połączeniem MQTT na hulajnogę i przejazdami pokazowymi (ADR 0034), telemetria partiami i status floty w core i w bazie (ADR 0033, migracja 0003), Socket.IO pokój `fleet`, wspólny mechanizm list i definicje zasobów (`scooters`, `scooter-models`), panel: mapa floty, lista i formularz floty i modeli, etykiety w plikach tłumaczeń z regułą lintera (ADR 0032).
 Do zrobienia:
 - [x] Wypchnąć iterację 1 i potwierdzić zielone CI (2026-11-16, commit `30261a9`).
-- [ ] Przed iteracją 2: makiety ról i uprawnień (`docs/projekt/ekrany/`); logowanie operatorów, `@RequirePermission` i `audit_log` dla zapisów z iteracji 1.
+- [x] Plan iteracji 2 (`docs/iteracje/iteracja-02-konta-dostep.md`) i makiety kont i dostępu (`docs/projekt/ekrany/18-panel-dostep`, `19-mobile-dostep`) (2026-11-16).
+- [ ] Iteracja 2: migracja 0004, logowanie klientów i operatorów, `@RequirePermission` i `audit_log` także dla zapisów z iteracji 1, ekrany według makiet.
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.

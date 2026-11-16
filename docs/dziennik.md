@@ -219,3 +219,21 @@ Plan i scenariusz demo: [iteracja 1](iteracje/iteracja-01-symulator-telemetria.m
 - Partycje telemetrii zakłada proces API (start i co 6 h), a nie pg-boss; przejdzie do zadania cyklicznego w iteracji 3.
 - Panel filtrów pokazuje liczniki wartości z listy przed zmianą filtrów, a nie dla wersji roboczej (liczba wszystkich wyników przycisku jest aktualna).
 - Formularz porównuje przy konflikcie tylko pola zmienione przez drugą osobę względem wczytanej wersji.
+
+## Plan i makiety iteracji 2: konta i dostęp (16 listopada 2026)
+
+Plan: [iteracja 2](iteracje/iteracja-02-konta-dostep.md).
+
+**Co powstało**
+- Plan iteracji 2: zakres (migracja 0004, reguły kont i RBAC w `packages/core`, moduły `auth` i `staff-auth`, `@RequirePermission` na wszystkich punktach panelu, dziennik audytu, ekrany panelu i aplikacji, OpenAPI), rzeczy świadomie poza zakresem i trzy decyzje potwierdzone przez autora: kod SMS ma 6 cyfr, operator dostaje zaproszenie (pierwszego administratora tworzy polecenie w terminalu), minimalny wiek klienta pochodzi z cennika.
+- 12 plansz panelu w [`projekt/ekrany/18-panel-dostep/`](projekt/README.md#panel-operatora-konta-i-dostęp): kod TOTP, konfiguracja TOTP, aktywacja z zaproszenia, lista i formularz operatora, lista ról, macierz uprawnień, dziennik audytu, szczegóły i blokada klienta, wersje dokumentów prawnych i edycja wersji roboczej.
+- 3 plansze aplikacji w [`projekt/ekrany/19-mobile-dostep/`](projekt/README.md#aplikacja-konta-i-dostęp): ponowna akceptacja regulaminu, konto zablokowane, wyczerpane próby kodu SMS. Liczba ekranów w spisie: 72.
+
+**Weryfikacja**
+- PNG wyrenderowane z HTML w Chrome bez interfejsu (panel 1440×900, skala 1; aplikacja 390×844, skala 2) i obejrzane. Poprawione w trakcie: pozycja aktywna w nawigacji, zbyt ciasne kolumny dziennika audytu obok panelu bocznego, kolejność wpisów w historii klienta.
+- Dane na planszach są spójne między sobą (np. Dyspozytor: 17 z 35 uprawnień i 4 operatorów na liście ról, w macierzy i w formularzu operatora; 3 120 + 722 = 3 842 klientów przy dokumentach).
+
+**Zmiany względem planu**
+- Makieta `flow-kod` ma już 6 pól kodu (4 wypełnione w trakcie wpisywania), zgodnie z design systemem, więc 6-cyfrowy kod nie jest odstępstwem.
+- Z makiet wynikły zmiany zakresu migracji 0004: `content_page_versions.change_summary` („Najważniejsze zmiany” przy ponownej akceptacji) i `users.blocked_reason` jako kategoria widoczna dla klienta. Publikacja wersji dokumentu działa od razu; zrezygnowano z planowania daty publikacji i z porównania wersji akapit po akapicie.
+- Dziennik audytu jest zakładką w „Operatorzy i role”, a dokumenty prawne pierwszą zakładką „Treści”, bez nowych pozycji w nawigacji z `17-panel-wzorce`.

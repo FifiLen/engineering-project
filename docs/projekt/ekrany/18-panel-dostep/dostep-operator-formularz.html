@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Panel – operator</title>
+<!-- Operatorzy, role i uprawnienia (ADR 0028) na wzorcu widoku tabeli (ADR 0031). Formularz edycji operatora z bezpieczeństwem konta i historią zmian. Plansza 1440×900 px, wartości z docs/projekt/tokens.json.
+     Dane przykładowe. Etykiety pochodzą z plików tłumaczeń (ADR 0032), treści dokumentów z bazy (ADR 0027). -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+.app{width:1440px;height:900px;display:flex;background:#F6F6F3;color:#16181D;overflow:hidden;font-family:Inter,system-ui,sans-serif;position:relative}
+nav.side{width:232px;flex-shrink:0;background:#FFFFFF;border-right:1px solid #E3E3DE;display:flex;flex-direction:column;padding:20px 14px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 16px}
+.brand-mark{width:32px;height:32px;border-radius:8px;background:#2B3FF5;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.brand-name{font-size:15px;font-weight:600} .brand-sub{font-size:12px;color:#6B6E75}
+.nav-group{font-size:11px;font-weight:600;color:#6B6E75;text-transform:uppercase;letter-spacing:.04em;padding:12px 12px 4px}
+.nav-item{display:flex;align-items:center;gap:12px;height:38px;padding:0 12px;border-radius:12px;text-decoration:none;font-size:14px;color:#16181D;font-weight:500}
+.nav-item.active{background:#EEF0FE;color:#2B3FF5;font-weight:600}
+.nav-badge{margin-left:auto;min-width:20px;height:20px;border-radius:10px;background:#C62F2F;color:#FFFFFF;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.me{display:flex;align-items:center;gap:10px;padding:12px 8px 0;border-top:1px solid #E3E3DE}
+.avatar{width:32px;height:32px;border-radius:16px;background:#16181D;color:#F6F6F3;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+main{flex-grow:1;min-width:0;display:flex;flex-direction:column;padding:28px 32px;gap:16px;position:relative;overflow:hidden}
+h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-0.025em}
+.sub{font-size:14px;color:#6B6E75}
+.btn{height:36px;padding:0 14px;border-radius:18px;background:#FFFFFF;color:#16181D;border:1px solid #E3E3DE;font-family:Inter,sans-serif;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.primary{background:#2B3FF5;color:#FFFFFF;border:none}
+.btn.dark{background:#16181D;color:#F6F6F3;border:none}
+.btn.danger{color:#C62F2F;border-color:#F0C4C4}
+.chip{height:36px;padding:0 12px;border-radius:17px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;white-space:nowrap}
+.chip.on{background:#16181D;color:#F6F6F3;border-color:#16181D}
+.chip .n{opacity:.6;font-weight:500}
+.search{width:280px;white-space:nowrap;height:36px;border-radius:18px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:8px;padding:0 14px;font-size:13px;color:#6B6E75}
+.tag{height:30px;padding:0 6px 0 12px;border-radius:15px;background:#EEF0FE;color:#2B3FF5;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500}
+.tag b{font-weight:600}
+.tag .x{width:20px;height:20px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center}
+.link{font-size:13px;font-weight:600;color:#2B3FF5;text-decoration:none}
+.card{background:#FFFFFF;border:1px solid #E3E3DE;border-radius:20px;padding:12px}
+.row{display:grid;gap:12px;align-items:center;height:50px;padding:0 16px;border-top:1px solid #E3E3DE;font-size:14px}
+.row > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row.head{height:auto;border-top:none;padding:0 16px 10px;font-size:12px;font-weight:600;color:#6B6E75}
+.row.selected{background:#EEF0FE}
+.th-sort{display:inline-flex;align-items:center;gap:4px;color:#16181D}
+.cb{width:18px;height:18px;border-radius:5px;border:1.5px solid #B9B9B2;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+.cb.on{background:#2B3FF5;border-color:#2B3FF5}
+.cb.mixed{background:#2B3FF5;border-color:#2B3FF5}
+.pill{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:12px;font-size:12px;font-weight:600;white-space:nowrap;background:#EDEDE9;color:#16181D}
+.pill.accent{background:#EEF0FE;color:#2B3FF5} .pill.muted{color:#6B6E75}
+.pill.warn{background:#FFF1DB;color:#8F5500} .pill.danger{background:#FBE3E3;color:#C62F2F}
+.overdue{color:#C62F2F;font-weight:500}
+.mono{font-weight:600}
+.muted{color:#6B6E75}
+.pager{display:flex;justify-content:space-between;align-items:center;padding:14px 16px 0;border-top:1px solid #E3E3DE;font-size:13px;color:#6B6E75}
+.page{width:36px;height:36px;border-radius:18px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#16181D}
+.page.on{background:#16181D;color:#F6F6F3}
+.select{height:36px;padding:0 12px 0 14px;border-radius:18px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#16181D}
+.bulk{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);height:56px;padding:0 10px 0 20px;border-radius:28px;background:#16181D;color:#F6F6F3;display:flex;align-items:center;gap:6px;box-shadow:0 12px 40px rgba(22,24,29,0.24);font-size:14px;white-space:nowrap}
+.bulk .count{font-weight:600;padding-right:12px;margin-right:4px;border-right:1px solid #3A3D45}
+.bulk .act{height:36px;padding:0 14px;border-radius:18px;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#F6F6F3}
+.bulk .act.danger{color:#FF7A70}
+.field{display:flex;flex-direction:column;gap:6px}
+.label{font-size:13px;font-weight:600}
+.label .opt{font-weight:400;color:#6B6E75}
+.input{height:46px;border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:15px;color:#16181D}
+.input.error{border:1.5px solid #C62F2F}
+.input .ph{color:#6B6E75}
+.hint{font-size:12px;color:#6B6E75}
+.err{font-size:12px;color:#C62F2F;font-weight:500;display:flex;align-items:center;gap:6px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.section-title{font-size:17px;font-weight:600}
+.tabs{display:flex;gap:4px;border-bottom:1px solid #E3E3DE}
+.tab{height:40px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:#6B6E75;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:#16181D;font-weight:600;border-bottom-color:#16181D}
+.tab .n{font-size:12px;font-weight:500;color:#6B6E75}
+.iconbtn{width:32px;height:32px;border-radius:16px;border:none;background:transparent;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}
+.av{width:30px;height:30px;border-radius:15px;background:#EDEDE9;color:#16181D;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.av.dark{background:#16181D;color:#F6F6F3}
+.stack{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stack > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.small{font-size:12px;color:#6B6E75}
+.num{font-weight:500}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;font-size:14px}
+.kv dt{color:#6B6E75;margin:0} .kv dd{margin:0;font-weight:500}
+.notice{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:14px;font-size:13px;line-height:1.45}
+.notice.info{background:#EEF0FE;color:#16181D} .notice.warn{background:#FFF1DB;color:#16181D} .notice.danger{background:#FBE3E3;color:#16181D}
+.notice .ic{width:28px;height:28px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.overlay{position:absolute;inset:0;background:rgba(22,24,29,0.32);display:flex;align-items:center;justify-content:center}
+.dialog{width:520px;background:#FFFFFF;border-radius:28px;padding:28px;box-shadow:0 24px 64px rgba(22,24,29,0.28);display:flex;flex-direction:column;gap:18px}
+.radio{width:20px;height:20px;border-radius:10px;border:1.5px solid #B9B9B2;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+.radio.on{border:6px solid #2B3FF5}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:440px;background:#FFFFFF;border-left:1px solid #E3E3DE;box-shadow:-12px 0 40px rgba(22,24,29,0.10);display:flex;flex-direction:column}
+.diff-old{background:#FBE3E3;color:#16181D;border-radius:6px;padding:1px 6px;text-decoration:line-through;text-decoration-color:#C62F2F}
+.diff-new{background:#E4EFE3;color:#16181D;border-radius:6px;padding:1px 6px}
+.code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6B6E75}
+.toggle{width:36px;height:22px;border-radius:11px;background:#E3E3DE;position:relative;flex-shrink:0}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:8px;background:#FFFFFF;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.toggle.on{background:#2B3FF5} .toggle.on::after{left:17px}
+
+</style>
+</head>
+<body>
+<div class="app"><nav class="side" aria-label="Panel"><div class="brand"><div class="brand-mark"><svg width="25" height="25" viewBox="0 0 1024 1024" fill="none" stroke="#FFFFFF" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="314" cy="668" r="88"></circle><circle cx="710" cy="668" r="88"></circle><path d="M402 668 H622M710 668 L614 268M534 268 H684"></path></svg></div><div style="display:flex;flex-direction:column"><span class="brand-name">[nazwa]</span><span class="brand-sub">Panel operatora</span></div></div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"></rect><rect x="13" y="4" width="7" height="7" rx="2"></rect><rect x="4" y="13" width="7" height="7" rx="2"></rect><rect x="13" y="13" width="7" height="7" rx="2"></rect></svg>Pulpit</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"></path><path d="M9 4v14M15 6v14"></path></svg>Mapa floty</a><div class="nav-group">Operacje</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path></svg>Flota</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2"></circle><circle cx="18" cy="6" r="2"></circle><path d="M8 18h7a3 3 0 000-6H9a3 3 0 010-6h7"></path></svg>Przejazdy</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5a4 4 0 00-5 5L4 16l4 4 5.5-5.5a4 4 0 005-5l-2.5 2.5-2.5-.5-.5-2.5z"></path></svg>Zgłoszenia<span class="nav-badge">3</span></a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M3 12h18M10 12v2h4v-2"></path></svg>Serwis</a><div class="nav-group">Konfiguracja</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"></rect><path d="M10 16V8h3a2.5 2.5 0 010 5h-3"></path></svg>Strefy</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"></path><circle cx="7.5" cy="8.5" r="1.5"></circle></svg>Cennik i zasady</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"></path><path d="M14 3v5h5M10 13h6M10 17h6"></path></svg>Treści</a><div class="nav-group">Klienci i dostęp</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5"></path><path d="M16 4.5a3.5 3.5 0 010 7M18 15c2 .6 3.2 2.2 3.8 5"></path></svg>Użytkownicy</a><a href="#" class="nav-item active" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B3FF5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>Operatorzy i role</a><div class="nav-group">Analiza</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V12M12 20V5M19 20v-9"></path></svg>Raporty</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"></path><rect x="3" y="9" width="18" height="8" rx="2"></rect><path d="M7 14h10v7H7z"></path></svg>Wydruki</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"></path></svg>Symulator</a><div style="flex-grow:1"></div><div class="me"><span class="avatar">PM</span><div style="display:flex;flex-direction:column"><span style="font-size:13px;font-weight:500">Piotr Mazur</span><span style="font-size:12px;color:#6B6E75">Administrator</span></div><div style="flex-grow:1"></div><button type="button" class="iconbtn" aria-label="Wyloguj się" title="Wyloguj się"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l-5-5 5-5M5 12h11"></path></svg></button></div></nav><main><div style="font-size:13px;color:#6B6E75;display:flex;gap:6px"><a href="#" class="link" style="font-weight:500">Operatorzy</a><span>/</span><span>Anna Zielińska</span></div>
+<div style="margin-top:-8px"><div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px"><div style="display:flex;flex-direction:column;gap:4px"><h1>Anna Zielińska</h1><span class="sub">Operator od 3 marca 2026 · ostatnie logowanie dziś, 08:03 · wersja 6</span></div><div style="display:flex;align-items:center;gap:10px"><button type="button" class="btn ">Anuluj</button><button type="button" class="btn primary">Zapisz zmiany</button></div></div></div>
+<div style="display:grid;grid-template-columns:1fr 360px;gap:16px;min-height:0">
+<div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+<section class="card" style="padding:20px;display:flex;flex-direction:column;gap:16px"><span class="section-title">Dane</span>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px">
+<div class="field"><span class="label">Imię i nazwisko</span><div class="input">Anna Zielińska</div></div>
+<div class="field"><span class="label">E-mail służbowy</span><div class="input">anna.zielinska@operator.pl</div><span class="hint">Zmiana adresu wyloguje operatora ze wszystkich urządzeń</span></div>
+</div></section>
+<section class="card" style="padding:20px 20px 8px"><div style="display:flex;align-items:baseline;justify-content:space-between"><span class="section-title">Role</span><span class="small">Uprawnienia to suma zaznaczonych ról: 22 z 35</span></div>
+<div style="margin-top:12px">
+<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid #E3E3DE"><span class="cb" role="checkbox" aria-checked="false"></span><div class="stack" style="flex-grow:1"><span style="font-size:14px;font-weight:500">Administrator <span class="pill muted" style="height:20px;font-size:11px;margin-left:6px">systemowa</span></span><span class="small" style="white-space:normal;line-height:1.4">Pełny dostęp, w tym operatorzy, role i dziennik audytu</span></div><span class="small" style="white-space:nowrap">35 uprawnień · 2 osoby</span></div>
+<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid #E3E3DE"><span class="cb on" role="checkbox" aria-checked="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span><div class="stack" style="flex-grow:1"><span style="font-size:14px;font-weight:500">Dyspozytor <span class="pill muted" style="height:20px;font-size:11px;margin-left:6px">systemowa</span></span><span class="small" style="white-space:normal;line-height:1.4">Mapa floty, przejazdy, klienci, zgłoszenia i komendy zdalne</span></div><span class="small" style="white-space:nowrap">17 uprawnień · 4 osoby</span></div>
+<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid #E3E3DE"><span class="cb on" role="checkbox" aria-checked="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span><div class="stack" style="flex-grow:1"><span style="font-size:14px;font-weight:500">Serwisant <span class="pill muted" style="height:20px;font-size:11px;margin-left:6px">systemowa</span></span><span class="small" style="white-space:normal;line-height:1.4">Zadania serwisowe, części, flota bez zmian cennika i stref</span></div><span class="small" style="white-space:nowrap">9 uprawnień · 4 osoby</span></div>
+<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid #E3E3DE"><span class="cb" role="checkbox" aria-checked="false"></span><div class="stack" style="flex-grow:1"><span style="font-size:14px;font-weight:500">Koordynator serwisu</span><span class="small" style="white-space:normal;line-height:1.4">Serwis z raportem awaryjności i wydrukami protokołów</span></div><span class="small" style="white-space:nowrap">14 uprawnień · 0 osób</span></div>
+</div></section>
+</div>
+<div style="display:flex;flex-direction:column;gap:16px">
+<section class="card" style="padding:18px 20px 10px"><div style="display:flex;align-items:center;justify-content:space-between"><span class="section-title">Bezpieczeństwo</span><span class="pill accent">TOTP włączony</span></div>
+<div style="margin-top:10px">
+<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #E3E3DE"><span class="av" style="background:#F6F6F3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="2"></rect><path d="M2 19h20"></path></svg></span><span class="stack" style="flex-grow:1"><span style="font-size:14px">Chrome, macOS</span><span class="small">aktywna · dziś, 08:03 · Rybnik</span></span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #E3E3DE"><span class="av" style="background:#F6F6F3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="2"></rect><path d="M2 19h20"></path></svg></span><span class="stack" style="flex-grow:1"><span style="font-size:14px">Safari, macOS</span><span class="small">ostatnio 14 lis, 16:51</span></span></div>
+</div>
+<div style="display:flex;gap:8px;padding:12px 0 6px;border-top:1px solid #E3E3DE"><button type="button" class="btn "><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l-5-5 5-5M5 12h11"></path></svg>Wyloguj wszędzie</button><button type="button" class="btn "><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M11 12l8-8M16 7l2 2M14 9l2 2"></path></svg>Resetuj TOTP</button></div></section>
+<section class="card" style="padding:18px 20px"><span class="section-title">Historia zmian</span><div style="margin-top:8px">
+<div style="display:flex;gap:12px;padding:10px 0;border-top:none"><span style="width:8px;height:8px;border-radius:4px;margin-top:6px;flex-shrink:0;background:#2B3FF5"></span><div style="display:flex;flex-direction:column;gap:2px;font-size:13px"><span><b style="font-weight:600">Piotr Mazur</b> dodał rolę „Serwisant”</span><span class="muted" style="font-size:12px">12 lis, 09:14</span></div></div>
+<div style="display:flex;gap:12px;padding:10px 0;border-top:1px solid #E3E3DE"><span style="width:8px;height:8px;border-radius:4px;margin-top:6px;flex-shrink:0;background:#B9B9B2"></span><div style="display:flex;flex-direction:column;gap:2px;font-size:13px"><span><b style="font-weight:600">Anna Zielińska</b> włączyła TOTP</span><span class="muted" style="font-size:12px">3 mar, 10:58</span></div></div>
+<div style="display:flex;gap:12px;padding:10px 0;border-top:1px solid #E3E3DE"><span style="width:8px;height:8px;border-radius:4px;margin-top:6px;flex-shrink:0;background:#B9B9B2"></span><div style="display:flex;flex-direction:column;gap:2px;font-size:13px"><span><b style="font-weight:600">Piotr Mazur</b> zaprosił operatora z rolą „Dyspozytor”</span><span class="muted" style="font-size:12px">3 mar, 10:42</span></div></div>
+</div><a href="#" class="link" style="display:inline-block;margin-top:6px">Wszystkie wpisy w dzienniku audytu</a></section>
+<section class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:10px"><span class="section-title">Dezaktywacja</span><span style="font-size:13px;color:#6B6E75;line-height:1.45">Operator nie zaloguje się, a jego sesje zostaną zakończone. Konto i wpisy w dzienniku zostają.</span><button type="button" class="btn danger" style="align-self:flex-start">Dezaktywuj konto</button></section>
+</div></div></main></div>
+</body>
+</html>

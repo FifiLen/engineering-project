@@ -15,7 +15,7 @@ Uwagi do eksportu:
 - Plansze z katalogu `00-eksploracja` używały krojów Space Grotesk, JetBrains Mono, Bricolage Grotesque i DM Sans; na zrzutach zastąpiono je krojem systemowym. Obecny kierunek używa tylko Intera.
 - Liczby w makietach (np. 87%, 2,4 km, nazwiska w panelu) są przykładowe.
 
-Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **57**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
+Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **72**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
 
 ## Eksploracja kierunku (archiwum)
 
@@ -188,6 +188,44 @@ Odstępstwa od plansz panelu z kanwy:
 - **Eksport** domyślnie do XLSX (wymaganie 18), CSV w menu przycisku; makieta Flota ma tylko „Eksportuj CSV”.
 
 Implementacja w panelu (iteracja 1): mapa floty, Flota i wzorzec listy, filtrów, formularza i stanów; modele hulajnóg na tym samym wzorcu bez osobnej makiety. Odstępstwa od plansz opisuje [dziennik](../dziennik.md#iteracja-1-symulator-telemetria-i-wzorzec-panelu-16-listopada-2026).
+
+## Panel operatora: konta i dostęp
+
+Plansze przed iteracją 2 ([plan](../iteracje/iteracja-02-konta-dostep.md), [ADR 0019](../adr/0019-uwierzytelnianie.md), [ADR 0028](../adr/0028-uzytkownicy-role-uprawnienia.md)). Powstały w repozytorium (16 listopada 2026) na stylach i nawigacji z planszy `17-panel-wzorce/wzorzec-formularz`; logowanie ma lewą kolumnę z `13-panel/admin-logowanie`.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Logowanie – kod TOTP (błędny kod) | [PNG](ekrany/18-panel-dostep/dostep-logowanie-totp.png) | [HTML](ekrany/18-panel-dostep/dostep-logowanie-totp.html) | 1440×900 |
+| Konfiguracja TOTP | [PNG](ekrany/18-panel-dostep/dostep-totp-konfiguracja.png) | [HTML](ekrany/18-panel-dostep/dostep-totp-konfiguracja.html) | 1440×900 |
+| Aktywacja konta z zaproszenia | [PNG](ekrany/18-panel-dostep/dostep-aktywacja.png) | [HTML](ekrany/18-panel-dostep/dostep-aktywacja.html) | 1440×900 |
+| Operatorzy – lista | [PNG](ekrany/18-panel-dostep/dostep-operatorzy.png) | [HTML](ekrany/18-panel-dostep/dostep-operatorzy.html) | 1440×900 |
+| Operator – formularz | [PNG](ekrany/18-panel-dostep/dostep-operator-formularz.png) | [HTML](ekrany/18-panel-dostep/dostep-operator-formularz.html) | 1440×900 |
+| Role – lista | [PNG](ekrany/18-panel-dostep/dostep-role.png) | [HTML](ekrany/18-panel-dostep/dostep-role.html) | 1440×900 |
+| Rola – macierz uprawnień | [PNG](ekrany/18-panel-dostep/dostep-rola-uprawnienia.png) | [HTML](ekrany/18-panel-dostep/dostep-rola-uprawnienia.html) | 1440×900 |
+| Dziennik audytu ze szczegółami wpisu | [PNG](ekrany/18-panel-dostep/dostep-audyt.png) | [HTML](ekrany/18-panel-dostep/dostep-audyt.html) | 1440×900 |
+| Klient – szczegóły | [PNG](ekrany/18-panel-dostep/dostep-klient.png) | [HTML](ekrany/18-panel-dostep/dostep-klient.html) | 1440×900 |
+| Klient – blokada konta | [PNG](ekrany/18-panel-dostep/dostep-klient-blokada.png) | [HTML](ekrany/18-panel-dostep/dostep-klient-blokada.html) | 1440×900 |
+| Dokumenty prawne – wersje | [PNG](ekrany/18-panel-dostep/dostep-dokumenty.png) | [HTML](ekrany/18-panel-dostep/dostep-dokumenty.html) | 1440×900 |
+| Dokument – wersja robocza | [PNG](ekrany/18-panel-dostep/dostep-dokument-wersja.png) | [HTML](ekrany/18-panel-dostep/dostep-dokument-wersja.html) | 1440×900 |
+
+Elementy plansz:
+
+- **Logowanie** w dwóch krokach (hasło z `13-panel/admin-logowanie`, potem kod TOTP w polu kodu z design systemu). Błąd mówi, ile prób zostało; po 5 nieudanych logowanie jest wstrzymane na 15 minut. Zaproszony operator ustawia hasło (krok 1 z 2) i włącza TOTP (krok 2 z 2); ten sam ekran TOTP pojawia się po resecie przez administratora.
+- **Operatorzy i role** to jedna pozycja nawigacji z zakładkami Operatorzy, Role i Dziennik audytu. Formularz operatora: role jako lista pól wyboru z liczbą uprawnień, sesje z wylogowaniem wszędzie, reset TOTP, historia zmian i dezaktywacja w osobnej karcie.
+- **Macierz uprawnień**: wiersz na moduł z polem „wszystkie” (także stan częściowy) i uprawnieniami jako pola wyboru; niezapisane zmiany są obramowane (dodane kobaltem, odebrane czerwoną przerywaną linią) i podsumowane przy przycisku zapisu. Kod uprawnienia w podpowiedzi.
+- **Dziennik audytu** tylko do odczytu: lista z filtrami i panel boczny z polami przed i po zmianie. Klient: zgody z wersją dokumentu i informacją, czy wersja obowiązuje; telefon zmienia tylko klient. Blokada wymaga powodu widocznego dla klienta; notatka zostaje w dzienniku.
+- **Dokumenty prawne** to pierwsza zakładka Treści (pozostałe w iteracji 7). Opublikowanej wersji nie można zmienić; publikacja działa od razu, a aplikacja prosi klientów o ponowną akceptację z polem „Najważniejsze zmiany”.
+- Blok operatora na dole nawigacji ma przycisk wylogowania.
+
+## Aplikacja: konta i dostęp
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Nowa wersja regulaminu | [PNG](ekrany/19-mobile-dostep/konto-nowa-wersja.png) | [HTML](ekrany/19-mobile-dostep/konto-nowa-wersja.html) | 390×844 |
+| Konto zablokowane | [PNG](ekrany/19-mobile-dostep/konto-zablokowane.png) | [HTML](ekrany/19-mobile-dostep/konto-zablokowane.html) | 390×844 |
+| Kod SMS – wyczerpane próby | [PNG](ekrany/19-mobile-dostep/konto-kod-proby.png) | [HTML](ekrany/19-mobile-dostep/konto-kod-proby.html) | 390×844 |
+
+Pozostałe ekrany rejestracji i logowania są w sekcjach „Aplikacja: przepływ główny” i „Aplikacja: konto i pierwsze uruchomienie”.
 
 ## Strona promocyjna (pierwsza iteracja)
 
