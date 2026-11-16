@@ -61,6 +61,8 @@ describe.skipIf(!adminUrl)('flota i telemetria w bazie', () => {
     const url = new URL(adminUrl!);
     url.pathname = `/${dbName}`;
     pool = new Pool({ connectionString: url.toString() });
+    // DROP DATABASE ... WITH (FORCE) w afterAll może zamknąć połączenie, które pula właśnie kończy.
+    pool.on('error', () => undefined);
     await runMigrations(pool);
     await seedDatabase(pool, { places, fleetSize: 6, admin: { email: 'a@test.local', name: 'A', passwordHash: 'x' } });
     // Stan floty do testów list: 1–3 online z różną baterią, 4 w serwisie, 5 offline, 6 wycofana.

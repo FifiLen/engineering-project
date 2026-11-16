@@ -35,7 +35,7 @@ Wnioski z makiet dla zakresu:
   - widoki `v_audit_log` (z nazwą operatora), `v_roles_overview` (liczba uprawnień i operatorów), `v_user_consents` (zgody z wersją i informacją, czy wersja obowiązuje), rozszerzone `v_staff_overview` i `v_user_activity`; funkcja `fn_user_pending_documents(user_id)`; procedury `sp_revoke_user_sessions(user_id)` i `sp_revoke_staff_sessions(staff_id)`;
   - strażnik ostatniego operatora z `roles.manage` w bazie (odroczone wyzwalacze ograniczeń, `fn_check_role_manager`), uzupełniający regułę z core;
   - indeksy dziennika audytu (historia rekordu, lista według czasu i operatora).
-- [ ] **`packages/core`** (`access`, nowy `accounts`):
+- [x] **`packages/core`** (`access/roles`, nowe `accounts` i `audit`; porty repozytoriów razem z repozytoriami w `packages/db`):
   - kod SMS: 6 cyfr, ważny 5 min, 5 prób, ponowne wysłanie po 60 s, limit kodów na numer na godzinę;
   - sesje: rotacja tokenu odświeżającego, ponowne użycie starego tokenu unieważnia całą rodzinę sesji;
   - logowanie operatora: blokada po 5 nieudanych próbach na 15 min, TOTP z oknem ±1 krok, zaproszenie ważne 72 h;

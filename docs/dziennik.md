@@ -259,3 +259,24 @@ Plan: [iteracja 2](iteracje/iteracja-02-konta-dostep.md).
 - Funkcja `fn_user_missing_consents` z planu nazywa się `fn_user_pending_documents` i zwraca dokumenty do akceptacji z „najważniejszymi zmianami”, bo tego potrzebuje ekran aplikacji.
 - Do planu doszedł strażnik ostatniego zarządzającego rolami w bazie (zasada „spójność pilnuje baza”).
 
+## Iteracja 2: reguły kont i dostępu w `packages/core` (16 listopada 2026)
+
+**Co powstało**
+- `accounts/otp.ts`: numer telefonu w E.164 (9 cyfr bez prefiksu to numer polski), kod 6 cyfr ważny 5 min, 5 prób, odstęp 60 s między kodami i 5 kodów na numer na godzinę (`RATE_LIMITED` z czasem oczekiwania), ocena wpisanego kodu z informacją, czy próbę trzeba zapisać.
+- `accounts/sessions.ts`: token dostępowy 15 min, odświeżający 30 dni (klient) albo 12 h i 7 dni po „Zapamiętaj to urządzenie” (operator); rotacja tokenu, unieważnienie całej rodziny przy ponownym użyciu zastąpionego tokenu, 10 s tolerancji na dwa równoległe odświeżenia.
+- `accounts/staff-login.ts`: ten sam błąd dla nieistniejącego, nieaktywnego i zaproszonego konta, blokada na 15 min po 5 nieudanych próbach (hasło i TOTP razem), liczba pozostałych prób tylko przy kodzie TOTP, okno TOTP ±1 krok bez ponownego użycia kroku, wymagania hasła z ekranu aktywacji, zaproszenie ważne 72 h.
+- `accounts/customers.ts`: następny ekran klienta po zalogowaniu (dane, zgody, blokada, mapa), wymagane zgody (regulamin, polityka, wiek), warunki wypożyczenia na iterację 3, zakończenie rejestracji, blokada i odblokowanie, akceptacja tylko obowiązującej wersji dokumentu.
+- `accounts/legal-documents.ts`: edycja tylko wersji roboczej, jedna wersja robocza na dokument, kolejna wersja dokumentu ze zgodą wymaga „najważniejszych zmian”.
+- `access/roles.ts`: usuwanie ról (systemowa i przypisana nie), uprawnienia tylko z katalogu, różnica uprawnień, zakaz zmiany własnych ról i dezaktywacji siebie, liczba zarządzających rolami po planowanej zmianie.
+- `audit/audit.ts`: zmienione pola (przed i po) z pominięciem wersji, wartości haseł, sekretów, tokenów i skrótów zastąpione `[REDACTED]`, format akcji `obiekt.czynność`.
+
+**Weryfikacja**
+- `pnpm lint && pnpm typecheck && pnpm test`: 165 testów (71 core, w tym 33 nowe; 18 shared, 17 symulatora, 39 bazy, 20 API). Reguła lintera potwierdza, że core nie używa `node:*`: skróty, HMAC dla TOTP i losowanie kodów zostają w adapterach API.
+
+**Błędy znalezione w trakcie**
+- `fleet.test.ts` (iteracja 1) nie miał obsługi błędów puli, więc `DROP DATABASE ... WITH (FORCE)` w `afterAll` raz zgłosił nieobsłużony błąd zamykanego połączenia, choć wszystkie testy przeszły. Dodana obsługa jak w `db.test.ts`.
+
+**Zmiany względem planu**
+- Porty repozytoriów kont powstaną razem z repozytoriami w `packages/db`, żeby ich kształt wynikał z zapytań, a nie z założeń.
+- Czas sesji operatora (12 h, 7 dni po zapamiętaniu urządzenia) i tolerancja równoległych odświeżeń to decyzje do ADR o sesjach, który powstanie z modułem `staff-auth`.
+
