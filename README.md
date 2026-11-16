@@ -10,8 +10,9 @@ Projekt inżynierski: aplikacja mobilna, panel operatora, backend i symulator fl
 | `apps/web` | Next.js: strona promocyjna i panel operatora (`/admin`) |
 | `apps/mobile` | Aplikacja mobilna w Expo |
 | `apps/simulator` | Symulator floty, klient MQTT |
+| `packages/core` | Logika biznesowa bez frameworka: maszyna stanów przejazdu, reguły stref, uprawnienia, porty repozytoriów ([ADR 0025](docs/adr/0025-logika-biznesowa-packages-core.md)) |
 | `packages/shared` | Schematy Zod kontraktu MQTT, formatowanie kwot |
-| `packages/db` | Migracje SQL, schemat Drizzle, dane startowe dla Rybnika |
+| `packages/db` | Migracje SQL, schemat Drizzle, repozytoria (implementacje portów z core), dane startowe dla Rybnika |
 | `infra/` | Docker Compose: PostGIS, Mosquitto, SeaweedFS (S3), OSRM |
 
 ## Wymagania

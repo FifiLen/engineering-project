@@ -6,10 +6,13 @@ import { randomUUID } from 'node:crypto';
 import { copyFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { OPEN_RENTAL_STATES, PERMISSIONS, RENTAL_STATES, RentalStateMachine, type RentalState } from '@hulajnogi/core';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createDb } from './client.js';
 import { migrationsDir, runMigrations } from './migrator.js';
 import type { PlacesFile } from './places.js';
+import { DrizzleZoneRepository } from './repositories/zones.repository.js';
 import { seedDatabase } from './seed.js';
 
 const adminUrl = process.env.DATABASE_URL;
@@ -297,5 +300,39 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     await expect(insert()).rejects.toThrow(/service_tasks_one_open_per_type/);
     const fleet = await pool.query(`SELECT open_service_tasks FROM v_fleet_status WHERE number = 3`);
     expect(fleet.rows[0]).toEqual({ open_service_tasks: '1' });
+  });
+
+  it('katalog uprawnień w bazie zgadza się z katalogiem w packages/core', async () => {
+    const { rows } = await pool.query<{ code: string }>(`SELECT code FROM permissions ORDER BY code`);
+    expect(rows.map((r) => r.code)).toEqual([...PERMISSIONS].sort());
+  });
+
+  it('typ rental_state i indeksy jednego otwartego przejazdu zgadzają się z maszyną stanów', async () => {
+    const states = await pool.query<{ s: string }>(`SELECT unnest(enum_range(NULL::rental_state))::text AS s`);
+    expect(states.rows.map((r) => r.s)).toEqual([...RENTAL_STATES]);
+
+    const { rows } = await pool.query<{ indexdef: string }>(
+      `SELECT indexdef FROM pg_indexes WHERE indexname IN ('rentals_one_open_per_scooter', 'rentals_one_open_per_user')`,
+    );
+    expect(rows).toHaveLength(2);
+    for (const { indexdef } of rows) {
+      const inIndex = RENTAL_STATES.filter((state) => indexdef.includes(`'${state}'`));
+      expect(inIndex).toEqual([...OPEN_RENTAL_STATES]);
+    }
+  });
+
+  it('każde przejście stanu zapisane w bazie (także przez procedury) jest dozwolone w core', async () => {
+    const { rows } = await pool.query<{ from_state: RentalState; to_state: RentalState }>(
+      `SELECT DISTINCT from_state::text, to_state::text FROM rental_events WHERE type = 'STATE_CHANGED'`,
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const { from_state, to_state } of rows) expect(RentalStateMachine.isAllowed(from_state, to_state)).toBe(true);
+  });
+
+  it('DrizzleZoneRepository zwraca strefy w punkcie przez fn_zones_at_point', async () => {
+    const zones = await new DrizzleZoneRepository(createDb(pool)).findAt({ lat: 50.0, lon: 18.5 });
+    expect(zones.map((z) => z.code)).toEqual(['S-01', 'P-01', 'AREA-TEST']);
+    expect(zones[0]).toMatchObject({ type: 'SLOW', speedLimitKmh: 10 });
+    expect(await new DrizzleZoneRepository(createDb(pool)).findAt({ lat: 52.2, lon: 21.0 })).toEqual([]);
   });
 });

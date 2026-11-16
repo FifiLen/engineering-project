@@ -6,6 +6,9 @@ import { telemetry } from './schema/telemetry.js';
 
 export const fullSchema = { ...tables, ...relations, telemetry };
 export type Database = NodePgDatabase<typeof fullSchema>;
+/** Transakcja Drizzle; repozytoria przyjmują ją zamiast bazy, żeby kilka zapisów tworzyło jedną jednostkę pracy. */
+export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+export type DbExecutor = Database | Transaction;
 
 export function createPool(connectionString: string): Pool {
   return new Pool({ connectionString, max: 10 });

@@ -19,12 +19,12 @@ export class ZonesController {
   @ApiQuery({ name: 'lon', type: Number, example: 18.5419 })
   @ApiOkResponse({ description: 'Strefy zawierające punkt, od najbardziej restrykcyjnej' })
   async lookup(@Query(new ZodPipe(lookupQuery)) query: z.infer<typeof lookupQuery>) {
-    const zones = await this.zones.findAt(query.lat, query.lon);
+    const { zones, rules } = await this.zones.lookup(query);
     return {
       point: query,
-      insideServiceArea: zones.some((z) => z.type === 'SERVICE_AREA'),
-      canPark: zones.some((z) => z.type === 'PARKING') && !zones.some((z) => z.type === 'NO_RIDE'),
-      zones,
+      insideServiceArea: rules.insideServiceArea,
+      canPark: rules.canPark,
+      zones: zones.map(({ code, name, type, speedLimitKmh }) => ({ code, name, type, speedLimitKmh })),
     };
   }
 }

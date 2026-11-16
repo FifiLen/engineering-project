@@ -1,27 +1,20 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Pool } from 'pg';
-import { DB_POOL } from '../database/database.module.js';
+import { evaluatePosition, type GeoPoint, type PositionRules, type Zone, type ZoneRepository } from '@hulajnogi/core';
 
-export interface ZoneAtPoint {
-  code: string;
-  name: string;
-  type: 'SERVICE_AREA' | 'PARKING' | 'SLOW' | 'NO_RIDE';
-  speedLimitKmh: number | null;
+export const ZONE_REPOSITORY = Symbol('ZONE_REPOSITORY');
+
+export interface PositionLookup {
+  zones: Zone[];
+  rules: PositionRules;
 }
 
+/** Serwis aplikacyjny: dane z repozytorium, reguły z packages/core. */
 @Injectable()
 export class ZonesService {
-  constructor(@Inject(DB_POOL) private readonly pool: Pool) {}
+  constructor(@Inject(ZONE_REPOSITORY) private readonly zones: ZoneRepository) {}
 
-  /** Aktywne strefy zawierające punkt; zapytanie korzysta z indeksu GiST (ADR 0010). */
-  async findAt(lat: number, lon: number): Promise<ZoneAtPoint[]> {
-    const { rows } = await this.pool.query<ZoneAtPoint>(
-      `SELECT code, name, type, speed_limit_kmh AS "speedLimitKmh"
-         FROM zones
-        WHERE active AND ST_Contains(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326))
-        ORDER BY CASE type WHEN 'NO_RIDE' THEN 0 WHEN 'SLOW' THEN 1 WHEN 'PARKING' THEN 2 ELSE 3 END, code`,
-      [lon, lat],
-    );
-    return rows;
+  async lookup(point: GeoPoint): Promise<PositionLookup> {
+    const zones = await this.zones.findAt(point);
+    return { zones, rules: evaluatePosition(zones) };
   }
 }

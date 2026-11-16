@@ -21,6 +21,7 @@
     "pull": "drizzle-kit pull && node scripts/postprocess-schema.mjs && prettier --write src/schema"
   },
   "dependencies": {
+    "@hulajnogi/core": "workspace:*",
     "drizzle-orm": "^0.45.0",
     "pg": "^8.16.0"
   },

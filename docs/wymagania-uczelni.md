@@ -37,14 +37,14 @@ Warunek zaliczenia: wykonanie, prezentacja i obrona z pytaniami z kodu.
 | 1 | spełnione | Wypożyczalnia hulajnóg z operatorem floty | Opisać cele biznesowe i mierniki w arc42 §1 |
 | 2 | spełnione | Wzorce z usług typu Lime, Bolt, Tier | Krótki przegląd rozwiązań rynkowych w pracy |
 | 3a | spełnione | Aplikacja mobilna (Expo) i internetowa (Next.js) | — |
-| 3b | częściowo | `packages/db` istnieje, ale API (np. `ZonesService`, `HealthController`) używa surowego `pg` poza tym pakietem | Cały dostęp do danych przez `packages/db` (repozytoria), także zapytania PostGIS |
-| 3c | **brak** | Logika ma żyć w modułach `apps/api`, nie ma osobnego projektu | Wydzielić `packages/core`: czyste klasy domeny bez frameworka (maszyna stanów przejazdu, wycena, reguły stref, uprawnienia), testowane jednostkowo; `apps/api` tylko je wywołuje |
+| 3b | spełnione | `packages/db`: migracje, schemat Drizzle, repozytoria; API nie importuje `pg` (pilnuje lint) | Nowe moduły dostają repozytoria w `packages/db` |
+| 3c | spełnione | `packages/core`: maszyna stanów przejazdu, reguły stref, katalog i polityka uprawnień, porty repozytoriów; testy jednostkowe bez bazy ([ADR 0025](adr/0025-logika-biznesowa-packages-core.md)) | Rozwijać razem z modułami (wycena w iteracji płatności) |
 | 4 | spełnione | Obie aplikacje korzystają z bazy i logiki przez wspólne API | Dostęp przez wspólny backend potwierdzony (pytanie 2); opisać w pracy |
 | 5 | spełnione | TypeScript, Node.js, React, React Native | Stos potwierdzony (pytanie 1) |
 | 6 | spełnione, do opisania | MVC w API (kontrolery, serwisy), moduły i wstrzykiwanie zależności, Repozytorium, Stan (przejazd), Adapter (SMS, płatności, mapy), Obserwator (zdarzenia), w klientach komponenty i hooki | Rozdział o wzorcach z odniesieniami do kodu |
 | 7 | spełnione | PostgreSQL 16 w kontenerze | PostgreSQL potwierdzony (pytanie 1) |
 | 8 | spełnione | Po migracji 0002: 46 tabel, 13 widoków, 6 funkcji, 6 procedur, indeksy (GiST, częściowe, unikalne); liczby sprawdza test bazy ([model danych](model-danych/README.md), [ADR 0026](adr/0026-logika-w-bazie-widoki-funkcje-procedury.md)) | Korzystać z widoków, funkcji i procedur w repozytoriach `packages/db` |
-| 9 | częściowo | Drizzle ORM jest, ale część kodu używa surowego `pg` | Dostęp do danych wyłącznie przez Drizzle (PostGIS przez `sql` z Drizzle); Drizzle potwierdzony (pytanie 3) |
+| 9 | spełnione | Dostęp do danych w aplikacji przez Drizzle (widoki jako `pgView`, funkcje PostGIS przez `sql`); surowy `pg` tylko w migratorze, seedzie i testach | Dostęp do danych wyłącznie przez Drizzle (PostGIS przez `sql` z Drizzle); Drizzle potwierdzony (pytanie 3) |
 | 10 | zaplanowane | ADR 0019: kod SMS dla użytkowników, hasło + TOTP dla operatorów | Jeden moduł uwierzytelniania i jeden format tokenów dla obu aplikacji; rozważyć strefę klienta w webie na tym samym koncie |
 | 11 | **brak** | Role operatorów jako stały typ `staff_role` (3 wartości) | Uprawnienia w bazie: role, uprawnienia, przypisania; ekrany w panelu (lista ról, edycja uprawnień, przypisywanie użytkowników) |
 | 12 | **brak** | Makiety panelu pokrywają część tabel | Wspólny wzorzec widoku tabeli (lista z filtrowaniem, sortowaniem, stronicowaniem + formularz) dla każdej tabeli. Tabele tylko do dopisywania mają ograniczone operacje (pytanie 4, [ADR 0031](adr/0031-wzorzec-widoku-tabeli-w-panelu.md)) |
@@ -80,6 +80,6 @@ Odpowiedzi przekazane przez autora 2026-11-16 (pod każdym pytaniem).
 1. Zadać pytania prowadzącemu; odpowiedzi zapisać w tym pliku. **Zrobione (2026-11-16).**
 2. ADR-y: osobny projekt logiki (`packages/core`), zakres logiki w bazie (widoki, funkcje, procedury), moduł treści, uprawnienia (RBAC), raporty i wydruki. **Zrobione (2026-11-16), zaakceptowane:** [0025](adr/0025-logika-biznesowa-packages-core.md), [0026](adr/0026-logika-w-bazie-widoki-funkcje-procedury.md), [0027](adr/0027-tresci-sterowane-z-panelu.md), [0028](adr/0028-uzytkownicy-role-uprawnienia.md), [0029](adr/0029-raporty-pdf-xlsx.md), [0030](adr/0030-wydruki-z-szablonow-docx.md), [0031](adr/0031-wzorzec-widoku-tabeli-w-panelu.md) (wzorzec widoku tabeli, punkt 12).
 3. Migracja `0002`: uprawnienia, treści i media, szablony wydruków i wygenerowane dokumenty, definicje raportów, paragony, modele hulajnóg i zadania serwisowe; widoki, funkcje, procedury. **Zrobione (2026-11-16):** [`0002_admin_modules.sql`](../packages/db/migrations/0002_admin_modules.sql), macierz operacji w panelu w [modelu danych](model-danych/README.md).
-4. Refaktoryzacja: `packages/core`, dostęp do danych tylko przez `packages/db` i Drizzle.
+4. Refaktoryzacja: `packages/core`, dostęp do danych tylko przez `packages/db` i Drizzle. **Zrobione (2026-11-16).**
 5. Aktualizacja planu iteracji o moduły: treści i uprawnienia, raporty i wydruki, serwis.
 6. Makiety nowych ekranów panelu: role i uprawnienia, wzorzec widoku tabeli, edytor treści, biblioteka mediów, raporty, szablony wydruków.

@@ -1,3 +1,4 @@
+import { DomainError } from '@hulajnogi/core';
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import type { ApiErrorBody } from './api-error.js';
@@ -24,6 +25,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
           ? (response as ApiErrorBody)
           : { code: DEFAULT_CODES[status] ?? 'ERROR', message: exception.message };
       void reply.status(status).send(body);
+      return;
+    }
+    if (exception instanceof DomainError) {
+      // Naruszenie reguły domeny z packages/core; klient tłumaczy komunikat po kodzie (ADR 0027).
+      const status = exception.code === 'FORBIDDEN' ? HttpStatus.FORBIDDEN : HttpStatus.CONFLICT;
+      void reply
+        .status(status)
+        .send({ code: exception.code, message: exception.message, details: exception.details } satisfies ApiErrorBody);
       return;
     }
     this.logger.error(exception);

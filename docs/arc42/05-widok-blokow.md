@@ -51,8 +51,9 @@ apps/
   api/         backend (NestJS)
   simulator/   symulator floty
 packages/
+  core/        logika biznesowa i porty repozytoriów, bez frameworka (ADR 0025)
   shared/      schematy Zod, formaty wiadomości MQTT, typy zdarzeń
-  db/          schemat Drizzle i migracje
+  db/          migracje, schemat Drizzle i repozytoria (implementacje portów z core)
 docs/          dokumentacja
 infra/         Docker Compose, konfiguracja Mosquitto, OSRM, Caddy
 ```
