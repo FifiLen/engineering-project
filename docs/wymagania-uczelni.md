@@ -69,7 +69,7 @@ Warunek zaliczenia: wykonanie, prezentacja i obrona z pytaniami z kodu.
 ## Plan dostosowania (przed iteracją 1)
 
 1. Zadać pytania prowadzącemu; odpowiedzi zapisać w tym pliku.
-2. ADR-y: osobny projekt logiki (`packages/core`), zakres logiki w bazie (widoki, funkcje, procedury), moduł treści, uprawnienia (RBAC), raporty i wydruki.
+2. ADR-y: osobny projekt logiki (`packages/core`), zakres logiki w bazie (widoki, funkcje, procedury), moduł treści, uprawnienia (RBAC), raporty i wydruki. **Propozycje gotowe (2026-11-16):** [0025](adr/0025-logika-biznesowa-packages-core.md), [0026](adr/0026-logika-w-bazie-widoki-funkcje-procedury.md), [0027](adr/0027-tresci-sterowane-z-panelu.md), [0028](adr/0028-uzytkownicy-role-uprawnienia.md), [0029](adr/0029-raporty-pdf-xlsx.md), [0030](adr/0030-wydruki-z-szablonow-docx.md); do akceptacji przez autora, po odpowiedziach prowadzącego.
 3. Migracja `0002`: uprawnienia, treści i media, szablony wydruków i wygenerowane dokumenty, definicje raportów, paragony, modele hulajnóg i zadania serwisowe; widoki, funkcje, procedury.
 4. Refaktoryzacja: `packages/core`, dostęp do danych tylko przez `packages/db` i Drizzle.
 5. Aktualizacja planu iteracji o moduły: treści i uprawnienia, raporty i wydruki, serwis.

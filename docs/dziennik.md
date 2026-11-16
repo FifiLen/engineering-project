@@ -60,3 +60,24 @@ Pierwsze zapytania trafiły źle w dwóch miejscach: dla dworca nie było wyniku
 - Aplikacja mobilna używa ESLint 9 (oznaczonego jako przestarzały), bo `eslint-plugin-react` z `eslint-config-expo` nie działa z ESLint 10. Reszta repozytorium używa ESLint 10.
 - Wygenerowany `schema.ts` jest wyłączony z lintu (literały `maxValue` sekwencji przekraczają precyzję `number`).
 
+
+## Dostosowanie do wymagań uczelni (16 listopada 2026)
+
+**Co powstało**
+- [Wymagania uczelni](wymagania-uczelni.md): 19 punktów, analiza zgodności, siedem pytań do prowadzącego i plan dostosowania przed iteracją 1.
+- Makiety, design system, tokeny, rendery i ikona przeniesione z kanwy claude.ai do [`projekt/`](projekt/README.md); repozytorium jest teraz źródłem prawdy.
+- Propozycje ADR 0025–0030: osobny projekt logiki `packages/core` z portami i adapterami, podział pracy między bazą a core (widoki `v_*`, funkcje `fn_*`, procedury `sp_*`), teksty i treści sterowane z panelu (katalog kluczy w bazie), role i uprawnienia operatorów, raporty PDF i XLSX, wydruki z szablonów DOCX.
+
+**Weryfikacja**
+- Analiza zgodna z kodem: migracja 0001 tworzy 24 tabele (plus partycję `telemetry_default`); surowy `pg` poza `packages/db` jest w `ZonesService` i `HealthController`.
+- Biblioteki sprawdzone w rejestrze npm 16 listopada 2026: docxtemplater 3.71.1 (MIT, moduł inspekcji szablonu w wersji darmowej), intl-messageformat 12.1.5, ExcelJS 4.4.0 (ostatnie wydanie z października 2023 r., ryzyko opisane w ADR 0029). Gotenberg publikuje obrazy 9.x; konkretny tag wybieramy przy wprowadzeniu modułu.
+
+**Zmiany względem planu**
+- Punkt 17 przyjęty w najszerszej interpretacji (wszystkie teksty interfejsu w bazie), żeby nie przerabiać ekranów po odpowiedzi na pytanie 5.
+- Typ `staff_role` zostanie zastąpiony tabelami ról i uprawnień w migracji 0002.
+
+**Otwarte kwestie**
+- Odpowiedzi prowadzącego na pytania 1–7; ADR 0025–0030 pozostają proponowane do czasu odpowiedzi i akceptacji autora.
+- Punkt 14: bez trybu ciemnego i stanów ekranów jest ok. 40 widoków; zapas dadzą nowe ekrany panelu.
+- Brakuje decyzji o wspólnym wzorcu widoku tabeli w panelu (punkt 12: filtrowanie, sortowanie, stronicowanie, ograniczone operacje dla tabel tylko do dopisywania).
+- Materiały z wykładu Interakcja Człowiek–Komputer do punktu 16.

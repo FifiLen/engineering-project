@@ -28,3 +28,9 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0022 | [NestJS 12 i moduły ESM w całym repozytorium](0022-nestjs-12-esm.md) | zaakceptowana |
 | 0023 | [TypeScript 6.0](0023-typescript-6.md) | zaakceptowana |
 | 0024 | [Magazyn plików zgodny z S3: SeaweedFS](0024-magazyn-plikow-seaweedfs.md) | zaakceptowana |
+| 0025 | [Osobny projekt logiki biznesowej (`packages/core`) i dostęp do danych tylko przez `packages/db`](0025-logika-biznesowa-packages-core.md) | proponowana |
+| 0026 | [Co robi baza: widoki, funkcje i procedury](0026-logika-w-bazie-widoki-funkcje-procedury.md) | proponowana |
+| 0027 | [Teksty, treści i grafiki sterowane z panelu](0027-tresci-sterowane-z-panelu.md) | proponowana |
+| 0028 | [Użytkownicy, role i uprawnienia zarządzane w panelu](0028-uzytkownicy-role-uprawnienia.md) | proponowana |
+| 0029 | [Raporty z parametrami i eksportem do PDF i XLSX](0029-raporty-pdf-xlsx.md) | proponowana |
+| 0030 | [Wydruki z szablonów DOCX zmienianych przez użytkownika](0030-wydruki-z-szablonow-docx.md) | proponowana |
