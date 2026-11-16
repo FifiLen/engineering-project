@@ -28,14 +28,12 @@ export const REDACTED = '[REDACTED]';
  * Pola zmienione między stanem przed i po zapisie. Porównuje tylko pola obecne w `after` (zapis
  * częściowy), pomija `version` i `updatedAt`, a daty porównuje po wartości.
  */
-export function diffForAudit(
-  before: Readonly<Record<string, unknown>>,
-  after: Readonly<Record<string, unknown>>,
-): Record<string, FieldChange> {
+export function diffForAudit(before: object, after: object): Record<string, FieldChange> {
   const changes: Record<string, FieldChange> = {};
+  const previous = before as Readonly<Record<string, unknown>>;
   for (const [field, next] of Object.entries(after)) {
     if (field === 'version' || field === 'updatedAt' || next === undefined) continue;
-    const prev = before[field];
+    const prev = previous[field];
     if (sameValue(prev, next)) continue;
     changes[field] = SECRET_FIELD.test(field) ? [REDACTED, REDACTED] : [normalize(prev), normalize(next)];
   }

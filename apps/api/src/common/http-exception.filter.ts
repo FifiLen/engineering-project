@@ -32,6 +32,7 @@ const DOMAIN_STATUS: Record<string, HttpStatus> = {
   WEAK_PASSWORD: HttpStatus.BAD_REQUEST,
   VALIDATION_FAILED: HttpStatus.BAD_REQUEST,
   AGE_NOT_CONFIRMED: HttpStatus.BAD_REQUEST,
+  UNKNOWN_PERMISSION: HttpStatus.BAD_REQUEST,
 };
 
 @Catch()

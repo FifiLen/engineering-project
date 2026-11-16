@@ -1,4 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { AccessModule } from './access/access.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CONFIG, type AppConfig } from './config.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -16,7 +17,7 @@ export class AppModule {
     return {
       module: AppModule,
       global: true,
-      imports: [DatabaseModule, AuthModule, MqttModule, RealtimeModule, ZonesModule, FleetModule, TelemetryModule],
+      imports: [DatabaseModule, AuthModule, AccessModule, MqttModule, RealtimeModule, ZonesModule, FleetModule, TelemetryModule],
       controllers: [HealthController],
       providers: [{ provide: CONFIG, useValue: config }],
       exports: [CONFIG],

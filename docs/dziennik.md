@@ -329,3 +329,25 @@ Plan: [iteracja 2](iteracje/iteracja-02-konta-dostep.md).
 - Treść SMS-a jest w kodzie API do czasu szablonów powiadomień w iteracji 6 (ADR 0027).
 - Zasoby panelu dla operatorów, ról, klientów, dziennika i dokumentów oraz dziennik audytu dla zapisów floty to następny krok API.
 
+## Iteracja 2: zasoby panelu i dziennik audytu w API (16 listopada 2026)
+
+**Co powstało**
+- `AuditedTransaction`: zapis operatora i wpis w `audit_log` w jednej transakcji, autor z tokenu; reguły bazy (strażnik `LAST_ROLE_MANAGER`, unikalność) wracają jako błędy domeny także przy zatwierdzeniu transakcji. `EntityHistory` i punkty `GET …/{id}/history` dla hulajnóg, modeli, operatorów, ról, klientów i dokumentów (uprawnienie jak do odczytu rekordu).
+- Zapisy floty z iteracji 1 z dziennikiem: `scooter.created`, `scooter.updated`, `scooter.status_changed`, `scooter.retired`, `scooter.command_sent`, `scooter_model.created/updated/archived/deleted`. Komenda trafia do MQTT dopiero po zatwierdzeniu transakcji z wpisem.
+- `/admin/staff`: zaproszenie z rolami i linkiem aktywacji (`PANEL_URL`), zmiana danych i ról (bez własnych ról; zmiana e-maila wylogowuje), dezaktywacja (bez siebie) z wylogowaniem, ponowne zaproszenie, reset TOTP, wylogowanie wszędzie. Reguła ostatniego zarządzającego rolami sprawdzana w core na stanie po zmianie, a w razie wyścigu w bazie.
+- `/admin/roles` z macierzą uprawnień i wersją rekordu, `/admin/permissions`, usuwanie roli (systemowej i przypisanej nie). Zmiana ról i uprawnień czyści pamięć podręczną uprawnień, więc działa od następnego żądania.
+- `/admin/users`: lista i karta klienta ze zgodami i sesjami, zmiana danych, blokada z powodem (notatka tylko w dzienniku, wylogowanie ze wszystkich urządzeń), odblokowanie, wylogowanie.
+- `/admin/audit-log`: lista z filtrami i licznikami, szczegóły wpisu.
+- `/admin/legal-documents`: lista, dokument z wersjami i liczbą akceptacji, wersja robocza z treści obowiązującej, edycja, publikacja (od razu, z „najważniejszymi zmianami” dla dokumentu ze zgodą), usunięcie wersji roboczej.
+
+**Weryfikacja**
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build`: 201 testów (71 core, 18 shared, 17 symulatora, 47 bazy, 48 API). Nowy `access.e2e.test.ts` na prawdziwym Fastify i osobnej bazie: historia hulajnogi z autorem i polami, brak wpisu przy konflikcie wersji; zaproszenie z linkiem i filtrem ról, ponowne zaproszenie, zmiana ról z nazwami w dzienniku, zakaz zmiany własnych ról i dezaktywacji siebie, dezaktywacja odcinająca dostęp od razu; macierz uprawnień z wersją i nieznanym uprawnieniem, usuwanie roli systemowej, przypisanej i wolnej; `LAST_ROLE_MANAGER` przez macierz i przez dezaktywację jedynego administratora operatorem z samym `staff.manage`; blokada klienta z wylogowaniem, ekranem blokady w `/me` i notatką w dzienniku; nowa wersja regulaminu od wersji roboczej do ponownej akceptacji w aplikacji; 403 dziennika bez `audit.read`.
+
+**Błędy znalezione w trakcie**
+- Makiety i pierwsza wersja testu oznaczały role Dyspozytor i Serwisant jako systemowe, a migracja 0002 (wykonana w iteracji 0) oznacza tak tylko rolę Administrator. Test wykazał, że rolę Serwisant da się usunąć (gdy nikt jej nie ma), zgodnie z modelem danych. Poprawione makiety `dostep-role`, `dostep-operator-formularz` i `dostep-rola-uprawnienia` („rola startowa”) oraz test (`ROLE_SYSTEM` dla Administratora, `ROLE_IN_USE` dla przypisanej roli Serwisant).
+- `diffForAudit` przyjmował tylko `Record<string, unknown>`, do którego nie pasują interfejsy rekordów; teraz przyjmuje dowolny obiekt.
+
+**Zmiany względem planu**
+- Link zaproszenia operatora zwraca API (pokazany raz w panelu), bo nie ma jeszcze wysyłki e-maili; w produkcji potrzebny będzie adapter poczty.
+- Wersja robocza dokumentu nie ma blokady optymistycznej (tabela `content_page_versions` nie ma kolumny `version`); edycję wersji roboczej rozstrzyga ostatni zapis. Pełny moduł treści w iteracji 7.
+

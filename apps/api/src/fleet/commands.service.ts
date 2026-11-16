@@ -16,6 +16,7 @@ import {
   type PanelCommand,
 } from '@hulajnogi/shared';
 import { Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
+import { AuditedTransaction } from '../audit/audited-transaction.js';
 import { MqttService } from '../mqtt/mqtt.service.js';
 import { FleetGateway } from '../realtime/fleet.gateway.js';
 
@@ -36,6 +37,7 @@ export class CommandsService implements OnModuleInit, OnApplicationShutdown {
     private readonly scooters: DrizzleScooterRepository,
     private readonly mqtt: MqttService,
     private readonly gateway: FleetGateway,
+    private readonly transaction: AuditedTransaction,
   ) {}
 
   onModuleInit(): void {
@@ -53,11 +55,21 @@ export class CommandsService implements OnModuleInit, OnApplicationShutdown {
     clearInterval(this.sweep);
   }
 
-  async send(scooterId: string, type: PanelCommand, params: Command['params']): Promise<CommandView> {
+  async send(staffId: string, scooterId: string, type: PanelCommand, params: Command['params']): Promise<CommandView> {
     const scooter = await this.scooters.findState(scooterId);
     if (!scooter) throw notFound('scooter', scooterId);
     ensurePanelCommandAllowed(type, scooter);
-    const record = await this.commands.create(scooterId, type, params ?? {});
+    // Zapis komendy z wpisem w dzienniku; publikacja w MQTT dopiero po zatwierdzeniu transakcji.
+    const record = await this.transaction.run(staffId, async ({ tx, audit }) => {
+      const created = await new DrizzleCommandRepository(tx).create(scooterId, type, params ?? {});
+      await audit({
+        action: 'scooter.command_sent',
+        entityType: 'scooter',
+        entityId: scooterId,
+        data: { command: type, commandId: created.id, ...(params ? { params } : {}) },
+      });
+      return created;
+    });
     const message: Command = {
       commandId: record.id,
       cmd: type.toLowerCase() as Command['cmd'],

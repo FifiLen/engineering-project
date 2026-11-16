@@ -10,7 +10,8 @@ import {
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
-import { RequirePermission } from '../auth/decorators.js';
+import { CurrentStaff, RequirePermission, type StaffPrincipal } from '../auth/decorators.js';
+import { EntityHistory } from '../audit/entity-history.service.js';
 import { ListQueryPipe } from '../common/list-query.pipe.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { CommandsService } from './commands.service.js';
@@ -26,6 +27,7 @@ export class ScootersController {
   constructor(
     private readonly scooters: ScootersService,
     private readonly commands: CommandsService,
+    private readonly history: EntityHistory,
   ) {}
 
   @RequirePermission('scooters.read')
@@ -44,22 +46,37 @@ export class ScootersController {
 
   @RequirePermission('scooters.write')
   @Post()
-  create(@Body(new ZodPipe(scooterCreateSchema)) body: ScooterCreate) {
-    return this.scooters.create(body);
+  create(@CurrentStaff() staff: StaffPrincipal, @Body(new ZodPipe(scooterCreateSchema)) body: ScooterCreate) {
+    return this.scooters.create(staff.staffId, body);
   }
 
   @RequirePermission('scooters.write')
   @Patch(':id')
   @ApiOperation({ summary: 'Edycja z blokadą optymistyczną: konflikt wersji kończy się 409 CONFLICT' })
-  update(@Param('id', idParam) id: string, @Body(new ZodPipe(scooterUpdateSchema)) body: ScooterUpdate) {
-    return this.scooters.update(id, body);
+  update(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Param('id', idParam) id: string,
+    @Body(new ZodPipe(scooterUpdateSchema)) body: ScooterUpdate,
+  ) {
+    return this.scooters.update(staff.staffId, id, body);
   }
 
   @RequirePermission('scooters.write')
   @Delete(':id')
   @ApiOperation({ summary: 'Wycofanie hulajnogi z floty (rekord zostaje, bo wskazuje go historia)' })
-  remove(@Param('id', idParam) id: string, @Query(versionQuery) { version }: { version: number }) {
-    return this.scooters.remove(id, version);
+  remove(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Param('id', idParam) id: string,
+    @Query(versionQuery) { version }: { version: number },
+  ) {
+    return this.scooters.remove(staff.staffId, id, version);
+  }
+
+  @RequirePermission('scooters.read')
+  @Get(':id/history')
+  @ApiOkResponse({ description: 'Historia zmian z dziennika audytu, od najnowszej' })
+  historyOf(@Param('id', idParam) id: string) {
+    return this.history.of('scooter', id);
   }
 
   @RequirePermission('scooters.read')
@@ -74,9 +91,10 @@ export class ScootersController {
   @HttpCode(202)
   @ApiOperation({ summary: 'Komenda z panelu; wynik przychodzi zdarzeniem fleet.command po potwierdzeniu z hulajnogi' })
   command(
+    @CurrentStaff() staff: StaffPrincipal,
     @Param('id', idParam) id: string,
     @Body(new ZodPipe(commandRequestSchema)) body: z.infer<typeof commandRequestSchema>,
   ) {
-    return this.commands.send(id, body.type, body.type === 'LIGHTS' ? { on: body.on ?? true } : undefined);
+    return this.commands.send(staff.staffId, id, body.type, body.type === 'LIGHTS' ? { on: body.on ?? true } : undefined);
   }
 }

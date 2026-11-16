@@ -96,6 +96,10 @@ export interface StaffDetails extends StaffListItem {
   sessions: SessionView[];
 }
 
+/** Wylogowanie wszędzie, reset TOTP, ponowne zaproszenie: operacje na koncie z wersją rekordu. */
+export const staffActionSchema = z.object({ version });
+export type StaffAction = z.infer<typeof staffActionSchema>;
+
 /** Odpowiedź na zaproszenie: link pokazujemy tylko raz (w środowisku deweloperskim zamiast e-maila). */
 export interface StaffInvitationResult {
   staff: StaffDetails;
@@ -284,3 +288,52 @@ export interface AuditLogListItem {
 export interface AuditLogDetails extends AuditLogListItem {
   data: Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Dokumenty prawne (ADR 0027): kilka dokumentów po kilka wersji, bez wspólnego mechanizmu list
+// ---------------------------------------------------------------------------------------------
+
+export const DOCUMENT_VERSION_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const;
+export type DocumentVersionStatus = (typeof DOCUMENT_VERSION_STATUSES)[number];
+
+export interface LegalDocumentSummary {
+  id: string;
+  slug: string;
+  name: string;
+  consentType: ConsentType | null;
+  publishedVersionNo: number | null;
+  hasDraft: boolean;
+}
+
+export interface DocumentVersionSummary {
+  id: string;
+  versionNo: number;
+  title: string;
+  status: DocumentVersionStatus;
+  publishedAt: string | null;
+  supersededAt: string | null;
+  acceptances: number;
+  createdAt: string;
+}
+
+export interface LegalDocumentDetails extends LegalDocumentSummary {
+  versions: DocumentVersionSummary[];
+}
+
+export interface DocumentVersionDetails {
+  id: string;
+  documentId: string;
+  versionNo: number;
+  status: DocumentVersionStatus;
+  title: string;
+  bodyMd: string;
+  changeSummary: string | null;
+}
+
+export const documentDraftUpdateSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  bodyMd: z.string().max(100_000).optional(),
+  changeSummary: z.string().trim().max(300).nullable().optional(),
+});
+export type DocumentDraftUpdate = z.infer<typeof documentDraftUpdateSchema>;
+

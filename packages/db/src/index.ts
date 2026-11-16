@@ -22,3 +22,4 @@ export * from './repositories/legal-documents.repository.js';
 export * from './seed.js';
 export * from './tokens.js';
 export * from './bootstrap.js';
+export { rethrowDatabaseRule } from './repositories/errors.js';
