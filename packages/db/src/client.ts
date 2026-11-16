@@ -10,8 +10,14 @@ export type Database = NodePgDatabase<typeof fullSchema>;
 export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 export type DbExecutor = Database | Transaction;
 
-export function createPool(connectionString: string): Pool {
-  return new Pool({ connectionString, max: 10 });
+/**
+ * Pula połączeń. `pg` zgłasza zerwanie bezczynnego połączenia (restart bazy, zamknięcie przez serwer)
+ * zdarzeniem `error` puli; bez nasłuchu takie zdarzenie kończy cały proces.
+ */
+export function createPool(connectionString: string, onIdleError: (error: Error) => void = () => undefined): Pool {
+  const pool = new Pool({ connectionString, max: 10 });
+  pool.on('error', onIdleError);
+  return pool;
 }
 
 export function createDb(pool: Pool): Database {

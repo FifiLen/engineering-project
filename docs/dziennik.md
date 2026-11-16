@@ -446,3 +446,19 @@ Plan i scenariusz demo: [iteracja 2](iteracje/iteracja-02-konta-dostep.md). Prze
 - Czyszczenie przeterminowanych kodów SMS i sesji zadaniem pg-boss: iteracja 3.
 - Iteracja nie jest jeszcze wypchnięta; CI do potwierdzenia.
 
+
+## Iteracja 2: niestabilne testy API w CI (16 listopada 2026)
+
+Pierwsze dwa przebiegi CI po wypchnięciu iteracji 2 padły w kroku „Testy” (`apps/api`), choć wszystkie asercje przechodziły. Błąd dało się odtworzyć lokalnie mniej więcej w co trzecim przebiegu `pnpm test` na czystej bazie, z równoległymi testami bazy i API, czyli w warunkach CI.
+
+**Przyczyna**
+- Vitest zgłaszał nieobsłużony błąd `57P01 terminating connection due to administrator command` z `app.e2e.test.ts`.
+- `pool.end()` z `pg` kończy się, zanim serwer zamknie połączenie, a sprzątanie testu od razu wykonuje `DROP DATABASE … WITH (FORCE)`. Serwer kończy wtedy ten backend i wysyła komunikat FATAL.
+- Pula API nie miała nasłuchu zdarzenia `error`, a `EventEmitter` bez nasłuchu rzuca wyjątek. W produkcji to samo wywróciłoby proces API przy restarcie bazy.
+
+**Poprawka**
+- `createPool` w `packages/db` zawsze rejestruje obsługę błędów bezczynnych połączeń. API zapisuje je w logu jako ostrzeżenie (`Database`), a pula wraca do pracy z nowymi połączeniami.
+- Pula pomocnicza w `fleet.e2e.test.ts` dostała ten sam nasłuch co testy uwierzytelniania i dostępu.
+
+**Weryfikacja**
+- `pnpm lint`, `pnpm typecheck` oraz 8 kolejnych przebiegów `pnpm test` na świeżo zmigrowanej bazie bez błędów.

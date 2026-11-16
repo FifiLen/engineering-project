@@ -1,4 +1,4 @@
-import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
+import { Global, Inject, Logger, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { createDb, createPool } from '@hulajnogi/db';
 import { CONFIG, type AppConfig } from '../config.js';
 
@@ -11,7 +11,14 @@ export const DB = Symbol('DB');
 @Global()
 @Module({
   providers: [
-    { provide: DB_POOL, inject: [CONFIG], useFactory: (config: AppConfig) => createPool(config.DATABASE_URL) },
+    {
+      provide: DB_POOL,
+      inject: [CONFIG],
+      useFactory: (config: AppConfig) => {
+        const logger = new Logger('Database');
+        return createPool(config.DATABASE_URL, (error) => logger.warn(`Zerwane bezczynne połączenie z bazą: ${error.message}`));
+      },
+    },
     { provide: DB, inject: [DB_POOL], useFactory: (pool: Pool) => createDb(pool) },
   ],
   exports: [DB],

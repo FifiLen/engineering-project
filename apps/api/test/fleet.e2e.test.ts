@@ -64,6 +64,7 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
     const url = new URL(adminUrl!);
     url.pathname = `/${dbName}`;
     pool = new Pool({ connectionString: url.toString() });
+    pool.on('error', () => undefined);
     await runMigrations(pool);
     await seedDatabase(pool, { places, fleetSize: 4, admin: { email: 'a@test.local', name: 'A', passwordHash: 'x' } });
 
