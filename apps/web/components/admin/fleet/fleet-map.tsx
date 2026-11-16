@@ -97,7 +97,8 @@ export function FleetMap() {
     socket.on('connect', () => {
       setLive(true);
       void loadSnapshot();
-      socket.emit('fleet.subscribe');
+      // Potwierdzenie z kodem błędu obsłuży logowanie operatora (ADR 0035); token dochodzi z sesją panelu.
+      socket.emit('fleet.subscribe', () => undefined);
     });
     socket.on('disconnect', () => setLive(false));
     socket.on('fleet.updates', (updates) =>

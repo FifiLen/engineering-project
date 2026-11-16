@@ -28,7 +28,14 @@ export interface ServerToClientEvents {
   'fleet.command': (command: CommandView) => void;
 }
 
+/** Odpowiedź na dołączenie do pokoju (potwierdzenie Socket.IO). */
+export type SubscribeAck = { ok: true } | { ok: false; code: 'UNAUTHENTICATED' | 'FORBIDDEN' };
+
+/**
+ * Połączenie wymaga tokenu dostępowego operatora w `auth.token` (ADR 0035); bez niego serwer
+ * rozłącza klienta.
+ */
 export interface ClientToServerEvents {
-  /** Dołączenie do pokoju `fleet`; od iteracji 2 wymaga uprawnienia `scooters.read`. */
-  'fleet.subscribe': () => void;
+  /** Dołączenie do pokoju `fleet`; wymaga uprawnienia `scooters.read`. */
+  'fleet.subscribe': (ack: (result: SubscribeAck) => void) => void;
 }

@@ -14,7 +14,24 @@ const DEFAULT_CODES: Record<number, string> = {
 /** Kody domeny z innym statusem niż 409 (naruszenie reguły albo konflikt stanu). */
 const DOMAIN_STATUS: Record<string, HttpStatus> = {
   FORBIDDEN: HttpStatus.FORBIDDEN,
+  PERMISSION_NOT_DECLARED: HttpStatus.FORBIDDEN,
   NOT_FOUND: HttpStatus.NOT_FOUND,
+  // Uwierzytelnianie (ADR 0035): brak sesji i błędne dane logowania.
+  UNAUTHENTICATED: HttpStatus.UNAUTHORIZED,
+  INVALID_CREDENTIALS: HttpStatus.UNAUTHORIZED,
+  TOTP_INVALID: HttpStatus.UNAUTHORIZED,
+  OTP_INVALID: HttpStatus.UNAUTHORIZED,
+  OTP_EXPIRED: HttpStatus.UNAUTHORIZED,
+  OTP_ATTEMPTS_EXCEEDED: HttpStatus.UNAUTHORIZED,
+  RATE_LIMITED: HttpStatus.TOO_MANY_REQUESTS,
+  ACCOUNT_LOCKED: HttpStatus.TOO_MANY_REQUESTS,
+  INVITATION_INVALID: HttpStatus.NOT_FOUND,
+  INVITATION_EXPIRED: HttpStatus.GONE,
+  // Dane wejściowe, które przeszły schemat, ale nie spełniają reguły z core.
+  INVALID_PHONE: HttpStatus.BAD_REQUEST,
+  WEAK_PASSWORD: HttpStatus.BAD_REQUEST,
+  VALIDATION_FAILED: HttpStatus.BAD_REQUEST,
+  AGE_NOT_CONFIRMED: HttpStatus.BAD_REQUEST,
 };
 
 @Catch()
@@ -36,6 +53,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof DomainError) {
       // Naruszenie reguły domeny z packages/core; klient tłumaczy komunikat po kodzie (ADR 0027).
       const status = DOMAIN_STATUS[exception.code] ?? HttpStatus.CONFLICT;
+      const retryAfter = exception.details?.retryAfterSeconds;
+      if (typeof retryAfter === 'number') void reply.header('retry-after', String(retryAfter));
       void reply
         .status(status)
         .send({ code: exception.code, message: exception.message, details: exception.details } satisfies ApiErrorBody);

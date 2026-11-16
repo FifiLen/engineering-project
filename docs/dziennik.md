@@ -303,3 +303,29 @@ Plan: [iteracja 2](iteracje/iteracja-02-konta-dostep.md).
 **Zmiany względem planu**
 - Dokumenty prawne nie mają definicji zasobu ze wspólnym mechanizmem list: trzy dokumenty po kilka wersji, bez potrzeby filtrów. Pełny moduł treści z listami: iteracja 7.
 
+## Iteracja 2: uwierzytelnianie w API (16 listopada 2026)
+
+**Co powstało**
+- [ADR 0035](adr/0035-sesje-tokeny-i-straznik-uprawnien.md): token dostępowy JWT w nagłówku dla obu klientów; token odświeżający aplikacji w `expo-secure-store`, panelu w ciasteczku `httpOnly` `SameSite=Strict`; sesja panelu 12 h albo 7 dni z „Zapamiętaj to urządzenie” (TOTP przy każdym logowaniu); token drugiego kroku `staff_mfa` zamiast tabeli stanu; strażnik odrzucający punkty bez deklaracji dostępu; Socket.IO z tokenem w `auth.token`.
+- Adaptery na `node:crypto`: JWT HS256, TOTP (RFC 6238, base32, adres `otpauth://`), AES-256-GCM dla sekretów TOTP, HMAC kodów SMS z kluczem serwera; argon2id dla haseł (`@node-rs/argon2` 2.2.2). `@fastify/cookie` 11.1.5. Obie wersje sprawdzone w rejestrze npm: wydane ponad 3 dni temu.
+- Moduł `AuthModule` (globalny): `CustomerAuthService` i kontroler (kod SMS, sesje, `/me`, rejestracja, akceptacja nowych wersji dokumentów, profil, `GET /legal/{slug}`), `StaffAuthService` i kontroler (hasło, TOTP i jego konfiguracja, zaproszenia, odświeżanie i wylogowanie z ciasteczkiem, `/admin/auth/me`), `StaffPermissionsService` (10 s), `LoggingSmsGateway`, `AuthGuard` jako `APP_GUARD`.
+- `@RequirePermission` na 13 punktach floty i modeli z iteracji 1 (odczyt `scooters.read`, zapis `scooters.write`, komendy `scooters.command`); `/health` i `/zones` publiczne. Bramka Socket.IO rozłącza klienta bez tokenu operatora, a `fleet.subscribe` zwraca potwierdzenie z kodem błędu.
+- Kontrakt `packages/shared/src/auth.ts` (żądania i odpowiedzi logowania dla API, aplikacji i panelu); konfiguracja `JWT_SECRET`, `TOTP_ENCRYPTION_KEY` (w produkcji wymagane, w środowisku deweloperskim wartości stałe) i `PANEL_URL`.
+
+**Weryfikacja**
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build`: 192 testy (71 core, 18 shared, 17 symulatora, 47 bazy, 39 API). Nowe: `crypto.test.ts` (wektory testowe z RFC 6238, podrobiony i wygasły JWT, zmieniony szyfrogram) i `auth.e2e.test.ts` na prawdziwym Fastify i osobnej bazie: punkty publiczne i 401 bez tokenu, 403 z nazwą uprawnienia dla Dyspozytora, 401 dla dezaktywowanego operatora, token klienta w panelu, Socket.IO bez tokenu; kod SMS z limitem i `Retry-After`, błędny kod z liczbą prób, konto i ekran danych, kod jednorazowy, rejestracja (wiek, nieaktualna wersja dokumentu), rezygnacja ze zgody marketingowej, rotacja i wylogowanie; zaproszenie z terminala, słabe hasło, konfiguracja TOTP, ciasteczko `httpOnly`, ponownie użyty kod TOTP, odświeżanie z ciasteczka, wpisy w dzienniku audytu, blokada po 5 pomyłkach i ten sam błąd dla nieistniejącego konta.
+- Testy floty z iteracji 1 działają z tokenem operatora (pomocnik `staffToken` podpisuje token kluczem aplikacji; cały przepływ logowania sprawdza osobny test).
+- API nie było uruchomione na żywo w tej sesji: w katalogu działał serwer innej sesji, a dwa API na jednym brokerze dzielą `MQTT_CLIENT_ID`.
+
+**Błędy znalezione w trakcie**
+- Pusta wartość `JWT_SECRET=` z `.env.example` byłaby pustym napisem i zatrzymywała start (za krótki sekret); pusta wartość oznacza teraz brak zmiennej.
+- Zmiana nazwy zaproszonego operatora podawała wersję rekordu o jeden za wysoką (hasło już ją podniosło).
+- Pierwsza wersja sprawdzania akceptowanych wersji dokumentów źle wykrywała nieaktualną wersję; teraz każdy identyfikator musi być obowiązującą wersją dokumentu ze zgodą.
+- Zmiana kontraktu `fleet.subscribe` (potwierdzenie) wymagała poprawki wywołania w panelu (wykryte przez `tsc` panelu).
+
+**Zmiany względem planu**
+- **Panel do czasu ekranu logowania nie działa z API**: wszystkie punkty `/admin` odpowiadają 401. Logowanie w panelu to kolejny krok iteracji.
+- Klucz skrótów kodów SMS jest wyprowadzony z `JWT_SECRET` (bez osobnej zmiennej).
+- Treść SMS-a jest w kodzie API do czasu szablonów powiadomień w iteracji 6 (ADR 0027).
+- Zasoby panelu dla operatorów, ról, klientów, dziennika i dokumentów oraz dziennik audytu dla zapisów floty to następny krok API.
+

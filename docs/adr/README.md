@@ -38,3 +38,4 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0032 | [Etykiety interfejsu: pliki JSON, wspólny tłumacz i reguła lintera](0032-etykiety-w-plikach-tlumaczen.md) | zaakceptowana |
 | 0033 | [Przyjmowanie telemetrii partiami i status floty liczony w core i w bazie](0033-telemetria-i-status-floty.md) | zaakceptowana |
 | 0034 | [Budowa symulatora floty i przejazdy pokazowe do czasu wypożyczeń](0034-symulator-floty.md) | zaakceptowana |
+| 0035 | [Sesje, tokeny i strażnik uprawnień w API](0035-sesje-tokeny-i-straznik-uprawnien.md) | zaakceptowana |

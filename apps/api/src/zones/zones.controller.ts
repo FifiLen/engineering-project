@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { ZodPipe } from '../common/zod-query.js';
 import { DB } from '../database/database.module.js';
 import { ZonesService } from './zones.service.js';
+import { Public } from '../auth/decorators.js';
 
 const lookupQuery = z.object({
   lat: z.coerce.number().min(-90).max(90),
@@ -12,6 +13,7 @@ const lookupQuery = z.object({
 });
 
 @ApiTags('strefy')
+@Public()
 @Controller('zones')
 export class ZonesController {
   constructor(

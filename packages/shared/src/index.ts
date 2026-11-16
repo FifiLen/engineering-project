@@ -5,3 +5,4 @@ export * from './realtime.js';
 export * from './admin/list.js';
 export * from './admin/fleet.js';
 export * from './admin/access.js';
+export * from './auth.js';

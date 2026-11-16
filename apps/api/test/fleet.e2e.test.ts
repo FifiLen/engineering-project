@@ -12,6 +12,7 @@ import { loadConfig } from '../src/config.js';
 import { CommandsService } from '../src/fleet/commands.service.js';
 import { MqttService } from '../src/mqtt/mqtt.service.js';
 import { TelemetryService } from '../src/telemetry/telemetry.service.js';
+import { asStaff, staffToken } from './helpers.js';
 
 const adminUrl = process.env.DATABASE_URL;
 const dbName = `hulajnogi_fleet_api_${randomUUID().slice(0, 8)}`;
@@ -48,6 +49,8 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
   let pool: Pool;
   let app: NestFastifyApplication;
   let socket: Socket;
+  let api: ReturnType<typeof asStaff>;
+  let token: string;
   const received: shared.FleetMapScooter[][] = [];
   const commandEvents: shared.CommandView[] = [];
   const idOf = async (number: number) =>
@@ -74,10 +77,13 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
       { logger: false },
     );
     await app.listen({ port: 0, host: '127.0.0.1' });
-    socket = io(await app.getUrl(), { transports: ['websocket'] });
+    const adminId = (await pool.query<{ id: string }>(`SELECT id FROM staff WHERE email = 'a@test.local'`)).rows[0]!.id;
+    token = staffToken(app, adminId);
+    api = asStaff(app, token);
+    socket = io(await app.getUrl(), { transports: ['websocket'], auth: { token } });
     socket.on('fleet.updates', (u: shared.FleetMapScooter[]) => received.push(u));
     socket.on('fleet.command', (c: shared.CommandView) => commandEvents.push(c));
-    await socket.emitWithAck('fleet.subscribe');
+    expect(await socket.emitWithAck('fleet.subscribe')).toEqual({ ok: true });
   });
 
   afterAll(async () => {
@@ -89,7 +95,7 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
   });
 
   it('GET /admin/scooters zwraca stronę listy z licznikami statusu floty', async () => {
-    const res = await app.inject({ method: 'GET', url: '/admin/scooters?facets=fleetStatus&sort=-number&pageSize=2' });
+    const res = await api({ method: 'GET', url: '/admin/scooters?facets=fleetStatus&sort=-number&pageSize=2' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toMatchObject({ page: 1, pageSize: 2, total: 4, facets: { fleetStatus: { OFFLINE: 4 } } });
@@ -98,14 +104,14 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
   });
 
   it('nieznany filtr i pole spoza białej listy kończą się VALIDATION_ERROR', async () => {
-    const res = await app.inject({ method: 'GET', url: '/admin/scooters?position=1&sort=passwordHash' });
+    const res = await api({ method: 'GET', url: '/admin/scooters?position=1&sort=passwordHash' });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({ code: 'VALIDATION_ERROR' });
     expect(res.json().details.map((i: shared.ListIssue) => i.code)).toEqual(['UNKNOWN_PARAM', 'UNKNOWN_SORT']);
   });
 
   it('model i hulajnoga: tworzenie, unikalność, konflikt wersji, wycofanie i archiwizacja', async () => {
-    const model = await app.inject({
+    const model = await api({
       method: 'POST',
       url: '/admin/scooter-models',
       payload: { code: 'T-1', name: 'Testowy', rangeKm: 40 },
@@ -114,7 +120,7 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
     expect(model.json()).toMatchObject({ code: 'T-1', active: true, version: 1, scootersTotal: 0 });
     const modelId = model.json().id;
 
-    const scooter = await app.inject({
+    const scooter = await api({
       method: 'POST',
       url: '/admin/scooters',
       payload: { number: 77, serialNumber: 'SC-TEST-77', variant: 'KOBALT', modelId },
@@ -123,7 +129,7 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
     expect(scooter.json()).toMatchObject({ number: 77, status: 'MAINTENANCE', fleetStatus: 'MAINTENANCE', version: 1 });
     const id = scooter.json().id;
 
-    const duplicate = await app.inject({
+    const duplicate = await api({
       method: 'POST',
       url: '/admin/scooters',
       payload: { number: 77, serialNumber: 'SC-OTHER', variant: 'KOBALT', modelId },
@@ -131,43 +137,43 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
     expect(duplicate.statusCode).toBe(409);
     expect(duplicate.json()).toMatchObject({ code: 'ALREADY_EXISTS', details: { field: 'number' } });
 
-    const edited = await app.inject({
+    const edited = await api({
       method: 'PATCH',
       url: `/admin/scooters/${id}`,
       payload: { version: 1, status: 'AVAILABLE' },
     });
     expect(edited.json()).toMatchObject({ status: 'AVAILABLE', version: 2 });
-    const stale = await app.inject({
+    const stale = await api({
       method: 'PATCH',
       url: `/admin/scooters/${id}`,
       payload: { version: 1, variant: 'BETON' },
     });
     expect(stale.statusCode).toBe(409);
     expect(stale.json()).toMatchObject({ code: 'CONFLICT', details: { currentVersion: 2 } });
-    const rental = await app.inject({
+    const rental = await api({
       method: 'PATCH',
       url: `/admin/scooters/${id}`,
       payload: { version: 2, status: 'IN_USE' },
     });
     expect(rental.statusCode).toBe(400);
 
-    const modelRemoval = await app.inject({ method: 'DELETE', url: `/admin/scooter-models/${modelId}?version=1` });
+    const modelRemoval = await api({ method: 'DELETE', url: `/admin/scooter-models/${modelId}?version=1` });
     expect(modelRemoval.json()).toEqual({ outcome: 'ARCHIVED' });
-    const inactive = await app.inject({
+    const inactive = await api({
       method: 'POST',
       url: '/admin/scooters',
       payload: { number: 78, serialNumber: 'SC-TEST-78', variant: 'KOBALT', modelId },
     });
     expect(inactive.json()).toMatchObject({ code: 'MODEL_INACTIVE' });
 
-    const retired = await app.inject({ method: 'DELETE', url: `/admin/scooters/${id}?version=2` });
+    const retired = await api({ method: 'DELETE', url: `/admin/scooters/${id}?version=2` });
     expect(retired.json()).toEqual({ outcome: 'RETIRED' });
-    expect((await app.inject({ method: 'GET', url: `/admin/scooters/${id}` })).json()).toMatchObject({
+    expect((await api({ method: 'GET', url: `/admin/scooters/${id}` })).json()).toMatchObject({
       status: 'RETIRED',
       version: 3,
     });
 
-    const missing = await app.inject({ method: 'GET', url: `/admin/scooters/${randomUUID()}` });
+    const missing = await api({ method: 'GET', url: `/admin/scooters/${randomUUID()}` });
     expect(missing.statusCode).toBe(404);
     expect(missing.json().code).toBe('NOT_FOUND');
   });
@@ -191,7 +197,7 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
       locked: true,
     });
 
-    const details = (await app.inject({ method: 'GET', url: `/admin/scooters/${await idOf(1)}` })).json();
+    const details = (await api({ method: 'GET', url: `/admin/scooters/${await idOf(1)}` })).json();
     expect(details).toMatchObject({
       batteryPct: 64,
       firmware: 'v2.5.0',
@@ -199,14 +205,14 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
       parkingZoneCode: 'P-01',
       fleetStatus: 'AVAILABLE',
     });
-    const map = (await app.inject({ method: 'GET', url: '/admin/fleet/map' })).json() as shared.FleetMapScooter[];
+    const map = (await api({ method: 'GET', url: '/admin/fleet/map' })).json() as shared.FleetMapScooter[];
     expect(map.find((s) => s.number === 1)).toMatchObject({ lat: 50.0005, fleetStatus: 'AVAILABLE' });
     expect(map.find((s) => s.number === 77)).toBeUndefined();
   });
 
   it('komenda z panelu: publikacja w MQTT, potwierdzenie, odrzucenie reguł i przekroczenie czasu', async () => {
     const id = await idOf(1);
-    const ring = await app.inject({ method: 'POST', url: `/admin/scooters/${id}/commands`, payload: { type: 'RING' } });
+    const ring = await api({ method: 'POST', url: `/admin/scooters/${id}/commands`, payload: { type: 'RING' } });
     expect(ring.statusCode).toBe(202);
     expect(ring.json()).toMatchObject({ type: 'RING', status: 'SENT', scooterNumber: 1 });
     const published = mqtt().published.at(-1)!;
@@ -218,23 +224,23 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
       .handleAck(Buffer.from(JSON.stringify({ commandId: ring.json().id, ok: true, ts: new Date().toISOString() })));
     await expect.poll(() => commandEvents.some((c) => c.id === ring.json().id && c.status === 'ACKED')).toBe(true);
 
-    const unlock = await app.inject({
+    const unlock = await api({
       method: 'POST',
       url: `/admin/scooters/${id}/commands`,
       payload: { type: 'UNLOCK' },
     });
     expect(unlock.json()).toMatchObject({ code: 'UNLOCK_REQUIRES_MAINTENANCE' });
-    const offline = await app.inject({
+    const offline = await api({
       method: 'POST',
       url: `/admin/scooters/${await idOf(2)}/commands`,
       payload: { type: 'RING' },
     });
     expect(offline.json()).toMatchObject({ code: 'SCOOTER_OFFLINE' });
 
-    const lock = await app.inject({ method: 'POST', url: `/admin/scooters/${id}/commands`, payload: { type: 'LOCK' } });
+    const lock = await api({ method: 'POST', url: `/admin/scooters/${id}/commands`, payload: { type: 'LOCK' } });
     await app.get(CommandsService).expirePending(new Date(Date.now() + 11_000));
     const recent = (
-      await app.inject({ method: 'GET', url: `/admin/scooters/${id}/commands` })
+      await api({ method: 'GET', url: `/admin/scooters/${id}/commands` })
     ).json() as shared.CommandView[];
     expect(recent.map((c) => [c.id, c.status])).toEqual([
       [lock.json().id, 'TIMEOUT'],
@@ -243,7 +249,7 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
   });
 
   it('GET /zones zwraca aktywne strefy jako GeoJSON', async () => {
-    const res = await app.inject({ method: 'GET', url: '/zones' });
+    const res = await api({ method: 'GET', url: '/zones' });
     expect(res.json()).toMatchObject({ type: 'FeatureCollection' });
     expect(res.json().features.map((f: { properties: { code: string } }) => f.properties.code)).toEqual([
       'AREA-TEST',
@@ -252,7 +258,7 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
   });
 
   it('CORS dopuszcza panel z localhost', async () => {
-    const res = await app.inject({
+    const res = await api({
       method: 'OPTIONS',
       url: '/admin/scooters',
       headers: { origin: 'http://localhost:3002', 'access-control-request-method': 'PATCH' },

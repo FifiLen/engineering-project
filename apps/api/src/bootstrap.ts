@@ -1,3 +1,4 @@
+import fastifyCookie from '@fastify/cookie';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -11,6 +12,7 @@ export async function createApp(config: AppConfig, options: { logger?: boolean }
     new FastifyAdapter({ logger: options.logger ?? false }),
     { logger: options.logger === false ? false : undefined },
   );
+  await app.register(fastifyCookie);
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableShutdownHooks();
   // Panel działa na innym porcie niż API; w trybie deweloperskim dopuszczamy każdy localhost.
@@ -20,12 +22,16 @@ export async function createApp(config: AppConfig, options: { logger?: boolean }
   app.enableCors({
     origin: config.NODE_ENV === 'production' ? origins : [...origins, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/],
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    // Ciasteczko sesji panelu (ADR 0035) wymaga poświadczeń w żądaniach z innego portu.
+    credentials: true,
+    allowedHeaders: ['content-type', 'authorization'],
   });
 
   const openApi = new DocumentBuilder()
     .setTitle('System wypożyczania hulajnóg: API')
     .setDescription('REST API dla aplikacji mobilnej i panelu operatora')
-    .setVersion('0.1.0')
+    .setVersion('0.2.0')
+    .addBearerAuth()
     .build();
   SwaggerModule.setup('docs', app, () => SwaggerModule.createDocument(app, openApi));
   return app;
