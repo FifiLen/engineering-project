@@ -1,6 +1,6 @@
 # ADR 0029: Raporty z parametrami i eksportem do PDF i XLSX
 
-- **Status:** proponowana
+- **Status:** zaakceptowana
 - **Data:** 2026-11-16
 
 ## Kontekst
@@ -28,7 +28,7 @@ XLSX:
 **Gotenberg** dla PDF i **ExcelJS** dla XLSX, oba za adapterem `DocumentRenderer` zdefiniowanym w `packages/core`, więc zamiana biblioteki nie dotyka logiki raportów.
 
 - Gotenberg działa jako kontener w Docker Compose, dostępny tylko w sieci wewnętrznej; obraz przypięty do konkretnej wersji 9.x starszej niż 3 dni, wybranej przy wprowadzeniu modułu.
-- **Definicje raportów** w tabeli `report_definitions`: kod, klucz nazwy i opisu w katalogu tekstów ([ADR 0027](0027-tresci-sterowane-z-panelu.md)), schemat parametrów, wymagane uprawnienie `reports.<kod>` ([ADR 0028](0028-uzytkownicy-role-uprawnienia.md)), aktywność. Logika raportu (zapytanie i układ kolumn) jest w kodzie, bo raport to proces z testami, a nie zapytanie wpisywane w panelu.
+- **Definicje raportów** w tabeli `report_definitions`: kod, nazwa i opis edytowane w panelu ([ADR 0027](0027-tresci-sterowane-z-panelu.md)), schemat parametrów, wymagane uprawnienie `reports.<kod>` ([ADR 0028](0028-uzytkownicy-role-uprawnienia.md)), aktywność. Logika raportu (zapytanie i układ kolumn) jest w kodzie, bo raport to proces z testami, a nie zapytanie wpisywane w panelu.
 - **Dane** z widoków i funkcji bazy ([ADR 0026](0026-logika-w-bazie-widoki-funkcje-procedury.md)), np. `v_daily_revenue`, `v_zone_usage`.
 - **Uruchomienie**: panel pokazuje podgląd tabeli i wykresu w przeglądarce, a eksport zleca zadanie pg-boss. Tabela `report_runs` zapisuje parametry, status, operatora, czas i odwołania do plików w `files`. Gotowy plik jest dostępny przez podpisany URL, a historia uruchomień jest jednym z ekranów panelu.
 - **Raporty na start**: przychody (okres, granulacja, źródło płatności), wykorzystanie floty (czas w użyciu, przestoje, bateria), przejazdy według stref i godzin, awaryjność (zgłoszenia według kategorii i hulajnogi, czas naprawy), użytkownicy (nowi, aktywni, powracający), salda i operacje portfela. Parametry wspólne: okres, strefa, hulajnoga lub model.

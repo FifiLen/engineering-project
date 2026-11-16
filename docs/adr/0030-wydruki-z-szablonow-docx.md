@@ -1,6 +1,6 @@
 # ADR 0030: Wydruki z szablonów DOCX zmienianych przez użytkownika
 
-- **Status:** proponowana
+- **Status:** zaakceptowana
 - **Data:** 2026-11-16
 
 ## Kontekst

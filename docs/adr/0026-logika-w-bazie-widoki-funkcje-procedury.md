@@ -1,6 +1,6 @@
 # ADR 0026: Co robi baza: widoki, funkcje i procedury
 
-- **Status:** proponowana
+- **Status:** zaakceptowana
 - **Data:** 2026-11-16
 
 ## Kontekst

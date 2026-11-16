@@ -1,6 +1,6 @@
 # ADR 0028: Użytkownicy, role i uprawnienia zarządzane w panelu
 
-- **Status:** proponowana
+- **Status:** zaakceptowana
 - **Data:** 2026-11-16
 
 ## Kontekst

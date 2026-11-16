@@ -2,7 +2,7 @@
 
 Źródło: opis projektu „Projekt inżynierski” (specjalność: Programista aplikacji biznesowych). Wymagania są nadrzędne wobec wcześniejszych decyzji: jeśli ADR stoi z nimi w sprzeczności, potrzebny jest nowy ADR.
 
-**Stan analizy:** 2026-11-16, po zakończeniu iteracji 0. Część punktów wymaga potwierdzenia z prowadzącym (sekcja „Pytania do prowadzącego”).
+**Stan analizy:** 2026-11-16, po zakończeniu iteracji 0. Odpowiedzi na pytania do prowadzącego są w sekcji „Pytania do prowadzącego”.
 
 ## Wymagania (skrót)
 
@@ -39,37 +39,46 @@ Warunek zaliczenia: wykonanie, prezentacja i obrona z pytaniami z kodu.
 | 3a | spełnione | Aplikacja mobilna (Expo) i internetowa (Next.js) | — |
 | 3b | częściowo | `packages/db` istnieje, ale API (np. `ZonesService`, `HealthController`) używa surowego `pg` poza tym pakietem | Cały dostęp do danych przez `packages/db` (repozytoria), także zapytania PostGIS |
 | 3c | **brak** | Logika ma żyć w modułach `apps/api`, nie ma osobnego projektu | Wydzielić `packages/core`: czyste klasy domeny bez frameworka (maszyna stanów przejazdu, wycena, reguły stref, uprawnienia), testowane jednostkowo; `apps/api` tylko je wywołuje |
-| 4 | do potwierdzenia | Obie aplikacje korzystają z bazy i logiki przez wspólne API | Zapytać prowadzącego, czy dostęp przez wspólny backend spełnia punkt 4 (pytanie 2) |
-| 5 | do potwierdzenia | TypeScript, Node.js, React, React Native | Lista w wymaganiach jest przykładowa („np.”); potwierdzić (pytanie 1) |
+| 4 | spełnione | Obie aplikacje korzystają z bazy i logiki przez wspólne API | Dostęp przez wspólny backend potwierdzony (pytanie 2); opisać w pracy |
+| 5 | spełnione | TypeScript, Node.js, React, React Native | Stos potwierdzony (pytanie 1) |
 | 6 | spełnione, do opisania | MVC w API (kontrolery, serwisy), moduły i wstrzykiwanie zależności, Repozytorium, Stan (przejazd), Adapter (SMS, płatności, mapy), Obserwator (zdarzenia), w klientach komponenty i hooki | Rozdział o wzorcach z odniesieniami do kodu |
-| 7 | do potwierdzenia | PostgreSQL 16 w kontenerze | PostgreSQL jest serwerem bazy danych; potwierdzić (pytanie 1) |
+| 7 | spełnione | PostgreSQL 16 w kontenerze | PostgreSQL potwierdzony (pytanie 1) |
 | 8 | **brak** | 24 tabele, indeksy (w tym GiST i częściowe), brak widoków, procedur i funkcji | Nowe obszary z punktów 11, 17, 18, 19 dodadzą tabele (cel: 32+). Widoki (np. stan floty, szczegóły przejazdu, przychód dzienny), funkcje (np. koszt przejazdu, strefy w punkcie), procedury (np. anonimizacja konta, wygaszanie rezerwacji). Nowy ADR: co w bazie, a co w `packages/core` |
-| 9 | częściowo | Drizzle ORM jest, ale część kodu używa surowego `pg` | Dostęp do danych wyłącznie przez Drizzle (PostGIS przez `sql` z Drizzle); potwierdzić, że Drizzle spełnia punkt (pytanie 3) |
+| 9 | częściowo | Drizzle ORM jest, ale część kodu używa surowego `pg` | Dostęp do danych wyłącznie przez Drizzle (PostGIS przez `sql` z Drizzle); Drizzle potwierdzony (pytanie 3) |
 | 10 | zaplanowane | ADR 0019: kod SMS dla użytkowników, hasło + TOTP dla operatorów | Jeden moduł uwierzytelniania i jeden format tokenów dla obu aplikacji; rozważyć strefę klienta w webie na tym samym koncie |
 | 11 | **brak** | Role operatorów jako stały typ `staff_role` (3 wartości) | Uprawnienia w bazie: role, uprawnienia, przypisania; ekrany w panelu (lista ról, edycja uprawnień, przypisywanie użytkowników) |
-| 12 | **brak** | Makiety panelu pokrywają część tabel | Wspólny wzorzec widoku tabeli (lista z filtrowaniem, sortowaniem, stronicowaniem + formularz) dla każdej tabeli. Tabele z założenia niezmienne (księga portfela, dziennik audytu, telemetria) do uzgodnienia (pytanie 4) |
+| 12 | **brak** | Makiety panelu pokrywają część tabel | Wspólny wzorzec widoku tabeli (lista z filtrowaniem, sortowaniem, stronicowaniem + formularz) dla każdej tabeli. Tabele tylko do dopisywania mają ograniczone operacje (pytanie 4, [ADR 0031](adr/0031-wzorzec-widoku-tabeli-w-panelu.md)) |
 | 13 | zaplanowane | Procesy: wypożyczenie, płatności, zgłoszenia | Domknąć każdy proces od początku do końca; doprojektować proces serwisowy (zgłoszenie → zadanie → naprawa lub wymiana baterii → powrót do floty) |
-| 14 | do policzenia | Ok. 55 makiet (aplikacja ok. 42, panel 11, strona 2), część to stany ekranów | Spis widoków w `docs/projekt/README.md`; nowe ekrany panelu z punktów 11, 12, 17–19 zapewnią zapas. Zapytać, czy stany liczą się jako widoki (pytanie 7) |
+| 14 | do policzenia | 53 makiety ekranów (aplikacja, panel, strona), część to stany ekranów | Liczą się wszystkie widoki, także stany i tryb ciemny (pytanie 7). Spis widoków w `docs/projekt/README.md`; nowe ekrany panelu z punktów 11, 12, 17–19 zapewnią zapas |
 | 15 | spełnione | Design system, spójne makiety | Pilnować w implementacji |
 | 16 | do uzupełnienia | Kontrasty WCAG, cele dotykowe ≥ 44 px, spójne nazewnictwo akcji | Zestawić z materiałami z wykładu ICK (potrzebne od autora) i opisać w pracy |
-| 17 | **brak** | Teksty i grafiki są w kodzie makiet i aplikacji | Moduł treści: teksty interfejsu i treści (regulamin, FAQ, opisy, aktualności) w bazie z edycją w panelu; grafiki w magazynie plików z zarządzaniem w panelu; klienci pobierają treści z API z pamięcią podręczną. Decyzja przed iteracją 1, bo dotyczy każdego ekranu. Zakres do potwierdzenia (pytanie 5) |
+| 17 | **brak** | Teksty i grafiki są w kodzie makiet i aplikacji | Zakres: treści merytoryczne (pytanie 5). Moduł treści: regulamin, FAQ, aktualności, opisy i grafiki w bazie i magazynie plików z edycją w panelu; klienci pobierają je z API z pamięcią podręczną. Etykiety interfejsu w plikach tłumaczeń, bez tekstów wpisanych wprost w komponenty ([ADR 0027](adr/0027-tresci-sterowane-z-panelu.md)) |
 | 18 | **brak** | Pulpit z liczbami, brak raportów | Moduł raportów: przychody, wykorzystanie floty, przejazdy wg stref i godzin, awaryjność, użytkownicy; parametry (okres, strefa), eksport PDF i XLSX |
 | 19 | **brak** | — | Szablony DOCX z polami (np. potwierdzenie przejazdu, protokół serwisowy, karta hulajnogi, raport zdarzenia); wgrywanie nowej wersji szablonu w panelu; generowanie DOCX i PDF |
 
 ## Pytania do prowadzącego
 
+Odpowiedzi przekazane przez autora 2026-11-16 (pod każdym pytaniem).
+
 1. Czy stos TypeScript (Node.js, NestJS, React, React Native) i PostgreSQL jest akceptowany w miejsce przykładowych C#/Java i MS SQL Server/Oracle?
+   **Tak.**
 2. Punkt 4: czy wystarczy, że obie aplikacje korzystają z projektu bazodanowego i logiki biznesowej przez wspólny backend (API), skoro aplikacja mobilna nie może łączyć się z bazą bezpośrednio?
+   **Tak.**
 3. Czy Drizzle ORM spełnia punkt 9?
+   **Tak.**
 4. Punkt 12: czy tabele z założenia tylko do dopisywania (księga portfela, dziennik audytu, telemetria) mogą mieć ograniczone operacje, np. korekta jako nowy wpis zamiast edycji i usuwania?
+   **Tak.**
 5. Punkt 17: czy dotyczy wszystkich tekstów interfejsu (np. etykiet przycisków), czy treści merytorycznych (aktualności, opisy, zdjęcia, regulamin, FAQ)?
+   **Raczej treści merytorycznych.**
 6. Czy symulowana flota (bez fizycznych urządzeń) jest akceptowalna?
+   **Tak.**
 7. Punkt 14: czy różne stany jednego ekranu (np. pusty, błąd) liczą się jako osobne widoki?
+   **Liczy się wszystko, co można zaliczyć jako widok; z aplikacji mobilnej, strony i panelu łącznie limit zostanie przekroczony z zapasem.**
 
 ## Plan dostosowania (przed iteracją 1)
 
-1. Zadać pytania prowadzącemu; odpowiedzi zapisać w tym pliku.
-2. ADR-y: osobny projekt logiki (`packages/core`), zakres logiki w bazie (widoki, funkcje, procedury), moduł treści, uprawnienia (RBAC), raporty i wydruki. **Propozycje gotowe (2026-11-16):** [0025](adr/0025-logika-biznesowa-packages-core.md), [0026](adr/0026-logika-w-bazie-widoki-funkcje-procedury.md), [0027](adr/0027-tresci-sterowane-z-panelu.md), [0028](adr/0028-uzytkownicy-role-uprawnienia.md), [0029](adr/0029-raporty-pdf-xlsx.md), [0030](adr/0030-wydruki-z-szablonow-docx.md), [0031](adr/0031-wzorzec-widoku-tabeli-w-panelu.md) (wzorzec widoku tabeli, punkt 12); do akceptacji przez autora, po odpowiedziach prowadzącego.
+1. Zadać pytania prowadzącemu; odpowiedzi zapisać w tym pliku. **Zrobione (2026-11-16).**
+2. ADR-y: osobny projekt logiki (`packages/core`), zakres logiki w bazie (widoki, funkcje, procedury), moduł treści, uprawnienia (RBAC), raporty i wydruki. **Zrobione (2026-11-16), zaakceptowane:** [0025](adr/0025-logika-biznesowa-packages-core.md), [0026](adr/0026-logika-w-bazie-widoki-funkcje-procedury.md), [0027](adr/0027-tresci-sterowane-z-panelu.md), [0028](adr/0028-uzytkownicy-role-uprawnienia.md), [0029](adr/0029-raporty-pdf-xlsx.md), [0030](adr/0030-wydruki-z-szablonow-docx.md), [0031](adr/0031-wzorzec-widoku-tabeli-w-panelu.md) (wzorzec widoku tabeli, punkt 12).
 3. Migracja `0002`: uprawnienia, treści i media, szablony wydruków i wygenerowane dokumenty, definicje raportów, paragony, modele hulajnóg i zadania serwisowe; widoki, funkcje, procedury.
 4. Refaktoryzacja: `packages/core`, dostęp do danych tylko przez `packages/db` i Drizzle.
 5. Aktualizacja planu iteracji o moduły: treści i uprawnienia, raporty i wydruki, serwis.

@@ -1,6 +1,6 @@
 # ADR 0031: Wspólny wzorzec widoku tabeli w panelu i kontrakt list w API
 
-- **Status:** proponowana
+- **Status:** zaakceptowana
 - **Data:** 2026-11-16
 
 ## Kontekst
@@ -26,7 +26,7 @@ Pytanie 4 do prowadzącego dotyczy tego, czy tabele tylko do dopisywania mogą m
 
 Opcja 3.
 
-**Definicja zasobu** w `packages/shared` (część kontraktu API, [ADR 0004](0004-niezalezni-klienci-wspolny-kontrakt.md)): nazwa, źródło listy (widok `v_*` lub tabela), lista kolumn z typami, filtry z dozwolonymi operatorami, klucze sortowania, sortowanie domyślne, schematy Zod formularzy tworzenia i edycji, tryb usuwania i wymagane uprawnienia. Kolumny spoza definicji nie istnieją dla panelu, więc nowa kolumna z wrażliwymi danymi nie wycieknie sama. Etykiety i opisy pól pochodzą z katalogu tekstów pod kluczami `resource.<zasób>.<pole>` ([ADR 0027](0027-tresci-sterowane-z-panelu.md)).
+**Definicja zasobu** w `packages/shared` (część kontraktu API, [ADR 0004](0004-niezalezni-klienci-wspolny-kontrakt.md)): nazwa, źródło listy (widok `v_*` lub tabela), lista kolumn z typami, filtry z dozwolonymi operatorami, klucze sortowania, sortowanie domyślne, schematy Zod formularzy tworzenia i edycji, tryb usuwania i wymagane uprawnienia. Kolumny spoza definicji nie istnieją dla panelu, więc nowa kolumna z wrażliwymi danymi nie wycieknie sama. Etykiety i opisy pól pochodzą z plików tłumaczeń panelu pod kluczami `resource.<zasób>.<pole>` ([ADR 0027](0027-tresci-sterowane-z-panelu.md)).
 
 **Kontrakt listy**: `GET /admin/<zasób>`
 
@@ -50,7 +50,7 @@ Tabele bardzo duże i rosnące w czasie (`telemetry`, `audit_log`, `rental_event
 
 | Klasa | Przykłady | Dodaj | Edytuj | Usuń |
 |---|---|---|---|---|
-| Słowniki i konfiguracja | `zones`, `roles`, `ui_texts`, `faq_items`, `news`, `document_templates`, `report_definitions` | tak | tak | tak, jeśli nic się nie odwołuje; inaczej archiwizacja |
+| Słowniki i konfiguracja | `zones`, `roles`, `content_blocks`, `faq_items`, `news`, `document_templates`, `report_definitions` | tak | tak | tak, jeśli nic się nie odwołuje; inaczej archiwizacja |
 | Wersjonowane | `tariffs`, `content_pages`, `document_template_versions` | nowa wersja | nowa wersja | wycofanie wersji |
 | Encje operacyjne | `scooters`, `staff`, `users`, `tickets` | tak | tak, przez reguły core | archiwizacja lub dezaktywacja |
 | Procesy | `rentals`, `payments`, `scooter_commands` | przez proces | polecenia domenowe (np. zakończenie przejazdu, zwrot) | nie |

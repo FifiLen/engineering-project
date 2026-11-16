@@ -1,6 +1,6 @@
 # ADR 0025: Osobny projekt logiki biznesowej (`packages/core`) i dostęp do danych tylko przez `packages/db`
 
-- **Status:** proponowana
+- **Status:** zaakceptowana
 - **Data:** 2026-11-16
 
 ## Kontekst
