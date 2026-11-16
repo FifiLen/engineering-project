@@ -1,6 +1,6 @@
 # Iteracja 2: konta i dostęp
 
-**Status:** zakończona lokalnie (16 listopada 2026); do wypchnięcia i potwierdzenia zielonego CI
+**Status:** zakończona (16 listopada 2026); CI w GitHub Actions zielone dla commitu `63fb0bf`
 
 ## Cel
 Klient zakłada konto w aplikacji kodem SMS i akceptuje obowiązującą wersję regulaminu i polityki prywatności. Operator loguje się do panelu hasłem i kodem TOTP; dostęp do każdego punktu API i każdej pozycji panelu wynika z jego ról ([ADR 0019](../adr/0019-uwierzytelnianie.md), [ADR 0028](../adr/0028-uzytkownicy-role-uprawnienia.md)). Role, operatorzy i klienci są zarządzani w panelu, a każdy zapis operatora (także zapisy floty i modeli z iteracji 1) trafia do `audit_log` i jest widoczny jako historia zmian w formularzu.
