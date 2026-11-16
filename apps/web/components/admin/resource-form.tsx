@@ -14,6 +14,7 @@ import { api, ApiRequestError, errorMessage } from '../../lib/api';
 import { t } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import { ConfirmDialog } from './confirm-dialog';
+import { HistoryCard } from './history-card';
 import { AlertIcon } from './icons';
 import { fieldLabel, valueLabel } from './labels';
 
@@ -42,6 +43,8 @@ interface ResourceFormProps<T extends { id: string; version: number }> {
   title: (record: T | null) => string;
   recordLabel: (record: T) => string;
   aside?: (record: T) => ReactNode;
+  /** Karta „Historia zmian” z dziennika audytu (`GET …/{id}/history`); domyślnie włączona. */
+  history?: boolean;
 }
 
 const toValue = (v: unknown): string | boolean =>
@@ -92,7 +95,7 @@ function issuesToErrors(issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>
 }
 
 export function ResourceForm<T extends { id: string; version: number }>(props: ResourceFormProps<T>) {
-  const { resource, basePath, id, fields, defaults, title, recordLabel, aside } = props;
+  const { resource, basePath, id, fields, defaults, title, recordLabel, aside, history = true } = props;
   const router = useRouter();
   // Bez uprawnienia do zapisu formularz jest tylko do odczytu; decyzję podejmuje API (ADR 0028).
   const { can } = useSession();
@@ -220,12 +223,13 @@ export function ResourceForm<T extends { id: string; version: number }>(props: R
             <span aria-hidden="true">/</span>
             <span>{record ? recordLabel(record) : t.dynamic(`resource.${resource.name}.newTitle`)}</span>
           </nav>
-          <h1>{title(record)}</h1>
+          {/* Bez uprawnienia do zapisu to podgląd rekordu, a nie edycja. */}
+          <h1>{record && !canWrite ? recordLabel(record) : title(record)}</h1>
           {record && <div className="sub">{t('form.version', { version: record.version })}</div>}
         </div>
         <div className="actions">
           <Link className="btn" href={basePath}>
-            {t('common.cancel')}
+            {canWrite ? t('common.cancel') : t('form.backToList')}
           </Link>
           {canWrite && (
             <button type="submit" className="btn primary" disabled={saving || (record !== null && changed.length === 0)}>
@@ -384,6 +388,13 @@ export function ResourceForm<T extends { id: string; version: number }>(props: R
         {record && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {aside?.(record)}
+            {history && (
+              <HistoryCard
+                path={`/admin/${resource.name}/${record.id}/history`}
+                resourceName={resource.name}
+                revision={record.version}
+              />
+            )}
             {canDelete && (
               <div className="card side-card">
                 <h2>{t.dynamic(`resource.${resource.name}.removeTitle`)}</h2>

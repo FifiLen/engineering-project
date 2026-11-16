@@ -137,3 +137,24 @@ export const CheckIcon = (p: P) => (
   </Icon>
 );
 
+export const DocumentIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M7 3h7l5 5v13H7z" />
+    <path d="M14 3v5h5M10 13h6M10 17h6" />
+  </Icon>
+);
+
+export const UsersIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5" />
+    <path d="M16 4.5a3.5 3.5 0 010 7M18 15c2 .6 3.2 2.2 3.8 5" />
+  </Icon>
+);
+
+export const ShieldIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z" />
+    <path d="M9 12l2 2 4-4" />
+  </Icon>
+);

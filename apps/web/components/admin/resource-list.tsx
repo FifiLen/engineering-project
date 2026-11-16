@@ -32,7 +32,7 @@ export interface Column<T> {
   render?: (item: T) => ReactNode;
 }
 
-export interface ResourceListProps<T extends { id: string; version: number }> {
+export interface ResourceListProps<T extends ListRecord> {
   resource: ResourceDefinition;
   basePath: string;
   columns: Column<T>[];
@@ -42,19 +42,26 @@ export interface ResourceListProps<T extends { id: string; version: number }> {
   rowLabel: (item: T) => string;
   summary?: (data: ListResponse<T>) => string;
   emptyIcon: ReactNode;
+  /** Zakładki pod tytułem (np. Operatorzy, Role, Dziennik audytu). */
+  tabs?: ReactNode;
+  /** Przycisk dodawania z własnym podpisem albo bez niego (np. dziennik audytu). */
+  createLabel?: string | null;
 }
+
+/** Rekord listy; tabele tylko do dopisywania (dziennik audytu) nie mają wersji. */
+export type ListRecord = { id: string | number; version?: number };
 
 type LoadState<T> =
   { status: 'loading' } | { status: 'error'; code: string } | { status: 'ready'; data: ListResponse<T> };
 
 const EMPTY: ListQuery = { filters: [], sort: [], page: 1, pageSize: 25, facets: [] };
 
-export function ResourceList<T extends { id: string; version: number }>(props: ResourceListProps<T>) {
-  const { resource, basePath, columns, quick, filters, rowLabel, summary, emptyIcon } = props;
+export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) {
+  const { resource, basePath, columns, quick, filters, rowLabel, summary, emptyIcon, tabs, createLabel } = props;
   const router = useRouter();
   // Panel ukrywa operacje bez uprawnień; decyzję podejmuje API (ADR 0028).
   const { can } = useSession();
-  const canWrite = can(resource.permissions.write);
+  const canWrite = can(resource.permissions.write) && createLabel !== null;
   const canDelete = resource.deleteMode !== 'none' && can(resource.permissions.delete ?? resource.permissions.write);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -79,7 +86,7 @@ export function ResourceList<T extends { id: string; version: number }>(props: R
 
   const [state, setState] = useState<LoadState<T>>({ status: 'loading' });
   const [reload, setReload] = useState(0);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string | number>>(new Set());
   const [drawer, setDrawer] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -154,7 +161,7 @@ export function ResourceList<T extends { id: string; version: number }>(props: R
     setConfirm(false);
     const targets = items.filter((i) => selected.has(i.id));
     const results = await Promise.allSettled(
-      targets.map((i) => api(`/admin/${resource.name}/${i.id}?version=${i.version}`, { method: 'DELETE' })),
+      targets.map((i) => api(`/admin/${resource.name}/${i.id}?version=${i.version ?? 1}`, { method: 'DELETE' })),
     );
     const failed = results.filter((r) => r.status === 'rejected').length;
     setNotice(t('list.bulkDone', { done: targets.length - failed, count: targets.length, failed }));
@@ -178,11 +185,12 @@ export function ResourceList<T extends { id: string; version: number }>(props: R
           {canWrite && (
             <Link className="btn primary" href={`${basePath}/nowy`}>
               <PlusIcon />
-              {t.dynamic(`resource.${resource.name}.new`)}
+              {createLabel ?? t.dynamic(`resource.${resource.name}.new`)}
             </Link>
           )}
         </div>
       </div>
+      {tabs}
 
       <div className="toolbar">
         <label className="search">

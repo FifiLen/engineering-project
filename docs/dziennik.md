@@ -374,3 +374,30 @@ Plan: [iteracja 2](iteracje/iteracja-02-konta-dostep.md).
 **Zmiany względem planu**
 - Formularz bez uprawnienia do zapisu ma nadal tytuł „Edycja …” i przycisk „Anuluj”; tytuł dla trybu tylko do odczytu do poprawki razem z ekranami Operatorów i Ról.
 
+## Iteracja 2: ekrany kont i dostępu w panelu (16 listopada 2026)
+
+**Co powstało**
+- Operatorzy (`/admin/operatorzy`): lista z szybkimi filtrami statusu, filtrem ról i TOTP; zaproszenie z rolami i linkiem aktywacji pokazanym raz; karta operatora (dane, role z liczbą uprawnień, sesje, wylogowanie wszędzie, reset TOTP, ponowne zaproszenie, historia, dezaktywacja). Własnych ról nie da się zmienić w formularzu.
+- Role (`/admin/role`): lista z paskiem liczby uprawnień; edycja roli jako macierz uprawnień według modułów (opisy uprawnień z tabeli `permissions`, czyli treść z bazy), pole „wszystkie” z trybem częściowym, niezapisane zmiany obramowane i podsumowane przy przycisku, ostrzeżenie o natychmiastowym działaniu, operatorzy z rolą, usuwanie roli własnej bez operatorów.
+- Użytkownicy (`/admin/klienci`): lista z saldem, statusem i powodem blokady; karta klienta (statystyki, zgody z wersjami dokumentów i informacją o nowszej wersji, dane, sesje, historia) i okno blokady z powodem widocznym dla klienta i notatką do dziennika; odblokowanie.
+- Dziennik audytu (`/admin/dziennik`): lista z licznikami rodzajów obiektów i nazwami akcji z kodem; wpis z polami przed i po, danymi wpisu i odnośnikiem do obiektu.
+- Treści (`/admin/tresci`): zakładka Dokumenty prawne z wersjami i liczbą akceptacji; edytor wersji roboczej (tytuł, „najważniejsze zmiany”, Markdown z podglądem), publikacja z potwierdzeniem, usunięcie wersji roboczej.
+- Wspólne: karta „Historia zmian” (`HistoryCard`) w formularzach, także hulajnóg i modeli z iteracji 1; formularz bez uprawnienia do zapisu ma tytuł z nazwą rekordu i „Wróć do listy”; zakładki pod tytułem listy; okno potwierdzenia z polami; pozycje Treści, Użytkownicy i „Operatorzy i role” w nawigacji według uprawnień.
+
+**Weryfikacja**
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build`: 201 testów, build panelu przechodzi.
+- W przeglądarce (1440×900, panel 3002, API 3001): lista operatorów; zaproszenie testowego operatora (link aktywacji, karta ze statusem „Zaproszony”, wpis w historii); macierz roli Dyspozytor (dodanie uprawnienia z podświetleniem i podsumowaniem, zapis, wersja i historia, cofnięcie zmiany); lista i karta testowego klienta ze zgodami, blokada z powodem i notatką (sesje wylogowane, pasek blokady, historia), wpis blokady w dzienniku z notatką; wersja robocza regulaminu z podglądem, publikacja bez „najważniejszych zmian” odrzucona przez API, usunięcie wersji roboczej; karta historii w formularzu hulajnogi.
+- Dane testowe usunięte z bazy deweloperskiej (klient, zaproszony operator), uprawnienia roli Dyspozytor przywrócone, TOTP administratora zresetowane, sesje operatorów unieważnione. Wpisy dziennika audytu z weryfikacji zostały (tabela tylko do dopisywania).
+
+**Błędy znalezione w trakcie**
+- Akcje dziennika audytu były w pliku tłumaczeń kluczami z kropką (`staff.invited`), a tłumacz traktuje kropkę jako zagnieżdżenie: historia pokazywała kod zamiast nazwy. Klucze są teraz zagnieżdżone (`audit.actions.staff.invited`).
+- Moduły uprawnień w bazie (`access`, `accounts`, `documents`, `operations`, …) mają inne nazwy niż zakładane w tłumaczeniach; tłumaczenia według tabeli `permissions`, kolejność jak w nawigacji.
+- Odmiana „2 operatorów” poprawiona na „2 operatorzy”; etykiety pól imienia w formularzach operatora i klienta brały nagłówek kolumny („Operator”, „Użytkownik”) zamiast „Imię i nazwisko”.
+
+**Odstępstwa od makiet** (zgodnie z zasadą z CLAUDE.md)
+- Szczegóły wpisu dziennika audytu to osobna strona, a nie panel boczny na liście (`dostep-audyt`).
+- Treści mają na razie tylko zakładkę Dokumenty prawne (pozostałe w iteracji 7); domyślnie wybrany jest pierwszy dokument alfabetycznie.
+- Lista ról ma ostrzeżenie w kolorze bursztynowym zamiast informacyjnego.
+- Błąd publikacji bez „najważniejszych zmian” jest komunikatem nad formularzem, bez zaznaczenia pola.
+- Link zaproszenia ma adres z `PANEL_URL` API; przy panelu na porcie 3002 trzeba ustawić `PANEL_URL=http://localhost:3002` w `.env`.
+

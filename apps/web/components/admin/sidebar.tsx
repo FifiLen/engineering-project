@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { ComponentType } from 'react';
 import { t } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
-import { BrandMark, ListIcon, LogoutIcon, MapIcon, ScooterIcon } from './icons';
+import { BrandMark, DocumentIcon, ListIcon, LogoutIcon, MapIcon, ScooterIcon, ShieldIcon, UsersIcon } from './icons';
 
 interface NavItem {
   href: string;
@@ -13,6 +13,8 @@ interface NavItem {
   Icon: ComponentType;
   /** Uprawnienie do odczytu ekranu; pozycje bez niego są ukryte (ADR 0028). */
   permission: string;
+  /** Inne ścieżki tej samej pozycji (zakładki). */
+  also?: string[];
 }
 
 /** Nawigacja boczna pogrupowana jak w makiecie wzorca widoku tabeli; tylko gotowe ekrany. */
@@ -24,7 +26,18 @@ const groups: Array<{ label?: string; items: NavItem[] }> = [
   },
   {
     label: t('admin.nav.configuration'),
-    items: [{ href: '/admin/modele', label: t('admin.nav.models'), Icon: ScooterIcon, permission: 'scooters.read' }],
+    items: [
+      { href: '/admin/modele', label: t('admin.nav.models'), Icon: ScooterIcon, permission: 'scooters.read' },
+      { href: '/admin/tresci', label: t('admin.nav.content'), Icon: DocumentIcon, permission: 'content.read' },
+    ],
+  },
+  {
+    label: t('admin.nav.access'),
+    items: [
+      { href: '/admin/klienci', label: t('admin.nav.users'), Icon: UsersIcon, permission: 'users.read' },
+      // Operatorzy, role i dziennik audytu to jedna pozycja z zakładkami (makiety 18-panel-dostep).
+      { href: '/admin/operatorzy', label: t('admin.nav.staff'), Icon: ShieldIcon, permission: 'staff.read', also: ['/admin/role', '/admin/dziennik'] },
+    ],
   },
 ];
 
@@ -55,12 +68,12 @@ export function Sidebar() {
       {visible.map((group, i) => (
         <div key={group.label ?? i}>
           {group.label && <div className="nav-group">{group.label}</div>}
-          {group.items.map(({ href, label, Icon }) => (
+          {group.items.map(({ href, label, Icon, also }) => (
             <Link
               key={href}
               href={href}
               className="nav-item"
-              aria-current={pathname.startsWith(href) ? 'page' : undefined}
+              aria-current={[href, ...(also ?? [])].some((p) => pathname.startsWith(p)) ? 'page' : undefined}
             >
               <Icon />
               {label}

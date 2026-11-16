@@ -18,7 +18,11 @@
       "configuration": "Konfiguracja",
       "map": "Mapa floty",
       "fleet": "Flota",
-      "models": "Modele hulajnóg"
+      "models": "Modele hulajnóg",
+      "access": "Klienci i dostęp",
+      "users": "Użytkownicy",
+      "staff": "Operatorzy i role",
+      "content": "Treści"
     },
     "auth": {
       "sideTitle": "Panel operatora floty",
@@ -175,7 +179,18 @@
     "WEAK_PASSWORD": "Hasło nie spełnia wymagań",
     "LAST_ROLE_MANAGER": "Co najmniej jeden aktywny operator musi zarządzać rolami",
     "CANNOT_CHANGE_OWN_ROLES": "Nie możesz zmienić własnych ról",
-    "CANNOT_DEACTIVATE_SELF": "Nie możesz dezaktywować własnego konta"
+    "CANNOT_DEACTIVATE_SELF": "Nie możesz dezaktywować własnego konta",
+    "ROLE_SYSTEM": "Roli systemowej nie można usunąć",
+    "ROLE_IN_USE": "Rola jest przypisana operatorom",
+    "UNKNOWN_PERMISSION": "Nieznane uprawnienie",
+    "ALREADY_BLOCKED": "Konto jest już zablokowane",
+    "NOT_BLOCKED": "Konto nie jest zablokowane",
+    "USER_DELETED": "Konto zostało usunięte",
+    "STAFF_ALREADY_ACTIVATED": "Operator ma już aktywne konto",
+    "STAFF_INACTIVE": "Konto operatora jest dezaktywowane",
+    "DRAFT_EXISTS": "Dokument ma już wersję roboczą",
+    "DOCUMENT_VERSION_LOCKED": "Opublikowanej wersji nie można zmienić",
+    "VALIDATION_FAILED": "Uzupełnij wymagane pola"
   },
   "fleetStatus": {
     "AVAILABLE": "Dostępna",
@@ -340,6 +355,410 @@
         }
       },
       "archivedOption": "{name} ({state})"
+    },
+    "staff": {
+      "title": "Operatorzy i role",
+      "summary": "Konta pracowników z dostępem do panelu",
+      "searchPlaceholder": "Szukaj po imieniu lub e-mailu",
+      "new": "Zaproś operatora",
+      "newTitle": "Zaproszenie operatora",
+      "emptyTitle": "Nie ma jeszcze operatorów",
+      "emptyBody": "Zaproś pracownika; ustawi hasło i kod TOTP z linku.",
+      "bulkRemove": "Dezaktywuj",
+      "removeTitle": "Dezaktywacja",
+      "removeBody": "Operator nie zaloguje się, a jego sesje zostaną zakończone.",
+      "removeAction": "Dezaktywuj konto",
+      "fields": {
+        "id": "Identyfikator",
+        "name": "Operator",
+        "email": "E-mail służbowy",
+        "status": "Status",
+        "totpEnabled": "TOTP",
+        "roles": "Role",
+        "roleIds": "Rola",
+        "lastLoginAt": "Ostatnie logowanie",
+        "lockedUntil": "Zablokowany do",
+        "activeSessions": "Sesje",
+        "invitationExpiresAt": "Zaproszenie do",
+        "createdAt": "Utworzono",
+        "version": "Wersja"
+      },
+      "values": {
+        "status": {
+          "ACTIVE": "Aktywny",
+          "INVITED": "Zaproszony",
+          "DEACTIVATED": "Dezaktywowany"
+        },
+        "totpEnabled": {
+          "true": "Z TOTP",
+          "false": "Bez TOTP"
+        }
+      }
+    },
+    "roles": {
+      "title": "Operatorzy i role",
+      "summary": "Role nadają uprawnienia; operator może mieć kilka ról",
+      "searchPlaceholder": "Szukaj roli",
+      "new": "Nowa rola",
+      "newTitle": "Nowa rola",
+      "emptyTitle": "Nie ma ról",
+      "emptyBody": "Rola łączy uprawnienia, które nadajesz operatorom.",
+      "bulkRemove": "Usuń",
+      "removeTitle": "Usunięcie roli",
+      "removeBody": "Rolę bez operatorów można usunąć.",
+      "removeAction": "Usuń rolę",
+      "fields": {
+        "id": "Identyfikator",
+        "name": "Rola",
+        "description": "Opis",
+        "isSystem": "Rodzaj",
+        "permissionsCount": "Uprawnienia",
+        "staffCount": "Operatorzy",
+        "updatedAt": "Zmieniono",
+        "version": "Wersja"
+      },
+      "values": {
+        "isSystem": {
+          "true": "Systemowe",
+          "false": "Własne"
+        }
+      }
+    },
+    "users": {
+      "title": "Użytkownicy",
+      "summary": "{count, plural, one {# konto} few {# konta} other {# kont}}",
+      "searchPlaceholder": "Szukaj po imieniu, telefonie lub e-mailu",
+      "new": "",
+      "newTitle": "",
+      "emptyTitle": "Nie ma jeszcze klientów",
+      "emptyBody": "Konta zakładają klienci w aplikacji kodem SMS.",
+      "bulkRemove": "",
+      "removeTitle": "",
+      "removeBody": "",
+      "removeAction": "",
+      "fields": {
+        "id": "Identyfikator",
+        "name": "Użytkownik",
+        "phone": "Telefon",
+        "email": "E-mail",
+        "status": "Status",
+        "blockedReason": "Powód blokady",
+        "blockedAt": "Zablokowano",
+        "rides": "Przejazdy",
+        "lastRideAt": "Ostatni przejazd",
+        "totalSpent": "Wydatki",
+        "walletBalance": "Saldo",
+        "ticketsReported": "Zgłoszenia",
+        "activeSessions": "Sesje",
+        "lastSeenAt": "Ostatnia aktywność",
+        "createdAt": "Rejestracja",
+        "version": "Wersja"
+      },
+      "values": {
+        "status": {
+          "ACTIVE": "Aktywny",
+          "BLOCKED": "Zablokowany",
+          "DELETED": "Usunięty"
+        },
+        "blockedReason": {
+          "TERMS_VIOLATION": "Naruszenie regulaminu",
+          "UNPAID_BALANCE": "Zaległa płatność",
+          "SUSPECTED_ABUSE": "Podejrzenie nadużycia"
+        }
+      }
+    },
+    "audit-log": {
+      "title": "Operatorzy i role",
+      "summary": "Każdy zapis w panelu z autorem i zmienionymi polami",
+      "searchPlaceholder": "Szukaj akcji, operatora lub obiektu",
+      "new": "",
+      "newTitle": "",
+      "emptyTitle": "Dziennik jest pusty",
+      "emptyBody": "Wpisy pojawią się po pierwszej zmianie w panelu.",
+      "bulkRemove": "",
+      "removeTitle": "",
+      "removeBody": "",
+      "removeAction": "",
+      "fields": {
+        "id": "Wpis",
+        "createdAt": "Czas",
+        "staffId": "Operator",
+        "staffName": "Operator",
+        "staffEmail": "E-mail operatora",
+        "action": "Akcja",
+        "entityType": "Obiekt",
+        "entityId": "Identyfikator obiektu"
+      },
+      "values": {
+        "entityType": {
+          "scooter": "Hulajnoga",
+          "scooter_model": "Model",
+          "staff": "Operator",
+          "role": "Rola",
+          "user": "Klient",
+          "legal_document": "Dokument"
+        }
+      }
     }
+  },
+  "history": {
+    "title": "Historia zmian",
+    "empty": "Brak zmian w dzienniku audytu.",
+    "fields": ": {fields}",
+    "all": "Wszystkie wpisy w dzienniku audytu"
+  },
+  "audit": {
+    "actions": {
+      "scooter": {
+        "created": "Dodanie hulajnogi",
+        "updated": "Zmiana hulajnogi",
+        "status_changed": "Zmiana statusu",
+        "retired": "Wycofanie z floty",
+        "command_sent": "Komenda zdalna"
+      },
+      "scooter_model": {
+        "created": "Dodanie modelu",
+        "updated": "Zmiana modelu",
+        "archived": "Archiwizacja modelu",
+        "deleted": "Usunięcie modelu"
+      },
+      "staff": {
+        "invited": "Zaproszenie operatora",
+        "invitation_resent": "Ponowne zaproszenie",
+        "invitation_accepted": "Przyjęcie zaproszenia",
+        "updated": "Zmiana operatora",
+        "roles_changed": "Zmiana ról",
+        "deactivated": "Dezaktywacja operatora",
+        "totp_reset": "Reset TOTP",
+        "totp_enabled": "Włączenie TOTP",
+        "sessions_revoked": "Wylogowanie wszędzie",
+        "signed_in": "Logowanie"
+      },
+      "role": {
+        "created": "Dodanie roli",
+        "updated": "Zmiana roli",
+        "permissions_changed": "Zmiana uprawnień roli",
+        "deleted": "Usunięcie roli"
+      },
+      "user": {
+        "updated": "Zmiana danych klienta",
+        "blocked": "Blokada klienta",
+        "unblocked": "Odblokowanie klienta",
+        "sessions_revoked": "Wylogowanie klienta"
+      },
+      "legal_document": {
+        "draft_created": "Nowa wersja robocza",
+        "draft_updated": "Edycja wersji roboczej",
+        "published": "Publikacja dokumentu",
+        "draft_deleted": "Usunięcie wersji roboczej"
+      }
+    },
+    "entityTypes": {
+      "scooter": "Hulajnoga",
+      "scooter_model": "Model",
+      "staff": "Operator",
+      "role": "Rola",
+      "user": "Klient",
+      "legal_document": "Dokument"
+    },
+    "detailsTitle": "Wpis {id}",
+    "changed": "Zmienione pola",
+    "data": "Dane wpisu",
+    "readOnly": "Wpisów nie można edytować ani usuwać. Hasła, kody i sekrety TOTP nigdy nie trafiają do dziennika.",
+    "entity": "Obiekt",
+    "staff": "Operator",
+    "action": "Akcja",
+    "time": "Czas",
+    "noChanges": "Wpis bez zmienionych pól"
+  },
+  "access": {
+    "tabs": {
+      "staff": "Operatorzy",
+      "roles": "Role",
+      "audit": "Dziennik audytu"
+    },
+    "staff": {
+      "totpOn": "Włączony",
+      "totpOff": "Nieskonfigurowany",
+      "neverLoggedIn": "nigdy",
+      "invitationUntil": "zaproszenie do {date}",
+      "sessions": "{count, plural, one {# sesja} few {# sesje} other {# sesji}}",
+      "dataSection": "Dane",
+      "rolesSection": "Role",
+      "rolesHint": "Uprawnienia to suma zaznaczonych ról",
+      "roleMeta": "{permissions} uprawnień · {staff, plural, one {# osoba} few {# osoby} other {# osób}}",
+      "ownRoles": "Własnych ról nie możesz zmienić; zrobi to inny administrator.",
+      "security": "Bezpieczeństwo",
+      "totpPill": "TOTP włączony",
+      "totpPillOff": "TOTP nieskonfigurowany",
+      "noSessions": "Brak aktywnych sesji",
+      "sessionActive": "ostatnio {date}",
+      "sessionCreated": "zalogowano {date}",
+      "revokeAll": "Wyloguj wszędzie",
+      "resetTotp": "Resetuj TOTP",
+      "resetTotpTitle": "Zresetować TOTP?",
+      "resetTotpBody": "Operator zostanie wylogowany i przy następnym logowaniu skonfiguruje aplikację uwierzytelniającą od nowa.",
+      "revokeTitle": "Wylogować ze wszystkich urządzeń?",
+      "revokeBody": "Sesje operatora wygasną od razu; zaloguje się ponownie hasłem i kodem.",
+      "invitationSection": "Zaproszenie",
+      "invitationPending": "Konto czeka na aktywację do {date}.",
+      "resend": "Wyślij nowe zaproszenie",
+      "invitationLink": "Link aktywacji (pokazujemy go tylko raz):",
+      "copyLink": "Kopiuj link",
+      "copied": "Skopiowano",
+      "deactivateSection": "Dezaktywacja",
+      "deactivateBody": "Operator nie zaloguje się, a jego sesje zostaną zakończone. Konto i wpisy w dzienniku zostają.",
+      "deactivate": "Dezaktywuj konto",
+      "deactivateTitle": "Dezaktywować konto?",
+      "since": "Operator od {date} · ostatnie logowanie {last} · wersja {version}",
+      "inviteTitle": "Zaproszenie operatora",
+      "inviteLead": "Operator dostanie link do ustawienia hasła i kodu TOTP; link jest ważny 72 godziny.",
+      "inviteSubmit": "Zaproś operatora",
+      "invitedTitle": "Zaproszenie gotowe",
+      "invitedBody": "Przekaż ten link nowemu operatorowi ({name}). Po ustawieniu hasła i TOTP zaloguje się do panelu.",
+      "goToOperator": "Przejdź do karty operatora",
+      "inactive": "Konto dezaktywowane"
+    },
+    "roles": {
+      "system": "systemowa",
+      "permissionsOf": "{count} / {total}",
+      "matrix": "Uprawnienia",
+      "matrixHint": "{count} z {total} · najedź na uprawnienie, aby zobaczyć kod",
+      "moduleCount": "{count} z {total}",
+      "selectModule": "Wszystkie uprawnienia modułu {module}",
+      "pending": "Niezapisane:",
+      "added": "+ {list}",
+      "removed": "− {list}",
+      "liveNotice": "Zmiana działa od razu",
+      "liveBody": "Operatorzy z tą rolą ({count}) dostaną nowe uprawnienia przy następnym żądaniu, bez ponownego logowania.",
+      "roleSection": "Rola",
+      "staffSection": "Operatorzy z tą rolą",
+      "noStaff": "Nikt nie ma tej roli.",
+      "removeSection": "Usunięcie roli",
+      "removeBody": "Rolę bez operatorów można usunąć; rola systemowa zostaje.",
+      "remove": "Usuń rolę",
+      "removeTitle": "Usunąć rolę?",
+      "newTitle": "Nowa rola",
+      "subtitle": "{kind} · {staff, plural, one {# operator} few {# operatorzy} other {# operatorów}} · wersja {version}",
+      "kindSystem": "Rola systemowa",
+      "kindCustom": "Rola własna",
+      "listNotice": "Roli systemowej Administrator nie można usunąć. Roli przypisanej operatorom też nie: najpierw odbierz ją w kartach operatorów. Ostatniemu aktywnemu operatorowi z uprawnieniem „Zarządzanie rolami” nie da się go odebrać."
+    },
+    "users": {
+      "stats": {
+        "rides": "przejazdy",
+        "balance": "saldo portfela",
+        "tickets": "zgłoszenia",
+        "sessions": "aktywne sesje",
+        "lastSeen": "ostatnia aktywność"
+      },
+      "consents": "Zgody",
+      "consentsHint": "Wersje dokumentów z chwili akceptacji",
+      "consentVersion": "wersja {version}",
+      "consentStatement": "oświadczenie",
+      "consentVoluntary": "zgoda dobrowolna",
+      "acceptedAt": "zaakceptowano {date}",
+      "revokedAt": "wycofano {date}",
+      "consentCurrent": "Obowiązująca",
+      "consentOutdated": "Czeka na wersję {version}",
+      "consentConfirmed": "Potwierdzone",
+      "consentRevoked": "Wycofana",
+      "noConsents": "Klient nie zaakceptował jeszcze dokumentów.",
+      "data": "Dane",
+      "phoneHint": "Numer zmienia tylko klient, kodem SMS",
+      "sessions": "Sesje",
+      "revokeAll": "Wyloguj wszędzie",
+      "noSessions": "Brak aktywnych sesji",
+      "block": "Zablokuj konto",
+      "unblock": "Odblokuj konto",
+      "blockTitle": "Zablokować konto {name}?",
+      "blockBody": "Klient zostanie wylogowany ze wszystkich urządzeń i nie zarezerwuje hulajnogi.",
+      "blockReason": "Powód widoczny dla klienta",
+      "blockNote": "Notatka (opcjonalna, tylko w dzienniku audytu)",
+      "blockSubmit": "Zablokuj i wyloguj",
+      "unblockTitle": "Odblokować konto?",
+      "unblockBody": "Klient znów będzie mógł rezerwować hulajnogi.",
+      "blockedBanner": "Konto zablokowane {date}: {reason}",
+      "since": "konto od {date} · wersja {version}",
+      "noName": "Klient bez imienia",
+      "reasonHints": {
+        "TERMS_VIOLATION": "np. jazda we dwoje, parkowanie w zakazie",
+        "UNPAID_BALANCE": "odblokuj po uregulowaniu salda",
+        "SUSPECTED_ABUSE": "np. wiele kont na jedno urządzenie"
+      }
+    },
+    "documents": {
+      "tab": "Dokumenty prawne",
+      "title": "Treści",
+      "lead": "Teksty, które widzą klienci w aplikacji i na stronie",
+      "consentDoc": "zgoda · obowiązuje wersja {version}",
+      "noConsentDoc": "bez zgody · wersja {version}",
+      "noPublished": "brak opublikowanej wersji",
+      "address": "Adres w aplikacji i na stronie: /{slug}",
+      "newVersion": "Nowa wersja",
+      "editDraft": "Edytuj wersję roboczą",
+      "columns": {
+        "version": "Wersja",
+        "title": "Tytuł",
+        "status": "Status",
+        "published": "Publikacja",
+        "acceptances": "Akceptacje"
+      },
+      "versionNo": "Wersja {no}",
+      "publishedFrom": "od {date}",
+      "publishedRange": "{from} – {to}",
+      "unpublished": "nieopublikowana",
+      "acceptedCurrent": "klientów zaakceptowało wersję {version}",
+      "immutable": "Opublikowanej wersji nie można zmienić.",
+      "immutableBody": "Każda zgoda klienta wskazuje wersję, którą zaakceptował. Poprawka to nowa wersja; po jej publikacji aplikacja poprosi klientów o ponowną akceptację.",
+      "versionTitle": "{name}, wersja {no}",
+      "draftSub": "Wersja robocza · {chars} znaków",
+      "fieldTitle": "Tytuł",
+      "fieldSummary": "Najważniejsze zmiany",
+      "fieldSummaryHint": "widzą je klienci przy ponownej akceptacji",
+      "fieldBody": "Treść (Markdown)",
+      "preview": "Podgląd",
+      "previewHint": "tak zobaczy to klient",
+      "save": "Zapisz",
+      "saved": "Zapisano wersję roboczą",
+      "publish": "Opublikuj",
+      "publishTitle": "Opublikować wersję {no}?",
+      "publishBody": "Wersja zacznie obowiązywać od razu, a poprzednia stanie się archiwalna. Klienci zobaczą w aplikacji prośbę o akceptację z najważniejszymi zmianami.",
+      "deleteDraft": "Usuń wersję roboczą",
+      "deleteTitle": "Usunąć wersję roboczą?",
+      "deleteBody": "Treść wersji roboczej zostanie usunięta; obowiązująca wersja się nie zmieni.",
+      "afterPublish": "Po publikacji",
+      "afterPublish1": "Wersja zacznie obowiązywać od razu, a poprzednia stanie się archiwalna.",
+      "afterPublish2": "Klienci zobaczą w aplikacji prośbę o akceptację z najważniejszymi zmianami.",
+      "afterPublish3": "Do akceptacji klient może przeglądać mapę, ale nie zarezerwuje hulajnogi.",
+      "readOnlyVersion": "Wersja {status}: tylko do odczytu."
+    },
+    "permissionModules": {
+      "dashboard": "Pulpit",
+      "fleet": "Flota",
+      "zones": "Strefy",
+      "rentals": "Przejazdy",
+      "payments": "Cennik i płatności",
+      "accounts": "Klienci",
+      "operations": "Zgłoszenia",
+      "service": "Serwis",
+      "access": "Dostęp",
+      "content": "Treści",
+      "documents": "Wydruki",
+      "reports": "Raporty",
+      "simulator": "Symulator"
+    }
+  },
+  "consentType": {
+    "TERMS": "Regulamin",
+    "PRIVACY": "Polityka prywatności",
+    "AGE": "Ukończone {age} lat",
+    "AGEPlain": "Potwierdzenie wieku",
+    "MARKETING": "Informacje o promocjach"
+  },
+  "documentStatus": {
+    "DRAFT": "Robocza",
+    "PUBLISHED": "Obowiązuje",
+    "ARCHIVED": "Archiwalna"
   }
 }
