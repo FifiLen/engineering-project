@@ -1,0 +1,76 @@
+# Wymagania uczelni i analiza zgodności
+
+Źródło: opis projektu „Projekt inżynierski” (specjalność: Programista aplikacji biznesowych). Wymagania są nadrzędne wobec wcześniejszych decyzji: jeśli ADR stoi z nimi w sprzeczności, potrzebny jest nowy ADR.
+
+**Stan analizy:** 2026-11-16, po zakończeniu iteracji 0. Część punktów wymaga potwierdzenia z prowadzącym (sekcja „Pytania do prowadzącego”).
+
+## Wymagania (skrót)
+
+ZSI (Zintegrowany System Informatyczny) dla wybranej branży, który:
+
+1. realizuje konkretne cele biznesowe (użyteczność biznesowa),
+2. ma funkcje wzorowane na typowych rozwiązaniach z branży,
+3. zawiera: (a) dwie z trzech aplikacji: desktopowa, internetowa, mobilna; (b) projekt operacji na bazie danych; (c) projekt z klasami logiki biznesowej,
+4. aplikacje z 3a używają tego samego projektu bazodanowego (3b) i tych samych klas logiki (3c),
+5. jest wykonany nowoczesnymi technikami (np. C#, ASP.NET Core, Java),
+6. jest zgodny z wzorcami projektowymi (np. MVVM, MVC),
+7. ma bazę danych na serwerze bazy danych (np. MS SQL Server, Oracle),
+8. ma bazę z **co najmniej 30 tabelami** oraz **widokami, procedurami, funkcjami i indeksami**,
+9. korzysta z nowoczesnego ORM (np. Entity Framework),
+10. ma mechanizmy autoryzacji (np. wspólne logowanie),
+11. ma **moduł zarządzania użytkownikami i grupami uprawnień** dostępny z interfejsu,
+12. umożliwia **dodawanie, edycję, usuwanie, wyświetlanie, filtrowanie i sortowanie dla wszystkich tabel**,
+13. realizuje kilka rozbudowanych procesów biznesowych domkniętych w 100%,
+14. ma **co najmniej 50 rozbudowanych widoków biznesowych**,
+15. ma dopracowane i spójne graficznie widoki,
+16. spełnia zasady konstrukcji interfejsów z kursu Interakcja Człowiek–Komputer,
+17. **wszystkie widoczne teksty, opisy, zdjęcia itd. są sterowane z części administracyjnej** (nic na sztywno w kodzie),
+18. generuje **rozbudowane raporty z eksportem do PDF i Excela**,
+19. generuje **parametryzowane wydruki z szablonów (np. Word)**, a użytkownik może zmienić szablon.
+
+Warunek zaliczenia: wykonanie, prezentacja i obrona z pytaniami z kodu.
+
+## Zgodność
+
+| Nr | Stan | Jak jest teraz | Co trzeba zrobić |
+|---|---|---|---|
+| 1 | spełnione | Wypożyczalnia hulajnóg z operatorem floty | Opisać cele biznesowe i mierniki w arc42 §1 |
+| 2 | spełnione | Wzorce z usług typu Lime, Bolt, Tier | Krótki przegląd rozwiązań rynkowych w pracy |
+| 3a | spełnione | Aplikacja mobilna (Expo) i internetowa (Next.js) | — |
+| 3b | częściowo | `packages/db` istnieje, ale API (np. `ZonesService`, `HealthController`) używa surowego `pg` poza tym pakietem | Cały dostęp do danych przez `packages/db` (repozytoria), także zapytania PostGIS |
+| 3c | **brak** | Logika ma żyć w modułach `apps/api`, nie ma osobnego projektu | Wydzielić `packages/core`: czyste klasy domeny bez frameworka (maszyna stanów przejazdu, wycena, reguły stref, uprawnienia), testowane jednostkowo; `apps/api` tylko je wywołuje |
+| 4 | do potwierdzenia | Obie aplikacje korzystają z bazy i logiki przez wspólne API | Zapytać prowadzącego, czy dostęp przez wspólny backend spełnia punkt 4 (pytanie 2) |
+| 5 | do potwierdzenia | TypeScript, Node.js, React, React Native | Lista w wymaganiach jest przykładowa („np.”); potwierdzić (pytanie 1) |
+| 6 | spełnione, do opisania | MVC w API (kontrolery, serwisy), moduły i wstrzykiwanie zależności, Repozytorium, Stan (przejazd), Adapter (SMS, płatności, mapy), Obserwator (zdarzenia), w klientach komponenty i hooki | Rozdział o wzorcach z odniesieniami do kodu |
+| 7 | do potwierdzenia | PostgreSQL 16 w kontenerze | PostgreSQL jest serwerem bazy danych; potwierdzić (pytanie 1) |
+| 8 | **brak** | 24 tabele, indeksy (w tym GiST i częściowe), brak widoków, procedur i funkcji | Nowe obszary z punktów 11, 17, 18, 19 dodadzą tabele (cel: 32+). Widoki (np. stan floty, szczegóły przejazdu, przychód dzienny), funkcje (np. koszt przejazdu, strefy w punkcie), procedury (np. anonimizacja konta, wygaszanie rezerwacji). Nowy ADR: co w bazie, a co w `packages/core` |
+| 9 | częściowo | Drizzle ORM jest, ale część kodu używa surowego `pg` | Dostęp do danych wyłącznie przez Drizzle (PostGIS przez `sql` z Drizzle); potwierdzić, że Drizzle spełnia punkt (pytanie 3) |
+| 10 | zaplanowane | ADR 0019: kod SMS dla użytkowników, hasło + TOTP dla operatorów | Jeden moduł uwierzytelniania i jeden format tokenów dla obu aplikacji; rozważyć strefę klienta w webie na tym samym koncie |
+| 11 | **brak** | Role operatorów jako stały typ `staff_role` (3 wartości) | Uprawnienia w bazie: role, uprawnienia, przypisania; ekrany w panelu (lista ról, edycja uprawnień, przypisywanie użytkowników) |
+| 12 | **brak** | Makiety panelu pokrywają część tabel | Wspólny wzorzec widoku tabeli (lista z filtrowaniem, sortowaniem, stronicowaniem + formularz) dla każdej tabeli. Tabele z założenia niezmienne (księga portfela, dziennik audytu, telemetria) do uzgodnienia (pytanie 4) |
+| 13 | zaplanowane | Procesy: wypożyczenie, płatności, zgłoszenia | Domknąć każdy proces od początku do końca; doprojektować proces serwisowy (zgłoszenie → zadanie → naprawa lub wymiana baterii → powrót do floty) |
+| 14 | do policzenia | Ok. 55 makiet (aplikacja ok. 42, panel 11, strona 2), część to stany ekranów | Spis widoków w `docs/projekt/README.md`; nowe ekrany panelu z punktów 11, 12, 17–19 zapewnią zapas. Zapytać, czy stany liczą się jako widoki (pytanie 7) |
+| 15 | spełnione | Design system, spójne makiety | Pilnować w implementacji |
+| 16 | do uzupełnienia | Kontrasty WCAG, cele dotykowe ≥ 44 px, spójne nazewnictwo akcji | Zestawić z materiałami z wykładu ICK (potrzebne od autora) i opisać w pracy |
+| 17 | **brak** | Teksty i grafiki są w kodzie makiet i aplikacji | Moduł treści: teksty interfejsu i treści (regulamin, FAQ, opisy, aktualności) w bazie z edycją w panelu; grafiki w magazynie plików z zarządzaniem w panelu; klienci pobierają treści z API z pamięcią podręczną. Decyzja przed iteracją 1, bo dotyczy każdego ekranu. Zakres do potwierdzenia (pytanie 5) |
+| 18 | **brak** | Pulpit z liczbami, brak raportów | Moduł raportów: przychody, wykorzystanie floty, przejazdy wg stref i godzin, awaryjność, użytkownicy; parametry (okres, strefa), eksport PDF i XLSX |
+| 19 | **brak** | — | Szablony DOCX z polami (np. potwierdzenie przejazdu, protokół serwisowy, karta hulajnogi, raport zdarzenia); wgrywanie nowej wersji szablonu w panelu; generowanie DOCX i PDF |
+
+## Pytania do prowadzącego
+
+1. Czy stos TypeScript (Node.js, NestJS, React, React Native) i PostgreSQL jest akceptowany w miejsce przykładowych C#/Java i MS SQL Server/Oracle?
+2. Punkt 4: czy wystarczy, że obie aplikacje korzystają z projektu bazodanowego i logiki biznesowej przez wspólny backend (API), skoro aplikacja mobilna nie może łączyć się z bazą bezpośrednio?
+3. Czy Drizzle ORM spełnia punkt 9?
+4. Punkt 12: czy tabele z założenia tylko do dopisywania (księga portfela, dziennik audytu, telemetria) mogą mieć ograniczone operacje, np. korekta jako nowy wpis zamiast edycji i usuwania?
+5. Punkt 17: czy dotyczy wszystkich tekstów interfejsu (np. etykiet przycisków), czy treści merytorycznych (aktualności, opisy, zdjęcia, regulamin, FAQ)?
+6. Czy symulowana flota (bez fizycznych urządzeń) jest akceptowalna?
+7. Punkt 14: czy różne stany jednego ekranu (np. pusty, błąd) liczą się jako osobne widoki?
+
+## Plan dostosowania (przed iteracją 1)
+
+1. Zadać pytania prowadzącemu; odpowiedzi zapisać w tym pliku.
+2. ADR-y: osobny projekt logiki (`packages/core`), zakres logiki w bazie (widoki, funkcje, procedury), moduł treści, uprawnienia (RBAC), raporty i wydruki.
+3. Migracja `0002`: uprawnienia, treści i media, szablony wydruków i wygenerowane dokumenty, definicje raportów, paragony, modele hulajnóg i zadania serwisowe; widoki, funkcje, procedury.
+4. Refaktoryzacja: `packages/core`, dostęp do danych tylko przez `packages/db` i Drizzle.
+5. Aktualizacja planu iteracji o moduły: treści i uprawnienia, raporty i wydruki, serwis.
+6. Makiety nowych ekranów panelu: role i uprawnienia, wzorzec widoku tabeli, edytor treści, biblioteka mediów, raporty, szablony wydruków.

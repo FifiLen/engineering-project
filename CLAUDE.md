@@ -2,6 +2,9 @@
 
 Projekt jednoosobowy. Priorytet: jakość i dokumentacja pomocna przy obronie. Komunikacja i dokumentacja po polsku, kod i identyfikatory po angielsku.
 
+## Wymagania uczelni (nadrzędne)
+Projekt musi spełnić 19 wymagań z `docs/wymagania-uczelni.md` (m.in. min. 30 tabel z widokami, procedurami i funkcjami; osobne projekty bazy i logiki biznesowej; zarządzanie użytkownikami i grupami uprawnień; CRUD z filtrowaniem i sortowaniem dla wszystkich tabel; min. 50 widoków; treści sterowane z panelu, bez tekstów na sztywno; raporty PDF/Excel; wydruki z szablonów Word). Przed każdą większą decyzją sprawdź ten plik. Nie zaczynaj iteracji 1 przed wykonaniem sekcji „Plan dostosowania”.
+
 ## Najważniejsze zasady
 - Klienci znają tylko API, hulajnogi znają tylko broker MQTT, cała logika biznesowa jest w backendzie.
 - Backend to monolit modularny (NestJS 12, ESM, Fastify). Moduł nie czyta tabel innego modułu bezpośrednio.
@@ -33,11 +36,16 @@ Projekt jednoosobowy. Priorytet: jakość i dokumentacja pomocna przy obronie. K
 - Migracje piszemy ręcznie w SQL w `packages/db/migrations`; wykonanej migracji nie zmieniamy.
 
 ## Kierunek wizualny
-Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny kolor akcji), #E3E3DE, #6B6E75; ostrzeżenia #8F5500, błędy #C62F2F. Inter; liczby zawsze Medium. Makiety: kanwa „Moodboardy – system hulajnóg” w claude.ai.
+Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny kolor akcji), #E3E3DE, #6B6E75; ostrzeżenia #8F5500, błędy #C62F2F. Inter; liczby zawsze Medium.
+- Makiety: `docs/projekt/` (spis w `docs/projekt/README.md`). Każdy ekran jako PNG (obejrzyj przed implementacją) i HTML (dokładne wartości CSS). Implementuj ekrany wiernie według makiety; odstępstwa zapisuj w dzienniku.
+- Tokeny: `docs/projekt/tokens.json`; zasady i komponenty: `docs/projekt/design-system.md`. Rendery: `docs/projekt/rendery/`, ikona: `docs/projekt/ikona/`.
+- `docs/projekt/ekrany/00-eksploracja/` to archiwum odrzuconych kierunków, nie implementować.
+- Kanwa w claude.ai jest archiwum; źródłem prawdy jest repozytorium. Nowe makiety można tworzyć jako HTML w `docs/projekt/ekrany/` według design systemu.
 
 ## Stan: iteracja 0 zakończona lokalnie (2026-11-10)
 Gotowe: monorepo, Docker Compose (PostGIS, Mosquitto, SeaweedFS, OSRM), migrator i migracja 0001, schemat Drizzle, dane startowe ze sprawdzonymi współrzędnymi Rybnika, pakiet shared, szkielety api/web/mobile/simulator, CI, README, ADR 0021–0024. Pełny przebieg lint/typecheck/test/build przechodzi.
 Do zrobienia przed iteracją 1:
+- [ ] Wymagania uczelni: pytania do prowadzącego i „Plan dostosowania” z `docs/wymagania-uczelni.md` (ADR-y, migracja 0002, `packages/core`, nowe makiety panelu)
 - [ ] Wypchnąć repozytorium na GitHuba i potwierdzić zielony przebieg `.github/workflows/ci.yml`; scalić gałąź `iteracja-0-domkniecie` z `main`
 - [ ] Autor: obejrzeć strefy na mapie (współrzędne w `packages/db/seed/rybnik-places.json`, wyniki OSM w dzienniku)
 
