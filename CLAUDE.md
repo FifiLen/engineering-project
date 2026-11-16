@@ -44,18 +44,23 @@ Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny 
 - `docs/projekt/ekrany/00-eksploracja/` to archiwum odrzuconych kierunków, nie implementować.
 - Kanwa w claude.ai jest archiwum; źródłem prawdy jest repozytorium. Nowe makiety można tworzyć jako HTML w `docs/projekt/ekrany/` według design systemu.
 
-## Stan: iteracja 0 zakończona (2026-11-16)
-Gotowe: monorepo, Docker Compose (PostGIS, Mosquitto, SeaweedFS, OSRM), migracje 0001–0002, schemat Drizzle, `packages/core`, dane startowe ze sprawdzonymi współrzędnymi Rybnika, pakiet shared, szkielety api/web/mobile/simulator, CI, README, ADR 0001–0031. Repozytorium: github.com/FifiLen/engineering-project (gałąź `main`); CI przechodzi na GitHub Actions.
-Do zrobienia przed iteracją 1:
-- [x] Wymagania uczelni: „Plan dostosowania” z `docs/wymagania-uczelni.md` (ADR 0025–0031, migracja 0002, `packages/core`, plan iteracji 0–9, makieta wzorca widoku tabeli w `docs/projekt/ekrany/17-panel-wzorce/`). Makiety ról i uprawnień przed iteracją 2, pozostałych nowych ekranów przed iteracjami 7–8.
-- [x] Wypchnąć repozytorium na GitHuba i potwierdzić zielony przebieg `.github/workflows/ci.yml` (2026-11-16, commit `bea96ab`)
-- [x] Autor: obejrzeć strefy na mapie (współrzędne w `packages/db/seed/rybnik-places.json`; potwierdzone 2026-11-16)
+## Stan: iteracja 1 zakończona lokalnie (2026-11-16)
+Iteracja 0: monorepo, Docker Compose, migracje 0001–0002, `packages/core`, dane startowe Rybnika, CI, ADR 0001–0031 (repozytorium github.com/FifiLen/engineering-project, gałąź `main`).
+Iteracja 1 (`docs/iteracje/iteracja-01-symulator-telemetria.md`): symulator z własnym połączeniem MQTT na hulajnogę i przejazdami pokazowymi (ADR 0034), telemetria partiami i status floty w core i w bazie (ADR 0033, migracja 0003), Socket.IO pokój `fleet`, wspólny mechanizm list i definicje zasobów (`scooters`, `scooter-models`), panel: mapa floty, lista i formularz floty i modeli, etykiety w plikach tłumaczeń z regułą lintera (ADR 0032).
+Do zrobienia:
+- [ ] Wypchnąć iterację 1 i potwierdzić zielone CI.
+- [ ] Przed iteracją 2: makiety ról i uprawnień (`docs/projekt/ekrany/`); logowanie operatorów, `@RequirePermission` i `audit_log` dla zapisów z iteracji 1.
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.
 - Porty: `POSTGRES_PORT`, `OSRM_PORT` (macOS: 5000 zajmuje AirPlay), `WEB_PORT` (zmienna powłoki). Obrazy kontenerów przypięte do wersji; OSRM z `ghcr.io/project-osrm`.
 - `drizzle-kit pull` losowo zamienia klasy operatorów w indeksach wielokolumnowych; po `db:pull` cofnij takie różnice, jeśli migracja nie dotyczyła tych indeksów.
-- `apps/mobile` ma własny `eslint.config.js` (eslint-config-expo) i ESLint 9; reszta repo ESLint 10.
+- `apps/mobile` ma własny `eslint.config.js` (eslint-config-expo) i ESLint 9; reszta repo ESLint 10. Reguła tekstów w JSX jest w obu plikach (kopia).
+- Teksty w JSX tylko przez `t('klucz')` z `apps/web/messages/pl.json` lub `apps/mobile/src/i18n/pl.json` (ADR 0032); nowe pole zasobu panelu = klucz `resource.<zasób>.fields.<pole>`.
+- Nowy zasób panelu: definicja w `packages/shared/src/admin`, `ListSource` w repozytorium `packages/db`, kontroler z `ListQueryPipe`, komponenty `ResourceList`/`ResourceForm` w `apps/web/components/admin`.
+- MapLibre 6: wątek roboczy kopiuje `apps/web/scripts/maplibre-worker.mjs` do `public/` (w `dev` i `build`); plik jest w `.gitignore`.
+- Symulator trzyma stan w `apps/simulator/.state/fleet.json` (usunięcie = pozycje z danych startowych). Backend łączy się z MQTT ze stałym `MQTT_CLIENT_ID`: nie uruchamiaj dwóch API naraz na tym samym brokerze.
+- Panel: `NEXT_PUBLIC_API_URL` (domyślnie http://localhost:3001); na komputerze autora port 3000 jest zajęty: `WEB_PORT=3002`.
 
 ## Otwarte decyzje
 Nazwa marki ([nazwa]); wartości biznesowe (ceny, czas rezerwacji, minimalne saldo, próg baterii, limit w wolnej strefie, wiek, opłata za parkowanie poza strefą, zwrot salda; w seedzie są wartości deweloperskie); naliczanie czasu przy utracie łączności.

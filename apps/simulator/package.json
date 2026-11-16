@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@hulajnogi/shared": "workspace:*",
-    "mqtt": "^5.14.0",
+    "mqtt": "^5.16.1",
     "zod": "^4.1.0"
   },
   "devDependencies": {

@@ -19,7 +19,7 @@ Czas zapisujemy w UTC (`timestamptz`), prezentujemy w strefie Europe/Warsaw. Cza
 Układ WGS 84 (SRID 4326). Pozycje jako `Point`, strefy jako `MultiPolygon` z indeksem GiST.
 
 ## 8.7. Zdarzenia na żywo
-Socket.IO z pokojami: `user:{id}` dla aplikacji użytkownika, `rental:{id}` dla przejazdu, `fleet` dla panelu. Format zdarzeń opisuje pakiet `shared`.
+Socket.IO z pokojami: `user:{id}` dla aplikacji użytkownika, `rental:{id}` dla przejazdu, `fleet` dla panelu. Format zdarzeń opisuje pakiet `shared` (`realtime.ts`). Od iteracji 1: `fleet.updates` (paczka zmian pozycji, baterii i statusu floty z jednego okna telemetrii) i `fleet.command` (wysłanie i każda zmiana statusu komendy). Panel pobiera stan początkowy przez REST (`GET /admin/fleet/map`) i po każdym ponownym połączeniu pobiera go od nowa.
 
 ## 8.8. Obsługa błędów
 API zwraca błędy w jednym formacie: kod maszynowy (np. `OUTSIDE_PARKING`), komunikat i szczegóły. Klienci reagują na kod, nie na treść komunikatu.
@@ -31,4 +31,4 @@ Logi strukturalne w JSON z identyfikatorem żądania, przejazdu i komendy. Metry
 Pełne numery kart nie trafiają do systemu. Usunięcie konta anonimizuje dane osobowe, przejazdy i płatności zostają ze względów księgowych. Telemetria starsza niż ustalony okres jest usuwana razem z partycjami.
 
 ## 8.11. Język interfejsu
-Interfejs po polsku. Etykiety interfejsu (przyciski, pola, menu, komunikaty błędów) są wydzielone do plików tłumaczeń, żeby dodanie kolejnego języka nie wymagało zmian w kodzie; w komponentach są tylko klucze. Treści merytoryczne (regulamin, FAQ, aktualności, bloki strony i ekranów powitalnych, szablony powiadomień, grafiki) są w bazie i edytuje je operator w panelu ([ADR 0027](../adr/0027-tresci-sterowane-z-panelu.md)).
+Interfejs po polsku. Etykiety interfejsu (przyciski, pola, menu, komunikaty błędów) są wydzielone do plików tłumaczeń, żeby dodanie kolejnego języka nie wymagało zmian w kodzie; w komponentach są tylko klucze. Mechanizm: wspólny tłumacz z `packages/shared` na `intl-messageformat` (format ICU, polskie liczebniki), pliki `apps/web/messages/pl.json` i `apps/mobile/src/i18n/pl.json`, reguła lintera zakazująca tekstów w JSX ([ADR 0032](../adr/0032-etykiety-w-plikach-tlumaczen.md)). Treści merytoryczne (regulamin, FAQ, aktualności, bloki strony i ekranów powitalnych, szablony powiadomień, grafiki) są w bazie i edytuje je operator w panelu ([ADR 0027](../adr/0027-tresci-sterowane-z-panelu.md)).

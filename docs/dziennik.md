@@ -170,3 +170,51 @@ Pierwsze zapytania trafiły źle w dwóch miejscach: dla dworca nie było wyniku
 **Zmiany względem planu**
 - Iteracja 0 zakończona, łącznie z dostosowaniem do wymagań uczelni.
 - Autor obejrzał strefy na mapie i potwierdził współrzędne z `packages/db/seed/rybnik-places.json` (Rynek, dworzec PKP, kampus, Focus Park, Rybnik Plaza). Przed iteracją 1 nie zostało nic otwartego.
+
+## Iteracja 1: symulator, telemetria i wzorzec panelu (16 listopada 2026)
+
+Plan i scenariusz demo: [iteracja 1](iteracje/iteracja-01-symulator-telemetria.md).
+
+**Co powstało**
+- Symulator ([ADR 0034](adr/0034-symulator-floty.md)): 40 wirtualnych hulajnóg, każda z własnym połączeniem MQTT, sesją trwałą i Last Will; telemetria co 5 s z przesunięciem fazy, bufor dosyłany po odzyskaniu łączności, komendy z potwierdzeniami i idempotencją po `commandId`, przejazdy pokazowe po trasach rowerowych z OSRM (30 na godzinę), stan zapisywany do pliku. Pozycje startowe z tego samego algorytmu co dane startowe bazy, obszar z pliku sprawdzonych współrzędnych.
+- `packages/core`: status floty (`deriveFleetStatus`), szacowany zasięg, reguły zmian statusu hulajnogi z panelu, wycofanie zamiast usunięcia, archiwizacja modelu, reguły komend (odblokowanie tylko w serwisie, limit 10 s na potwierdzenie), przyjmowanie telemetrii (kolejność, przebieg bez szumu i skoków GPS), blokada optymistyczna; porty repozytoriów floty, modeli, telemetrii i komend.
+- Migracja `0003_fleet_lists.sql`: `fn_low_battery_threshold`, `fn_fleet_status`, widoki `v_fleet_list` i `v_scooter_models`, indeksy po ostatnim sygnale i dla komend bez potwierdzenia. Baza: 46 tabel, 15 widoków, 8 funkcji, 6 procedur.
+- `packages/db`: wspólny mechanizm list `runListQuery` (filtry z białej listy, wyszukiwanie, sortowanie z pustymi na końcu i stabilnym kluczem, stronicowanie, liczniki bez filtra własnego pola), repozytoria Drizzle, naruszenie unikalności jako `ALREADY_EXISTS` z nazwą pola, strefy jako GeoJSON.
+- `packages/shared`: kontrakt list (`parseListQuery`, `toSearchParams`), definicje zasobów `scooters` i `scooter-models` ze schematami formularzy, zdarzenia Socket.IO, tłumacz etykiet na `intl-messageformat` ([ADR 0032](adr/0032-etykiety-w-plikach-tlumaczen.md)).
+- API: moduły MQTT, Realtime (pokój `fleet`), Flota (listy, szczegóły, tworzenie, edycja z wersją, usuwanie jako wycofanie lub archiwizacja, komendy, mapa) i Telemetria (okno 1 s, jedna kolejka z łącznością, partycje 7 dni naprzód) ([ADR 0033](adr/0033-telemetria-i-status-floty.md)); `GET /zones` (GeoJSON), CORS dla panelu, `NOT_FOUND` jako 404.
+- Panel: układ z nawigacją boczną, mapa floty na żywo (MapLibre, OpenFreeMap, warstwa stref, szybkie filtry, legenda, karta hulajnogi z komendami i ostatnimi komunikatami), wspólne komponenty listy (wyszukiwarka, szybkie filtry z licznikami, panel filtrów z liczbą wyników, etykiety aktywnych filtrów, sortowanie z `aria-sort`, stronicowanie, zaznaczanie i operacja grupowa z potwierdzeniem, cztery stany listy) i formularza (walidacja schematem Zod z API, błędy przy polach, konflikt wersji z różnicami, karta operacji nieodwracalnej); lista i formularz floty oraz modeli.
+- Etykiety panelu i aplikacji mobilnej w plikach tłumaczeń; reguła `no-restricted-syntax` zakazuje tekstów w JSX w obu klientach.
+- Kontrakt zdarzeń Socket.IO [`asyncapi-realtime.yaml`](kontrakty/asyncapi-realtime.yaml), ADR 0032–0034, arc42 §5.2, §6.3, §6.8, §8.7, §8.11, §11.
+
+**Weryfikacja**
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build` przechodzi: 126 testów (38 core, 18 shared, 17 symulatora, 33 bazy, 20 API), żaden pominięty. Testy bazy porównują `fn_fleet_status` z regułą z core dla wszystkich kombinacji stanu, łączności i baterii; test API łączy klienta Socket.IO z działającym serwerem Fastify i sprawdza zdarzenia `fleet.updates` i `fleet.command`.
+- Na żywo (API, symulator, Mosquitto, OSRM, panel w przeglądarce 1440×900): 40/40 hulajnóg online, telemetria w partycji `telemetry_20261116`, przebieg rośnie z przejazdami pokazowymi; komenda „Dzwonek” z karty na mapie potwierdzona w 10 ms; zatrzymanie symulatora daje 0 hulajnóg online, ponowne uruchomienie 40 w tych samych miejscach; konflikt wersji w formularzu z porównaniem pól; błąd walidacji wagi przy polu.
+- Aplikacja mobilna: `expo lint`, `tsc` i paczki `expo export` dla web i iOS (Hermes) z nowym tłumaczem.
+- Reguły lintera sprawdzone plikami próbnymi: tekst, literał, szablon i `title`/`accessibilityLabel` z literami są zgłaszane w panelu i aplikacji; szablony w `href` i `id` nie.
+
+**Błędy znalezione w trakcie**
+- Backend łączył się z brokerem w `onModuleInit` modułu MQTT, zanim moduł Telemetria zarejestrował obsługę tematów. Przy sesji trwałej broker od razu dosyłał zaległe statusy, które przepadały: wszystkie hulajnogi zostawały „offline”. Połączenie przeniesione do `onApplicationBootstrap`.
+- Identyfikator klienta MQTT z numerem procesu nie wznawiał sesji po restarcie i zostawiał w brokerze osierocone sesje z kolejką wiadomości. Teraz stały `MQTT_CLIENT_ID`, a Mosquitto usuwa porzucone sesje po dobie.
+- Zapis partii telemetrii czytał stan sprzed równoległej zmiany łączności i wysyłał do panelu status „offline” hulajnogi, która właśnie się połączyła. Status i telemetria idą teraz przez jedną kolejkę (wykryte testem API).
+- Repozytoria przekazywały do `INSERT` cały obiekt wejściowy, więc nadmiarowe właściwości (np. `id` ze szczegółów) trafiały do zapytania. Teraz tylko pola z listy.
+- MapLibre GL 6 ładuje wątek roboczy jako osobny moduł obok swojego pliku, a Turbopack go nie kopiuje. Skrypt `apps/web/scripts/maplibre-worker.mjs` kopiuje go do `public/` przed `dev` i `build`, a mapa wskazuje go przez `setWorkerUrl`.
+
+**Zmiany względem planu**
+- Migracja 0003 została poprawiona przed publikacją (dodana kolumna `version` w `v_fleet_list` dla operacji grupowych); w bazie deweloperskiej cofnięta ręcznie i wykonana ponownie. Nigdzie poza tym komputerem nie była wykonana.
+- Status floty liczony w dwóch miejscach (core i funkcja bazy) zamiast tylko w core, bo lista filtruje i liczy statusy w SQL ([ADR 0033](adr/0033-telemetria-i-status-floty.md)). Próg niskiej baterii to minimalna bateria do wypożyczenia z cennika, a nie osobna wartość.
+- Do iteracji 3 przejazdy pokazowe symulatora nie zmieniają statusu w bazie (licznik „W użyciu” jest 0).
+- Kontrakt zdarzeń Socket.IO powstał jako `asyncapi-realtime.yaml`, zgodnie z planem w `kontrakty/README.md`.
+
+**Odstępstwa od makiet** (zgodnie z zasadą z CLAUDE.md)
+- Nawigacja boczna pokazuje tylko gotowe ekrany (Mapa floty, Flota, Modele hulajnóg); dolny blok operatora zastępuje „Tryb deweloperski” do czasu logowania.
+- Brak przycisku eksportu na liście (iteracja 8) i karty „Historia zmian” w formularzu (iteracja 2).
+- Karta hulajnogi na mapie nie ma renderu hulajnogi: zdjęcie modelu to treść z biblioteki mediów (iteracja 7, ADR 0027). „Ostatni przejazd” pokazuje numer otwartego przejazdu (iteracja 3).
+- Mapa używa stylu `positron` z OpenFreeMap zamiast stylu w palecie projektu (ADR 0017); własny styl razem z mapą w aplikacji (iteracja 3).
+- Filtr strefy jest w panelu filtrów, a nie osobnym przyciskiem „Strefa: wszystkie”, jak we wzorcu z `17-panel-wzorce`.
+- Modele hulajnóg nie mają makiety; ekrany zbudowane z wzorca widoku tabeli.
+
+**Dług techniczny**
+- Panel i API bez uwierzytelniania i dziennika audytu do iteracji 2.
+- Partycje telemetrii zakłada proces API (start i co 6 h), a nie pg-boss; przejdzie do zadania cyklicznego w iteracji 3.
+- Panel filtrów pokazuje liczniki wartości z listy przed zmianą filtrów, a nie dla wersji roboczej (liczba wszystkich wyników przycisku jest aktualna).
+- Formularz porównuje przy konflikcie tylko pola zmienione przez drugą osobę względem wczytanej wersji.

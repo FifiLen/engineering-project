@@ -187,6 +187,8 @@ Odstępstwa od plansz panelu z kanwy:
 - **Nawigacja boczna** jest pogrupowana (Operacje, Konfiguracja, Klienci i dostęp, Analiza) i ma nowe pozycje z ADR 0027–0030: Serwis, Treści, Operatorzy i role, Raporty, Wydruki. Pozycje niedostępne dla roli operatora są ukryte (ADR 0028). To propozycja nawigacji dla całego panelu; plansze z katalogu `13-panel` pokazują jeszcze starą listę.
 - **Eksport** domyślnie do XLSX (wymaganie 18), CSV w menu przycisku; makieta Flota ma tylko „Eksportuj CSV”.
 
+Implementacja w panelu (iteracja 1): mapa floty, Flota i wzorzec listy, filtrów, formularza i stanów; modele hulajnóg na tym samym wzorcu bez osobnej makiety. Odstępstwa od plansz opisuje [dziennik](../dziennik.md#iteracja-1-symulator-telemetria-i-wzorzec-panelu-16-listopada-2026).
+
 ## Strona promocyjna (pierwsza iteracja)
 
 | Ekran | Podgląd | Kod | Rozmiar |

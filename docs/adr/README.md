@@ -35,3 +35,6 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0029 | [Raporty z parametrami i eksportem do PDF i XLSX](0029-raporty-pdf-xlsx.md) | zaakceptowana |
 | 0030 | [Wydruki z szablonów DOCX zmienianych przez użytkownika](0030-wydruki-z-szablonow-docx.md) | zaakceptowana |
 | 0031 | [Wspólny wzorzec widoku tabeli w panelu i kontrakt list w API](0031-wzorzec-widoku-tabeli-w-panelu.md) | zaakceptowana |
+| 0032 | [Etykiety interfejsu: pliki JSON, wspólny tłumacz i reguła lintera](0032-etykiety-w-plikach-tlumaczen.md) | zaakceptowana |
+| 0033 | [Przyjmowanie telemetrii partiami i status floty liczony w core i w bazie](0033-telemetria-i-status-floty.md) | zaakceptowana |
+| 0034 | [Budowa symulatora floty i przejazdy pokazowe do czasu wypożyczeń](0034-symulator-floty.md) | zaakceptowana |

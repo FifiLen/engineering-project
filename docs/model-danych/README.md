@@ -4,8 +4,9 @@ PostgreSQL 16 z PostGIS. Źródłem prawdy o schemacie są migracje w [`packages
 
 - `0001_init.sql`: schemat początkowy, 24 tabele. Jego projekt z komentarzami to [`schema.sql`](schema.sql) (wersja 1, sprawdzona na PostgreSQL 16 i PostGIS 3.4).
 - `0002_admin_modules.sql`: role i uprawnienia, treści, raporty, wydruki, serwis i paragony oraz widoki, funkcje i procedury ([ADR 0026](../adr/0026-logika-w-bazie-widoki-funkcje-procedury.md)–[0031](../adr/0031-wzorzec-widoku-tabeli-w-panelu.md)).
+- `0003_fleet_lists.sql` (iteracja 1): status floty widoczny dla operatora (`fn_fleet_status`, `fn_low_battery_threshold`), listy floty i modeli w panelu (`v_fleet_list`, `v_scooter_models`), indeksy sortowania po ostatnim sygnale i komend bez potwierdzenia ([ADR 0033](../adr/0033-telemetria-i-status-floty.md)).
 
-Po migracji 0002 baza ma **46 tabel** (bez partycji telemetrii), **13 widoków**, **6 funkcji** i **6 procedur**; liczby sprawdza test w `packages/db/src/db.test.ts`. Kluczowe zasady opisują też [ADR 0010](../adr/0010-postgresql-postgis-drizzle.md), [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md), [ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md) i [ADR 0015](../adr/0015-wersjonowany-cennik.md).
+Po migracji 0003 baza ma **46 tabel** (bez partycji telemetrii), **15 widoków**, **8 funkcji** i **6 procedur**; liczby sprawdza test w `packages/db/src/db.test.ts`. Kluczowe zasady opisują też [ADR 0010](../adr/0010-postgresql-postgis-drizzle.md), [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md), [ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md) i [ADR 0015](../adr/0015-wersjonowany-cennik.md).
 
 ## Obszary
 
@@ -103,6 +104,8 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `v_current_documents` | obowiązujące wersje regulaminu i innych dokumentów |
 | `v_published_news` | aktualności w okresie publikacji |
 | `v_low_stock_parts` | części poniżej stanu minimalnego |
+| `v_fleet_list` | lista floty i mapa w panelu: `v_fleet_status` ze statusem floty, współrzędnymi, zasięgiem modelu i wersją rekordu |
+| `v_scooter_models` | lista modeli z liczbą hulajnóg (wszystkich i nie wycofanych) |
 
 | Funkcja | Wynik |
 |---|---|
@@ -112,12 +115,14 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `fn_staff_has_permission(staff_id, code)` | czy operator ma uprawnienie |
 | `fn_rental_distance_m(rental_id)` | długość trasy z telemetrii w metrach |
 | `fn_content_revision()` | licznik zmian treści (ETag) |
+| `fn_low_battery_threshold()` | próg niskiej baterii: minimalna bateria do wypożyczenia z obowiązującej wersji cennika |
+| `fn_fleet_status(status, online, battery_pct, threshold)` | status floty dla operatora; ta sama reguła co `deriveFleetStatus` w `packages/core` (zgodność sprawdza test bazy) |
 
 | Procedura | Działanie | Uruchamia |
 |---|---|---|
 | `sp_expire_reservations(OUT expired_count)` | `RESERVED → EXPIRED`, zdarzenie na osi czasu, zwolnienie hulajnogi | zadanie cykliczne pg-boss |
 | `sp_anonymize_user(user_id)` | usunięcie danych osobowych; odmowa przy otwartym przejeździe | usunięcie konta, panel |
-| `sp_ensure_telemetry_partitions(from, days, OUT created_count)` | dzienne partycje telemetrii (UTC) z przeniesieniem wierszy z partycji domyślnej | zadanie cykliczne pg-boss |
+| `sp_ensure_telemetry_partitions(from, days, OUT created_count)` | dzienne partycje telemetrii (UTC) z przeniesieniem wierszy z partycji domyślnej | moduł Telemetria przy starcie API i co 6 h (7 dni naprzód); od iteracji 3 zadanie cykliczne pg-boss |
 | `sp_purge_telemetry(keep_days, OUT dropped_count)` | retencja telemetrii | zadanie cykliczne pg-boss |
 | `sp_purge_expired_otp(OUT deleted_count)` | usunięcie przeterminowanych kodów SMS | zadanie cykliczne pg-boss |
 | `sp_rebuild_wallet_balances(OUT fixed_count)` | naprawa pamięci podręcznej salda według księgi | panel, w razie rozjazdu |
@@ -144,8 +149,8 @@ Realizacja wymagania 12 według [ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-p
 | `tariffs` | wersjonowana | `tariffs` | nowa wersja | nowa wersja | nie | `tariffs.read`, `tariffs.write` |
 | `rentals` | proces | `v_rental_details` | przez proces wypożyczenia | polecenia: zakończenie zdalne, zwrot | nie | `rentals.read`, `rentals.manage` |
 | `rental_events` | tylko do dopisywania | `rental_events` | system | nie | nie | `rentals.read` |
-| `scooters` | encja | `v_fleet_status` | tak | tak, komendy przez `scooter_commands` | wycofanie (`RETIRED`) | `scooters.read`, `scooters.write` |
-| `scooter_models` | słownik | `scooter_models` | tak | tak | archiwizacja, jeśli używany | `scooters.write` |
+| `scooters` | encja | `v_fleet_list` (od iteracji 1) | tak | tak, komendy przez `scooter_commands` | wycofanie (`RETIRED`) | `scooters.read`, `scooters.write` |
+| `scooter_models` | słownik | `v_scooter_models` (od iteracji 1) | tak | tak | archiwizacja, jeśli używany | `scooters.write` |
 | `telemetry` | tylko do dopisywania | `telemetry` (kursor, zakres czasu) | system | nie | retencja (`sp_purge_telemetry`) | `telemetry.read` |
 | `scooter_commands` | proces | `scooter_commands` | wysłanie komendy | nie | nie | `scooters.command` |
 | `zones` | słownik | `zones` | tak | tak | dezaktywacja, jeśli używana | `zones.read`, `zones.write` |

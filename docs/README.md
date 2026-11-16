@@ -10,7 +10,7 @@ Dokumentacja jest częścią repozytorium i zmienia się razem z kodem. Każda i
 |---|---|
 | [`arc42/`](arc42/) | Dokumentacja architektury według szablonu arc42, z diagramami C4 i sekwencji w Mermaid |
 | [`adr/`](adr/) | Zapisy decyzji architektonicznych (ADR), jedna decyzja na plik |
-| [`kontrakty/`](kontrakty/) | Kontrakty komunikacji: AsyncAPI dla MQTT, później OpenAPI (REST) i zdarzenia WebSocket |
+| [`kontrakty/`](kontrakty/) | Kontrakty komunikacji: AsyncAPI dla MQTT i zdarzeń Socket.IO, później OpenAPI (REST) |
 | [`model-danych/`](model-danych/) | Model danych: diagram ER i schemat SQL |
 | [`iteracje/`](iteracje/) | Plan iteracji, definicja „zrobione” i plany poszczególnych iteracji |
 | [`dziennik.md`](dziennik.md) | Dziennik prac: co powstało w każdej iteracji i co zmieniło się względem planu |

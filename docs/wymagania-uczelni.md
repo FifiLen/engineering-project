@@ -2,7 +2,7 @@
 
 Źródło: opis projektu „Projekt inżynierski” (specjalność: Programista aplikacji biznesowych). Wymagania są nadrzędne wobec wcześniejszych decyzji: jeśli ADR stoi z nimi w sprzeczności, potrzebny jest nowy ADR.
 
-**Stan analizy:** 2026-11-16, po zakończeniu iteracji 0. Odpowiedzi na pytania do prowadzącego są w sekcji „Pytania do prowadzącego”.
+**Stan analizy:** 2026-11-16, po zakończeniu iteracji 1. Odpowiedzi na pytania do prowadzącego są w sekcji „Pytania do prowadzącego”.
 
 ## Wymagania (skrót)
 
@@ -43,16 +43,16 @@ Warunek zaliczenia: wykonanie, prezentacja i obrona z pytaniami z kodu.
 | 5 | spełnione | TypeScript, Node.js, React, React Native | Stos potwierdzony (pytanie 1) |
 | 6 | spełnione, do opisania | MVC w API (kontrolery, serwisy), moduły i wstrzykiwanie zależności, Repozytorium, Stan (przejazd), Adapter (SMS, płatności, mapy), Obserwator (zdarzenia), w klientach komponenty i hooki | Rozdział o wzorcach z odniesieniami do kodu |
 | 7 | spełnione | PostgreSQL 16 w kontenerze | PostgreSQL potwierdzony (pytanie 1) |
-| 8 | spełnione | Po migracji 0002: 46 tabel, 13 widoków, 6 funkcji, 6 procedur, indeksy (GiST, częściowe, unikalne); liczby sprawdza test bazy ([model danych](model-danych/README.md), [ADR 0026](adr/0026-logika-w-bazie-widoki-funkcje-procedury.md)) | Korzystać z widoków, funkcji i procedur w repozytoriach `packages/db` |
+| 8 | spełnione | Po migracji 0003: 46 tabel, 15 widoków, 8 funkcji, 6 procedur, indeksy (GiST, częściowe, unikalne); liczby sprawdza test bazy ([model danych](model-danych/README.md), [ADR 0026](adr/0026-logika-w-bazie-widoki-funkcje-procedury.md)) | Korzystać z widoków, funkcji i procedur w repozytoriach `packages/db` |
 | 9 | spełnione | Dostęp do danych w aplikacji przez Drizzle (widoki jako `pgView`, funkcje PostGIS przez `sql`); surowy `pg` tylko w migratorze, seedzie i testach | Dostęp do danych wyłącznie przez Drizzle (PostGIS przez `sql` z Drizzle); Drizzle potwierdzony (pytanie 3) |
 | 10 | zaplanowane | ADR 0019: kod SMS dla użytkowników, hasło + TOTP dla operatorów | Jeden moduł uwierzytelniania i jeden format tokenów dla obu aplikacji; rozważyć strefę klienta w webie na tym samym koncie |
 | 11 | **brak** | Role operatorów jako stały typ `staff_role` (3 wartości) | Uprawnienia w bazie: role, uprawnienia, przypisania; ekrany w panelu (lista ról, edycja uprawnień, przypisywanie użytkowników) |
-| 12 | **brak** | Makiety panelu pokrywają część tabel | Wspólny wzorzec widoku tabeli (lista z filtrowaniem, sortowaniem, stronicowaniem + formularz) dla każdej tabeli. Tabele tylko do dopisywania mają ograniczone operacje (pytanie 4, [ADR 0031](adr/0031-wzorzec-widoku-tabeli-w-panelu.md)) |
+| 12 | w toku | Wspólny mechanizm list (`packages/db`), kontrakt list (`packages/shared`), komponenty listy, panelu filtrów i formularza w panelu; pełny CRUD z filtrowaniem i sortowaniem dla `scooters` i `scooter_models` (iteracja 1) | Wspólny wzorzec widoku tabeli (lista z filtrowaniem, sortowaniem, stronicowaniem + formularz) dla każdej tabeli. Tabele tylko do dopisywania mają ograniczone operacje (pytanie 4, [ADR 0031](adr/0031-wzorzec-widoku-tabeli-w-panelu.md)) |
 | 13 | zaplanowane | Procesy: wypożyczenie, płatności, zgłoszenia | Domknąć każdy proces od początku do końca; doprojektować proces serwisowy (zgłoszenie → zadanie → naprawa lub wymiana baterii → powrót do floty) |
-| 14 | do policzenia | 53 makiety ekranów (aplikacja, panel, strona), część to stany ekranów | Liczą się wszystkie widoki, także stany i tryb ciemny (pytanie 7). Spis widoków w `docs/projekt/README.md`; nowe ekrany panelu z punktów 11, 12, 17–19 zapewnią zapas |
+| 14 | do policzenia | 57 makiet ekranów (aplikacja, panel, strona), część to stany ekranów; w iteracji 1 zaimplementowane: mapa floty z kartą hulajnogi, lista floty, lista modeli, panel filtrów, formularze tworzenia i edycji z konfliktem wersji, stany list (ładowanie, pusta, brak wyników, błąd) | Liczą się wszystkie widoki, także stany i tryb ciemny (pytanie 7). Spis widoków w `docs/projekt/README.md`; nowe ekrany panelu z punktów 11, 12, 17–19 zapewnią zapas |
 | 15 | spełnione | Design system, spójne makiety | Pilnować w implementacji |
 | 16 | do uzupełnienia | Kontrasty WCAG, cele dotykowe ≥ 44 px, spójne nazewnictwo akcji | Zestawić z materiałami z wykładu ICK (potrzebne od autora) i opisać w pracy |
-| 17 | **brak** | Teksty i grafiki są w kodzie makiet i aplikacji | Zakres: treści merytoryczne (pytanie 5). Moduł treści: regulamin, FAQ, aktualności, opisy i grafiki w bazie i magazynie plików z edycją w panelu; klienci pobierają je z API z pamięcią podręczną. Etykiety interfejsu w plikach tłumaczeń, bez tekstów wpisanych wprost w komponenty ([ADR 0027](adr/0027-tresci-sterowane-z-panelu.md)) |
+| 17 | w toku | Etykiety panelu i aplikacji w plikach tłumaczeń, reguła lintera zakazuje tekstów w JSX ([ADR 0032](adr/0032-etykiety-w-plikach-tlumaczen.md)); treści merytoryczne z bazy od iteracji 2 (regulamin) i 7 (moduł treści) | Zakres: treści merytoryczne (pytanie 5). Moduł treści: regulamin, FAQ, aktualności, opisy i grafiki w bazie i magazynie plików z edycją w panelu; klienci pobierają je z API z pamięcią podręczną. Etykiety interfejsu w plikach tłumaczeń, bez tekstów wpisanych wprost w komponenty ([ADR 0027](adr/0027-tresci-sterowane-z-panelu.md)) |
 | 18 | **brak** | Pulpit z liczbami, brak raportów | Moduł raportów: przychody, wykorzystanie floty, przejazdy wg stref i godzin, awaryjność, użytkownicy; parametry (okres, strefa), eksport PDF i XLSX |
 | 19 | **brak** | — | Szablony DOCX z polami (np. potwierdzenie przejazdu, protokół serwisowy, karta hulajnogi, raport zdarzenia); wgrywanie nowej wersji szablonu w panelu; generowanie DOCX i PDF |
 

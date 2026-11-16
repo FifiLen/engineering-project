@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@hulajnogi/core": "workspace:*",
+    "@hulajnogi/shared": "workspace:*",
     "drizzle-orm": "^0.45.0",
     "pg": "^8.16.0"
   },

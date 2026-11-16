@@ -11,6 +11,12 @@ const DEFAULT_CODES: Record<number, string> = {
   409: 'CONFLICT',
 };
 
+/** Kody domeny z innym statusem niż 409 (naruszenie reguły albo konflikt stanu). */
+const DOMAIN_STATUS: Record<string, HttpStatus> = {
+  FORBIDDEN: HttpStatus.FORBIDDEN,
+  NOT_FOUND: HttpStatus.NOT_FOUND,
+};
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -29,7 +35,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
     if (exception instanceof DomainError) {
       // Naruszenie reguły domeny z packages/core; klient tłumaczy komunikat po kodzie (ADR 0027).
-      const status = exception.code === 'FORBIDDEN' ? HttpStatus.FORBIDDEN : HttpStatus.CONFLICT;
+      const status = DOMAIN_STATUS[exception.code] ?? HttpStatus.CONFLICT;
       void reply
         .status(status)
         .send({ code: exception.code, message: exception.message, details: exception.details } satisfies ApiErrorBody);

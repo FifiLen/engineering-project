@@ -61,7 +61,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     await pool.query(`INSERT INTO scooters (number, serial_number, variant) VALUES (900, 'OLD-900', 'GRAFIT')`);
 
     const first = await runMigrations(pool);
-    expect(first.applied).toEqual(['0002_admin_modules.sql']);
+    expect(first.applied).toEqual(['0002_admin_modules.sql', '0003_fleet_lists.sql']);
     const second = await runMigrations(pool);
     expect(second.applied).toEqual([]);
 
@@ -140,7 +140,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
          (SELECT count(*)::int FROM pg_proc WHERE pronamespace = 'public'::regnamespace
            AND prokind = 'p' AND proname LIKE 'sp\\_%') AS procedures`,
     );
-    expect(rows[0]).toEqual({ tables: 46, views: 13, functions: 6, procedures: 6 });
+    expect(rows[0]).toEqual({ tables: 46, views: 15, functions: 8, procedures: 6 });
   });
 
   it('fn_zones_at_point zwraca strefy od najbardziej restrykcyjnej', async () => {

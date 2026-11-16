@@ -1,0 +1,289 @@
+{
+  "meta": {
+    "title": "[nazwa]: hulajnogi elektryczne w Rybniku",
+    "description": "Znajdź hulajnogę na mapie, zeskanuj kod i ruszaj.",
+    "adminTitle": "[nazwa]: panel operatora"
+  },
+  "marketing": {
+    "headline": "Hulajnoga zawsze blisko.",
+    "lead": "Znajdź ją na mapie, zeskanuj kod i ruszaj. Działamy w Rybniku.",
+    "pending": "Strona promocyjna powstaje w iteracji 7 z treści zarządzanych w panelu."
+  },
+  "admin": {
+    "brand": "[nazwa]",
+    "brandSub": "Panel operatora",
+    "navLabel": "Panel",
+    "nav": {
+      "operations": "Operacje",
+      "configuration": "Konfiguracja",
+      "map": "Mapa floty",
+      "fleet": "Flota",
+      "models": "Modele hulajnóg"
+    },
+    "devMode": "Tryb deweloperski",
+    "devModeHint": "Logowanie operatorów: iteracja 2"
+  },
+  "common": {
+    "cancel": "Anuluj",
+    "save": "Zapisz zmiany",
+    "create": "Utwórz",
+    "close": "Zamknij",
+    "confirm": "Potwierdź",
+    "optional": "(opcjonalne)",
+    "yes": "Tak",
+    "no": "Nie",
+    "none": "—",
+    "all": "Wszystkie",
+    "loading": "Wczytywanie",
+    "percent": "{value}%",
+    "km": "{value, number, ::.#} km",
+    "kmh": "{value} km/h",
+    "kg": "{value, number, ::.0} kg",
+    "wh": "{value} Wh",
+    "scooterNumber": "#{number}",
+    "relative": {
+      "never": "nigdy"
+    }
+  },
+  "list": {
+    "search": "Szukaj",
+    "filters": "Filtry",
+    "filtersTitle": "Filtry",
+    "clearFilters": "Wyczyść filtry",
+    "clear": "Wyczyść",
+    "apply": "{count, plural, =0 {Brak wyników} one {Pokaż # wynik} few {Pokaż # wyniki} other {Pokaż # wyników}}",
+    "results": "{count, plural, one {# wynik} few {# wyniki} other {# wyników}}",
+    "sortedBy": "sortowanie: {field} {direction}",
+    "ascending": "rosnąco",
+    "descending": "malejąco",
+    "sortBy": "Sortuj według: {field}",
+    "range": "{from}–{to} z {total}",
+    "pageSize": "{count} na stronie",
+    "previous": "Poprzednia",
+    "next": "Następna",
+    "page": "Strona {page}",
+    "selectAll": "Zaznacz wszystkie na stronie",
+    "selectRow": "Zaznacz {label}",
+    "selected": "{count, plural, one {# zaznaczona} few {# zaznaczone} other {# zaznaczonych}}",
+    "clearSelection": "Wyczyść zaznaczenie",
+    "from": "Od",
+    "to": "Do",
+    "any": "Dowolnie",
+    "removeFilter": "Usuń filtr {label}",
+    "noResultsTitle": "Brak wyników dla wybranych filtrów",
+    "errorTitle": "Nie udało się wczytać listy",
+    "errorBody": "Sprawdź połączenie i spróbuj ponownie. Filtry i strona listy zostają bez zmian.",
+    "errorCode": "Kod błędu: {code}",
+    "retry": "Spróbuj ponownie",
+    "bulkConfirmTitle": "{action}: {count, plural, one {# rekord} few {# rekordy} other {# rekordów}}",
+    "bulkDone": "Zmieniono {done} z {count}. {failed, plural, =0 {} other {Nie udało się: #.}}"
+  },
+  "form": {
+    "newTitle": "{resource}: nowy rekord",
+    "version": "wersja {version}",
+    "createdAt": "Utworzono {date}",
+    "conflictTitle": "Rekord zmienił się w międzyczasie",
+    "conflictBody": "Ktoś zapisał zmiany w tym rekordzie (wersja {version}). Twoich zmian nie zapisano; porównaj je z aktualną wersją.",
+    "showDiff": "Pokaż różnice",
+    "hideDiff": "Ukryj różnice",
+    "loadCurrent": "Wczytaj aktualną wersję",
+    "diffRow": "{field}: aktualnie {current}, u Ciebie {mine}",
+    "saved": "Zapisano zmiany",
+    "created": "Utworzono rekord",
+    "notFound": "Nie znaleziono rekordu",
+    "backToList": "Wróć do listy"
+  },
+  "validation": {
+    "required": "To pole jest wymagane",
+    "too_small": "Wartość jest za mała (minimum {minimum})",
+    "too_small_string": "Za mało znaków (minimum {minimum})",
+    "too_big": "Wartość jest za duża (maksimum {maximum})",
+    "too_big_string": "Za dużo znaków (maksimum {maximum})",
+    "invalid_format": "Nieprawidłowy format",
+    "invalid_type": "Nieprawidłowa wartość",
+    "invalid_value": "Wybierz jedną z wartości",
+    "not_multiple_of": "Dozwolona dokładność: {step}",
+    "invalid": "Nieprawidłowa wartość"
+  },
+  "error": {
+    "ALREADY_EXISTS": "Ta wartość jest już zajęta",
+    "CONFLICT": "Rekord zmienił się w międzyczasie",
+    "NOT_FOUND": "Nie znaleziono rekordu",
+    "VALIDATION_ERROR": "Popraw zaznaczone pola",
+    "STATUS_MANAGED_BY_RENTAL": "Rezerwację i jazdę ustawia tylko proces wypożyczenia",
+    "SCOOTER_HAS_OPEN_RENTAL": "Hulajnoga ma otwarty przejazd",
+    "SCOOTER_RETIRED": "Hulajnoga jest wycofana z floty; przywróć ją najpierw do serwisu",
+    "SCOOTER_OFFLINE": "Hulajnoga nie ma łączności",
+    "MODEL_INACTIVE": "Model jest wycofany z oferty",
+    "COMMAND_NOT_ALLOWED": "Ta komenda nie jest dostępna w panelu",
+    "UNLOCK_REQUIRES_MAINTENANCE": "Odblokować poza przejazdem można tylko hulajnogę w serwisie",
+    "NETWORK": "Brak połączenia z API",
+    "INTERNAL_ERROR": "Wystąpił nieoczekiwany błąd",
+    "unknown": "Operacja się nie powiodła ({code})"
+  },
+  "fleetStatus": {
+    "AVAILABLE": "Dostępna",
+    "RESERVED": "Zarezerwowana",
+    "IN_USE": "W użyciu",
+    "LOW_BATTERY": "Niska bateria",
+    "MAINTENANCE": "Serwis",
+    "OFFLINE": "Offline",
+    "RETIRED": "Wycofana"
+  },
+  "fleetStatusPlural": {
+    "AVAILABLE": "Dostępne",
+    "RESERVED": "Zarezerwowane",
+    "IN_USE": "W użyciu",
+    "LOW_BATTERY": "Niska bateria",
+    "MAINTENANCE": "Serwis",
+    "OFFLINE": "Offline",
+    "RETIRED": "Wycofane"
+  },
+  "command": {
+    "UNLOCK": "Odblokuj",
+    "LOCK": "Zablokuj",
+    "RING": "Dzwonek",
+    "LIGHTS": "Światła",
+    "SPEED_LIMIT": "Limit prędkości",
+    "STOP_GRADUALLY": "Zatrzymanie",
+    "status": {
+      "SENT": "wysłano",
+      "ACKED": "potwierdzono",
+      "REJECTED": "odrzucono",
+      "TIMEOUT": "brak odpowiedzi"
+    },
+    "ackedIn": "potwierdzono, {ms} ms"
+  },
+  "map": {
+    "title": "Mapa floty",
+    "live": "Na żywo",
+    "reconnecting": "Łączenie",
+    "zones": "Strefy",
+    "legend": "Legenda",
+    "battery": "bateria",
+    "range": "zasięg",
+    "variant": "wariant",
+    "lastSignal": "Ostatni sygnał",
+    "zone": "Strefa",
+    "outsideZone": "poza strefą",
+    "lastRental": "Ostatni przejazd",
+    "odometer": "Przebieg",
+    "firmware": "Oprogramowanie",
+    "toService": "Do serwisu",
+    "backToFleet": "Przywróć do floty",
+    "details": "Szczegóły",
+    "recent": "Ostatnie komunikaty",
+    "telemetryLine": "telemetria",
+    "telemetryValue": "bateria {battery}%, {speed} km/h",
+    "noMessages": "Brak komunikatów",
+    "loadError": "Nie udało się wczytać mapy floty",
+    "selectHint": "Wybierz hulajnogę na mapie"
+  },
+  "resource": {
+    "scooters": {
+      "title": "Flota",
+      "summary": "{count, plural, one {# hulajnoga} few {# hulajnogi} other {# hulajnóg}} we flocie",
+      "searchPlaceholder": "Szukaj po numerze",
+      "new": "Dodaj hulajnogę",
+      "newTitle": "Nowa hulajnoga",
+      "editTitle": "Edycja hulajnogi #{number}",
+      "recordLabel": "#{number}",
+      "section": "Hulajnoga",
+      "emptyTitle": "Flota nie ma jeszcze hulajnóg",
+      "emptyBody": "Dodaj hulajnogę, żeby połączyła się z brokerem i pojawiła na mapie.",
+      "bulkRemove": "Wycofaj z floty",
+      "removeTitle": "Wycofanie z floty",
+      "removeBody": "Hulajnoga zniknie z mapy i nie będzie dostępna do wypożyczenia. Historia przejazdów i telemetria zostają; przywrócić ją można przez serwis.",
+      "removeAction": "Wycofaj z floty",
+      "inTransit": "w trasie",
+      "outsideZone": "poza strefą",
+      "zoneLabel": "{code}, {name}",
+      "fields": {
+        "number": "Numer",
+        "serialNumber": "Numer seryjny",
+        "variant": "Wariant",
+        "status": "Status",
+        "fleetStatus": "Status",
+        "online": "Łączność",
+        "modelId": "Model",
+        "modelName": "Model",
+        "batteryPct": "Bateria",
+        "parkingZoneCode": "Strefa parkowania",
+        "parkingZoneName": "Lokalizacja",
+        "lastSeenAt": "Ostatni sygnał",
+        "rentals30d": "Przejazdy, 30 dni",
+        "odometerM": "Przebieg",
+        "firmware": "Oprogramowanie",
+        "lat": "Szerokość",
+        "lon": "Długość"
+      },
+      "hints": {
+        "number": "Numer na hulajnodze i w tematach MQTT, od 1 do 9999",
+        "serialNumber": "Wielkie litery, cyfry i myślniki",
+        "status": "Rezerwację i jazdę ustawia proces wypożyczenia"
+      },
+      "values": {
+        "variant": {
+          "GRAFIT": "Grafit",
+          "BETON": "Beton",
+          "KOBALT": "Kobalt"
+        },
+        "status": {
+          "AVAILABLE": "Dostępna",
+          "RESERVED": "Zarezerwowana",
+          "IN_USE": "W użyciu",
+          "MAINTENANCE": "Serwis",
+          "RETIRED": "Wycofana"
+        },
+        "online": {
+          "true": "Online",
+          "false": "Offline"
+        }
+      }
+    },
+    "scooter-models": {
+      "title": "Modele hulajnóg",
+      "summary": "{count, plural, one {# model} few {# modele} other {# modeli}}",
+      "searchPlaceholder": "Szukaj po kodzie, nazwie lub producencie",
+      "new": "Nowy model",
+      "newTitle": "Nowy model",
+      "editTitle": "Edycja modelu {code}",
+      "recordLabel": "{code}",
+      "section": "Model",
+      "emptyTitle": "Nie ma jeszcze modeli hulajnóg",
+      "emptyBody": "Model opisuje parametry hulajnóg: zasięg, prędkość, baterię i wagę.",
+      "bulkRemove": "Usuń lub archiwizuj",
+      "removeTitle": "Usunięcie modelu",
+      "removeBody": "Model bez hulajnóg zostanie usunięty. Model, do którego są przypisane hulajnogi, zostanie wycofany z oferty, bo wskazuje go historia floty.",
+      "removeAction": "Usuń model",
+      "scooters": "{active} z {total}",
+      "fields": {
+        "code": "Kod",
+        "name": "Nazwa",
+        "manufacturer": "Producent",
+        "maxSpeedKmh": "Prędkość maks.",
+        "batteryWh": "Bateria",
+        "rangeKm": "Zasięg",
+        "weightKg": "Waga",
+        "active": "W ofercie",
+        "scootersTotal": "Hulajnogi",
+        "scootersActive": "Hulajnogi we flocie",
+        "updatedAt": "Zmieniono",
+        "description": "Opis"
+      },
+      "hints": {
+        "code": "Wielkie litery, cyfry i myślniki, np. X-200",
+        "active": "Nowe hulajnogi można przypisać tylko do modelu w ofercie",
+        "rangeKm": "Zasięg przy pełnej baterii; panel szacuje z niego zasięg hulajnogi",
+        "weightKg": "Z dokładnością do 0,1 kg"
+      },
+      "values": {
+        "active": {
+          "true": "W ofercie",
+          "false": "Archiwalny"
+        }
+      },
+      "archivedOption": "{name} ({state})"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-/* Tokeny z design systemu (ADR 0007). Pełny system komponentów powstaje w iteracjach 1 i 7. */
+/* Tokeny z design systemu (docs/projekt/tokens.json, ADR 0007). */
 :root {
   --bg: #f6f6f3;
   --surface: #ffffff;
@@ -6,6 +6,17 @@
   --ink: #16181d;
   --muted: #6b6e75;
   --accent: #2b3ff5;
+  --accent-pressed: #1a2ac0;
+  --accent-tint: #eef0fe;
+  --on-accent: #ffffff;
+  --warning: #8f5500;
+  --warning-tint: #fff1db;
+  --danger: #c62f2f;
+  --danger-tint: #fbe3e3;
+  --neutral-tint: #edede9;
+  --checkbox: #b9b9b2;
+  --map: #efefec;
+  --shadow: 0 12px 40px rgba(22, 24, 29, 0.14);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -15,10 +26,56 @@
     --line: #2e323b;
     --ink: #f6f6f3;
     --muted: #a3a6ad;
+    --accent-tint: #252a4a;
+    --warning: #f2b455;
+    --warning-tint: #3a2e1a;
+    --danger: #ff7a70;
+    --danger-tint: #3d2224;
+    --neutral-tint: #2e323b;
+    --checkbox: #5b5f68;
+    --map: #121418;
+    --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
     color-scheme: dark;
   }
 }
-* { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--ink); }
-body { font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
-a { color: var(--accent); }
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+body {
+  font-family:
+    var(--font-inter),
+    Inter,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: var(--accent);
+}
+/* Liczby zawsze w grubości Medium (design system). */
+.num {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

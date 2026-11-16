@@ -21,6 +21,7 @@ import {
   pgView,
   date,
   interval,
+  doublePrecision,
   pgSequence,
   pgEnum,
 } from 'drizzle-orm/pg-core';
@@ -373,6 +374,7 @@ export const scooters = pgTable(
     modelId: uuid('model_id').notNull(),
   },
   (table) => [
+    index('scooters_last_seen_idx').using('btree', table.lastSeenAt.desc().nullsLast().op('timestamptz_ops')),
     index('scooters_model_idx').using('btree', table.modelId.asc().nullsLast().op('uuid_ops')),
     index('scooters_position_gix').using('gist', table.position.asc().nullsLast().op('gist_geometry_ops_2d')),
     index('scooters_status_idx').using('btree', table.status.asc().nullsLast().op('enum_ops')),
@@ -401,6 +403,9 @@ export const scooterCommands = pgTable(
     ackedAt: timestamp('acked_at', { withTimezone: true, mode: 'date' }),
   },
   (table) => [
+    index('scooter_commands_pending_idx')
+      .using('btree', table.sentAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(status = 'SENT'::command_status)`),
     index('scooter_commands_scooter_idx').using(
       'btree',
       table.scooterId.asc().nullsLast().op('timestamptz_ops'),
@@ -1829,4 +1834,65 @@ export const vLowStockParts = pgView('v_low_stock_parts', {
   shortage: integer(),
 }).as(
   sql`SELECT id, sku, name, stock_qty, min_stock_qty, min_stock_qty - stock_qty AS shortage FROM spare_parts WHERE active AND stock_qty <= min_stock_qty`,
+);
+
+export const vFleetList = pgView('v_fleet_list', {
+  id: uuid(),
+  number: integer(),
+  serialNumber: text('serial_number'),
+  variant: scooterVariant(),
+  status: scooterStatus(),
+  online: boolean(),
+  batteryPct: smallint('battery_pct'),
+  position: geometry({ type: 'point', srid: 4326 }),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }),
+  firmware: text(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  odometerM: bigint('odometer_m', { mode: 'number' }),
+  modelId: uuid('model_id'),
+  modelCode: text('model_code'),
+  modelName: text('model_name'),
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentalNumber: bigint('rental_number', { mode: 'number' }),
+  rentalState: rentalState('rental_state'),
+  rentalUserId: uuid('rental_user_id'),
+  parkingZoneCode: text('parking_zone_code'),
+  parkingZoneName: text('parking_zone_name'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  openTickets: bigint('open_tickets', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  openServiceTasks: bigint('open_service_tasks', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentals30D: bigint('rentals_30d', { mode: 'number' }),
+  fleetStatus: text('fleet_status'),
+  lat: doublePrecision(),
+  lon: doublePrecision(),
+  modelRangeKm: smallint('model_range_km'),
+  version: integer(),
+}).as(
+  sql`SELECT f.id, f.number, f.serial_number, f.variant, f.status, f.online, f.battery_pct, f."position", f.last_seen_at, f.firmware, f.odometer_m, f.model_id, f.model_code, f.model_name, f.rental_id, f.rental_number, f.rental_state, f.rental_user_id, f.parking_zone_code, f.parking_zone_name, f.open_tickets, f.open_service_tasks, f.rentals_30d, fn_fleet_status(f.status, f.online, f.battery_pct, t.threshold) AS fleet_status, st_y(f."position") AS lat, st_x(f."position") AS lon, m.range_km AS model_range_km, s.version FROM v_fleet_status f JOIN scooters s ON s.id = f.id JOIN scooter_models m ON m.id = f.model_id CROSS JOIN ( SELECT fn_low_battery_threshold() AS threshold) t`,
+);
+
+export const vScooterModels = pgView('v_scooter_models', {
+  id: uuid(),
+  code: text(),
+  name: text(),
+  manufacturer: text(),
+  maxSpeedKmh: smallint('max_speed_kmh'),
+  batteryWh: integer('battery_wh'),
+  rangeKm: smallint('range_km'),
+  weightKg: numeric('weight_kg', { precision: 4, scale: 1 }),
+  description: text(),
+  photoMediaId: uuid('photo_media_id'),
+  active: boolean(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  version: integer(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  scootersTotal: bigint('scooters_total', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  scootersActive: bigint('scooters_active', { mode: 'number' }),
+}).as(
+  sql`SELECT id, code, name, manufacturer, max_speed_kmh, battery_wh, range_km, weight_kg, description, photo_media_id, active, created_at, updated_at, version, ( SELECT count(*) AS count FROM scooters s WHERE s.model_id = m.id) AS scooters_total, ( SELECT count(*) AS count FROM scooters s WHERE s.model_id = m.id AND s.status <> 'RETIRED'::scooter_status) AS scooters_active FROM scooter_models m`,
 );

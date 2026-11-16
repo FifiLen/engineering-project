@@ -50,6 +50,8 @@ sequenceDiagram
 
 ## 6.3. Telemetria i strefy w trakcie jazdy
 
+Odczyty są zbierane w oknie (domyślnie 1 s), oceniane regułami z `packages/core` i zapisywane jedną transakcją ([ADR 0033](../adr/0033-telemetria-i-status-floty.md)). Wykrywanie stref i komenda limitu prędkości powstają w iteracji 4.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -57,10 +59,13 @@ sequenceDiagram
     participant MQ as Broker MQTT
     participant API as Backend API
     participant DB as PostGIS
+    participant P as Panel
     participant A as Aplikacja
     H->>MQ: telemetry (lat, lon, bat, v) co 5 s
     MQ->>API: scooters/+/telemetry
-    API->>DB: zapis punktu trasy i pozycji
+    Note over API: okno 1 s, evaluateTelemetry (core)
+    API->>DB: punkty trasy (ON CONFLICT DO NOTHING), stan bieżący, przebieg
+    API-->>P: fleet.updates (paczka zmian, pokój fleet)
     API->>DB: ST_Contains(zone.geom, punkt)
     DB-->>API: strefa SLOW
     API->>MQ: cmd speed_limit
@@ -145,4 +150,28 @@ sequenceDiagram
     A->>API: POST /auth/otp/verify (phone, code)
     API->>DB: weryfikacja, utworzenie konta jeśli nowe
     API-->>A: access token 15 min, refresh token 30 dni
+```
+
+## 6.8. Komenda z panelu
+
+Operator wysyła komendę z karty hulajnogi na mapie floty (iteracja 1). Odblokowanie poza przejazdem jest dozwolone tylko w serwisie (reguła w `packages/core`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Panel
+    participant API as Backend API
+    participant DB as PostgreSQL
+    participant MQ as Broker MQTT
+    participant H as Hulajnoga
+    P->>API: POST /admin/scooters/ID/commands {type: RING}
+    API->>DB: ensurePanelCommandAllowed (core), scooter_commands SENT
+    API->>MQ: scooters/0142/cmd {commandId, cmd: ring}
+    API-->>P: 202, fleet.command SENT
+    MQ->>H: komenda
+    H->>MQ: ack {commandId, ok: true}
+    MQ->>API: scooters/+/ack
+    API->>DB: SENT → ACKED (tylko z SENT)
+    API-->>P: fleet.command ACKED
+    Note over API,DB: brak potwierdzenia w 10 s: SENT → TIMEOUT
 ```

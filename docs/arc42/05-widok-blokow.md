@@ -32,8 +32,8 @@ flowchart TB
 |---|---|---|
 | Uwierzytelnianie | Kody SMS, tokeny, sesje, logowanie operatorów z TOTP | `otp_codes`, `sessions`, `staff` |
 | Konta | Profil, zgody, zapisane miejsca, usunięcie konta | `users`, `consents`, `saved_places` |
-| Flota | Stan hulajnóg, komendy i potwierdzenia | `scooters`, `scooter_commands` |
-| Telemetria | Odbiór MQTT, punkty tras, wykrywanie zmian stref | `telemetry` |
+| Flota | Stan hulajnóg i modeli, komendy i potwierdzenia, mapa floty (pokój `fleet`) | `scooters`, `scooter_models`, `scooter_commands` |
+| Telemetria | Odbiór MQTT partiami, punkty tras, stan bieżący i przebieg ([ADR 0033](../adr/0033-telemetria-i-status-floty.md)), wykrywanie zmian stref (iteracja 4) | `telemetry` |
 | Strefy | Geometrie stref, zapytania przestrzenne | `zones` |
 | Wypożyczenia | Maszyna stanów przejazdu, rezerwacje | `rentals`, `rental_events` |
 | Płatności | Cennik, portfel, Stripe, webhooki | `tariffs`, `wallets`, `wallet_ledger`, `payments` |

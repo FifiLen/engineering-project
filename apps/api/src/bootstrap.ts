@@ -13,6 +13,14 @@ export async function createApp(config: AppConfig, options: { logger?: boolean }
   );
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableShutdownHooks();
+  // Panel działa na innym porcie niż API; w trybie deweloperskim dopuszczamy każdy localhost.
+  const origins = config.CORS_ORIGINS.split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  app.enableCors({
+    origin: config.NODE_ENV === 'production' ? origins : [...origins, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  });
 
   const openApi = new DocumentBuilder()
     .setTitle('System wypożyczania hulajnóg: API')

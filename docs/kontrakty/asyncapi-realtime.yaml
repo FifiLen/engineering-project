@@ -1,0 +1,146 @@
+asyncapi: 3.0.0
+info:
+  title: Zdarzenia na żywo (Socket.IO)
+  version: 1.0.0
+  description: |
+    Kontrakt zdarzeń Socket.IO między backendem a panelem operatora i aplikacją (ADR 0012).
+    Operacje opisane z perspektywy backendu. Typy w kodzie: packages/shared/src/realtime.ts.
+
+    Zasady:
+    * Stan źródłowy zawsze można pobrać przez REST; zdarzenia tylko przyspieszają odświeżenie.
+    * Po ponownym połączeniu klient pobiera stan od nowa (np. GET /admin/fleet/map).
+    * Zdarzenia przychodzą w kolejności wysłania; klient stosuje je po kolei.
+    * Od iteracji 2 dołączenie do pokoju wymaga zalogowanego operatora z uprawnieniem scooters.read.
+
+    Iteracja 1: pokój fleet (panel). Pokoje user:{id} i rental:{id} powstają w iteracji 3.
+
+servers:
+  lokalny:
+    host: localhost:3001
+    protocol: ws
+    description: Backend API (Socket.IO na tym samym porcie co REST)
+
+channels:
+  fleet:
+    address: fleet
+    description: Pokój panelu z pozycjami i statusami całej floty
+    messages:
+      subscribe:
+        $ref: '#/components/messages/FleetSubscribe'
+      updates:
+        $ref: '#/components/messages/FleetUpdates'
+      command:
+        $ref: '#/components/messages/FleetCommand'
+
+operations:
+  receiveSubscribe:
+    action: receive
+    channel:
+      $ref: '#/channels/fleet'
+    summary: 'fleet.subscribe: klient dołącza do pokoju fleet; odpowiedź (ack) { ok: true }'
+    messages:
+      - $ref: '#/channels/fleet/messages/subscribe'
+  sendUpdates:
+    action: send
+    channel:
+      $ref: '#/channels/fleet'
+    summary: 'fleet.updates: zmiany z jednego okna telemetrii (domyślnie 1 s) i zmiany łączności'
+    messages:
+      - $ref: '#/channels/fleet/messages/updates'
+  sendCommand:
+    action: send
+    channel:
+      $ref: '#/channels/fleet'
+    summary: 'fleet.command: wysłanie komendy i każda zmiana jej statusu (ACKED, REJECTED, TIMEOUT)'
+    messages:
+      - $ref: '#/channels/fleet/messages/command'
+
+components:
+  messages:
+    FleetSubscribe:
+      name: fleet.subscribe
+      payload:
+        type: 'null'
+    FleetUpdates:
+      name: fleet.updates
+      payload:
+        type: array
+        items:
+          $ref: '#/components/schemas/FleetMapScooter'
+      examples:
+        - name: telemetria
+          payload:
+            - id: 8f42296b-95f1-47ec-b1b8-3b933dd0c42f
+              number: 142
+              lat: 50.0921
+              lon: 18.5418
+              batteryPct: 6
+              fleetStatus: LOW_BATTERY
+              online: true
+              lastSeenAt: '2026-11-16T14:31:02.000Z'
+              speedKmh: 0
+              locked: true
+    FleetCommand:
+      name: fleet.command
+      payload:
+        $ref: '#/components/schemas/CommandView'
+  schemas:
+    FleetStatus:
+      type: string
+      description: Status floty dla operatora (fn_fleet_status w bazie, deriveFleetStatus w core, ADR 0033)
+      enum: [AVAILABLE, RESERVED, IN_USE, LOW_BATTERY, MAINTENANCE, OFFLINE, RETIRED]
+    FleetMapScooter:
+      type: object
+      required: [id, number, lat, lon, batteryPct, fleetStatus, online, lastSeenAt, speedKmh, locked]
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: integer
+          minimum: 1
+          maximum: 9999
+        lat:
+          type: [number, 'null']
+        lon:
+          type: [number, 'null']
+        batteryPct:
+          type: [integer, 'null']
+        fleetStatus:
+          $ref: '#/components/schemas/FleetStatus'
+        online:
+          type: boolean
+        lastSeenAt:
+          type: [string, 'null']
+          format: date-time
+        speedKmh:
+          type: [number, 'null']
+          description: Z ostatniej telemetrii; null w zdarzeniu zmiany łączności
+        locked:
+          type: [boolean, 'null']
+          description: Z ostatniej telemetrii; null w zdarzeniu zmiany łączności
+    CommandView:
+      type: object
+      required: [id, scooterId, scooterNumber, type, status, sentAt, ackedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Równy commandId w wiadomości MQTT
+        scooterId:
+          type: string
+          format: uuid
+        scooterNumber:
+          type: integer
+        type:
+          type: string
+          enum: [UNLOCK, LOCK, SPEED_LIMIT, STOP_GRADUALLY, RING, LIGHTS]
+        status:
+          type: string
+          enum: [SENT, ACKED, REJECTED, TIMEOUT]
+        sentAt:
+          type: string
+          format: date-time
+        ackedAt:
+          type: [string, 'null']
+          format: date-time

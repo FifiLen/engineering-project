@@ -10,3 +10,4 @@ coverage/
 infra/osrm/data/
 *.tsbuildinfo
 next-env.d.ts
+apps/web/public/maplibre-gl-worker.mjs

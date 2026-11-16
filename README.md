@@ -49,14 +49,21 @@ Plik `.env` czytają skrypty infrastruktury, API, symulator i polecenia bazy. Zm
 
 Jeżeli inny projekt używa już portu 5432, ustaw `POSTGRES_PORT=5433` i `DATABASE_URL=postgres://hulajnogi:hulajnogi@localhost:5433/hulajnogi`, a potem uruchom `pnpm infra:up` ponownie.
 
-## Sprawdzenie (scenariusz demo iteracji 0)
+## Sprawdzenie
 
 ```bash
 curl http://localhost:3001/health
 curl "http://localhost:3001/zones/lookup?lat=50.095541&lon=18.542034"
+curl "http://localhost:3001/admin/scooters?facets=fleetStatus&pageSize=3"
 ```
 
-Punkt na Rynku zwraca strefę parkowania `P-01`, strefę wolnej jazdy `S-01`, obszar działania i `"canPark": true`.
+Punkt na Rynku zwraca strefę parkowania `P-01`, strefę wolnej jazdy `S-01`, obszar działania i `"canPark": true`. Lista floty po uruchomieniu symulatora ma 40 hulajnóg online.
+
+Panel operatora: `http://localhost:3000/admin` (mapa floty na żywo, flota, modele hulajnóg). Logowanie operatorów powstaje w iteracji 2, do tego czasu panel i API uruchamiamy tylko lokalnie. Pełny scenariusz demo: [iteracja 1](docs/iteracje/iteracja-01-symulator-telemetria.md#scenariusz-demo).
+
+### Symulator floty
+
+Każda wirtualna hulajnoga ma własne połączenie MQTT i jeździ trasami rowerowymi z OSRM ([ADR 0034](docs/adr/0034-symulator-floty.md)). Ustawienia w `.env`: `SIM_FLEET_SIZE` (domyślnie 40, numery jak w danych startowych), `SIM_TELEMETRY_INTERVAL_MS` (5000), `SIM_RIDES_PER_HOUR` (przejazdy pokazowe, 30; `0` wyłącza ruch). Stan hulajnóg zapisuje się w `apps/simulator/.state/fleet.json`; usunięcie pliku przywraca pozycje z danych startowych.
 
 ## Polecenia
 
