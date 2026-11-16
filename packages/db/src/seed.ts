@@ -90,9 +90,16 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
     );
 
     await client.query(
-      `INSERT INTO staff (email, name, role, password_hash) VALUES ($1, $2, 'ADMIN', $3)
+      `INSERT INTO staff (email, name, password_hash) VALUES ($1, $2, $3)
        ON CONFLICT (email) DO NOTHING`,
       [admin.email, admin.name, admin.passwordHash],
+    );
+    // Rola systemowa Administrator powstaje w migracji 0002 (ADR 0028).
+    await client.query(
+      `INSERT INTO staff_roles (staff_id, role_id)
+       SELECT s.id, r.id FROM staff s, roles r WHERE s.email = $1 AND r.name = 'Administrator' AND r.is_system
+       ON CONFLICT DO NOTHING`,
+      [admin.email],
     );
 
     const center = places.places.find((p) => p.code === places.serviceArea.centerPlace);
@@ -122,8 +129,8 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
       const azimuth = rand() * 2 * Math.PI;
       const battery = n % 9 === 0 ? 8 + Math.floor(rand() * 10) : 35 + Math.floor(rand() * 65);
       await client.query(
-        `INSERT INTO scooters (number, serial_number, variant, status, online, battery_pct, position, firmware)
-         VALUES ($1, $2, $3, 'AVAILABLE', false, $4,
+        `INSERT INTO scooters (number, serial_number, variant, model_id, status, online, battery_pct, position, firmware)
+         VALUES ($1, $2, $3, (SELECT id FROM scooter_models WHERE code = 'BASE'), 'AVAILABLE', false, $4,
                  ST_Project(ST_SetSRID(ST_MakePoint($5, $6), 4326)::geography, $7::float8, $8::float8)::geometry, 'v2.4.1')`,
         [n, `SC-26-${String(n).padStart(4, '0')}`, VARIANTS[n % VARIANTS.length], battery, lon, lat, distance, azimuth],
       );
