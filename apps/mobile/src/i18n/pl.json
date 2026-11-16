@@ -5,5 +5,111 @@
     "lead": "Znajdź ją na mapie, zeskanuj kod i ruszaj.",
     "createAccount": "Utwórz konto",
     "signIn": "Zaloguj się"
+  },
+  "common": {
+    "back": "Wróć",
+    "step": "Krok {current} z {total}",
+    "checkMark": "✓",
+    "alertMark": "!",
+    "chevron": "›"
+  },
+  "phone": {
+    "registerTitle": "Podaj numer telefonu",
+    "registerLead": "Wyślemy SMS z kodem, żeby potwierdzić, że to Ty.",
+    "loginTitle": "Zaloguj się",
+    "loginLead": "Podaj numer, na który jest założone konto. Wyślemy SMS z kodem.",
+    "label": "Numer telefonu",
+    "prefix": "+48",
+    "prefixLabel": "Kierunkowy kraju: Polska +48",
+    "send": "Wyślij kod",
+    "acceptLabel": "Akceptuję Regulamin i Politykę prywatności",
+    "acceptPrefix": "Akceptuję ",
+    "terms": "Regulamin",
+    "and": " i ",
+    "privacy": "Politykę prywatności",
+    "acceptSuffix": ".",
+    "noAccount": "Nie masz konta? ",
+    "createAccount": "Utwórz je"
+  },
+  "code": {
+    "title": "Wpisz kod z SMS-a",
+    "lead": "Wysłaliśmy go na numer {phone}. ",
+    "change": "Zmień",
+    "label": "Kod z SMS-a",
+    "confirm": "Potwierdź",
+    "wait": "Możesz poprosić o nowy kod za {time}",
+    "resend": "Wyślij nowy kod",
+    "exhaustedTitle": "Wykorzystano 5 prób",
+    "remaining": "Na ten numer możesz wysłać jeszcze {count, plural, one {# kod} few {# kody} other {# kodów}} w ciągu godziny."
+  },
+  "profile": {
+    "title": "Jak masz na imię?",
+    "lead": "Imię zobaczysz w aplikacji, a na e-mail wyślemy potwierdzenia płatności.",
+    "name": "Imię",
+    "email": "E-mail (opcjonalnie)",
+    "age": "Potwierdzam, że mam ukończone {age} lat.",
+    "terms": "Akceptuję Regulamin i Politykę prywatności.",
+    "marketing": "Chcę dostawać informacje o promocjach.",
+    "submit": "Zakończ rejestrację"
+  },
+  "rules": {
+    "title": "Zanim ruszysz",
+    "lead": "Zasady, które chronią Ciebie i innych na drodze.",
+    "understood": "Rozumiem"
+  },
+  "consents": {
+    "title": "Zmieniliśmy regulamin",
+    "titlePrivacy": "Zmieniliśmy politykę prywatności",
+    "lead": "Nowa wersja obowiązuje od dziś. Zaakceptuj ją, żeby dalej rezerwować hulajnogi.",
+    "summary": "Najważniejsze zmiany",
+    "docVersion": "{title}, wersja {version}",
+    "checkbox": "Akceptuję: {documents}.",
+    "accept": "Akceptuję",
+    "later": "Nie teraz",
+    "laterHint": "Bez akceptacji zobaczysz mapę, ale nie zarezerwujesz hulajnogi.",
+    "badge": "§"
+  },
+  "blocked": {
+    "title": "Konto jest zablokowane",
+    "lead": "Powód: {reason}. Do czasu wyjaśnienia nie zarezerwujesz hulajnogi.",
+    "reasonUnknown": "decyzja operatora",
+    "reasons": {
+      "TERMS_VIOLATION": "naruszenie regulaminu",
+      "UNPAID_BALANCE": "zaległa płatność",
+      "SUSPECTED_ABUSE": "podejrzenie nadużycia"
+    },
+    "email": "[e-mail pomocy]",
+    "emailHint": "odpowiadamy w ciągu doby",
+    "phone": "[telefon pomocy]",
+    "phoneHint": "pon.–pt. 8:00–18:00",
+    "phoneNote": "Podaj numer telefonu, na który jest założone konto: {phone}.",
+    "check": "Sprawdź ponownie",
+    "signOut": "Wyloguj się"
+  },
+  "account": {
+    "hello": "Cześć, {name}",
+    "lead": "Konto jest gotowe. Mapa z hulajnogami pojawi się w kolejnej wersji aplikacji.",
+    "signOut": "Wyloguj się",
+    "pendingConsents": "Zaakceptuj nową wersję dokumentu"
+  },
+  "document": {
+    "version": "Wersja {version}"
+  },
+  "error": {
+    "NETWORK": "Brak połączenia z serwerem. Sprawdź internet i spróbuj ponownie.",
+    "INVALID_PHONE": "Sprawdź numer telefonu.",
+    "RATE_LIMITED": "Za dużo prób. Spróbuj ponownie za {retryAfterMinutes} min.",
+    "OTP_INVALID": "Kod jest nieprawidłowy. {attemptsLeft, plural, one {Została # próba} few {Zostały # próby} many {Zostało # prób} other {Zostało # próby}}.",
+    "OTP_EXPIRED": "Ten kod już nie zadziała. Poproś o nowy.",
+    "OTP_ATTEMPTS_EXCEEDED": "Ten kod już nie zadziała. Poproś o nowy.",
+    "AGE_NOT_CONFIRMED": "Potwierdź wiek, żeby korzystać z hulajnóg.",
+    "CONSENT_REQUIRED": "Zaakceptuj Regulamin i Politykę prywatności.",
+    "DOCUMENT_VERSION_OUTDATED": "Dokument zmienił się w międzyczasie. Wróć i przeczytaj nową wersję.",
+    "ACCOUNT_BLOCKED": "Konto jest zablokowane.",
+    "VALIDATION_ERROR": "Sprawdź wpisane dane.",
+    "ALREADY_EXISTS": "Ten adres e-mail jest już używany.",
+    "UNAUTHENTICATED": "Sesja wygasła. Zaloguj się ponownie.",
+    "INTERNAL_ERROR": "Coś poszło nie tak. Spróbuj ponownie.",
+    "unknown": "Operacja się nie powiodła ({code})."
   }
 }

@@ -401,3 +401,27 @@ Plan: [iteracja 2](iteracje/iteracja-02-konta-dostep.md).
 - Błąd publikacji bez „najważniejszych zmian” jest komunikatem nad formularzem, bez zaznaczenia pola.
 - Link zaproszenia ma adres z `PANEL_URL` API; przy panelu na porcie 3002 trzeba ustawić `PANEL_URL=http://localhost:3002` w `.env`.
 
+## Iteracja 2: konto w aplikacji mobilnej (16 listopada 2026)
+
+**Co powstało**
+- Sesja klienta (ADR 0035): token dostępowy w pamięci, token odświeżający w `expo-secure-store` (58.0.3, wydany 11 listopada, dodany przez `expo install`; w wersji web `localStorage`, jak w przewodniku Expo dla SDK 58), jedno wspólne odświeżenie przy 401, odtworzenie sesji po uruchomieniu i bramka kierująca według `nextStep` z `/me` (dane, zgody, blokada, konto). Trasy zabezpieczone `Redirect`, bo `Stack.Protected` nie jest opisany w dokumentacji SDK 58.
+- Ekrany według makiet: start (`flow-start`), numer telefonu z akceptacją regulaminu i polityki oraz odnośnikami do ich treści (`flow-telefon`), logowanie (`konto-logowanie`), kod SMS z 6 komórek z odliczaniem, liczbą prób i stanem wyczerpanych prób (`flow-kod`, `konto-kod-proby`), dane z wiekiem z cennika (`konto-dane`), zasady przed pierwszą jazdą z dokumentu `zasady-jazdy` w bazie (`konto-zasady`), ponowna akceptacja z „najważniejszymi zmianami” (`konto-nowa-wersja`), konto zablokowane z powodem (`konto-zablokowane`), pełna treść dokumentu i ekran konta jako zaślepka do iteracji 3.
+- Wspólne komponenty (`src/components/ui.tsx`): pasek kroków, pole 60 px, pole kodu z jednym polem `oneTimeCode`, pole wyboru, przyciski, komunikat błędu; tokeny motywu uzupełnione o kolory błędów. Etykiety w `src/i18n/pl.json`.
+
+**Weryfikacja**
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build`: 201 testów; `expo lint` i `tsc` aplikacji czyste; `expo export` dla web (12 tras) i iOS (Hermes, 1280 modułów).
+- W przeglądarce (wersja web, 390×844) z własną instancją API na porcie 3005 (bez MQTT, kod SMS w logu): rejestracja numerem z akceptacją dokumentów, błędny kod („Zostały 4 próby”), poprawny kod, ekran danych z wiekiem 18 z cennika, zasady z bazy, konto; przeładowanie odtwarza sesję; blokada konta (ustawiona w bazie) pokazuje ekran blokady z powodem, „Sprawdź ponownie” po odblokowaniu wraca do konta; tymczasowo opublikowana wersja 2 regulaminu prowadzi do ekranu ponownej akceptacji z „najważniejszymi zmianami”, pełną treścią i akceptacją; wylogowanie; 5 błędnych kodów daje stan „Wykorzystano 5 prób”.
+- Po weryfikacji: klient testowy, jego kody i sesje usunięte, wersja 2 regulaminu usunięta, wersja 1 znów obowiązuje; serwery podglądu zatrzymane.
+
+**Błędy znalezione w trakcie**
+- Plik typów tras Expo Router (`.expo/types/router.d.ts`) był z 10 listopada i nie znał nowych ekranów; odświeża go `expo start` (nie `expo export`).
+- Na webie pole tekstowe dostawało ramkę fokusu przeglądarki obok własnego obramowania; wyłączona.
+- Numer na ekranie blokady był formatowany jako „+48500 ••• 456”; teraz „+48 500 ••• 456”, a na koncie z odstępami.
+- Przycisk „Wyślij nowy kod” po wyczerpaniu prób był nieaktywny bez wyjaśnienia (odstęp 60 s); pod przyciskiem jest teraz odliczanie, a potem liczba kodów, które można jeszcze wysłać (ta poprawka sprawdzona typami i lintem, bez ponownego przejścia w przeglądarce).
+- Zmiana `api.ts` przy przeładowaniu na gorąco odtworzyła moduł sesji z nowym kontekstem React („useSession poza SessionProvider”); dotyczy tylko trybu deweloperskiego, pełne przeładowanie działa.
+
+**Odstępstwa od makiet** (zgodnie z zasadą z CLAUDE.md)
+- Ekran startowy bez renderu hulajnogi (zdjęcie z biblioteki mediów, iteracja 7), zasady jazdy z numerami zamiast ikon (aplikacja nie ma jeszcze biblioteki ikon), odznaka nowej wersji ze znakiem „§”.
+- Brak „Użyj adresu e-mail” i „Zaloguj się adresem e-mail” (ADR 0019); dane kontaktowe pomocy na ekranie blokady jako wartości w nawiasach do czasu bloków treści (iteracja 7).
+- Ekran po zalogowaniu to zaślepka z wylogowaniem; mapa w iteracji 3.
+
