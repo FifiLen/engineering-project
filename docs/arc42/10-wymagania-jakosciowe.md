@@ -1,6 +1,6 @@
 # 10. Wymagania jakościowe
 
-Wartości docelowe są propozycją do potwierdzenia w testach (iteracja 8). Pomiary wykonujemy z symulatorem floty.
+Wartości docelowe są propozycją do potwierdzenia w testach (iteracja 9). Pomiary wykonujemy z symulatorem floty.
 
 | ID | Cecha | Scenariusz | Cel |
 |---|---|---|---|

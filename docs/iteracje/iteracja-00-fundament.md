@@ -16,6 +16,14 @@ Przygotować repozytorium, infrastrukturę lokalną i dokumentację tak, żeby k
 - [x] GitHub Actions: lint, typy, testy, build
 - [x] Dokumentacja: arc42, ADR 0001–0024, AsyncAPI dla MQTT, README z instrukcją uruchomienia
 
+## Dostosowanie do wymagań uczelni (16 listopada 2026)
+- [x] Analiza 19 wymagań i odpowiedzi na pytania do prowadzącego ([wymagania uczelni](../wymagania-uczelni.md))
+- [x] ADR 0025–0031
+- [x] Migracja 0002: role i uprawnienia, treści, raporty, wydruki, serwis, paragony; widoki, funkcje, procedury
+- [x] `packages/core` i dostęp do danych tylko przez `packages/db`
+- [x] Plan iteracji 0–9
+- [ ] Makiety nowych ekranów panelu (co najmniej wzorzec widoku tabeli przed iteracją 1)
+
 ## Scenariusz demo
 1. `cp .env.example .env && pnpm install`.
 2. `pnpm infra:up` uruchamia infrastrukturę.

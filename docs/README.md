@@ -27,7 +27,7 @@ Dokumentacja jest częścią repozytorium i zmienia się razem z kodem. Każda i
 | Projekt systemu | arc42 §5, §6, §8; model danych; kontrakty |
 | Implementacja | dziennik, arc42 §5 (komponenty), kod |
 | Wdrożenie | arc42 §7 |
-| Testy i weryfikacja | arc42 §10, wyniki testów z iteracji 8 |
+| Testy i weryfikacja | arc42 §10, wyniki testów z iteracji 9 |
 | Podsumowanie, ograniczenia i rozwój | arc42 §11, dziennik |
 
 ## Zasady
