@@ -463,3 +463,27 @@ Pierwsze dwa przebiegi CI po wypchnięciu iteracji 2 padły w kroku „Testy” 
 **Weryfikacja**
 - `pnpm lint`, `pnpm typecheck` oraz 8 kolejnych przebiegów `pnpm test` na świeżo zmigrowanej bazie bez błędów.
 - CI w GitHub Actions zielone dla commitu `63fb0bf` ([przebieg 43947452900](https://github.com/FifiLen/engineering-project/actions/runs/43947452900)); iteracja 2 zamknięta.
+
+## Plan iteracji 3: wypożyczenie (16 listopada 2026)
+
+Plan: [iteracja 3](iteracje/iteracja-03-wypozyczenie.md). Etap planowania, bez kodu i bez makiet.
+
+**Co powstało**
+- Plan iteracji 3: cel i granice z iteracjami 4 (strefy tylko do odczytu z danych startowych), 5 (portfel i obciążenie) i 6 (utrata łączności, zgłoszenia, push); zakres z migracją 0005, regułami przejazdu w `packages/core`, pg-boss, kontraktami MQTT i Socket.IO, przejazdami w panelu oraz mapą, przejazdem, profilem, historią, ustawieniami i usunięciem konta w aplikacji; kolejność kroków i scenariusz demo w 10 krokach.
+- Lista 12 brakujących makiet (10 aplikacji, 2 panelu), m.in. akcja „Zarezerwuj” na karcie hulajnogi, wpisanie numeru hulajnogi, nieudane odblokowanie, kończenie przejazdu z oczekiwaniem na blokadę, szczegóły przejazdu i zdalne zakończenie w panelu.
+- Lista ADR-ów do napisania: 0036 proces wypożyczenia w API, 0037 konfiguracja i zadania pg-boss, 0038 wygasanie komend MQTT, 0039 symulator w trakcie przejazdu klienta, 0040 mapa, lokalizacja i aparat w aplikacji, 0041 kod QR hulajnogi; warunkowo wycena przejazdu i zdjęcia parkowania w SeaweedFS.
+- 10 pytań o wartości biznesowe (czas rezerwacji, minimalne saldo, ceny i zaokrąglanie, próg baterii, naliczanie przy utracie łączności, parkowanie poza strefą, saldo przy usunięciu konta, skutki zdalnego zakończenia, promień wyszukiwania, retencja) i 8 decyzji zakresu z rekomendacją (D1–D8).
+- Dług z iteracji 2 w zakresie: czyszczenie kodów SMS i sesji zadaniem pg-boss (nowa procedura `sp_purge_expired_sessions`), profil, ustawienia i usunięcie konta w aplikacji razem z nawigacją.
+
+**Wnioski z przeglądu kodu, migracji i makiet**
+- Rejestracja nie zakłada wiersza w `wallets`, więc profil i reguła minimalnego salda nie mają portfela. Plan: portfel przy rejestracji i uzupełnienie w migracji 0005.
+- Komendy MQTT nie wygasają. Przy sesji trwałej i QoS 1 komenda `unlock`, która przekroczyła 10 s (`UNLOCK_FAILED`), dotrze do hulajnogi po jej powrocie online i odblokuje ją bez przejazdu (ADR 0038, kontrakt 1.1.0).
+- `sp_expire_reservations` zwraca tylko liczbę wygaszonych rezerwacji, a aplikacja i panel potrzebują identyfikatorów do zdarzeń; nie ma też procedury czyszczenia sesji.
+- Makiety nie mają przycisku rezerwacji: `produkt-mapa` ma tylko „Skanuj i jedź”, a `produkt-hulajnoga` ma suwak odblokowania.
+- Natywny MapLibre ([ADR 0005](adr/0005-react-native-expo.md), [ADR 0017](adr/0017-uslugi-mapowe.md)) wymaga development build zamiast Expo Go, a wersja web aplikacji potrzebuje MapLibre GL JS (ADR 0040).
+- Zdjęcie parkowania (arc42 §6.4) wymagałoby pierwszego użycia SeaweedFS i aparatu, którego nie ma w symulatorze iOS ani w wersji web; rekomendacja: iteracja 6 (D2).
+- Próg baterii jest niespójny między seedem (15%), makietą `admin-hulajnoga` (20%) i symulatorem (odmowa poniżej 5%); pytanie do autora.
+- Symulator nie ma sposobu na rozłączenie wybranej hulajnogi, potrzebnego w demo nieudanego odblokowania; dopisane do zakresu.
+
+**Do zrobienia przed implementacją**
+- Odpowiedzi autora na pytania i decyzje z planu; makiety brakujących stanów; ADR-y 0036–0041.

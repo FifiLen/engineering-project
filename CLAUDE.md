@@ -52,7 +52,8 @@ Iteracja 1 (`docs/iteracje/iteracja-01-symulator-telemetria.md`): symulator z w�
 Iteracja 2 (`docs/iteracje/iteracja-02-konta-dostep.md`): migracja 0004 (sesje i zaproszenia operatorów, blokada klienta, strażnik ostatniego `roles.manage` w bazie), reguły kont w core, repozytoria kont, logowanie klientów kodem SMS i operatorów z TOTP (ADR 0035), strażnik dostępu na każdym punkcie, dziennik audytu w transakcji z historią rekordu, panel: logowanie, operatorzy, role z macierzą, użytkownicy, dziennik, dokumenty prawne; aplikacja: rejestracja, zgody, blokada; OpenAPI w `docs/kontrakty/openapi.json`.
 Do zrobienia:
 - [x] Wypchnąć iterację 2 i potwierdzić zielone CI (2026-11-16, commit `63fb0bf`).
-- [ ] Przed iteracją 3: plan iteracji 3 (wypożyczenie) i ewentualne makiety brakujących stanów; profil, ustawienia i usunięcie konta w aplikacji razem z nawigacją.
+- [x] Przed iteracją 3: plan iteracji 3 (wypożyczenie) z profilem, ustawieniami i usunięciem konta w aplikacji razem z nawigacją (2026-11-16, `docs/iteracje/iteracja-03-wypozyczenie.md`).
+- [ ] Przed iteracją 3: odpowiedzi autora na pytania i decyzje D1–D8 z planu, makiety brakujących stanów (lista w planie), ADR 0036–0041.
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.
