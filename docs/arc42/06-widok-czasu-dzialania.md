@@ -137,19 +137,53 @@ sequenceDiagram
 
 ## 6.7. Logowanie
 
+Klient (iteracja 2, [ADR 0019](../adr/0019-uwierzytelnianie.md), [ADR 0035](../adr/0035-sesje-tokeny-i-straznik-uprawnien.md)): kod SMS, sesja z rotacją tokenu odświeżającego, następny ekran z `/me`.
+
 ```mermaid
 sequenceDiagram
     autonumber
     participant A as Aplikacja
     participant API as Backend API
+    participant C as packages/core
     participant DB as PostgreSQL
-    participant SMS as Dostawca SMS
-    A->>API: POST /auth/otp (phone)
-    API->>DB: hash kodu, ważność 5 min
-    API->>SMS: wysyłka kodu
-    A->>API: POST /auth/otp/verify (phone, code)
-    API->>DB: weryfikacja, utworzenie konta jeśli nowe
-    API-->>A: access token 15 min, refresh token 30 dni
+    participant SMS as Bramka SMS
+    A->>API: POST /auth/otp (numer)
+    API->>C: normalizePhone, ensureCanIssueOtp (60 s, 5/h)
+    API->>DB: skrót HMAC kodu, ważność 5 min
+    API->>SMS: kod (w środowisku deweloperskim log API)
+    A->>API: POST /auth/otp/verify (numer, kod)
+    API->>C: assessOtpAttempt (5 prób)
+    API->>DB: zużycie kodu, konto przy pierwszym logowaniu, sesja (skrót tokenu)
+    API-->>A: token dostępowy 15 min, odświeżający 30 dni, me.nextStep
+    A->>A: token odświeżający w expo-secure-store
+    alt nextStep = PROFILE
+        A->>API: POST /me/registration (imię, wiek, wersje dokumentów)
+    else nextStep = CONSENTS
+        A->>API: POST /me/consents (nowe wersje dokumentów)
+    end
+    Note over A,API: 401 → POST /auth/refresh: nowy token w tej samej rodzinie;<br/>ponowne użycie zastąpionego tokenu unieważnia rodzinę
+```
+
+Operator panelu: hasło, drugi krok z kodem TOTP (albo jego konfiguracja), token odświeżający w ciasteczku `httpOnly`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Panel
+    participant API as Backend API
+    participant C as packages/core
+    participant DB as PostgreSQL
+    P->>API: POST /admin/auth/login (e-mail, hasło, zapamiętaj)
+    API->>DB: konto operatora
+    API->>C: ensureStaffCanAttemptLogin, argon2, registerFailedLogin
+    API-->>P: mfaToken (5 min), krok TOTP albo TOTP_SETUP z kluczem i adresem otpauth
+    P->>API: POST /admin/auth/totp (mfaToken, kod)
+    API->>C: totpCandidateSteps ±1, ensureTotpStepUnused
+    API->>DB: potwierdzenie TOTP, sesja, wpis staff.signed_in w audit_log
+    API-->>P: token dostępowy 15 min + Set-Cookie hj_staff_refresh (12 h albo 7 dni)
+    P->>API: żądania z Authorization: Bearer
+    API->>DB: uprawnienia z v_staff_permissions (pamięć 10 s)
+    Note over P,API: Socket.IO: token w auth.token, pokój fleet wymaga scooters.read
 ```
 
 ## 6.8. Komenda z panelu

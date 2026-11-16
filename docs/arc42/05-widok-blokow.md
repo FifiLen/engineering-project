@@ -30,15 +30,16 @@ flowchart TB
 
 | Moduł | Odpowiedzialność | Główne tabele |
 |---|---|---|
-| Uwierzytelnianie | Kody SMS, tokeny, sesje, logowanie operatorów z TOTP | `otp_codes`, `sessions`, `staff` |
-| Konta | Profil, zgody, zapisane miejsca, usunięcie konta | `users`, `consents`, `saved_places` |
+| Uwierzytelnianie | Kody SMS, tokeny, sesje, logowanie operatorów z TOTP i zaproszenia, globalny strażnik uprawnień ([ADR 0035](../adr/0035-sesje-tokeny-i-straznik-uprawnien.md)) | `otp_codes`, `sessions`, `staff_sessions`, `staff_invitations` |
+| Konta | Profil, rejestracja, zgody na wersje dokumentów, blokada, zapisane miejsca, usunięcie konta | `users`, `consents`, `saved_places` |
+| Dostęp | Operatorzy, role i macierz uprawnień, dziennik audytu z historią rekordu, dokumenty prawne z wersjami ([ADR 0028](../adr/0028-uzytkownicy-role-uprawnienia.md)) | `staff`, `roles`, `role_permissions`, `staff_roles`, `audit_log`, `content_pages`, `content_page_versions` |
 | Flota | Stan hulajnóg i modeli, komendy i potwierdzenia, mapa floty (pokój `fleet`) | `scooters`, `scooter_models`, `scooter_commands` |
 | Telemetria | Odbiór MQTT partiami, punkty tras, stan bieżący i przebieg ([ADR 0033](../adr/0033-telemetria-i-status-floty.md)), wykrywanie zmian stref (iteracja 4) | `telemetry` |
 | Strefy | Geometrie stref, zapytania przestrzenne | `zones` |
 | Wypożyczenia | Maszyna stanów przejazdu, rezerwacje | `rentals`, `rental_events` |
 | Płatności | Cennik, portfel, Stripe, webhooki | `tariffs`, `wallets`, `wallet_ledger`, `payments` |
 | Powiadomienia | Push, zdarzenia Socket.IO | `notifications`, `push_tokens` |
-| Operacje | Zgłoszenia, pliki, dziennik audytu | `tickets`, `files`, `audit_log` |
+| Operacje | Zgłoszenia, pliki | `tickets`, `files` |
 
 Moduły komunikują się przez publiczne serwisy i zdarzenia domenowe, nie przez bezpośredni dostęp do tabel innych modułów. Ta zasada pozwala w przyszłości wydzielić moduł do osobnej usługi.
 

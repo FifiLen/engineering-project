@@ -425,3 +425,24 @@ Plan: [iteracja 2](iteracje/iteracja-02-konta-dostep.md).
 - Brak „Użyj adresu e-mail” i „Zaloguj się adresem e-mail” (ADR 0019); dane kontaktowe pomocy na ekranie blokady jako wartości w nawiasach do czasu bloków treści (iteracja 7).
 - Ekran po zalogowaniu to zaślepka z wylogowaniem; mapa w iteracji 3.
 
+## Iteracja 2: domknięcie (16 listopada 2026)
+
+Plan i scenariusz demo: [iteracja 2](iteracje/iteracja-02-konta-dostep.md). Przebieg prac opisują wpisy od „Plan i makiety iteracji 2” powyżej.
+
+**Co powstało przy domknięciu**
+- Kontrakt [`openapi.json`](kontrakty/openapi.json) (50 ścieżek) generowany z kontrolerów: `pnpm api:openapi` zapisuje plik w stałej kolejności kluczy, a test API porównuje go z kodem, więc zmiana punktu bez aktualizacji kontraktu jest widoczna w CI. `/docs` korzysta z tego samego dokumentu.
+- arc42: §6.7 diagramy logowania klienta (kod SMS, rejestracja, rotacja tokenu) i operatora (hasło, TOTP, ciasteczko, uprawnienia, Socket.IO), §5.2 moduły Uwierzytelnianie, Konta i Dostęp, §8.1 uwierzytelnianie i autoryzacja, §11 ryzyka (brak dostawcy SMS i poczty, pamięć podręczna uprawnień w jednej instancji).
+- [Wymagania uczelni](wymagania-uczelni.md): 10 i 11 spełnione, 12, 13, 14 i 17 zaktualizowane o iterację 2.
+- Scenariusz demo w 9 krokach (logowanie z TOTP, zaproszenie, zmiana uprawnień na żywo, ostatni administrator, rejestracja w aplikacji, blokada, nowa wersja regulaminu, historia zmian i dziennik).
+
+**Weryfikacja**
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build`: 202 testy (71 core, 18 shared, 17 symulatora, 47 bazy, 49 API).
+
+**Dług techniczny po iteracji 2**
+- Bramka SMS i wysyłka zaproszeń tylko w wersji deweloperskiej (log API, link w panelu); dostawcy produkcyjni za adapterami.
+- Treść SMS-a w kodzie API do czasu szablonów powiadomień (iteracja 6); dane kontaktowe pomocy i render na ekranie startowym do czasu modułu treści (iteracja 7).
+- Uprawnienia w panelu odświeżają się z nową sesją (przeładowanie strony albo odświeżenie tokenu co 15 min); API stosuje zmianę od następnego żądania.
+- Wersja robocza dokumentu bez blokady optymistycznej; szczegóły wpisu dziennika audytu na osobnej stronie zamiast panelu bocznego z makiety.
+- Czyszczenie przeterminowanych kodów SMS i sesji zadaniem pg-boss: iteracja 3.
+- Iteracja nie jest jeszcze wypchnięta; CI do potwierdzenia.
+

@@ -18,7 +18,8 @@
     "db:seed": "pnpm --filter @hulajnogi/db run seed",
     "db:places": "pnpm --filter @hulajnogi/db run places",
     "db:pull": "pnpm --filter @hulajnogi/db run pull",
-    "db:staff:create": "pnpm --filter @hulajnogi/db run staff:create"
+    "db:staff:create": "pnpm --filter @hulajnogi/db run staff:create",
+    "api:openapi": "pnpm --filter @hulajnogi/api run openapi"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

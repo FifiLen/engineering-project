@@ -1,10 +1,11 @@
 import fastifyCookie from '@fastify/cookie';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
 import type { AppConfig } from './config.js';
+import { buildOpenApiDocument } from './openapi.js';
 
 export async function createApp(config: AppConfig, options: { logger?: boolean } = {}): Promise<NestFastifyApplication> {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -27,12 +28,6 @@ export async function createApp(config: AppConfig, options: { logger?: boolean }
     allowedHeaders: ['content-type', 'authorization'],
   });
 
-  const openApi = new DocumentBuilder()
-    .setTitle('System wypożyczania hulajnóg: API')
-    .setDescription('REST API dla aplikacji mobilnej i panelu operatora')
-    .setVersion('0.2.0')
-    .addBearerAuth()
-    .build();
-  SwaggerModule.setup('docs', app, () => SwaggerModule.createDocument(app, openApi));
+  SwaggerModule.setup('docs', app, () => buildOpenApiDocument(app));
   return app;
 }

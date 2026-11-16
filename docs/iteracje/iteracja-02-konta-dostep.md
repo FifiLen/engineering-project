@@ -1,6 +1,6 @@
 # Iteracja 2: konta i dostęp
 
-**Status:** zaplanowana (16 listopada 2026)
+**Status:** zakończona lokalnie (16 listopada 2026); do wypchnięcia i potwierdzenia zielonego CI
 
 ## Cel
 Klient zakłada konto w aplikacji kodem SMS i akceptuje obowiązującą wersję regulaminu i polityki prywatności. Operator loguje się do panelu hasłem i kodem TOTP; dostęp do każdego punktu API i każdej pozycji panelu wynika z jego ról ([ADR 0019](../adr/0019-uwierzytelnianie.md), [ADR 0028](../adr/0028-uzytkownicy-role-uprawnienia.md)). Role, operatorzy i klienci są zarządzani w panelu, a każdy zapis operatora (także zapisy floty i modeli z iteracji 1) trafia do `audit_log` i jest widoczny jako historia zmian w formularzu.
@@ -56,7 +56,7 @@ Wnioski z makiet dla zakresu:
   - [x] nawigacja i przyciski według uprawnień (formularz tylko do odczytu bez `…write`), blok operatora z wylogowaniem; Socket.IO z tokenem i ponownym połączeniem po odświeżeniu;
   - [x] Operatorzy (lista, zaproszenie z linkiem, karta z rolami, sesjami, resetem TOTP i dezaktywacją), Role z macierzą uprawnień, Użytkownicy (lista, karta ze zgodami i sesjami, blokada z powodem), Dziennik audytu (lista i wpis), Treści → Dokumenty prawne (wersje, edytor wersji roboczej z podglądem, publikacja); karta „Historia zmian” w formularzach, także floty i modeli z iteracji 1.
 - [x] **Aplikacja** (trasy `/witaj`, `/telefon`, `/kod`, `/dane`, `/zasady`, `/zgody`, `/zablokowane`, `/konto`, `/dokument/{slug}`): start, numer telefonu ze zgodą na regulamin i politykę, kod SMS z odliczaniem, dane (imię, e-mail, wiek, zgoda marketingowa), zasady przed pierwszą jazdą, logowanie; tokeny w `expo-secure-store`, odświeżanie przy 401, ponowna akceptacja nowej wersji dokumentu, ekran konta zablokowanego; ekran po zalogowaniu jako zaślepka z wylogowaniem do iteracji 3.
-- [ ] **Kontrakty i dokumentacja**: OpenAPI dla punktów `/auth`, `/me`, `/legal` (pierwszy klient API spoza panelu), diagram rejestracji i logowania w arc42 §6, model danych, ADR-y nowych decyzji (sesje operatorów w ciasteczku, dziennik audytu w transakcji, uwierzytelnianie Socket.IO), tabela zgodności w [wymaganiach uczelni](../wymagania-uczelni.md).
+- [x] **Kontrakty i dokumentacja**: [OpenAPI](../kontrakty/openapi.json) (50 ścieżek, generowany z kontrolerów, `pnpm api:openapi`, aktualność pilnuje test), diagramy logowania klienta i operatora w arc42 §6.7, §5.2, §8.1 i §11, model danych, [ADR 0035](../adr/0035-sesje-tokeny-i-straznik-uprawnien.md) (sesje, tokeny, strażnik, Socket.IO; dziennik audytu w transakcji opisuje ADR 0028 i arc42 §8.1), tabela zgodności w [wymaganiach uczelni](../wymagania-uczelni.md).
 
 ## Poza zakresem (świadomie)
 - Korekta salda na karcie klienta: iteracja 5 (portfel i księga). Karta pokazuje saldo z `v_user_activity`.
@@ -74,7 +74,17 @@ Potwierdzone przez autora 16 listopada 2026:
 3. Minimalny wiek klienta pochodzi z obowiązującej wersji cennika (`tariffs.min_user_age`, w seedzie wartość deweloperska), więc zmiana wieku to nowa wersja cennika.
 
 ## Scenariusz demo
-Do uzupełnienia po implementacji (kroki: rejestracja w aplikacji z kodem z logów API, logowanie operatora z TOTP, odebranie uprawnienia na żywo i 403 w panelu, blokada klienta i wylogowanie jego sesji, publikacja nowej wersji regulaminu i ponowna akceptacja w aplikacji, historia zmian hulajnogi z dziennika audytu, próba odebrania `roles.manage` ostatniemu administratorowi).
+Wymaga infrastruktury i danych startowych (`pnpm infra:up && pnpm db:migrate && pnpm db:seed`), `PANEL_URL=http://localhost:3002` w `.env` i aplikacji uwierzytelniającej na telefonie. Kod SMS jest w logu API.
+
+1. `pnpm dev` (albo osobno API, symulator i `WEB_PORT=3002 pnpm --filter @hulajnogi/web dev`); aplikacja: `pnpm --filter @hulajnogi/mobile dev` (symulator iOS albo `w` dla wersji web).
+2. Panel `http://localhost:3002/admin/mapa` bez sesji przekierowuje do logowania z adresem powrotu. Logowanie `admin@hulajnogi.local` hasłem z `SEED_ADMIN_PASSWORD`: przy pierwszym logowaniu konfiguracja TOTP (kod QR albo klucz), kod z telefonu i powrót na mapę floty na żywo. Wylogowanie i ponowne logowanie wymaga już tylko kodu; ten sam kod drugi raz jest odrzucany.
+3. „Operatorzy i role” → „Zaproś operatora”: imię, e-mail, rola Dyspozytor. Panel pokazuje link aktywacji raz; w oknie prywatnym przeglądarki link prowadzi przez ustawienie hasła (lista wymagań) i konfigurację TOTP prosto do panelu, w którym Dyspozytor nie widzi pozycji „Operatorzy i role”, a modele hulajnóg są tylko do odczytu.
+4. Zmiana uprawnień na żywo: jako administrator „Role” → Dyspozytor → zaznacz „Dodawanie i edycja hulajnóg i modeli” (obramowanie i podsumowanie „Niezapisane”), zapisz. API uwzględnia zmianę od następnego żądania (zapis modelu przez Dyspozytora przechodzi), a panel Dyspozytora pokazuje „Nowy model” po przeładowaniu strony (nowa sesja z uprawnieniami); po cofnięciu uprawnienia zapis kończy się 403 (`FORBIDDEN`, `scooters.write`).
+5. Ostatni administrator: w macierzy roli Administrator odznacz „Role i uprawnienia” i zapisz: „Co najmniej jeden aktywny operator musi zarządzać rolami” (`LAST_ROLE_MANAGER`). Własnych ról i dezaktywacji siebie panel też nie pozwala zmienić.
+6. Aplikacja: „Utwórz konto” → numer ze zgodą na regulamin i politykę (odnośniki otwierają treść z bazy) → kod z logu API (błędny kod: „Zostały 4 próby”) → imię i wiek (18 z cennika) → zasady jazdy z bazy → konto. Zamknięcie i ponowne uruchomienie aplikacji odtwarza sesję.
+7. Panel → „Użytkownicy”: nowy klient z kartą zgód (wersje dokumentów) i sesją. „Zablokuj konto”, powód „Zaległa płatność”, notatka: sesje unieważnione, więc aplikacja przy następnym odświeżeniu sesji wraca do ekranu startowego; po ponownym zalogowaniu kodem SMS klient widzi „Konto jest zablokowane” z powodem, bez notatki. Odblokowanie i „Sprawdź ponownie” w aplikacji.
+8. Panel → „Treści” → Regulamin → „Nowa wersja”: zmiana treści, podgląd; publikacja bez „najważniejszych zmian” jest odrzucona; po ich wpisaniu publikacja. W aplikacji ekran „Zmieniliśmy regulamin” z najważniejszymi zmianami i pełną treścią; po akceptacji karta klienta w panelu pokazuje wersję 2 jako obowiązującą, a lista wersji liczbę akceptacji.
+9. „Flota” → dowolna hulajnoga → zmiana oprogramowania: karta „Historia zmian” pokazuje autora i pole; „Operatorzy i role” → „Dziennik audytu” zawiera ten wpis, blokadę klienta, publikację dokumentu i logowania; wpis ma pola przed i po.
 
 ## Wynik
-Do uzupełnienia po zakończeniu iteracji ([dziennik](../dziennik.md)).
+Opis wykonanych prac, weryfikacji i długu technicznego: [dziennik](../dziennik.md#iteracja-2-domknięcie-16-listopada-2026).

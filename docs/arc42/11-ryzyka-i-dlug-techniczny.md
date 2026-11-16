@@ -8,7 +8,8 @@
 | Broker MQTT jako pojedynczy punkt awarii | Średni | Akceptowane w projekcie; opis klastrowania jako kierunek rozwoju |
 | Pamięć OSRM na małym VPS | Niski | Wycinek tylko jednego województwa |
 | Różnice między symulatorem a prawdziwym urządzeniem | Średni | Kontrakt MQTT w AsyncAPI jako jedyne źródło prawdy o protokole |
-| Panel bez logowania do iteracji 2 | Średni | API i panel tylko lokalnie; definicje zasobów mają już wymagane uprawnienia, zapisy przechodzą przez jedno miejsce w serwisach ([ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-panelu.md)) |
+| Brak dostawcy SMS i poczty | Średni | Bramka SMS i link zaproszenia za adapterami; w środowisku deweloperskim kod w logu API, link pokazany raz w panelu ([ADR 0035](../adr/0035-sesje-tokeny-i-straznik-uprawnien.md)) |
+| Pamięć podręczna uprawnień w jednej instancji API | Niski | Zmiana ról działa od razu w tej instancji, w pozostałych po 10 s; dezaktywacja odcina dostęp przy następnym odczycie |
 | Jedna instancja backendu (stały identyfikator klienta MQTT, bufor telemetrii w pamięci) | Niski | Skalowanie przez subskrypcje współdzielone MQTT; opisane w [ADR 0033](../adr/0033-telemetria-i-status-floty.md) |
 
 Dług techniczny jest dopisywany w dzienniku w chwili, gdy świadomie go zaciągamy.

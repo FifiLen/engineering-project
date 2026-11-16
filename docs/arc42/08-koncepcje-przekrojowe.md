@@ -1,7 +1,7 @@
 # 8. Koncepcje przekrojowe
 
 ## 8.1. Uwierzytelnianie i autoryzacja
-Użytkownicy logują się kodem SMS i dostają krótki token dostępowy (15 min) oraz długi token odświeżający (30 dni), przechowywany w bazie jako skrót. Operatorzy logują się e-mailem, hasłem (argon2) i kodem TOTP. Role operatorów: `ADMIN`, `DISPATCHER`, `SERVICE`. Szczegóły: [ADR 0019](../adr/0019-uwierzytelnianie.md).
+Użytkownicy logują się kodem SMS i dostają krótki token dostępowy (15 min) oraz długi token odświeżający (30 dni), przechowywany w bazie jako skrót; w aplikacji leży w `expo-secure-store`. Każde odświeżenie wydaje nowy token, a ponowne użycie zastąpionego unieważnia całą rodzinę sesji. Operatorzy logują się e-mailem, hasłem (argon2) i kodem TOTP (sekret szyfrowany AES-256-GCM); token odświeżający panelu jest w ciasteczku `httpOnly` `SameSite=Strict`. Uprawnienia operatora wynikają z ról zarządzanych w panelu (RBAC, [ADR 0028](../adr/0028-uzytkownicy-role-uprawnienia.md)); każdy punkt API deklaruje dostęp (`@Public`, `@CustomerAuth`, `@StaffAuth`, `@RequirePermission`), a punkt bez deklaracji jest odrzucany. Każdy zapis operatora trafia do `audit_log` w tej samej transakcji. Szczegóły: [ADR 0019](../adr/0019-uwierzytelnianie.md), [ADR 0035](../adr/0035-sesje-tokeny-i-straznik-uprawnien.md).
 
 ## 8.2. Idempotencja
 Każde działanie, które może zostać powtórzone, ma unikalny klucz: `commandId` dla komend MQTT, `idempotency_key` dla płatności, `provider_event_id` dla webhooków. Powtórzenie nie zmienia stanu.

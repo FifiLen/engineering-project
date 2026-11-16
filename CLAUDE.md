@@ -28,6 +28,7 @@ Projekt musi spełnić 19 wymagań z `docs/wymagania-uczelni.md` (m.in. min. 30 
 - `pnpm infra:up` infrastruktura; `pnpm db:migrate`, `pnpm db:places`, `pnpm db:seed`
 - `pnpm db:staff:create --email <e-mail> --name "<imię i nazwisko>"` zaprasza administratora (link aktywacji w terminalu, `PANEL_URL`)
 - `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (testy bazy wymagają DATABASE_URL)
+- `pnpm api:openapi` po zmianie kontrolerów (test API porównuje `docs/kontrakty/openapi.json` z kodem)
 - Po każdej migracji: `pnpm db:pull` (regeneruje `packages/db/src/schema`, nie edytować ręcznie; wyjątek: `telemetry.ts`).
 - Zależności Expo: `pnpm --filter @hulajnogi/mobile exec expo install <pakiet>`.
 
@@ -45,13 +46,13 @@ Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny 
 - `docs/projekt/ekrany/00-eksploracja/` to archiwum odrzuconych kierunków, nie implementować.
 - Kanwa w claude.ai jest archiwum; źródłem prawdy jest repozytorium. Nowe makiety można tworzyć jako HTML w `docs/projekt/ekrany/` według design systemu.
 
-## Stan: iteracja 1 zakończona (2026-11-16)
+## Stan: iteracja 2 zakończona lokalnie (2026-11-16)
 Iteracja 0: monorepo, Docker Compose, migracje 0001–0002, `packages/core`, dane startowe Rybnika, CI, ADR 0001–0031 (repozytorium github.com/FifiLen/engineering-project, gałąź `main`).
 Iteracja 1 (`docs/iteracje/iteracja-01-symulator-telemetria.md`): symulator z własnym połączeniem MQTT na hulajnogę i przejazdami pokazowymi (ADR 0034), telemetria partiami i status floty w core i w bazie (ADR 0033, migracja 0003), Socket.IO pokój `fleet`, wspólny mechanizm list i definicje zasobów (`scooters`, `scooter-models`), panel: mapa floty, lista i formularz floty i modeli, etykiety w plikach tłumaczeń z regułą lintera (ADR 0032).
+Iteracja 2 (`docs/iteracje/iteracja-02-konta-dostep.md`): migracja 0004 (sesje i zaproszenia operatorów, blokada klienta, strażnik ostatniego `roles.manage` w bazie), reguły kont w core, repozytoria kont, logowanie klientów kodem SMS i operatorów z TOTP (ADR 0035), strażnik dostępu na każdym punkcie, dziennik audytu w transakcji z historią rekordu, panel: logowanie, operatorzy, role z macierzą, użytkownicy, dziennik, dokumenty prawne; aplikacja: rejestracja, zgody, blokada; OpenAPI w `docs/kontrakty/openapi.json`.
 Do zrobienia:
-- [x] Wypchnąć iterację 1 i potwierdzić zielone CI (2026-11-16, commit `30261a9`).
-- [x] Plan iteracji 2 (`docs/iteracje/iteracja-02-konta-dostep.md`) i makiety kont i dostępu (`docs/projekt/ekrany/18-panel-dostep`, `19-mobile-dostep`) (2026-11-16).
-- [ ] Iteracja 2: migracja 0004, logowanie klientów i operatorów, `@RequirePermission` i `audit_log` także dla zapisów z iteracji 1, ekrany według makiet.
+- [ ] Wypchnąć iterację 2 i potwierdzić zielone CI.
+- [ ] Przed iteracją 3: plan iteracji 3 (wypożyczenie) i ewentualne makiety brakujących stanów; profil, ustawienia i usunięcie konta w aplikacji razem z nawigacją.
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.
