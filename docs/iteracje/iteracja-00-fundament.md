@@ -22,7 +22,7 @@ Przygotować repozytorium, infrastrukturę lokalną i dokumentację tak, żeby k
 - [x] Migracja 0002: role i uprawnienia, treści, raporty, wydruki, serwis, paragony; widoki, funkcje, procedury
 - [x] `packages/core` i dostęp do danych tylko przez `packages/db`
 - [x] Plan iteracji 0–9
-- [ ] Makiety nowych ekranów panelu (co najmniej wzorzec widoku tabeli przed iteracją 1)
+- [x] Makieta wzorca widoku tabeli: lista, filtry, formularz, stany ([projekt](../projekt/README.md#panel-operatora-wzorzec-widoku-tabeli)); makiety ról i uprawnień przed iteracją 2, treści, mediów, raportów i szablonów przed iteracjami 7 i 8
 
 ## Scenariusz demo
 1. `cp .env.example .env && pnpm install`.

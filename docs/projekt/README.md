@@ -15,7 +15,7 @@ Uwagi do eksportu:
 - Plansze z katalogu `00-eksploracja` używały krojów Space Grotesk, JetBrains Mono, Bricolage Grotesque i DM Sans; na zrzutach zastąpiono je krojem systemowym. Obecny kierunek używa tylko Intera.
 - Liczby w makietach (np. 87%, 2,4 km, nazwiska w panelu) są przykładowe.
 
-Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **53**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
+Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **57**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
 
 ## Eksploracja kierunku (archiwum)
 
@@ -163,6 +163,29 @@ Od rejestracji do płatności.
 | Panel – użytkownicy | [PNG](ekrany/13-panel/admin-uzytkownicy.png) | [HTML](ekrany/13-panel/admin-uzytkownicy.html) | 1440×900 |
 | Panel – cennik i zasady | [PNG](ekrany/13-panel/admin-cennik.png) | [HTML](ekrany/13-panel/admin-cennik.html) | 1440×900 |
 | Panel – symulator | [PNG](ekrany/13-panel/admin-symulator.png) | [HTML](ekrany/13-panel/admin-symulator.html) | 1440×900 |
+
+## Panel operatora: wzorzec widoku tabeli
+
+Wspólny wzorzec listy i formularza dla wszystkich tabel w panelu ([ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-panelu.md)), pokazany na zadaniach serwisowych. Plansze powstały w repozytorium (16 listopada 2026), nie na kanwie.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Lista: filtry, sortowanie, zaznaczenie | [PNG](ekrany/17-panel-wzorce/wzorzec-lista.png) | [HTML](ekrany/17-panel-wzorce/wzorzec-lista.html) | 1440×900 |
+| Panel filtrów | [PNG](ekrany/17-panel-wzorce/wzorzec-filtry.png) | [HTML](ekrany/17-panel-wzorce/wzorzec-filtry.html) | 1440×900 |
+| Formularz edycji: błąd pola, konflikt wersji | [PNG](ekrany/17-panel-wzorce/wzorzec-formularz.png) | [HTML](ekrany/17-panel-wzorce/wzorzec-formularz.html) | 1440×900 |
+| Stany listy: ładowanie, pusta, brak wyników, błąd | [PNG](ekrany/17-panel-wzorce/wzorzec-stany.png) | [HTML](ekrany/17-panel-wzorce/wzorzec-stany.html) | 1440×900 |
+
+Elementy wzorca:
+
+- **Lista**: wyszukiwarka, szybkie filtry z licznikami (`facets`), przycisk „Filtry” z liczbą aktywnych filtrów, aktywne filtry jako usuwalne etykiety, liczba wyników i opis sortowania, nagłówek sortowanej kolumny ze strzałką (`aria-sort`), zaznaczanie wierszy z polem „część zaznaczona” w nagłówku, pasek operacji grupowych (operacja zamykająca rekordy w kolorze błędu, z potwierdzeniem), stronicowanie z wyborem liczby wierszy.
+- **Panel filtrów**: wysuwany z prawej strony, sekcje według typu filtra (lista wartości z licznikami, wybór wielu, wybór jednego, pole wyboru, zakres dat, przełącznik), przycisk z liczbą wyników po zastosowaniu.
+- **Formularz**: ścieżka powrotu do listy, numer wersji rekordu, komunikat o konflikcie wersji (blokada optymistyczna, kod `CONFLICT`) z porównaniem i wczytaniem aktualnej wersji, błąd pola pod polem w kolorze błędu, pola opcjonalne oznaczone słowem, historia zmian z dziennika audytu, operacja nieodwracalna w osobnej karcie.
+- **Stany**: szkielet wierszy przy ładowaniu, pusta lista z główną akcją, brak wyników z czyszczeniem filtrów, błąd z kodem i ponowieniem. Nagłówki kolumn zostają we wszystkich stanach.
+
+Odstępstwa od plansz panelu z kanwy:
+
+- **Nawigacja boczna** jest pogrupowana (Operacje, Konfiguracja, Klienci i dostęp, Analiza) i ma nowe pozycje z ADR 0027–0030: Serwis, Treści, Operatorzy i role, Raporty, Wydruki. Pozycje niedostępne dla roli operatora są ukryte (ADR 0028). To propozycja nawigacji dla całego panelu; plansze z katalogu `13-panel` pokazują jeszcze starą listę.
+- **Eksport** domyślnie do XLSX (wymaganie 18), CSV w menu przycisku; makieta Flota ma tylko „Eksportuj CSV”.
 
 ## Strona promocyjna (pierwsza iteracja)
 

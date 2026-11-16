@@ -47,7 +47,7 @@ Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny 
 ## Stan: iteracja 0 zakończona lokalnie (2026-11-10)
 Gotowe: monorepo, Docker Compose (PostGIS, Mosquitto, SeaweedFS, OSRM), migrator i migracja 0001, schemat Drizzle, dane startowe ze sprawdzonymi współrzędnymi Rybnika, pakiet shared, szkielety api/web/mobile/simulator, CI, README, ADR 0021–0024. Pełny przebieg lint/typecheck/test/build przechodzi.
 Do zrobienia przed iteracją 1:
-- [ ] Wymagania uczelni: „Plan dostosowania” z `docs/wymagania-uczelni.md` (pytania rozstrzygnięte, ADR 0025–0031 zaakceptowane; migracja 0002, `packages/core` i plan iteracji 0–9 gotowe; zostały makiety nowych ekranów panelu, co najmniej wzorzec widoku tabeli)
+- [x] Wymagania uczelni: „Plan dostosowania” z `docs/wymagania-uczelni.md` (ADR 0025–0031, migracja 0002, `packages/core`, plan iteracji 0–9, makieta wzorca widoku tabeli w `docs/projekt/ekrany/17-panel-wzorce/`). Makiety ról i uprawnień przed iteracją 2, pozostałych nowych ekranów przed iteracjami 7–8.
 - [ ] Wypchnąć repozytorium na GitHuba i potwierdzić zielony przebieg `.github/workflows/ci.yml`; scalić gałąź `iteracja-0-domkniecie` z `main`
 - [ ] Autor: obejrzeć strefy na mapie (współrzędne w `packages/db/seed/rybnik-places.json`, wyniki OSM w dzienniku)
 
