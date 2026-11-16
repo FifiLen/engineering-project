@@ -1,6 +1,6 @@
 # Iteracja 1: symulator, telemetria i wzorzec panelu
 
-**Status:** zakończona lokalnie (16 listopada 2026); do potwierdzenia przebieg CI po wypchnięciu
+**Status:** zakończona (16 listopada 2026); CI w GitHub Actions zielone dla commitu `30261a9`
 
 ## Cel
 Wirtualne hulajnogi jeżdżą po Rybniku i mówią protokołem z [kontraktu MQTT](../kontrakty/asyncapi-mqtt.yaml); backend zapisuje telemetrię i pokazuje flotę na żywo. Powstaje wspólny wzorzec widoku tabeli ([ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-panelu.md)), na którym działają lista floty i modeli hulajnóg, oraz pliki tłumaczeń w klientach ([ADR 0027](../adr/0027-tresci-sterowane-z-panelu.md)).

@@ -198,6 +198,7 @@ Plan i scenariusz demo: [iteracja 1](iteracje/iteracja-01-symulator-telemetria.m
 - Zapis partii telemetrii czytał stan sprzed równoległej zmiany łączności i wysyłał do panelu status „offline” hulajnogi, która właśnie się połączyła. Status i telemetria idą teraz przez jedną kolejkę (wykryte testem API).
 - Repozytoria przekazywały do `INSERT` cały obiekt wejściowy, więc nadmiarowe właściwości (np. `id` ze szczegółów) trafiały do zapytania. Teraz tylko pola z listy.
 - MapLibre GL 6 ładuje wątek roboczy jako osobny moduł obok swojego pliku, a Turbopack go nie kopiuje. Skrypt `apps/web/scripts/maplibre-worker.mjs` kopiuje go do `public/` przed `dev` i `build`, a mapa wskazuje go przez `setWorkerUrl`.
+- Pierwszy przebieg CI po wypchnięciu ([43900425849](https://github.com/FifiLen/engineering-project/actions/runs/43900425849)) nie przeszedł na kroku Build: `apps/web/public` zawiera tylko ignorowany plik wątku, więc w czystej kopii katalogu nie ma, a skrypt go nie tworzył. Po poprawce przebieg [43900838005](https://github.com/FifiLen/engineering-project/actions/runs/43900838005) dla commitu `30261a9` jest zielony (lint, typy, migracje 0001–0003 na czystej bazie, testy, build).
 
 **Zmiany względem planu**
 - Migracja 0003 została poprawiona przed publikacją (dodana kolumna `version` w `v_fleet_list` dla operacji grupowych); w bazie deweloperskiej cofnięta ręcznie i wykonana ponownie. Nigdzie poza tym komputerem nie była wykonana.
