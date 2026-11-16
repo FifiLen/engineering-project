@@ -34,3 +34,4 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0028 | [Użytkownicy, role i uprawnienia zarządzane w panelu](0028-uzytkownicy-role-uprawnienia.md) | proponowana |
 | 0029 | [Raporty z parametrami i eksportem do PDF i XLSX](0029-raporty-pdf-xlsx.md) | proponowana |
 | 0030 | [Wydruki z szablonów DOCX zmienianych przez użytkownika](0030-wydruki-z-szablonow-docx.md) | proponowana |
+| 0031 | [Wspólny wzorzec widoku tabeli w panelu i kontrakt list w API](0031-wzorzec-widoku-tabeli-w-panelu.md) | proponowana |

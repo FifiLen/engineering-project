@@ -66,7 +66,7 @@ Pierwsze zapytania trafiły źle w dwóch miejscach: dla dworca nie było wyniku
 **Co powstało**
 - [Wymagania uczelni](wymagania-uczelni.md): 19 punktów, analiza zgodności, siedem pytań do prowadzącego i plan dostosowania przed iteracją 1.
 - Makiety, design system, tokeny, rendery i ikona przeniesione z kanwy claude.ai do [`projekt/`](projekt/README.md); repozytorium jest teraz źródłem prawdy.
-- Propozycje ADR 0025–0030: osobny projekt logiki `packages/core` z portami i adapterami, podział pracy między bazą a core (widoki `v_*`, funkcje `fn_*`, procedury `sp_*`), teksty i treści sterowane z panelu (katalog kluczy w bazie), role i uprawnienia operatorów, raporty PDF i XLSX, wydruki z szablonów DOCX.
+- Propozycje ADR 0025–0031: osobny projekt logiki `packages/core` z portami i adapterami, podział pracy między bazą a core (widoki `v_*`, funkcje `fn_*`, procedury `sp_*`), teksty i treści sterowane z panelu (katalog kluczy w bazie), role i uprawnienia operatorów, raporty PDF i XLSX, wydruki z szablonów DOCX, wspólny wzorzec widoku tabeli w panelu z kontraktem list w API i klasami tabel (pełny CRUD, wersje, polecenia domenowe, tylko do dopisywania).
 
 **Weryfikacja**
 - Analiza zgodna z kodem: migracja 0001 tworzy 24 tabele (plus partycję `telemetry_default`); surowy `pg` poza `packages/db` jest w `ZonesService` i `HealthController`.
@@ -77,7 +77,7 @@ Pierwsze zapytania trafiły źle w dwóch miejscach: dla dworca nie było wyniku
 - Typ `staff_role` zostanie zastąpiony tabelami ról i uprawnień w migracji 0002.
 
 **Otwarte kwestie**
-- Odpowiedzi prowadzącego na pytania 1–7; ADR 0025–0030 pozostają proponowane do czasu odpowiedzi i akceptacji autora.
+- Odpowiedzi prowadzącego na pytania 1–7; ADR 0025–0031 pozostają proponowane do czasu odpowiedzi i akceptacji autora.
 - Punkt 14: bez trybu ciemnego i stanów ekranów jest ok. 40 widoków; zapas dadzą nowe ekrany panelu.
-- Brakuje decyzji o wspólnym wzorcu widoku tabeli w panelu (punkt 12: filtrowanie, sortowanie, stronicowanie, ograniczone operacje dla tabel tylko do dopisywania).
+- arc42 §8.11 mówi o plikach tłumaczeń; po akceptacji ADR 0027 trzeba go zaktualizować (teksty w bazie).
 - Materiały z wykładu Interakcja Człowiek–Komputer do punktu 16.
