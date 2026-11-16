@@ -18,6 +18,11 @@ export interface FieldDefinition {
   sortable?: boolean;
   /** Liczniki wartości dla szybkich filtrów (`facets=status`). */
   facet?: boolean;
+  /**
+   * Kolumna jest tablicą wartości typu `type` (np. role operatora). Filtr `eq` wybiera rekordy, które
+   * mają którąkolwiek z podanych wartości; pole tablicowe nie ma sortowania ani liczników.
+   */
+  array?: boolean;
 }
 
 /** Usuwanie: zwykłe, archiwizacja (rekord zostaje, znika z oferty), wycofanie z floty, brak. */

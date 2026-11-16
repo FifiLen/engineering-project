@@ -26,6 +26,7 @@ Projekt musi spełnić 19 wymagań z `docs/wymagania-uczelni.md` (m.in. min. 30 
 
 ## Polecenia
 - `pnpm infra:up` infrastruktura; `pnpm db:migrate`, `pnpm db:places`, `pnpm db:seed`
+- `pnpm db:staff:create --email <e-mail> --name "<imię i nazwisko>"` zaprasza administratora (link aktywacji w terminalu, `PANEL_URL`)
 - `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (testy bazy wymagają DATABASE_URL)
 - Po każdej migracji: `pnpm db:pull` (regeneruje `packages/db/src/schema`, nie edytować ręcznie; wyjątek: `telemetry.ts`).
 - Zależności Expo: `pnpm --filter @hulajnogi/mobile exec expo install <pakiet>`.

@@ -17,10 +17,30 @@ export const DEV_TARIFF = {
   minUserAge: 18,
 } as const;
 
+export interface SeedStaff {
+  email: string;
+  name: string;
+  /** Nazwa roli systemowej z migracji 0002 (Administrator, Dyspozytor, Serwisant). */
+  role: string;
+  passwordHash: string;
+}
+
+/** Dokument z wersjami (ADR 0027); dane startowe zakładają wersję 1 jako obowiązującą. */
+export interface SeedDocument {
+  slug: string;
+  name: string;
+  consentType: 'TERMS' | 'PRIVACY' | null;
+  title: string;
+  bodyMd: string;
+}
+
 export interface SeedOptions {
   places: PlacesFile;
   fleetSize: number;
   admin: { email: string; name: string; passwordHash: string };
+  /** Dodatkowi operatorzy deweloperscy (demo ról i uprawnień). */
+  staff?: readonly SeedStaff[];
+  documents?: readonly SeedDocument[];
 }
 
 export interface SeedSummary {
@@ -101,6 +121,35 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
        ON CONFLICT DO NOTHING`,
       [admin.email],
     );
+
+    for (const member of options.staff ?? []) {
+      await client.query(
+        `INSERT INTO staff (email, name, password_hash) VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING`,
+        [member.email, member.name, member.passwordHash],
+      );
+      await client.query(
+        `INSERT INTO staff_roles (staff_id, role_id)
+         SELECT s.id, r.id FROM staff s, roles r WHERE s.email = $1 AND r.name = $2
+         ON CONFLICT DO NOTHING`,
+        [member.email, member.role],
+      );
+    }
+
+    // Dokument, który już istnieje, zostaje bez zmian: jego wersje zmienia się w panelu.
+    for (const doc of options.documents ?? []) {
+      const page = await client.query<{ id: string }>(
+        `INSERT INTO content_pages (slug, name, consent_type) VALUES ($1, $2, $3)
+         ON CONFLICT (slug) DO NOTHING RETURNING id`,
+        [doc.slug, doc.name, doc.consentType],
+      );
+      if (page.rows[0]) {
+        await client.query(
+          `INSERT INTO content_page_versions (page_id, version_no, title, body_md, status, published_at)
+           VALUES ($1, 1, $2, $3, 'PUBLISHED', now())`,
+          [page.rows[0].id, doc.title, doc.bodyMd],
+        );
+      }
+    }
 
     const center = places.places.find((p) => p.code === places.serviceArea.centerPlace);
     if (!center) throw new Error(`Brak miejsca ${places.serviceArea.centerPlace} wskazanego jako środek obszaru działania`);

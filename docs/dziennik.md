@@ -280,3 +280,26 @@ Plan: [iteracja 2](iteracje/iteracja-02-konta-dostep.md).
 - Porty repozytoriów kont powstaną razem z repozytoriami w `packages/db`, żeby ich kształt wynikał z zapytań, a nie z założeń.
 - Czas sesji operatora (12 h, 7 dni po zapamiętaniu urządzenia) i tolerancja równoległych odświeżeń to decyzje do ADR o sesjach, który powstanie z modułem `staff-auth`.
 
+## Iteracja 2: repozytoria kont i dostępu w `packages/db` (16 listopada 2026)
+
+**Co powstało**
+- Porty w `packages/core/src/accounts/ports.ts`: kody SMS, sesje, klienci, zgody, operatorzy, zaproszenia, role, dokumenty, dziennik audytu. Repozytoria przyjmują bazę albo transakcję, więc zapis i wpis audytu będą jedną jednostką pracy w API.
+- Repozytoria Drizzle: `DrizzleOtpRepository`, `DrizzleCustomerSessionRepository` i `DrizzleStaffSessionRepository` (wspólna klasa bazowa), `DrizzleCustomerRepository`, `DrizzleConsentRepository`, `DrizzleStaffRepository`, `DrizzleInvitationRepository`, `DrizzleRoleRepository`, `DrizzleAuditLogRepository`, `DrizzleLegalDocumentRepository`.
+- Definicje zasobów panelu w `packages/shared/src/admin/access.ts` (`staff`, `roles`, `users`, `audit-log`) ze schematami Zod zaproszenia, edycji operatora, roli, klienta i blokady. Wspólny mechanizm list obsługuje pola tablicowe (`array: true`): filtr `roleIds` wybiera operatorów z którąkolwiek z ról (`&&`).
+- `tokens.ts` (token 256 bitów, w bazie skrót SHA-256) i `inviteAdministrator`: polecenie `pnpm db:staff:create --email … --name …` zakłada konto z rolą Administrator albo wysyła nowe zaproszenie i wypisuje link aktywacji (`PANEL_URL`).
+- Dane startowe: operatorzy deweloperscy z rolami Dyspozytor i Serwisant (hasło z `SEED_ADMIN_PASSWORD`, TOTP przy pierwszym logowaniu) oraz regulamin, polityka prywatności i zasady jazdy w wersji 1 z plików `packages/db/seed/documents/*.md`. Regulamin i polityka to treść deweloperska oznaczona komentarzem w pliku, nie tekst prawny.
+
+**Weryfikacja**
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build`: 173 testy (71 core, 18 shared, 17 symulatora, 47 bazy, 20 API). Nowe testy w `packages/db/src/accounts.test.ts` na osobnej bazie: kody SMS, konto na numer i blokada z wersją rekordu, rotacja sesji z wyścigiem dwóch rotacji, zgody i nowa wersja dokumentu, zaproszenie administratora, filtr ról na liście operatorów, macierz uprawnień z wersją, strażnik ostatniego zarządzającego jako `DomainError`, dziennik audytu bez sekretów.
+- `pnpm db:seed` na bazie deweloperskiej: 3 operatorów z rolami, 3 dokumenty w wersji 1. `pnpm db:staff:create` dla aktywnego administratora odmawia (`STAFF_ALREADY_ACTIVATED`) bez zmian w bazie.
+
+**Błędy znalezione w trakcie**
+- Drizzle wstawia kolumnę do szablonu `sql` bez nazwy tabeli, więc w podzapytaniu `"id"` wskazywało kolumnę tabeli z podzapytania: liczba akceptacji wersji dokumentu wychodziła 0, a numer obowiązującej wersji na liście dokumentów był błędny. Odwołania do zapytania zewnętrznego mają teraz jawną nazwę tabeli; w kodzie z iteracji 1 takich podzapytań nie ma.
+- Rotacja sesji najpierw tworzyła następcę, a potem unieważniała poprzednika: przy dwóch równoległych odświeżeniach zostawałby osierocony token. Teraz najpierw unieważnienie (wygrywa jedno żądanie), potem następca; przegrane żądanie dostaje `null`.
+- Zapis macierzy uprawnień jako „usuń wszystko i wstaw” chwilowo odbierałby `roles.manage` roli Administrator i poza transakcją kończył się błędem strażnika. Teraz zapis różnicowy.
+- Błąd strażnika przychodził z bazy owinięty w błąd zapytania Drizzle; `rethrowDatabaseRule` zamienia go na `DomainError('LAST_ROLE_MANAGER')`.
+- Skrypt `db:staff:create` przekazywał `--` przed argumentami, przez co `parseArgs` traktował `--email` jako tekst. Usunięte.
+
+**Zmiany względem planu**
+- Dokumenty prawne nie mają definicji zasobu ze wspólnym mechanizmem list: trzy dokumenty po kilka wersji, bez potrzeby filtrów. Pełny moduł treści z listami: iteracja 7.
+

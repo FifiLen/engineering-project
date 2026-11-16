@@ -17,7 +17,8 @@
     "db:migrate": "pnpm --filter @hulajnogi/db run migrate",
     "db:seed": "pnpm --filter @hulajnogi/db run seed",
     "db:places": "pnpm --filter @hulajnogi/db run places",
-    "db:pull": "pnpm --filter @hulajnogi/db run pull"
+    "db:pull": "pnpm --filter @hulajnogi/db run pull",
+    "db:staff:create": "pnpm --filter @hulajnogi/db run staff:create"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

@@ -5,6 +5,10 @@ const UNIQUE_FIELDS: Record<string, string> = {
   scooters_number_key: 'number',
   scooters_serial_number_key: 'serialNumber',
   scooter_models_code_key: 'code',
+  users_phone_key: 'phone',
+  users_email_key: 'email',
+  staff_email_key: 'email',
+  roles_name_key: 'name',
 };
 
 /**
@@ -20,3 +24,18 @@ export function rethrowUniqueViolation(error: unknown): never {
   }
   throw error;
 }
+
+/**
+ * Reguły pilnowane przez bazę, które zgłaszamy jako błąd domeny. Strażnik ostatniego zarządzającego
+ * rolami (migracja 0004) jest odroczony: w transakcji błąd przychodzi przy zatwierdzeniu, więc serwis
+ * w API przepuszcza przez tę funkcję także błąd całej transakcji.
+ */
+const DATABASE_RULES = ['LAST_ROLE_MANAGER'] as const;
+
+export function rethrowDatabaseRule(error: unknown): never {
+  const cause = (error as { cause?: { message?: string } }).cause ?? (error as { message?: string });
+  const rule = DATABASE_RULES.find((r) => cause?.message === r);
+  if (rule) throw new DomainError(rule);
+  rethrowUniqueViolation(error);
+}
+

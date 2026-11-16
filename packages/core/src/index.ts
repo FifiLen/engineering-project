@@ -10,6 +10,7 @@ export * from './accounts/sessions.js';
 export * from './accounts/staff-login.js';
 export * from './accounts/customers.js';
 export * from './accounts/legal-documents.js';
+export * from './accounts/ports.js';
 export * from './audit/audit.js';
 export * from './rentals/rental-state-machine.js';
 export * from './zones/zones.js';

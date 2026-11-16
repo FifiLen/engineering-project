@@ -42,8 +42,8 @@ Wnioski z makiet dla zakresu:
   - RBAC: ostatni aktywny operator z `roles.manage` (nie można mu odebrać uprawnienia ani go dezaktywować), rola systemowa, operator nie zmienia własnych ról;
   - konto klienta: blokada z powodem i odblokowanie, wymagane zgody i wiek z cennika (`min_user_age`), porównanie zaakceptowanych wersji z obowiązującymi;
   - wpis dziennika audytu: różnica pól przed i po, bez sekretów.
-- [ ] **`packages/db`**: repozytoria kont, sesji, kodów, operatorów, zaproszeń, ról, audytu i dokumentów; `ListSource` dla `staff`, `roles`, `users`, `audit-log`, `legal-documents`; dane startowe: operatorzy deweloperscy z rolami startowymi, regulamin i polityka prywatności w wersji 1; polecenie tworzące pierwszego administratora (`pnpm db:staff:create`).
-- [ ] **`packages/shared`**: schematy żądań i odpowiedzi uwierzytelniania, definicje zasobów panelu `staff`, `roles`, `users`, `audit-log`, `legal-documents`.
+- [x] **`packages/db`**: repozytoria kont, sesji, kodów, operatorów, zaproszeń, ról, audytu i dokumentów; `ListSource` dla `staff`, `roles`, `users`, `audit-log`, `legal-documents`; dane startowe: operatorzy deweloperscy z rolami startowymi, regulamin i polityka prywatności w wersji 1; polecenie tworzące pierwszego administratora (`pnpm db:staff:create`).
+- [x] **`packages/shared`**: schematy żądań i odpowiedzi uwierzytelniania, definicje zasobów panelu `staff`, `roles`, `users`, `audit-log` (dokumenty prawne bez wspólnego mechanizmu list: trzy dokumenty po kilka wersji, pełny moduł treści w iteracji 7).
 - [ ] **API**:
   - moduł `auth` (klienci): `POST /auth/otp`, `POST /auth/otp/verify`, `POST /auth/refresh`, `POST /auth/logout`, `GET/PATCH /me`, `GET/POST /me/consents`; adapter bramki SMS (w środowisku deweloperskim kod w logach);
   - moduł `staff-auth` (operatorzy): logowanie hasłem, drugi krok TOTP, konfiguracja TOTP, przyjęcie zaproszenia, odświeżenie i wylogowanie; token w ciasteczku `httpOnly`;

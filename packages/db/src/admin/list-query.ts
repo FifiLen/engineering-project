@@ -29,6 +29,11 @@ function filterCondition(column: AnyPgColumn, field: FieldDefinition, filter: Li
   const values = filter.values.map((v) => toSqlValue(field, v));
   switch (filter.op) {
     case 'eq':
+      if (field.array) {
+        // Część wspólna tablic (`&&`): rekord ma którąkolwiek z wartości. Typ elementu z białej listy.
+        const elementType = sql.raw(field.type === 'uuid' ? 'uuid' : 'text');
+        return sql`${column} && ARRAY[${sql.join(values.map((v) => sql`${v}`), sql`, `)}]::${elementType}[]`;
+      }
       return values.length === 1 ? eq(column, values[0]) : inArray(column, values);
     case 'gte':
       return gte(column, values[0]);
