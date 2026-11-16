@@ -28,11 +28,13 @@ Wnioski z makiet dla zakresu:
 - Klient bez akceptacji obowiązującej wersji widzi mapę, ale nie zarezerwuje hulajnogi (reguła w `packages/core`, sprawdzana od iteracji 3).
 
 ## Zakres
-- [ ] **Migracja 0004** (`0004_accounts_access.sql`):
+- [x] **Migracja 0004** ([`0004_accounts_access.sql`](../../packages/db/migrations/0004_accounts_access.sql), testy w `packages/db/src/db.test.ts`):
   - `staff_sessions` (token odświeżający operatora jako skrót, urządzenie, wygaśnięcie, unieważnienie), `staff_invitations` (skrót tokenu, wygaśnięcie, przyjęcie);
   - `staff`: `password_hash` opcjonalne do przyjęcia zaproszenia, `totp_confirmed_at`, `failed_logins`, `locked_until`, `last_login_at` (`updated_at` i `version` są od migracji 0002);
   - `users`: `blocked_at`, `blocked_reason` (kategoria); `content_page_versions`: `change_summary`; `sessions`: `last_used_at`, `replaced_by` (wykrywanie ponownego użycia tokenu);
-  - widoki `v_audit_log` (z nazwą operatora), `v_roles_overview` (liczba uprawnień i operatorów), `v_user_consents` (zgody z wersją i informacją, czy wersja obowiązuje); funkcja `fn_user_missing_consents(user_id)`; procedury `sp_revoke_user_sessions(user_id)` i `sp_revoke_staff_sessions(staff_id)`.
+  - widoki `v_audit_log` (z nazwą operatora), `v_roles_overview` (liczba uprawnień i operatorów), `v_user_consents` (zgody z wersją i informacją, czy wersja obowiązuje), rozszerzone `v_staff_overview` i `v_user_activity`; funkcja `fn_user_pending_documents(user_id)`; procedury `sp_revoke_user_sessions(user_id)` i `sp_revoke_staff_sessions(staff_id)`;
+  - strażnik ostatniego operatora z `roles.manage` w bazie (odroczone wyzwalacze ograniczeń, `fn_check_role_manager`), uzupełniający regułę z core;
+  - indeksy dziennika audytu (historia rekordu, lista według czasu i operatora).
 - [ ] **`packages/core`** (`access`, nowy `accounts`):
   - kod SMS: 6 cyfr, ważny 5 min, 5 prób, ponowne wysłanie po 60 s, limit kodów na numer na godzinę;
   - sesje: rotacja tokenu odświeżającego, ponowne użycie starego tokenu unieważnia całą rodzinę sesji;

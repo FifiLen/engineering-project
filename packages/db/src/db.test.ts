@@ -61,7 +61,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     await pool.query(`INSERT INTO scooters (number, serial_number, variant) VALUES (900, 'OLD-900', 'GRAFIT')`);
 
     const first = await runMigrations(pool);
-    expect(first.applied).toEqual(['0002_admin_modules.sql', '0003_fleet_lists.sql']);
+    expect(first.applied).toEqual(['0002_admin_modules.sql', '0003_fleet_lists.sql', '0004_accounts_access.sql']);
     const second = await runMigrations(pool);
     expect(second.applied).toEqual([]);
 
@@ -79,8 +79,11 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     expect(model.rows).toEqual([{ code: 'BASE' }]);
 
     await pool.query(`DELETE FROM scooters WHERE number = 900`);
-    await pool.query(`DELETE FROM staff_roles WHERE staff_id IN (SELECT id FROM staff WHERE email LIKE '%@old.local')`);
-    await pool.query(`DELETE FROM staff WHERE email LIKE '%@old.local'`);
+    // W jednej transakcji: po usunięciu samych ról zostaliby aktywni operatorzy bez roles.manage (0004).
+    await pool.query(
+      `DELETE FROM staff_roles WHERE staff_id IN (SELECT id FROM staff WHERE email LIKE '%@old.local');
+       DELETE FROM staff WHERE email LIKE '%@old.local'`,
+    );
   });
 
   it('odrzuca zmienioną treść wykonanej migracji', async () => {
@@ -140,7 +143,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
          (SELECT count(*)::int FROM pg_proc WHERE pronamespace = 'public'::regnamespace
            AND prokind = 'p' AND proname LIKE 'sp\\_%') AS procedures`,
     );
-    expect(rows[0]).toEqual({ tables: 46, views: 15, functions: 8, procedures: 6 });
+    expect(rows[0]).toEqual({ tables: 48, views: 18, functions: 10, procedures: 8 });
   });
 
   it('fn_zones_at_point zwraca strefy od najbardziej restrykcyjnej', async () => {
@@ -334,5 +337,186 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     expect(zones.map((z) => z.code)).toEqual(['S-01', 'P-01', 'AREA-TEST']);
     expect(zones[0]).toMatchObject({ type: 'SLOW', speedLimitKmh: 10 });
     expect(await new DrizzleZoneRepository(createDb(pool)).findAt({ lat: 52.2, lon: 21.0 })).toEqual([]);
+  });
+
+  it('nie pozwala zostawić aktywnych operatorów bez uprawnienia roles.manage (0004)', async () => {
+    const adminId = await pool
+      .query<{ id: string }>(`SELECT id FROM staff WHERE email = 'a@test.local'`)
+      .then((r) => r.rows[0]!.id);
+    await expect(
+      pool.query(
+        `DELETE FROM role_permissions WHERE permission_code = 'roles.manage'
+           AND role_id = (SELECT id FROM roles WHERE name = 'Administrator')`,
+      ),
+    ).rejects.toThrow(/LAST_ROLE_MANAGER/);
+    await expect(pool.query(`UPDATE staff SET active = false WHERE id = $1`, [adminId])).rejects.toThrow(
+      /LAST_ROLE_MANAGER/,
+    );
+    await expect(pool.query(`DELETE FROM staff_roles WHERE staff_id = $1`, [adminId])).rejects.toThrow(
+      /LAST_ROLE_MANAGER/,
+    );
+
+    // Wyzwalacz jest odroczony: w jednej transakcji można najpierw nadać rolę następcy, a potem odebrać własną.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM staff_roles WHERE staff_id = $1`, [adminId]);
+      const next = await client.query<{ id: string }>(
+        `INSERT INTO staff (email, name, password_hash) VALUES ('next@test.local', 'N', 'x') RETURNING id`,
+      );
+      await client.query(
+        `INSERT INTO staff_roles (staff_id, role_id) SELECT $1, id FROM roles WHERE name = 'Administrator'`,
+        [next.rows[0]!.id],
+      );
+      await client.query('ROLLBACK');
+    } finally {
+      client.release();
+    }
+    const managers = await pool.query(`SELECT staff_id FROM v_staff_permissions WHERE permission_code = 'roles.manage'`);
+    expect(managers.rows).toEqual([{ staff_id: adminId }]);
+  });
+
+  it('zaproszony operator nie ma hasła, ma jedno otwarte zaproszenie i status w v_staff_overview', async () => {
+    const staff = await pool.query<{ id: string }>(
+      `INSERT INTO staff (email, name) VALUES ('invited@test.local', 'I') RETURNING id`,
+    );
+    const staffId = staff.rows[0]!.id;
+    const invite = (hash: string) =>
+      pool.query(
+        `INSERT INTO staff_invitations (staff_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '72 hours')`,
+        [staffId, hash],
+      );
+    await invite('h1');
+    await expect(invite('h2')).rejects.toThrow(/staff_invitations_one_open/);
+
+    const overview = () =>
+      pool
+        .query(`SELECT status, totp_enabled, invitation_expires_at IS NOT NULL AS invited FROM v_staff_overview WHERE id = $1`, [
+          staffId,
+        ])
+        .then((r) => r.rows[0]);
+    expect(await overview()).toEqual({ status: 'INVITED', totp_enabled: false, invited: true });
+
+    await pool.query(`UPDATE staff_invitations SET accepted_at = now() WHERE staff_id = $1`, [staffId]);
+    await pool.query(`UPDATE staff SET password_hash = 'x', totp_secret_enc = 'enc', totp_confirmed_at = now() WHERE id = $1`, [
+      staffId,
+    ]);
+    expect(await overview()).toEqual({ status: 'ACTIVE', totp_enabled: true, invited: false });
+    await expect(pool.query(`UPDATE staff SET totp_secret_enc = NULL WHERE id = $1`, [staffId])).rejects.toThrow(
+      /staff_totp_confirmed_has_secret/,
+    );
+  });
+
+  it('sesje: zastąpiony token jest unieważniony, procedury wylogowują ze wszystkich urządzeń', async () => {
+    const user = await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000004') RETURNING id`);
+    const userId = user.rows[0]!.id;
+    const first = await pool.query<{ id: string; family_id: string }>(
+      `INSERT INTO sessions (user_id, refresh_token_hash, expires_at) VALUES ($1, 's1', now() + interval '30 days')
+       RETURNING id, family_id`,
+      [userId],
+    );
+    const { id: firstId, family_id: familyId } = first.rows[0]!;
+    const second = await pool.query<{ id: string }>(
+      `INSERT INTO sessions (user_id, family_id, refresh_token_hash, expires_at)
+       VALUES ($1, $2, 's2', now() + interval '30 days') RETURNING id`,
+      [userId, familyId],
+    );
+    await expect(
+      pool.query(`UPDATE sessions SET replaced_by = $1 WHERE id = $2`, [second.rows[0]!.id, firstId]),
+    ).rejects.toThrow(/sessions_replaced_is_revoked/);
+    await pool.query(`UPDATE sessions SET replaced_by = $1, revoked_at = now() WHERE id = $2`, [second.rows[0]!.id, firstId]);
+
+    const active = () =>
+      pool.query<{ n: string }>(`SELECT active_sessions AS n FROM v_user_activity WHERE id = $1`, [userId]).then((r) => Number(r.rows[0]!.n));
+    expect(await active()).toBe(1);
+    const revoked = await pool.query<{ revoked_count: number }>(`CALL sp_revoke_user_sessions($1, NULL)`, [userId]);
+    expect(revoked.rows[0]!.revoked_count).toBe(1);
+    expect(await active()).toBe(0);
+
+    const staffId = await pool
+      .query<{ id: string }>(`SELECT id FROM staff WHERE email = 'a@test.local'`)
+      .then((r) => r.rows[0]!.id);
+    await pool.query(
+      `INSERT INTO staff_sessions (staff_id, refresh_token_hash, expires_at) VALUES ($1, 'p1', now() + interval '12 hours')`,
+      [staffId],
+    );
+    const staffActive = await pool.query(`SELECT active_sessions FROM v_staff_overview WHERE id = $1`, [staffId]);
+    expect(staffActive.rows[0]).toEqual({ active_sessions: '1' });
+    const staffRevoked = await pool.query<{ revoked_count: number }>(`CALL sp_revoke_staff_sessions($1, NULL)`, [staffId]);
+    expect(staffRevoked.rows[0]!.revoked_count).toBe(1);
+  });
+
+  it('blokada klienta wymaga daty i powodu', async () => {
+    const user = await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000005') RETURNING id`);
+    const userId = user.rows[0]!.id;
+    await expect(pool.query(`UPDATE users SET status = 'BLOCKED' WHERE id = $1`, [userId])).rejects.toThrow(
+      /users_block_consistent/,
+    );
+    await pool.query(
+      `UPDATE users SET status = 'BLOCKED', blocked_at = now(), blocked_reason = 'UNPAID_BALANCE' WHERE id = $1`,
+      [userId],
+    );
+    const row = await pool.query(`SELECT status, blocked_reason FROM v_user_activity WHERE id = $1`, [userId]);
+    expect(row.rows[0]).toEqual({ status: 'BLOCKED', blocked_reason: 'UNPAID_BALANCE' });
+    await expect(
+      pool.query(`UPDATE users SET status = 'ACTIVE', blocked_reason = NULL WHERE id = $1`, [userId]),
+    ).rejects.toThrow(/users_block_consistent/);
+  });
+
+  it('po publikacji nowej wersji dokumentu klient ma ją do akceptacji (fn_user_pending_documents)', async () => {
+    const page = await pool.query<{ id: string }>(
+      `INSERT INTO content_pages (slug, name, consent_type) VALUES ('polityka-prywatnosci', 'Polityka', 'PRIVACY') RETURNING id`,
+    );
+    const pageId = page.rows[0]!.id;
+    const publish = async (no: number, summary: string | null) => {
+      await pool.query(`UPDATE content_page_versions SET status = 'ARCHIVED' WHERE page_id = $1 AND status = 'PUBLISHED'`, [
+        pageId,
+      ]);
+      const v = await pool.query<{ id: string }>(
+        `INSERT INTO content_page_versions (page_id, version_no, title, body_md, change_summary, status, published_at)
+         VALUES ($1, $2, 'Polityka prywatności', 'Treść', $3, 'PUBLISHED', now()) RETURNING id`,
+        [pageId, no, summary],
+      );
+      return v.rows[0]!.id;
+    };
+    const v1 = await publish(1, null);
+    const user = await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000006') RETURNING id`);
+    const userId = user.rows[0]!.id;
+    const consent = () =>
+      pool.query(
+        `INSERT INTO consents (user_id, type, document_version, page_version_id) VALUES ($1, 'PRIVACY', '1', $2)`,
+        [userId, v1],
+      );
+    await consent();
+    await expect(consent()).rejects.toThrow(/consents_one_active_per_version/);
+
+    const pending = () =>
+      pool
+        .query(`SELECT consent_type, version_no, change_summary FROM fn_user_pending_documents($1)`, [userId])
+        .then((r) => r.rows.filter((d) => d.consent_type === 'PRIVACY'));
+    expect(await pending()).toEqual([]);
+
+    await publish(2, 'Nowy odbiorca danych');
+    expect(await pending()).toEqual([{ consent_type: 'PRIVACY', version_no: 2, change_summary: 'Nowy odbiorca danych' }]);
+    const view = await pool.query(
+      `SELECT version_no, current_version_no, is_current FROM v_user_consents WHERE user_id = $1 AND type = 'PRIVACY'`,
+      [userId],
+    );
+    expect(view.rows).toEqual([{ version_no: 1, current_version_no: 2, is_current: false }]);
+  });
+
+  it('v_roles_overview liczy uprawnienia i aktywnych operatorów, v_audit_log dołącza autora', async () => {
+    const roles = await pool.query<{ name: string; permissions_count: string }>(
+      `SELECT name, permissions_count FROM v_roles_overview WHERE name = 'Administrator'`,
+    );
+    expect(Number(roles.rows[0]!.permissions_count)).toBe(PERMISSIONS.length);
+
+    await pool.query(
+      `INSERT INTO audit_log (staff_id, action, entity_type, entity_id, data)
+       SELECT id, 'scooter.updated', 'scooter', gen_random_uuid(), '{"changes": {"firmware": ["v1", "v2"]}}'
+       FROM staff WHERE email = 'a@test.local'`,
+    );
+    const audit = await pool.query(`SELECT staff_email, action FROM v_audit_log ORDER BY id DESC LIMIT 1`);
+    expect(audit.rows[0]).toEqual({ staff_email: 'a@test.local', action: 'scooter.updated' });
   });
 });

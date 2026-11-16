@@ -5,14 +5,15 @@ PostgreSQL 16 z PostGIS. Źródłem prawdy o schemacie są migracje w [`packages
 - `0001_init.sql`: schemat początkowy, 24 tabele. Jego projekt z komentarzami to [`schema.sql`](schema.sql) (wersja 1, sprawdzona na PostgreSQL 16 i PostGIS 3.4).
 - `0002_admin_modules.sql`: role i uprawnienia, treści, raporty, wydruki, serwis i paragony oraz widoki, funkcje i procedury ([ADR 0026](../adr/0026-logika-w-bazie-widoki-funkcje-procedury.md)–[0031](../adr/0031-wzorzec-widoku-tabeli-w-panelu.md)).
 - `0003_fleet_lists.sql` (iteracja 1): status floty widoczny dla operatora (`fn_fleet_status`, `fn_low_battery_threshold`), listy floty i modeli w panelu (`v_fleet_list`, `v_scooter_models`), indeksy sortowania po ostatnim sygnale i komend bez potwierdzenia ([ADR 0033](../adr/0033-telemetria-i-status-floty.md)).
+- `0004_accounts_access.sql` (iteracja 2): sesje i zaproszenia operatorów (`staff_sessions`, `staff_invitations`), TOTP potwierdzony kodem i blokada po nieudanych logowaniach, blokada klienta z powodem, rodziny tokenów odświeżających, „najważniejsze zmiany” wersji dokumentu, listy ról, klientów, zgód i dziennika audytu, strażnik ostatniego operatora z `roles.manage` ([ADR 0019](../adr/0019-uwierzytelnianie.md), [ADR 0028](../adr/0028-uzytkownicy-role-uprawnienia.md)).
 
-Po migracji 0003 baza ma **46 tabel** (bez partycji telemetrii), **15 widoków**, **8 funkcji** i **6 procedur**; liczby sprawdza test w `packages/db/src/db.test.ts`. Kluczowe zasady opisują też [ADR 0010](../adr/0010-postgresql-postgis-drizzle.md), [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md), [ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md) i [ADR 0015](../adr/0015-wersjonowany-cennik.md).
+Po migracji 0004 baza ma **48 tabel** (bez partycji telemetrii), **18 widoków**, **10 funkcji** i **8 procedur**; liczby sprawdza test w `packages/db/src/db.test.ts`. Kluczowe zasady opisują też [ADR 0010](../adr/0010-postgresql-postgis-drizzle.md), [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md), [ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md) i [ADR 0015](../adr/0015-wersjonowany-cennik.md).
 
 ## Obszary
 
 | Obszar | Tabele |
 |---|---|
-| Konta | `users`, `consents`, `otp_codes`, `sessions`, `push_tokens`, `saved_places`, `staff` |
+| Konta | `users`, `consents`, `otp_codes`, `sessions`, `push_tokens`, `saved_places`, `staff`, `staff_sessions`, `staff_invitations` |
 | Role i uprawnienia | `permissions`, `roles`, `role_permissions`, `staff_roles` |
 | Przejazdy | `rentals`, `rental_events`, `tariffs` |
 | Flota i strefy | `scooters`, `scooter_models`, `telemetry` (partycje dzienne), `scooter_commands`, `zones` |
@@ -56,6 +57,9 @@ erDiagram
 ```mermaid
 erDiagram
     staff ||--o{ staff_roles : "ma"
+    staff ||--o{ staff_sessions : "loguje się"
+    staff ||--o{ staff_invitations : "zaproszony"
+    staff ||--o{ audit_log : "autor"
     roles ||--o{ staff_roles : "przypisana"
     roles ||--o{ role_permissions : "nadaje"
     permissions ||--o{ role_permissions : "w roli"
@@ -82,6 +86,11 @@ erDiagram
 - Jedna obowiązująca wersja dokumentu (`content_page_versions_one_published`) i jedna aktywna wersja szablonu wydruku (`document_template_versions_one_active`); jeden szablon domyślny na rodzaj dokumentu.
 - Najwyżej jedno otwarte zadanie serwisowe danego rodzaju na hulajnogę (`service_tasks_one_open_per_type`); zadanie w toku ma wykonawcę, zakończone ma datę zakończenia.
 - Roli przypisanej operatorom nie da się usunąć (klucz obcy w `staff_roles` bez kaskady).
+- Jeśli istnieje konto operatora, co najmniej jeden aktywny operator ma `roles.manage`: odroczone wyzwalacze ograniczeń na `staff`, `staff_roles` i `role_permissions` wywołują `fn_check_role_manager` przy zatwierdzeniu transakcji (błąd `LAST_ROLE_MANAGER`). W jednej transakcji można więc nadać rolę następcy i odebrać własną.
+- Zablokowany klient ma datę i powód blokady, a niezablokowany nie ma żadnego z nich (`users_block_consistent`).
+- Zastąpiona sesja (klienta i operatora) jest unieważniona (`replaced_by` wymaga `revoked_at`); następca dziedziczy `family_id`, więc ponowne użycie starego tokenu pozwala unieważnić całą rodzinę.
+- Operator ma najwyżej jedno otwarte zaproszenie (`staff_invitations_one_open`); TOTP potwierdzony wymaga zapisanego sekretu.
+- Zgoda na tę samą wersję dokumentu jest zapisana najwyżej raz (`consents_one_active_per_version`); dla dokumentów z modułu treści `document_version` to numer wersji, a `page_version_id` wskazuje wersję.
 - Raport zakończony sukcesem ma plik, a zakończony błędem ma opis błędu (`report_runs`, `generated_documents`).
 - Plik ma najwyżej jednego autora: klienta albo operatora (`files_one_uploader`).
 
@@ -97,15 +106,18 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `v_daily_revenue` | raport przychodów: przejazdy, doładowania i zwroty według dnia (Europe/Warsaw) |
 | `v_ticket_queue` | kolejka otwartych zgłoszeń z ostatnim zadaniem serwisowym |
 | `v_staff_permissions` | uprawnienia aktywnych operatorów jako suma ról |
-| `v_staff_overview` | lista operatorów z rolami, bez skrótu hasła i sekretu TOTP |
+| `v_staff_overview` | lista operatorów z rolami, statusem (aktywny, zaproszony, dezaktywowany), ostatnim logowaniem, liczbą sesji i zaproszeniem; bez skrótu hasła i sekretu TOTP |
 | `v_zone_usage` | raport przejazdów zakończonych w strefach według dnia |
 | `v_scooter_reliability` | raport awaryjności: zgłoszenia, zadania, średni czas naprawy, koszt części |
-| `v_user_activity` | lista klientów i raport użytkowników: przejazdy, wydatki, saldo |
+| `v_user_activity` | lista klientów i raport użytkowników: przejazdy, wydatki, saldo, blokada, aktywne sesje, ostatnia aktywność |
 | `v_current_documents` | obowiązujące wersje regulaminu i innych dokumentów |
 | `v_published_news` | aktualności w okresie publikacji |
 | `v_low_stock_parts` | części poniżej stanu minimalnego |
 | `v_fleet_list` | lista floty i mapa w panelu: `v_fleet_status` ze statusem floty, współrzędnymi, zasięgiem modelu i wersją rekordu |
 | `v_scooter_models` | lista modeli z liczbą hulajnóg (wszystkich i nie wycofanych) |
+| `v_roles_overview` | lista ról z liczbą uprawnień i aktywnych operatorów |
+| `v_user_consents` | ostatnia zgoda klienta każdego rodzaju i to, czy dotyczy obowiązującej wersji dokumentu |
+| `v_audit_log` | dziennik audytu z nazwą i e-mailem operatora |
 
 | Funkcja | Wynik |
 |---|---|
@@ -117,6 +129,8 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `fn_content_revision()` | licznik zmian treści (ETag) |
 | `fn_low_battery_threshold()` | próg niskiej baterii: minimalna bateria do wypożyczenia z obowiązującej wersji cennika |
 | `fn_fleet_status(status, online, battery_pct, threshold)` | status floty dla operatora; ta sama reguła co `deriveFleetStatus` w `packages/core` (zgodność sprawdza test bazy) |
+| `fn_user_pending_documents(user_id)` | obowiązujące dokumenty ze zgodą, których aktualnej wersji klient nie zaakceptował (z „najważniejszymi zmianami”) |
+| `fn_check_role_manager()` | funkcja wyzwalacza: odrzuca zmianę, po której żaden aktywny operator nie ma `roles.manage` |
 
 | Procedura | Działanie | Uruchamia |
 |---|---|---|
@@ -126,6 +140,8 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `sp_purge_telemetry(keep_days, OUT dropped_count)` | retencja telemetrii | zadanie cykliczne pg-boss |
 | `sp_purge_expired_otp(OUT deleted_count)` | usunięcie przeterminowanych kodów SMS | zadanie cykliczne pg-boss |
 | `sp_rebuild_wallet_balances(OUT fixed_count)` | naprawa pamięci podręcznej salda według księgi | panel, w razie rozjazdu |
+| `sp_revoke_user_sessions(user_id, OUT revoked_count)` | wylogowanie klienta ze wszystkich urządzeń | blokada konta, panel |
+| `sp_revoke_staff_sessions(staff_id, OUT revoked_count)` | wylogowanie operatora ze wszystkich urządzeń | dezaktywacja, zmiana e-maila, reset TOTP |
 
 Wyzwalacz `trg_content_revision` zwiększa licznik `content_revision_seq` przy każdej zmianie w tabelach treści.
 
@@ -139,6 +155,8 @@ Realizacja wymagania 12 według [ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-p
 | `consents` | proces | `consents` | akceptacja w aplikacji | wycofanie zgody | nie | `users.read` |
 | `otp_codes` | techniczna | `otp_codes` (bez skrótu kodu) | nie | nie | `sp_purge_expired_otp` | `users.manage` |
 | `sessions` | techniczna | `sessions` (bez skrótu tokenu) | nie | nie | unieważnienie | `users.manage` |
+| `staff_sessions` | techniczna | sesje w karcie operatora (bez skrótu tokenu) | logowanie | nie | unieważnienie | `staff.manage` |
+| `staff_invitations` | proces | zaproszenie w karcie operatora | zaproszenie | ponowne wysłanie (nowy wiersz) | unieważnienie | `staff.manage` |
 | `push_tokens` | techniczna | `push_tokens` | nie | nie | tak | `users.manage` |
 | `saved_places` | encja klienta | `saved_places` | w aplikacji | w aplikacji | tak | `users.read`, `users.manage` |
 | `staff` | encja | `v_staff_overview` | zaproszenie | dane, role, reset TOTP | dezaktywacja | `staff.read`, `staff.manage` |
@@ -165,7 +183,7 @@ Realizacja wymagania 12 według [ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-p
 | `ticket_photos` | encja | szczegóły zgłoszenia | tak | — | tak | `tickets.manage` |
 | `files` | techniczna | `files` | przez moduł, który używa pliku | nie | tak, jeśli nieużywany | uprawnienie modułu |
 | `notifications` | tylko do dopisywania | `notifications` | system | nie | nie | `users.read` |
-| `audit_log` | tylko do dopisywania | `audit_log` (kursor, zakres czasu) | system | nie | nie | `audit.read` |
+| `audit_log` | tylko do dopisywania | `v_audit_log` (filtry: operator, rodzaj obiektu, zakres czasu) | system, w transakcji zapisu | nie | nie | `audit.read` |
 | `service_tasks` | encja | `service_tasks` | tak | przejścia statusu, wykonawca | anulowanie (`CANCELLED`) | `service.read`, `service.manage` |
 | `spare_parts` | słownik | `spare_parts`, `v_low_stock_parts` | tak | tak | archiwizacja, jeśli używana | `service.manage` |
 | `service_task_parts` | encja | szczegóły zadania | tak | ilość | tak, dopóki zadanie otwarte | `service.manage` |

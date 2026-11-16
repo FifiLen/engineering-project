@@ -237,3 +237,25 @@ Plan: [iteracja 2](iteracje/iteracja-02-konta-dostep.md).
 - Makieta `flow-kod` ma już 6 pól kodu (4 wypełnione w trakcie wpisywania), zgodnie z design systemem, więc 6-cyfrowy kod nie jest odstępstwem.
 - Z makiet wynikły zmiany zakresu migracji 0004: `content_page_versions.change_summary` („Najważniejsze zmiany” przy ponownej akceptacji) i `users.blocked_reason` jako kategoria widoczna dla klienta. Publikacja wersji dokumentu działa od razu; zrezygnowano z planowania daty publikacji i z porównania wersji akapit po akapicie.
 - Dziennik audytu jest zakładką w „Operatorzy i role”, a dokumenty prawne pierwszą zakładką „Treści”, bez nowych pozycji w nawigacji z `17-panel-wzorce`.
+
+## Iteracja 2: migracja 0004 (16 listopada 2026)
+
+**Co powstało**
+- [`0004_accounts_access.sql`](../packages/db/migrations/0004_accounts_access.sql): tabele `staff_sessions` i `staff_invitations`; w `staff` hasło opcjonalne do przyjęcia zaproszenia, potwierdzenie TOTP, ostatni użyty krok TOTP, licznik nieudanych logowań i blokada czasowa; w `users` data i powód blokady (typ `block_reason`); w `sessions` rodzina tokenów, następca i ostatnie użycie; `content_page_versions.change_summary`; indeksy dziennika audytu.
+- Widoki `v_roles_overview`, `v_user_consents`, `v_audit_log`, rozszerzone `v_staff_overview` i `v_user_activity` (kolumny dopisane na końcu, `CREATE OR REPLACE VIEW`); funkcja `fn_user_pending_documents`; procedury `sp_revoke_user_sessions` i `sp_revoke_staff_sessions`.
+- Strażnik ostatniego operatora z `roles.manage` w bazie: odroczone wyzwalacze ograniczeń wywołują `fn_check_role_manager` przy zatwierdzeniu transakcji. Reguła z ADR 0028 zostaje w core (czytelny błąd przed zapisem), a baza chroni przed dwiema równoległymi zmianami.
+- Baza: 48 tabel, 18 widoków, 10 funkcji, 8 procedur. Schemat Drizzle zregenerowany (`pnpm db:pull`).
+
+**Weryfikacja**
+- `pnpm lint && pnpm typecheck && pnpm test`: 132 testy (38 core, 18 shared, 17 symulatora, 39 bazy, 20 API). Nowe testy bazy: strażnik ostatniego zarządzającego rolami (odebranie uprawnienia roli, dezaktywacja, usunięcie przypisania, przekazanie roli w jednej transakcji), zaproszenie i status operatora, rotacja i unieważnianie sesji, spójność blokady klienta, dokumenty do ponownej akceptacji po publikacji nowej wersji, liczniki ról i autor w dzienniku audytu.
+- Migracja wykonana na bazie deweloperskiej (dane z iteracji 1 przeniesione bez zmian; sekret TOTP zapisany wcześniej traktowany jako potwierdzony).
+
+**Błędy znalezione w trakcie**
+- Pierwsza wersja strażnika sprawdzała tylko aktywnych operatorów, więc pozwalała dezaktywować ostatniego aktywnego administratora (wtedy aktywnych nie było). Teraz warunek dotyczy każdej bazy z co najmniej jednym kontem operatora. Wykryte testem przed wykonaniem migracji na bazie deweloperskiej.
+- Sprzątanie w teście migracji usuwało role i konta operatorów dwoma osobnymi zapytaniami; po 0004 robi to w jednej transakcji.
+- `drizzle-kit pull` znowu zamienił klasy operatorów w 11 istniejących indeksach; przywrócone, a w nowych indeksach wpisane klasy zgodne z typem kolumny (np. `audit_log_entity_idx`: `text_ops`, `uuid_ops`, `timestamptz_ops`).
+
+**Zmiany względem planu**
+- Funkcja `fn_user_missing_consents` z planu nazywa się `fn_user_pending_documents` i zwraca dokumenty do akceptacji z „najważniejszymi zmianami”, bo tego potrzebuje ekran aplikacji.
+- Do planu doszedł strażnik ostatniego zarządzającego rolami w bazie (zasada „spójność pilnuje baza”).
+

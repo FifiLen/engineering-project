@@ -1,13 +1,13 @@
 import { relations } from 'drizzle-orm/relations';
 import {
   users,
-  sessions,
   pushTokens,
   savedPlaces,
   contentPageVersions,
   consents,
   staff,
   tariffs,
+  sessions,
   zones,
   scooterModels,
   scooters,
@@ -22,8 +22,8 @@ import {
   tickets,
   notifications,
   auditLog,
-  mediaAssets,
   contentPages,
+  mediaAssets,
   contentBlocks,
   faqItems,
   news,
@@ -36,6 +36,8 @@ import {
   generatedDocuments,
   serviceTasks,
   receipts,
+  staffSessions,
+  staffInvitations,
   ticketPhotos,
   rolePermissions,
   roles,
@@ -45,18 +47,18 @@ import {
   receiptItems,
 } from './schema.js';
 
-export const sessionsRelations = relations(sessions, ({ one }) => ({
+export const pushTokensRelations = relations(pushTokens, ({ one }) => ({
   user: one(users, {
-    fields: [sessions.userId],
+    fields: [pushTokens.userId],
     references: [users.id],
   }),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
-  sessions: many(sessions),
   pushTokens: many(pushTokens),
   savedPlaces: many(savedPlaces),
   consents: many(consents),
+  sessions: many(sessions),
   rentals: many(rentals),
   wallets: many(wallets),
   paymentMethods: many(paymentMethods),
@@ -66,13 +68,6 @@ export const usersRelations = relations(users, ({ many }) => ({
   files: many(files),
   generatedDocuments: many(generatedDocuments),
   receipts: many(receipts),
-}));
-
-export const pushTokensRelations = relations(pushTokens, ({ one }) => ({
-  user: one(users, {
-    fields: [pushTokens.userId],
-    references: [users.id],
-  }),
 }));
 
 export const savedPlacesRelations = relations(savedPlaces, ({ one }) => ({
@@ -121,8 +116,8 @@ export const staffRelations = relations(staff, ({ many }) => ({
   tickets: many(tickets),
   files: many(files),
   auditLogs: many(auditLog),
-  mediaAssets: many(mediaAssets),
   contentPageVersions: many(contentPageVersions),
+  mediaAssets: many(mediaAssets),
   contentBlocks: many(contentBlocks),
   faqItems: many(faqItems),
   news_createdBy: many(news, {
@@ -148,11 +143,33 @@ export const staffRelations = relations(staff, ({ many }) => ({
   serviceTasks_createdBy: many(serviceTasks, {
     relationName: 'serviceTasks_createdBy_staff_id',
   }),
+  staffSessions: many(staffSessions),
+  staffInvitations_invitedBy: many(staffInvitations, {
+    relationName: 'staffInvitations_invitedBy_staff_id',
+  }),
+  staffInvitations_staffId: many(staffInvitations, {
+    relationName: 'staffInvitations_staffId_staff_id',
+  }),
   staffRoles_assignedBy: many(staffRoles, {
     relationName: 'staffRoles_assignedBy_staff_id',
   }),
   staffRoles_staffId: many(staffRoles, {
     relationName: 'staffRoles_staffId_staff_id',
+  }),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one, many }) => ({
+  session: one(sessions, {
+    fields: [sessions.replacedBy],
+    references: [sessions.id],
+    relationName: 'sessions_replacedBy_sessions_id',
+  }),
+  sessions: many(sessions, {
+    relationName: 'sessions_replacedBy_sessions_id',
+  }),
+  user: one(users, {
+    fields: [sessions.userId],
+    references: [users.id],
   }),
 }));
 
@@ -348,6 +365,10 @@ export const auditLogRelations = relations(auditLog, ({ one }) => ({
   }),
 }));
 
+export const contentPagesRelations = relations(contentPages, ({ many }) => ({
+  contentPageVersions: many(contentPageVersions),
+}));
+
 export const mediaAssetsRelations = relations(mediaAssets, ({ one, many }) => ({
   file: one(files, {
     fields: [mediaAssets.fileId],
@@ -360,10 +381,6 @@ export const mediaAssetsRelations = relations(mediaAssets, ({ one, many }) => ({
   contentBlocks: many(contentBlocks),
   news: many(news),
   scooterModels: many(scooterModels),
-}));
-
-export const contentPagesRelations = relations(contentPages, ({ many }) => ({
-  contentPageVersions: many(contentPageVersions),
 }));
 
 export const contentBlocksRelations = relations(contentBlocks, ({ one }) => ({
@@ -531,6 +548,34 @@ export const receiptsRelations = relations(receipts, ({ one, many }) => ({
     references: [users.id],
   }),
   receiptItems: many(receiptItems),
+}));
+
+export const staffSessionsRelations = relations(staffSessions, ({ one, many }) => ({
+  staffSession: one(staffSessions, {
+    fields: [staffSessions.replacedBy],
+    references: [staffSessions.id],
+    relationName: 'staffSessions_replacedBy_staffSessions_id',
+  }),
+  staffSessions: many(staffSessions, {
+    relationName: 'staffSessions_replacedBy_staffSessions_id',
+  }),
+  staff: one(staff, {
+    fields: [staffSessions.staffId],
+    references: [staff.id],
+  }),
+}));
+
+export const staffInvitationsRelations = relations(staffInvitations, ({ one }) => ({
+  staff_invitedBy: one(staff, {
+    fields: [staffInvitations.invitedBy],
+    references: [staff.id],
+    relationName: 'staffInvitations_invitedBy_staff_id',
+  }),
+  staff_staffId: one(staff, {
+    fields: [staffInvitations.staffId],
+    references: [staff.id],
+    relationName: 'staffInvitations_staffId_staff_id',
+  }),
 }));
 
 export const ticketPhotosRelations = relations(ticketPhotos, ({ one }) => ({
