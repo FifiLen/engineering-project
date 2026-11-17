@@ -13,7 +13,7 @@ import { CommandsService } from '../src/fleet/commands.service.js';
 import { PlaceSearch } from '../src/geo/place-search.js';
 import { MqttService } from '../src/mqtt/mqtt.service.js';
 import { TelemetryService } from '../src/telemetry/telemetry.service.js';
-import { asStaff, staffToken } from './helpers.js';
+import { asStaff, staffToken, fundWallet } from './helpers.js';
 
 const adminUrl = process.env.DATABASE_URL;
 const dbName = `hulajnogi_zones_api_${randomUUID().slice(0, 8)}`;
@@ -109,6 +109,7 @@ describe.skipIf(!adminUrl)('API: strefy', () => {
       headers: { authorization: `Bearer ${session.accessToken}` },
       payload: { name, ageConfirmed: true, acceptedVersionIds: session.me.pendingDocuments.map((d) => d.versionId) },
     });
+    if (name) await fundWallet(pool, session.me.id);
     return { id: session.me.id, token: session.accessToken };
   }
 

@@ -7,11 +7,15 @@ import { HttpExceptionFilter } from './common/http-exception.filter.js';
 import type { AppConfig } from './config.js';
 import { buildOpenApiDocument } from './openapi.js';
 
-export async function createApp(config: AppConfig, options: { logger?: boolean } = {}): Promise<NestFastifyApplication> {
+export async function createApp(
+  config: AppConfig,
+  options: { logger?: boolean } = {},
+): Promise<NestFastifyApplication> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot(config),
     new FastifyAdapter({ logger: options.logger ?? false }),
-    { logger: options.logger === false ? false : undefined },
+    // Surowa treść żądania do weryfikacji podpisu webhooka operatora płatności (ADR 0050).
+    { logger: options.logger === false ? false : undefined, rawBody: true },
   );
   await app.register(fastifyCookie);
   app.useGlobalFilters(new HttpExceptionFilter());

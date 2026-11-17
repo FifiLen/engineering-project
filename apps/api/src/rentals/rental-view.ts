@@ -31,11 +31,12 @@ export async function buildRentalView(
   const counters = rentalCounters(events, at);
   const ended = rental.state === 'ENDED' || rental.state === 'UNPAID';
   const riding = !ended && rental.startedAt !== null;
-  const [distanceM, speedKmh, route, zones] = await Promise.all([
+  const [distanceM, speedKmh, route, zones, settlement] = await Promise.all([
     riding ? repo.liveDistance(rental.id) : rental.distanceM,
     riding ? repo.lastSpeed(rental.id) : null,
     rental.startedAt ? repo.route(rental.id) : [],
     riding ? repo.currentZones(rental.id) : null,
+    repo.settlement(rental.id),
   ]);
   // Przed pierwszym odczytem stref nie ma czego wymagać od hulajnogi (brak stanu to nie „poza obszarem”).
   const zoneControl = zones ? desiredZoneControl(zones) : { stopped: false, speedLimitKmh: null };
@@ -69,7 +70,7 @@ export async function buildRentalView(
     endZone: rental.endZone,
     zones: (zones ?? []).map(({ code, name, type, speedLimitKmh }) => ({ code, name, type, speedLimitKmh })),
     zoneControl,
-    settlement: 'PENDING',
+    settlement,
     asOf: at.toISOString(),
   };
 }

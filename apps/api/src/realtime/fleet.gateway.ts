@@ -9,6 +9,7 @@ import {
   type RentalView,
   type ServerToClientEvents,
   type SubscribeAck,
+  type WalletSummary,
 } from '@hulajnogi/shared';
 import { Inject } from '@nestjs/common';
 import {
@@ -110,5 +111,9 @@ export class FleetGateway implements OnGatewayConnection {
 
   rentalUpdated(userId: string, rental: RentalView): void {
     this.server?.to(userRoom(userId)).emit('rental.updated', rental);
+  }
+
+  walletUpdated(userId: string, wallet: WalletSummary): void {
+    this.server?.to(userRoom(userId)).emit('wallet.updated', wallet);
   }
 }

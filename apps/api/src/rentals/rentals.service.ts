@@ -51,6 +51,7 @@ import type {
   RemoteEnd,
   RentalHistoryItem,
   RentalListItem,
+  RentalRequest,
   RentalView,
   RouteView,
 } from '@hulajnogi/shared';
@@ -60,13 +61,13 @@ import { DB } from '../database/database.module.js';
 import { CommandsService, type AckResult } from '../fleet/commands.service.js';
 import { RoutePlanner } from '../geo/route-planner.js';
 import { JOBS, JobsService } from '../jobs/jobs.service.js';
+import { PaymentEffects, PaymentsService } from '../payments/payments.service.js';
 import { FleetGateway } from '../realtime/fleet.gateway.js';
 import { buildRentalView, tariffView } from './rental-view.js';
 
 /** Skutki transakcji wykonywane dopiero po jej zatwierdzeniu: komendy do MQTT i zdarzenia Socket.IO. */
-class Effects {
+class Effects extends PaymentEffects {
   readonly commands: RentalCommandRecord[] = [];
-  readonly rentals = new Set<string>();
 }
 
 /**
@@ -85,10 +86,16 @@ export class RentalsService implements OnModuleInit {
     private readonly gateway: FleetGateway,
     private readonly audited: AuditedTransaction,
     private readonly routes: RoutePlanner,
+    private readonly payments: PaymentsService,
   ) {}
 
   onModuleInit(): void {
     this.commands.attachRentalHandler((commandId, ack) => this.onCommandResult(commandId, ack));
+    // Płatność rozstrzyga zaległość (ADR 0049): przejście wykonuje maszyna stanów w transakcji płatności.
+    this.payments.attachRentalHandler({
+      transition: (tx, rentalId, action, data) => this.paymentTransition(tx, rentalId, action, data),
+      notify: (rentalId) => this.notify(rentalId),
+    });
     this.jobs.handle(JOBS.reservationExpire, async ({ rentalId }) => {
       await this.expireReservation(rentalId as string);
     });
@@ -172,7 +179,11 @@ export class RentalsService implements OnModuleInit {
 
   // --- Przejazd klienta ----------------------------------------------------------------------
 
-  async reserve(userId: string, scooterId: string): Promise<{ rental: RentalView; created: boolean }> {
+  async reserve(
+    userId: string,
+    scooterId: string,
+    payment: Pick<RentalRequest, 'paymentSource' | 'paymentMethodId'> = {},
+  ): Promise<{ rental: RentalView; created: boolean }> {
     await this.ensureCustomerCanRent(userId);
     const id = await this.transaction(async (repo, tx, effects) => {
       const scooter = await repo.lockScooter(scooterId);
@@ -188,6 +199,12 @@ export class RentalsService implements OnModuleInit {
         now,
       });
       if (decision.kind === 'EXISTING') return { id: decision.rentalId, created: false };
+      // Minimalne saldo i zaległość także przy rezerwacji (pytanie 2); źródło zapamiętuje przejazd.
+      const pay = await this.payments.ensureCanPay(tx, userId, {
+        source: payment.paymentSource ?? 'WALLET',
+        paymentMethodId: payment.paymentMethodId,
+        tariffId: tariff.id,
+      });
       const expiresAt = reservationExpiresAt(now, tariff);
       const rentalId = await repo.insert({
         userId,
@@ -196,6 +213,8 @@ export class RentalsService implements OnModuleInit {
         state: decision.to,
         reservedAt: now,
         reservationExpiresAt: expiresAt,
+        paymentSource: pay.source,
+        paymentMethodId: pay.paymentMethodId,
       });
       await repo.addEvent(rentalId, 'STATE_CHANGED', { from: null, to: decision.to });
       await repo.setScooterStatus(scooterId, 'RESERVED');
@@ -216,7 +235,11 @@ export class RentalsService implements OnModuleInit {
     return this.viewFor(userId, rentalId);
   }
 
-  async start(userId: string, scooterId: string): Promise<{ rental: RentalView; created: boolean }> {
+  async start(
+    userId: string,
+    scooterId: string,
+    payment: Pick<RentalRequest, 'paymentSource' | 'paymentMethodId'> = {},
+  ): Promise<{ rental: RentalView; created: boolean }> {
     await this.ensureCustomerCanRent(userId);
     const result = await this.transaction(async (repo, tx, effects) => {
       const scooter = await repo.lockScooter(scooterId);
@@ -233,6 +256,14 @@ export class RentalsService implements OnModuleInit {
         now: await repo.now(),
       });
       if (decision.kind === 'EXISTING') return { id: decision.rentalId, created: false };
+      // Start z rezerwacji zachowuje jej źródło płatności, chyba że klient wybrał inne (ADR 0049).
+      const reserved = decision.rentalId ? userRental : null;
+      const pay = await this.payments.ensureCanPay(tx, userId, {
+        source: payment.paymentSource ?? reserved?.paymentSource ?? 'WALLET',
+        paymentMethodId:
+          payment.paymentMethodId ?? (payment.paymentSource ? null : (reserved?.paymentMethodId ?? null)),
+        tariffId: tariff.id,
+      });
       const rentalId =
         decision.rentalId ??
         (await repo.insert({
@@ -242,8 +273,13 @@ export class RentalsService implements OnModuleInit {
           state: decision.to,
           reservedAt: null,
           reservationExpiresAt: null,
+          paymentSource: pay.source,
+          paymentMethodId: pay.paymentMethodId,
         }));
-      if (decision.rentalId) await repo.setState(rentalId, decision.to);
+      if (decision.rentalId) {
+        await repo.setState(rentalId, decision.to);
+        await repo.setPaymentSource(rentalId, pay.source, pay.paymentMethodId);
+      }
       await repo.addEvent(rentalId, 'STATE_CHANGED', { from: decision.from, to: decision.to });
       await repo.setScooterStatus(scooterId, 'IN_USE');
       await this.sendCommand(repo, tx, effects, scooterId, rentalId, 'UNLOCK');
@@ -316,12 +352,17 @@ export class RentalsService implements OnModuleInit {
     return repo.notificationPreferences(userId);
   }
 
-  /** Usunięcie konta (pytanie 7): bez otwartego przejazdu i z saldem 0; dane osobowe znika `sp_anonymize_user`. */
+  /**
+   * Usunięcie konta (pytanie 7 w iteracji 3, pytanie 9 w iteracji 5): bez otwartego przejazdu, bez zaległości,
+   * bez płatności i zwrotów w toku i z saldem 0; dane osobowe znika `sp_anonymize_user`.
+   */
   async deleteAccount(userId: string): Promise<void> {
     await this.transaction(async (repo) => {
       ensureCanDeleteAccount({
         hasOpenRental: (await repo.lockOpenForUser(userId)) !== null,
         balance: await repo.balance(userId),
+        unpaidRentals: await repo.unpaidCount(userId),
+        pendingPayments: await repo.pendingMoney(userId),
       });
       await repo.anonymizeUser(userId);
     });
@@ -602,7 +643,24 @@ export class RentalsService implements OnModuleInit {
     });
     await repo.setScooterStatus(rental.scooterId, 'AVAILABLE');
     await new DrizzleZoneRepository(tx).stopTracking(rental.id);
+    // Rozliczenie w tej samej transakcji (ADR 0049): portfel od razu, karta zadaniem po zatwierdzeniu.
+    await this.payments.settleRide(tx, rental.id, effects);
     effects.rentals.add(rental.id);
+  }
+
+  /** Przejście wywołane wynikiem płatności (`DECLINE_PAYMENT`, `SETTLE_DEBT`) w transakcji modułu Płatności. */
+  private async paymentTransition(
+    tx: DbExecutor,
+    rentalId: string,
+    action: 'DECLINE_PAYMENT' | 'SETTLE_DEBT',
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    const repo = new DrizzleRentalRepository(tx);
+    const rental = await repo.lock(rentalId);
+    if (!rental) throw notFound('rental', rentalId);
+    const to = RentalStateMachine.transition(rental.state, action);
+    await repo.setState(rentalId, to);
+    await repo.addEvent(rentalId, 'STATE_CHANGED', { from: rental.state, to, data: { action, ...data } });
   }
 
   /** Komenda z terminem ważności (ADR 0038) i zadaniem limitu potwierdzenia w tej samej transakcji (ADR 0037). */
@@ -646,6 +704,7 @@ export class RentalsService implements OnModuleInit {
       }
     }
     for (const id of effects.rentals) await this.notify(id);
+    for (const userId of effects.wallets) await this.payments.notifyWallet(userId);
   }
 
   /** Klient dostaje pełny widok przejazdu, panel wiersz listy (ADR 0036). */

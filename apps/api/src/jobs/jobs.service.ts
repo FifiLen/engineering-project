@@ -12,6 +12,11 @@ export const JOBS = {
   telemetryPartitions: 'telemetry.partitions',
   telemetryPurge: 'telemetry.purge',
   authPurge: 'auth.purge',
+  // Płatności (ADR 0049, ADR 0050): obciążenie karty po zakończeniu, ponowienie po 24 h, webhook, status.
+  chargeRide: 'payment.charge-ride',
+  retryRideCharge: 'payment.retry-ride',
+  paymentsWebhook: 'payments.webhook',
+  paymentsReconcile: 'payments.reconcile',
 } as const;
 export type JobName = (typeof JOBS)[keyof typeof JOBS];
 
@@ -22,6 +27,7 @@ const SCHEDULES: ReadonlyArray<[JobName, string]> = [
   [JOBS.telemetryPartitions, '5 0 * * *'],
   [JOBS.telemetryPurge, '0 3 * * *'],
   [JOBS.authPurge, '15 3 * * *'],
+  [JOBS.paymentsReconcile, '* * * * *'],
 ];
 
 export type JobHandler = (data: Record<string, unknown>) => Promise<void>;

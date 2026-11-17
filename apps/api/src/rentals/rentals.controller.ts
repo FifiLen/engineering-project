@@ -1,10 +1,10 @@
 import {
   nearbyQuerySchema,
   notificationPreferencesSchema,
-  scooterRequestSchema,
+  rentalRequestSchema,
   type NearbyQuery,
   type NotificationPreferences,
-  type ScooterRequest,
+  type RentalRequest,
 } from '@hulajnogi/shared';
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -60,13 +60,16 @@ export class RentalsController {
   }
 
   @Post('reservations')
-  @ApiOperation({ summary: 'Rezerwacja (201); powtórzona rezerwacja tej samej hulajnogi zwraca istniejącą (200)' })
+  @ApiOperation({
+    summary:
+      'Rezerwacja (201) ze źródłem płatności; powtórzona rezerwacja tej samej hulajnogi zwraca istniejącą (200); minimalne saldo i zaległość jak przy starcie (422)',
+  })
   async reserve(
     @CurrentCustomer() customer: CustomerPrincipal,
-    @Body(new ZodPipe(scooterRequestSchema)) body: ScooterRequest,
+    @Body(new ZodPipe(rentalRequestSchema)) body: RentalRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    const { rental, created } = await this.rentals.reserve(customer.userId, body.scooterId);
+    const { rental, created } = await this.rentals.reserve(customer.userId, body.scooterId, body);
     void reply.status(created ? 201 : 200);
     return rental;
   }
@@ -80,14 +83,14 @@ export class RentalsController {
   @Post('rentals')
   @ApiOperation({
     summary:
-      'Start przejazdu z rezerwacji albo po skanie (202, odblokowanie czeka na potwierdzenie); ponowione żądanie zwraca otwarty przejazd (200)',
+      'Start przejazdu z rezerwacji albo po skanie (202, odblokowanie czeka na potwierdzenie); ponowione żądanie zwraca otwarty przejazd (200); INSUFFICIENT_BALANCE, PAYMENT_OVERDUE, PAYMENT_METHOD_REQUIRED (422)',
   })
   async start(
     @CurrentCustomer() customer: CustomerPrincipal,
-    @Body(new ZodPipe(scooterRequestSchema)) body: ScooterRequest,
+    @Body(new ZodPipe(rentalRequestSchema)) body: RentalRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    const { rental, created } = await this.rentals.start(customer.userId, body.scooterId);
+    const { rental, created } = await this.rentals.start(customer.userId, body.scooterId, body);
     void reply.status(created ? 202 : 200);
     return rental;
   }

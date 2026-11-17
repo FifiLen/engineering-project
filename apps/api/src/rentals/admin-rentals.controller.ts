@@ -1,4 +1,11 @@
-import { remoteEndSchema, rentalsResource, type ListQuery, type RemoteEnd } from '@hulajnogi/shared';
+import {
+  remoteEndSchema,
+  rentalRefundSchema,
+  rentalsResource,
+  type ListQuery,
+  type RemoteEnd,
+  type RentalRefund,
+} from '@hulajnogi/shared';
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
@@ -40,5 +47,19 @@ export class AdminRentalsController {
     @Body(new ZodPipe(remoteEndSchema)) body: RemoteEnd,
   ) {
     return this.rentals.remoteEnd(staff.staffId, id, body);
+  }
+
+  @RequirePermission('rentals.manage')
+  @Post(':id/refund')
+  @ApiOperation({
+    summary:
+      'Zwrot za przejazd według źródła płatności (pytanie 11): portfel od razu, karta u operatora; suma zwrotów nie większa niż zapłata',
+  })
+  refund(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Param('id', idParam) id: string,
+    @Body(new ZodPipe(rentalRefundSchema)) body: RentalRefund,
+  ) {
+    return this.rentals.refund(staff.staffId, id, body);
   }
 }

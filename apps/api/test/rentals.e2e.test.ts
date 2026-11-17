@@ -13,7 +13,7 @@ import { loadConfig } from '../src/config.js';
 import { CommandsService } from '../src/fleet/commands.service.js';
 import { JOBS, JobsService } from '../src/jobs/jobs.service.js';
 import { MqttService } from '../src/mqtt/mqtt.service.js';
-import { asStaff, staffToken } from './helpers.js';
+import { asStaff, staffToken, fundWallet } from './helpers.js';
 
 const adminUrl = process.env.DATABASE_URL;
 const dbName = `hulajnogi_rentals_api_${randomUUID().slice(0, 8)}`;
@@ -102,6 +102,7 @@ describe.skipIf(!adminUrl)('API: wypożyczenie', () => {
         payload: { name, ageConfirmed: true, acceptedVersionIds },
       });
     }
+    if (name) await fundWallet(pool, session.me.id);
     return { id: session.me.id, token: session.accessToken };
   }
 
@@ -267,7 +268,7 @@ describe.skipIf(!adminUrl)('API: wypożyczenie', () => {
     expect(res.statusCode).toBe(202);
     const rental = res.json<shared.RentalView>();
     rideId = rental.id;
-    expect(rental).toMatchObject({ state: 'UNLOCKING', settlement: 'PENDING' });
+    expect(rental).toMatchObject({ state: 'UNLOCKING', settlement: { state: 'NONE', source: 'WALLET' } });
     const unlock = lastCommand(2);
     expect(unlock).toMatchObject({ cmd: 'unlock' });
     expect(new Date(unlock.expiresAt!).getTime() - new Date(unlock.issuedAt).getTime()).toBe(10_000);
@@ -362,7 +363,7 @@ describe.skipIf(!adminUrl)('API: wypożyczenie', () => {
     const profile = (await as('anna')({ method: 'GET', url: '/me/profile' })).json<shared.ProfileSummary>();
     expect(profile).toMatchObject({
       stats: { ridesCount: 1 },
-      balance: 0,
+      balance: 10_000 - ended.price.total,
       notifications: { reservationEnd: true, receipts: true },
     });
   });
@@ -430,7 +431,12 @@ describe.skipIf(!adminUrl)('API: wypożyczenie', () => {
         payload: { reason: 'SCOOTER_NOT_RESPONDING', note: 'Telefon od klienta' },
       })
     ).json<shared.RentalAdminDetails>();
-    expect(ended).toMatchObject({ state: 'ENDED', settlement: 'PENDING', price: { unlockFee: 300 } });
+    expect(ended).toMatchObject({
+      state: 'ENDED',
+      settlement: { state: 'WALLET_PAID', source: 'WALLET', paidAmount: ended.price.total },
+      price: { unlockFee: 300 },
+    });
+    expect(ended.settlement.receiptNumber).toMatch(/^PAR\//);
     expect(ended.timeline.map((e) => `${e.kind}:${e.type}`)).toEqual([
       'EVENT:STATE_CHANGED',
       'COMMAND:UNLOCK',
@@ -493,6 +499,11 @@ describe.skipIf(!adminUrl)('API: wypożyczenie', () => {
       payload: { reservationEnd: false, receipts: true },
     });
     expect(prefs.json()).toEqual({ reservationEnd: false, receipts: true });
+    // Saldo różne od 0 blokuje usunięcie (pytanie 9); zwrot salda robi operator, tu korekta do zera.
+    const blocked = await as('anna')({ method: 'DELETE', url: '/me' });
+    expect(blocked.json()).toMatchObject({ code: 'WALLET_BALANCE_NOT_ZERO' });
+    const balance = Number((await pool.query(`SELECT fn_wallet_balance($1) AS b`, [customers.anna.id])).rows[0].b);
+    await fundWallet(pool, customers.anna.id, -balance);
     expect((await as('anna')({ method: 'DELETE', url: '/me' })).statusCode).toBe(204);
     const user = await pool.query(`SELECT status, phone FROM users WHERE id = $1`, [customers.anna.id]);
     expect(user.rows[0]).toEqual({ status: 'DELETED', phone: null });

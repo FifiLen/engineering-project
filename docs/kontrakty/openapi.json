@@ -364,6 +364,74 @@
         ]
       }
     },
+    "/admin/payment-methods": {
+      "get": {
+        "operationId": "AdminPaymentsController_methods",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Karty klientów (tylko do odczytu, D5) ze stanem ważności",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/payment-webhook-events": {
+      "get": {
+        "operationId": "AdminPaymentsController_webhooks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Webhooki operatora z wynikiem przetworzenia i liczbą dostarczeń",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/payments": {
+      "get": {
+        "operationId": "AdminPaymentsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Płatności u operatora (doładowania i przejazdy kartą) według wzorca listy",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/payments/{id}": {
+      "get": {
+        "operationId": "AdminPaymentsController_payment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Płatność z webhookami operatora i zwrotami"
+          }
+        },
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
     "/admin/permissions": {
       "get": {
         "operationId": "RolesController_catalog",
@@ -376,6 +444,59 @@
         "summary": "Katalog uprawnień z modułami i opisami",
         "tags": [
           "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/receipts": {
+      "get": {
+        "operationId": "AdminPaymentsController_receipts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Paragony i korekty z VAT i netto",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/receipts/{id}": {
+      "get": {
+        "operationId": "AdminPaymentsController_receipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paragon z pozycjami, sprzedawcą, nabywcą i korektami"
+          }
+        },
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/refunds": {
+      "get": {
+        "operationId": "AdminPaymentsController_refunds",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zwroty za przejazdy i zwroty salda ze stanem u operatora",
+        "tags": [
+          "panel: płatności"
         ]
       }
     },
@@ -436,6 +557,30 @@
           }
         },
         "summary": "Zdalne zakończenie (D7): niezależnie od strefy, z powodem, komendą lock i wpisem w dzienniku audytu",
+        "tags": [
+          "panel: przejazdy"
+        ]
+      }
+    },
+    "/admin/rentals/{id}/refund": {
+      "post": {
+        "operationId": "AdminRentalsController_refund",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Zwrot za przejazd według źródła płatności (pytanie 11): portfel od razu, karta u operatora; suma zwrotów nie większa niż zapłata",
         "tags": [
           "panel: przejazdy"
         ]
@@ -1022,6 +1167,79 @@
         ]
       }
     },
+    "/admin/tariffs": {
+      "get": {
+        "operationId": "AdminTariffsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Wersje cennika ze stanem (obowiązuje, zaplanowana, archiwalna), autorem i liczbą przejazdów",
+        "tags": [
+          "panel: cennik"
+        ]
+      },
+      "post": {
+        "operationId": "AdminTariffsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Nowa wersja od teraz albo od daty; najwyżej jedna zaplanowana (TARIFF_ALREADY_SCHEDULED)",
+        "tags": [
+          "panel: cennik"
+        ]
+      }
+    },
+    "/admin/tariffs/{id}": {
+      "delete": {
+        "operationId": "AdminTariffsController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie zaplanowanej wersji przed jej datą, gdy żaden przejazd jej nie wskazuje",
+        "tags": [
+          "panel: cennik"
+        ]
+      },
+      "get": {
+        "operationId": "AdminTariffsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: cennik"
+        ]
+      }
+    },
     "/admin/users": {
       "get": {
         "operationId": "UsersController_list",
@@ -1171,6 +1389,107 @@
         },
         "tags": [
           "panel: klienci"
+        ]
+      }
+    },
+    "/admin/users/{id}/wallet": {
+      "get": {
+        "operationId": "AdminPaymentsController_wallet",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Portfel klienta: saldo, zgodność z księgą, zaległości, karty"
+          }
+        },
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/users/{id}/wallet/adjustments": {
+      "post": {
+        "operationId": "AdminPaymentsController_adjust",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Korekta salda (pytanie 10): kwota ze znakiem, powód, notatka; wpis w dzienniku audytu",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/users/{id}/wallet/payout": {
+      "post": {
+        "operationId": "AdminPaymentsController_payout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Zwrot salda na kartę z ostatnich doładowań (pytanie 9); reszta do rozliczenia korektą",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/wallet-ledger": {
+      "get": {
+        "operationId": "AdminPaymentsController_ledger",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Księga portfeli (tylko do dopisywania) z saldem po operacji",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/wallets": {
+      "get": {
+        "operationId": "AdminPaymentsController_wallets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Portfele z saldem z pamięci podręcznej porównanym z księgą (`outOfSync`)",
+        "tags": [
+          "panel: płatności"
         ]
       }
     },
@@ -1522,6 +1841,82 @@
         ]
       }
     },
+    "/me/payment-methods": {
+      "get": {
+        "operationId": "PaymentsController_cards",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Zapisane karty z domyślną i stanem ważności"
+          }
+        },
+        "tags": [
+          "aplikacja: płatności"
+        ]
+      }
+    },
+    "/me/payment-methods/{id}": {
+      "delete": {
+        "operationId": "PaymentsController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie karty (nie przy przejeździe w toku ani zaległości z tą kartą)",
+        "tags": [
+          "aplikacja: płatności"
+        ]
+      }
+    },
+    "/me/payment-methods/{id}/default": {
+      "post": {
+        "operationId": "PaymentsController_setDefault",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "aplikacja: płatności"
+        ]
+      }
+    },
+    "/me/payment-methods/setup": {
+      "post": {
+        "operationId": "PaymentsController_setup",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Dodanie karty: SetupIntent; karta pojawia się po webhooku (D3: numer nie przechodzi przez API)",
+        "tags": [
+          "aplikacja: płatności"
+        ]
+      }
+    },
     "/me/profile": {
       "get": {
         "operationId": "CustomerAccountController_profile",
@@ -1533,6 +1928,43 @@
         },
         "tags": [
           "aplikacja: konto"
+        ]
+      }
+    },
+    "/me/receipts": {
+      "get": {
+        "operationId": "PaymentsController_receipts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Paragony i korekty klienta od najnowszego"
+          }
+        },
+        "tags": [
+          "aplikacja: płatności"
+        ]
+      }
+    },
+    "/me/receipts/{id}": {
+      "get": {
+        "operationId": "PaymentsController_receipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paragon z pozycjami, VAT, sprzedawcą, nabywcą i korektami (ADR 0052)"
+          }
+        },
+        "tags": [
+          "aplikacja: płatności"
         ]
       }
     },
@@ -1548,6 +1980,132 @@
         "summary": "Zakończenie rejestracji: imię, wiek i zgody na obowiązujące wersje dokumentów",
         "tags": [
           "aplikacja: konto"
+        ]
+      }
+    },
+    "/me/wallet": {
+      "get": {
+        "operationId": "PaymentsController_wallet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Saldo, minimalne saldo, zaległości i historia portfela od najnowszego wpisu"
+          }
+        },
+        "tags": [
+          "aplikacja: płatności"
+        ]
+      }
+    },
+    "/me/wallet/topups": {
+      "post": {
+        "operationId": "PaymentsController_topup",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Doładowanie kartą albo BLIK-iem: płatność PENDING i PaymentIntent; potwierdza aplikacja, saldo rośnie po webhooku",
+        "tags": [
+          "aplikacja: płatności"
+        ]
+      }
+    },
+    "/payments/{id}": {
+      "get": {
+        "operationId": "PaymentsController_payment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status płatności klienta (ekran oczekiwania po powrocie aplikacji)"
+          }
+        },
+        "tags": [
+          "aplikacja: płatności"
+        ]
+      }
+    },
+    "/payments/config": {
+      "get": {
+        "operationId": "PaymentsController_config",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Operator płatności, klucz publiczny i kwoty doładowania (ADR 0051)"
+          }
+        },
+        "tags": [
+          "aplikacja: płatności"
+        ]
+      }
+    },
+    "/payments/fake/authenticate": {
+      "post": {
+        "operationId": "FakeProviderController_authenticate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Atrapa: okno 3-D Secure (akceptacja albo odrzucenie)",
+        "tags": [
+          "płatności: atrapa operatora"
+        ]
+      }
+    },
+    "/payments/fake/payment-intents/confirm": {
+      "post": {
+        "operationId": "FakeProviderController_confirmPayment",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Atrapa: potwierdzenie płatności kartą albo BLIK-iem (000000 odmowa, 999999 brak potwierdzenia)",
+        "tags": [
+          "płatności: atrapa operatora"
+        ]
+      }
+    },
+    "/payments/fake/setup-intents/confirm": {
+      "post": {
+        "operationId": "FakeProviderController_confirmSetup",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Atrapa: potwierdzenie karty testowej (4242 sukces, 0002 odmowa, 3220 wymaga 3-D Secure)",
+        "tags": [
+          "płatności: atrapa operatora"
+        ]
+      }
+    },
+    "/payments/webhooks/stripe": {
+      "post": {
+        "operationId": "PaymentWebhooksController_stripe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zdarzenia Stripe (i atrapy w tym samym formacie); zły podpis: 400 WEBHOOK_SIGNATURE_INVALID",
+        "tags": [
+          "płatności: webhooki"
         ]
       }
     },
@@ -1602,7 +2160,7 @@
             "description": ""
           }
         },
-        "summary": "Start przejazdu z rezerwacji albo po skanie (202, odblokowanie czeka na potwierdzenie); ponowione żądanie zwraca otwarty przejazd (200)",
+        "summary": "Start przejazdu z rezerwacji albo po skanie (202, odblokowanie czeka na potwierdzenie); ponowione żądanie zwraca otwarty przejazd (200); INSUFFICIENT_BALANCE, PAYMENT_OVERDUE, PAYMENT_METHOD_REQUIRED (422)",
         "tags": [
           "aplikacja: wypożyczenie"
         ]
@@ -1628,6 +2186,30 @@
         },
         "tags": [
           "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/rentals/{id}/pay": {
+      "post": {
+        "operationId": "PaymentsController_pay",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Spłata zaległości UNPAID: z portfela od razu (200, `payment: null`) albo kartą z potwierdzeniem w aplikacji (202)",
+        "tags": [
+          "aplikacja: płatności"
         ]
       }
     },
@@ -1699,7 +2281,7 @@
             "description": ""
           }
         },
-        "summary": "Rezerwacja (201); powtórzona rezerwacja tej samej hulajnogi zwraca istniejącą (200)",
+        "summary": "Rezerwacja (201) ze źródłem płatności; powtórzona rezerwacja tej samej hulajnogi zwraca istniejącą (200); minimalne saldo i zaległość jak przy starcie (422)",
         "tags": [
           "aplikacja: wypożyczenie"
         ]
@@ -1804,6 +2386,20 @@
         "summary": "Wolne hulajnogi w promieniu 2 km (najwyżej 50) z progiem baterii z cennika",
         "tags": [
           "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/tariff": {
+      "get": {
+        "operationId": "PaymentsController_tariff",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Obowiązująca wersja cennika (ekran „Cennik” w aplikacji)"
+          }
+        },
+        "tags": [
+          "aplikacja: płatności"
         ]
       }
     },

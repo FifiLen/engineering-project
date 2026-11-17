@@ -41,6 +41,27 @@ const envSchema = z.object({
   OSRM_FOOT_URL: z.url().default('http://localhost:5002'),
   /** Wyszukiwanie miejsc (ADR 0045); własna instancja Photon to tylko zmiana adresu. */
   PHOTON_URL: z.url().default('https://photon.komoot.io'),
+  /**
+   * Operator płatności (ADR 0050): atrapa w procesie (testy, CI, demo bez sieci) albo Stripe w trybie
+   * testowym po wpisaniu kluczy do `.env`. Kluczy nie ma w repozytorium.
+   */
+  PAYMENT_PROVIDER: z.enum(['fake', 'stripe']).default('fake'),
+  STRIPE_SECRET_KEY: optional(z.string()),
+  STRIPE_PUBLISHABLE_KEY: optional(z.string()),
+  STRIPE_WEBHOOK_SECRET: optional(z.string()),
+  /** BLIK przez Stripe (D2); działa w trybie testowym dla konta w PLN. */
+  STRIPE_BLIK: booleanFlag.default(true),
+  /** Podpis webhooków atrapy (ten sam schemat co `Stripe-Signature`). */
+  FAKE_WEBHOOK_SECRET: z.string().min(16).default('whsec_fake_dev_only_not_a_secret'),
+  /** `http`: atrapa wysyła webhooki do API po opóźnieniu; `manual`: test pobiera je i wysyła sam. */
+  FAKE_WEBHOOK_DELIVERY: z.enum(['http', 'manual']).default('http'),
+  FAKE_WEBHOOK_DELAY_MS: z.coerce.number().int().min(0).max(60_000).default(2000),
+  /** Adres punktu webhooka dla atrapy; domyślnie to samo API. */
+  FAKE_WEBHOOK_URL: optional(z.url()),
+  /** Dane sprzedawcy na paragonie (ADR 0052); w trybie deweloperskim nawiasy jak w makietach. */
+  SELLER_NAME: z.string().default('[dane sprzedawcy]'),
+  SELLER_ADDRESS: optional(z.string()),
+  SELLER_TAX_ID: optional(z.string()),
 });
 
 /**
@@ -69,7 +90,30 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, unknown> = pr
   if (data.NODE_ENV === 'production' && (!jwtSecret || !totpKey)) {
     throw new Error('Nieprawidłowa konfiguracja: w produkcji wymagane są JWT_SECRET i TOTP_ENCRYPTION_KEY');
   }
+  checkPaymentConfig(data);
   return { ...data, JWT_SECRET: jwtSecret ?? DEV_JWT_SECRET, TOTP_ENCRYPTION_KEY: totpKey ?? DEV_TOTP_KEY };
+}
+
+/**
+ * Projekt nie obsługuje prawdziwych pieniędzy (ADR 0050): klucz `live` zatrzymuje start. Stripe wymaga
+ * wszystkich trzech kluczy testowych, a atrapa nie działa w produkcji (ADR 0051).
+ */
+function checkPaymentConfig(data: ParsedEnv): void {
+  const keys = [data.STRIPE_SECRET_KEY, data.STRIPE_PUBLISHABLE_KEY].filter(Boolean) as string[];
+  if (keys.some((k) => /^(sk|pk|rk)_live_/.test(k))) {
+    throw new Error('Nieprawidłowa konfiguracja: klucze Stripe w trybie live są niedozwolone, użyj kluczy testowych');
+  }
+  if (data.PAYMENT_PROVIDER === 'stripe') {
+    if (!data.STRIPE_SECRET_KEY?.startsWith('sk_test_') || !data.STRIPE_PUBLISHABLE_KEY?.startsWith('pk_test_')) {
+      throw new Error('Nieprawidłowa konfiguracja: PAYMENT_PROVIDER=stripe wymaga kluczy sk_test_ i pk_test_');
+    }
+    if (!data.STRIPE_WEBHOOK_SECRET?.startsWith('whsec_')) {
+      throw new Error('Nieprawidłowa konfiguracja: PAYMENT_PROVIDER=stripe wymaga STRIPE_WEBHOOK_SECRET (whsec_)');
+    }
+  }
+  if (data.PAYMENT_PROVIDER === 'fake' && data.NODE_ENV === 'production') {
+    throw new Error('Nieprawidłowa konfiguracja: atrapa operatora płatności nie działa w produkcji');
+  }
 }
 
 export const CONFIG = Symbol('CONFIG');

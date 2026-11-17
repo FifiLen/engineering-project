@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Zdarzenia na żywo (Socket.IO)
-  version: 1.2.0
+  version: 1.3.0
   description: |
     Kontrakt zdarzeń Socket.IO między backendem a panelem operatora i aplikacją (ADR 0012).
     Operacje opisane z perspektywy backendu. Typy w kodzie: packages/shared/src/realtime.ts.
@@ -22,6 +22,9 @@ info:
       wszystkie przejazdy w rentals.
     * 1.2.0 (iteracja 4, ADR 0043 i 0044): zdarzenie zones.changed do wszystkich połączonych po zmianie
       stref w panelu; rental.updated ma strefy hulajnogi (zones) i wymagania stref (zoneControl).
+    * 1.3.0 (iteracja 5, ADR 0049 i 0050): zdarzenie wallet.updated w pokoju user:{id} po każdym ruchu
+      w portfelu, zmianie płatności, zaległości i zapisanych kartach; rental.updated ma rozliczenie
+      (settlement) zamiast stałej wartości PENDING.
 
 servers:
   lokalny:
@@ -64,6 +67,8 @@ channels:
     messages:
       rentalUpdated:
         $ref: '#/components/messages/RentalUpdated'
+      walletUpdated:
+        $ref: '#/components/messages/WalletUpdated'
 
 operations:
   receiveRentalsSubscribe:
@@ -87,6 +92,13 @@ operations:
     summary: 'rental.updated: pełny widok przejazdu klienta (stan, komenda w toku, komunikat, liczniki na chwilę asOf)'
     messages:
       - $ref: '#/channels/user/messages/rentalUpdated'
+  sendWalletUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/user'
+    summary: 'wallet.updated: saldo, minimalne saldo i zaległości klienta (te same pola co GET /me/wallet bez historii)'
+    messages:
+      - $ref: '#/channels/user/messages/walletUpdated'
   sendZonesChanged:
     action: send
     channel:
@@ -195,6 +207,39 @@ components:
             properties:
               stopped: { type: boolean, description: Strefa zakazu albo poza obszarem działania }
               speedLimitKmh: { type: [integer, 'null'] }
+          settlement:
+            type: object
+            description: Rozliczenie przejazdu (RentalSettlementView, ADR 0049)
+            required: [state, source, paidAmount, refundedAmount]
+            properties:
+              state: { type: string, enum: [NONE, WALLET_PAID, CARD_PENDING, CARD_PAID, FAILED] }
+              source: { type: string, enum: [WALLET, CARD] }
+              paidAmount: { type: integer, description: Grosze }
+              refundedAmount: { type: integer }
+              receiptId: { type: [string, 'null'], format: uuid }
+              failureCode: { type: [string, 'null'], description: Kod odmowy operatora przy FAILED }
+          asOf: { type: string, format: date-time }
+    WalletUpdated:
+      name: wallet.updated
+      payload:
+        description: WalletSummary z packages/shared/src/payments.ts
+        type: object
+        required: [balance, minWalletBalance, overdue, asOf]
+        properties:
+          balance: { type: integer, description: Saldo z księgi w groszach; może być ujemne (pytanie 4) }
+          minWalletBalance: { type: integer, description: Minimalne saldo do jazdy z portfela z obowiązującej wersji cennika }
+          overdue:
+            type: array
+            description: Przejazdy UNPAID z kwotą, kartą, kodem odmowy i terminem automatycznego ponowienia
+            items:
+              type: object
+              properties:
+                rentalId: { type: string, format: uuid }
+                number: { type: integer }
+                amount: { type: integer }
+                failureCode: { type: [string, 'null'] }
+                retryAt: { type: [string, 'null'], format: date-time }
+                paymentPending: { type: boolean }
           asOf: { type: string, format: date-time }
     ZonesChanged:
       name: zones.changed
