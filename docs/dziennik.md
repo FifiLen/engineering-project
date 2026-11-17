@@ -748,3 +748,5 @@ Plan: [iteracja 4](iteracje/iteracja-04-strefy.md), decyzje w [ADR 0043–0048](
 - Klientka z danych startowych Karolina Mazur z uzupełnionym profilem i jedną anulowaną rezerwacją #0006.
 - Port 3001 zajmuje API w trybie watch z wcześniejszej sesji. Pracuje na nowym kodzie i z działającym symulatorem.
 
+**Commit i CI**
+- Sześć commitów iteracji 4 (`ae75a3c`–`ca1f68e`); CI zielone za pierwszym razem (lint, typy, migracje na czystej bazie, testy, build).

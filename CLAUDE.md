@@ -46,7 +46,7 @@ Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny 
 - `docs/projekt/ekrany/00-eksploracja/` to archiwum odrzuconych kierunków, nie implementować.
 - Kanwa w claude.ai jest archiwum; źródłem prawdy jest repozytorium. Nowe makiety można tworzyć jako HTML w `docs/projekt/ekrany/` według design systemu.
 
-## Stan: iteracja 4 zrealizowana (2026-11-17), czeka na commit i CI
+## Stan: iteracja 4 zakończona (2026-11-17)
 Iteracja 0: monorepo, Docker Compose, migracje 0001–0002, `packages/core`, dane startowe Rybnika, CI, ADR 0001–0031 (repozytorium github.com/FifiLen/engineering-project, gałąź `main`).
 Iteracja 1 (`docs/iteracje/iteracja-01-symulator-telemetria.md`): symulator z własnym połączeniem MQTT na hulajnogę i przejazdami pokazowymi (ADR 0034), telemetria partiami i status floty w core i w bazie (ADR 0033, migracja 0003), Socket.IO pokój `fleet`, wspólny mechanizm list i definicje zasobów (`scooters`, `scooter-models`), panel: mapa floty, lista i formularz floty i modeli, etykiety w plikach tłumaczeń z regułą lintera (ADR 0032).
 Iteracja 2 (`docs/iteracje/iteracja-02-konta-dostep.md`): migracja 0004 (sesje i zaproszenia operatorów, blokada klienta, strażnik ostatniego `roles.manage` w bazie), reguły kont w core, repozytoria kont, logowanie klientów kodem SMS i operatorów z TOTP (ADR 0035), strażnik dostępu na każdym punkcie, dziennik audytu w transakcji z historią rekordu, panel: logowanie, operatorzy, role z macierzą, użytkownicy, dziennik, dokumenty prawne; aplikacja: rejestracja, zgody, blokada; OpenAPI w `docs/kontrakty/openapi.json`.
@@ -60,7 +60,7 @@ Do zrobienia:
 - [x] Przed iteracją 4: makiety brakujących stanów (2026-11-17, `22-mobile-strefy`, `23-panel-strefy`, 14 plansz).
 - [x] Przed iteracją 4: ADR 0043–0048 (2026-11-17, zaakceptowane).
 - [x] Iteracja 4: implementacja według planu (2026-11-17).
-- [ ] Commit iteracji 4 i zielone CI.
+- [x] Wypchnąć iterację 4 i potwierdzić zielone CI (2026-11-17, commit `ca1f68e`).
 - [ ] Przed iteracją 5: plan iteracji 5 (płatności).
 
 ## Uwagi środowiskowe

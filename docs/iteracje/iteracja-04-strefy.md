@@ -1,6 +1,6 @@
 # Iteracja 4: strefy
 
-**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; ADR 0043–0048 przyjęte 17 listopada 2026; zrealizowana 17 listopada 2026 (bez commitu i CI)
+**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; ADR 0043–0048 przyjęte 17 listopada 2026; zrealizowana 17 listopada 2026, zielone CI (commit `ca1f68e`)
 
 ## Cel
 Operator rysuje i zmienia strefy w panelu: obszar działania, strefy parkowania, wolnej jazdy i zakazu. Zmiana działa od razu w aplikacji, w symulatorze i w trwających przejazdach. W trakcie jazdy API wykrywa z telemetrii wjazd i wyjazd ze strefy i zapisuje je na osi czasu przejazdu. Wysyła też hulajnodze komendę limitu prędkości albo stopniowego zatrzymania, a klientowi komunikat na ekranie jazdy, jak w makiecie `przejazd-strefa`. Aplikacja dostaje legendę stref, prowadzenie do najbliższej strefy parkowania, trasę do hulajnogi i wyszukiwanie celu „Dokąd jedziesz?”, czyli rzeczy odłożone w iteracji 3.
@@ -293,4 +293,4 @@ Wymaga infrastruktury z OSRM i danych startowych (`pnpm infra:up && pnpm db:migr
 10. Dyspozytor (rola z `zones.read` bez `zones.write`, według pytania 10) widzi strefy bez edycji, a API zwraca 403 na zapis.
 
 ## Wynik
-Zakres zrealizowany 17 listopada 2026; przebieg, odstępstwa i weryfikacja w [dzienniku](../dziennik.md#iteracja-4-strefy-17-listopada-2026). Otwarte: natywna mapa aplikacji (tylko typy i lint, jak w iteracji 3), okno ostrzeżenia o przejazdach w trakcie w panelu sprawdzone na podstawionej odpowiedzi API (logika API ma test), pełny scenariusz demo z symulatorem przez strefę zakazu sprawdzony testami API i symulatora oraz w aplikacji z hulajnogą sterowaną ręcznie przez MQTT, zielone CI.
+Zakres zrealizowany 17 listopada 2026; przebieg, odstępstwa i weryfikacja w [dzienniku](../dziennik.md#iteracja-4-strefy-17-listopada-2026). Otwarte: natywna mapa aplikacji (tylko typy i lint, jak w iteracji 3), okno ostrzeżenia o przejazdach w trakcie w panelu sprawdzone na podstawionej odpowiedzi API (logika API ma test), pełny scenariusz demo z symulatorem przez strefę zakazu sprawdzony testami API i symulatora oraz w aplikacji z hulajnogą sterowaną ręcznie przez MQTT. Zielone CI 17 listopada 2026 (commit `ca1f68e`).
