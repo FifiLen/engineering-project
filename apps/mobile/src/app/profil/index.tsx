@@ -1,4 +1,4 @@
-import { formatPln, type ProfileSummary } from '@hulajnogi/shared';
+import type { ProfileSummary } from '@hulajnogi/shared';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
@@ -7,16 +7,19 @@ import { Stats } from '../../components/sheet';
 import { ErrorBox, useTheme } from '../../components/ui';
 import { t } from '../../i18n';
 import { api, errorMessage, formatPhone } from '../../lib/api';
-import { hoursMinutes, totalDistance } from '../../lib/format';
+import { hoursMinutes, pln, totalDistance } from '../../lib/format';
 import { useSession } from '../../lib/session';
+import { useWallet } from '../../lib/wallet';
 
 /**
- * Profil (makieta profil): statystyki przejazdów, saldo portfela, historia, ustawienia, dokumenty
- * i wylogowanie. „Metody płatności” i „Pomoc i zgłoszenia” wejdą w iteracjach 5 i 6.
+ * Profil (makieta profil): statystyki przejazdów, portfel z saldem na żywo (`wallet.updated`), historia,
+ * metody płatności (od iteracji 5), cennik, ustawienia, dokumenty i wylogowanie. „Pomoc i zgłoszenia”
+ * wejdzie w iteracji 6.
  */
 export default function ProfileScreen() {
   const theme = useTheme();
   const { me, signOut } = useSession();
+  const { summary } = useWallet();
   const [profile, setProfile] = useState<ProfileSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,11 +56,19 @@ export default function ProfileScreen() {
       )}
       {error && <ErrorBox message={error} />}
       <ListGroup>
-        <ListRow first icon="wallet" label={t('account.wallet')} value={profile ? formatPln(profile.balance) : ''} />
+        <ListRow
+          first
+          icon="wallet"
+          label={t('account.wallet')}
+          value={summary ? pln(summary.balance) : profile ? pln(profile.balance) : ''}
+          onPress={() => router.push('/portfel')}
+        />
         <ListRow icon="clock" label={t('account.history')} onPress={() => router.push('/profil/historia')} />
+        <ListRow icon="card" label={t('account.paymentMethods')} onPress={() => router.push('/profil/platnosci')} />
       </ListGroup>
       <ListGroup>
         <ListRow first icon="sliders" label={t('account.settings')} onPress={() => router.push('/profil/ustawienia')} />
+        <ListRow icon="document" label={t('account.tariff')} onPress={() => router.push('/cennik')} />
         <ListRow icon="document" label={t('account.terms')} onPress={() => doc('regulamin')} />
         <ListRow icon="document" label={t('account.privacy')} onPress={() => doc('polityka-prywatnosci')} />
       </ListGroup>

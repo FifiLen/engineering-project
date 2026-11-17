@@ -86,7 +86,8 @@ export default function RideScreen() {
                 onPress={() => {
                   setBusy(true);
                   setError(null);
-                  start(v.scooter.id)
+                  // Ponowienie z tym samym źródłem płatności, które klient wybrał przy starcie (ADR 0049).
+                  start(v.scooter.id, { paymentSource: v.settlement.source })
                     .catch((e: unknown) => setError(errorMessage(e)))
                     .finally(() => setBusy(false));
                 }}

@@ -202,11 +202,29 @@ export function Prefix({ label }: { label: string }) {
  * Pole kodu z 6 komórek: jedno pole `oneTimeCode` pod komórkami, więc działa wklejanie i podpowiedź
  * kodu z SMS-a w systemie.
  */
-export function CodeInput({ value, onChange, invalid }: { value: string; onChange: (v: string) => void; invalid?: boolean }) {
+export function CodeInput({
+  value,
+  onChange,
+  invalid,
+  label,
+  sms = true,
+  autoFocus = true,
+  style,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  invalid?: boolean;
+  /** Etykieta dostępności (domyślnie kod z SMS-a). */
+  label?: string;
+  /** Podpowiedź kodu z SMS-a w systemie; wyłączona dla kodu BLIK. */
+  sms?: boolean;
+  autoFocus?: boolean;
+  style?: object;
+}) {
   const theme = useTheme();
-  const [focused, setFocused] = useState(true);
+  const [focused, setFocused] = useState(autoFocus);
   return (
-    <View style={styles.codeRow}>
+    <View style={[styles.codeRow, style]}>
       {Array.from({ length: 6 }, (_, i) => {
         const active = focused && i === value.length;
         return (
@@ -230,15 +248,15 @@ export function CodeInput({ value, onChange, invalid }: { value: string; onChang
         );
       })}
       <TextInput
-        accessibilityLabel={t('code.label')}
-        autoFocus
+        accessibilityLabel={label ?? t('code.label')}
+        autoFocus={autoFocus}
         value={value}
         onChangeText={(text) => onChange(text.replace(/\D/g, '').slice(0, 6))}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         keyboardType="number-pad"
-        textContentType="oneTimeCode"
-        autoComplete="sms-otp"
+        textContentType={sms ? 'oneTimeCode' : 'none'}
+        autoComplete={sms ? 'sms-otp' : 'off'}
         maxLength={6}
         caretHidden
         style={styles.codeHidden}

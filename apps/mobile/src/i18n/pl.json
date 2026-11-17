@@ -100,7 +100,9 @@
     "terms": "Regulamin",
     "privacy": "Polityka prywatności",
     "signOut": "Wyloguj się",
-    "avatar": "Profil: {name}"
+    "avatar": "Profil: {name}",
+    "paymentMethods": "Metody płatności",
+    "tariff": "Cennik"
   },
   "document": {
     "version": "Wersja {version}"
@@ -132,7 +134,17 @@
     "WALLET_BALANCE_NOT_ZERO": "Saldo portfela musi wynosić 0 zł.",
     "NOT_FOUND": "Nie znaleźliśmy tego, czego szukasz.",
     "TARIFF_MISSING": "Wypożyczenie jest chwilowo niedostępne. Spróbuj później.",
-    "PLACES_UNAVAILABLE": "Wyszukiwanie chwilowo nie działa. Spróbuj ponownie za chwilę."
+    "PLACES_UNAVAILABLE": "Wyszukiwanie chwilowo nie działa. Spróbuj ponownie za chwilę.",
+    "INSUFFICIENT_BALANCE": "Za mało środków w portfelu. Doładuj portfel albo zapłać kartą.",
+    "PAYMENT_OVERDUE": "Masz nieopłacony przejazd. Zapłać za niego, żeby znów rezerwować i jeździć.",
+    "PAYMENT_METHOD_REQUIRED": "Dodaj ważną kartę albo wybierz inną metodę płatności.",
+    "TOPUP_AMOUNT_INVALID": "Doładowanie od 10 do 500 zł w pełnych złotych.",
+    "PAYMENT_FAILED": "Płatność nie przeszła. Nie pobraliśmy pieniędzy.",
+    "PAYMENT_PROVIDER_UNAVAILABLE": "Operator płatności chwilowo nie odpowiada. Spróbuj ponownie za chwilę.",
+    "PAYMENT_METHOD_IN_USE": "Tej karty nie można teraz usunąć: płaci za trwający przejazd albo za zaległość.",
+    "PAYMENT_IN_PROGRESS": "Płatność za ten przejazd jest już w toku. Poczekaj na wynik.",
+    "RENTAL_NOT_UNPAID": "Ten przejazd jest już opłacony.",
+    "VALIDATION_FAILED": "Sprawdź wpisane dane."
   },
   "units": {
     "m": "{value} m",
@@ -142,7 +154,9 @@
     "hoursMinutes": "{h} h {m} min",
     "percent": "{value}%",
     "zl": "zł",
-    "amount": "{amount} zł"
+    "amount": "{amount} zł",
+    "plusAmount": "+{amount} zł",
+    "minusAmount": "−{amount} zł"
   },
   "dates": {
     "today": "Dziś, {time}",
@@ -161,6 +175,23 @@
       "9": "Październik",
       "10": "Listopad",
       "11": "Grudzień"
+    },
+    "aroundToday": "dziś około {time}",
+    "aroundTomorrow": "jutro około {time}",
+    "aroundDay": "{day} około {time}",
+    "monthsGenitive": {
+      "0": "stycznia",
+      "1": "lutego",
+      "2": "marca",
+      "3": "kwietnia",
+      "4": "maja",
+      "5": "czerwca",
+      "6": "lipca",
+      "7": "sierpnia",
+      "8": "września",
+      "9": "października",
+      "10": "listopada",
+      "11": "grudnia"
     }
   },
   "variants": {
@@ -279,6 +310,18 @@
       "reserve": "Zarezerwuj",
       "scan": "Skanuj i jedź",
       "loading": "Liczę czas przejazdu…"
+    },
+    "overdue": {
+      "title": "Nieopłacony przejazd",
+      "titleMany": "Nieopłacone przejazdy",
+      "subtitle": "{amount} · {when}",
+      "subtitleMany": "Razem {amount}",
+      "lead": "Płatność za przejazd nie przeszła. Zapłać za przejazd, żeby znów rezerwować i jeździć.",
+      "leadCard": "Płatność za przejazd nie przeszła ({card}). Zapłać za przejazd, żeby znów rezerwować i jeździć.",
+      "leadMany": "Płatności za {count, plural, one {# przejazd} few {# przejazdy} many {# przejazdów} other {# przejazdu}} nie przeszły. Zapłać za nie, żeby znów rezerwować i jeździć.",
+      "pending": "Płatność za przejazd jest w toku. Poczekaj na wynik.",
+      "retry": "{when} ponowimy płatność automatycznie.",
+      "pay": "Zapłać teraz"
     }
   },
   "scan": {
@@ -456,10 +499,28 @@
     "ride": "Jazda, {minutes} min",
     "pause": "Pauza, {minutes} min",
     "total": "Razem",
-    "note": "Kwota według cennika z chwili startu. Nie pobraliśmy jej jeszcze, rozliczenie przejazdów pojawi się w kolejnej wersji aplikacji.",
+    "note": "Ten przejazd nie był rozliczany: pochodzi sprzed wprowadzenia płatności.",
     "remote": "Przejazd zakończył operator. Płacisz za czas do chwili zakończenia, bez opłaty za parkowanie.",
     "done": "Gotowe",
-    "map": "Mapa z trasą zakończonego przejazdu"
+    "map": "Mapa z trasą zakończonego przejazdu",
+    "free": "Przejazd nic nie kosztował, więc nie ma płatności ani paragonu.",
+    "paidWith": "Zapłacono z",
+    "wallet": "Portfel",
+    "balanceAfter": "Saldo po przejeździe",
+    "refunded": "Zwrócono",
+    "receipt": "Paragon",
+    "topup": "Doładuj portfel",
+    "cardPending": "Płatność w toku",
+    "cardPendingLead": "Pobieramy {amount} z karty {card}",
+    "cardPendingLeadShort": "Pobieramy {amount} z karty",
+    "cardPendingNote": "Przejazd jest zakończony. Paragon pojawi się, gdy bank potwierdzi płatność.",
+    "failed": {
+      "title": "Płatność nie przeszła",
+      "lead": "Nie udało się pobrać {amount} za przejazd z {when}. Zmień metodę płatności, żeby rozpocząć kolejną jazdę.",
+      "leadCard": "Nie udało się pobrać {amount} za przejazd z {when}, z karty {card}. Zmień metodę płatności, żeby rozpocząć kolejną jazdę.",
+      "change": "Zmień metodę płatności",
+      "retry": "Spróbuj ponownie tą kartą"
+    }
   },
   "history": {
     "title": "Historia przejazdów",
@@ -469,7 +530,8 @@
       "title": "Nie masz jeszcze przejazdów",
       "lead": "Twoje trasy i paragony pojawią się tutaj po pierwszej jeździe.",
       "find": "Znajdź hulajnogę"
-    }
+    },
+    "unpaid": "Nieopłacony"
   },
   "settings": {
     "title": "Ustawienia",
@@ -547,5 +609,318 @@
     "walkEstimate": "około {minutes} min pieszo (szacunkowo)",
     "straight": "{distance} w linii prostej",
     "ride": "{distance} · około {minutes} min jazdy"
+  },
+  "wallet": {
+    "title": "Portfel",
+    "balance": "Saldo",
+    "belowMinimum": "Do jazdy z portfela potrzebujesz co najmniej {minimum}.",
+    "negative": "Saldo jest ujemne. Doładuj portfel, żeby znów jeździć.",
+    "other": "Inna kwota",
+    "topup": "Doładuj {amount}",
+    "method": "Metoda płatności",
+    "addMethod": "Dodaj metodę płatności",
+    "history": "Historia",
+    "historyEmpty": "Tu zobaczysz doładowania i opłaty za przejazdy.",
+    "older": "Pokaż starsze",
+    "tariff": "Cennik",
+    "receiptHint": "Otwiera paragon",
+    "empty": {
+      "title": "Dodaj metodę płatności",
+      "lead": "Bez niej nie doładujesz portfela ani nie zapłacisz za przejazd.",
+      "card": "Karta",
+      "blik": "BLIK"
+    },
+    "entries": {
+      "TOPUP": "Doładowanie",
+      "RIDE_CHARGE": "Przejazd",
+      "REFUND": "Zwrot za przejazd",
+      "ADJUSTMENT": "Korekta salda",
+      "PAYOUT": "Zwrot salda na kartę",
+      "with": "{when} · {how}"
+    },
+    "reasons": {
+      "COMPLAINT": "reklamacja",
+      "SYSTEM_ERROR": "błąd systemu",
+      "GOODWILL": "gest dobrej woli",
+      "OTHER": "inny powód"
+    }
+  },
+  "topup": {
+    "title": "Doładowanie",
+    "amount": "Kwota",
+    "amountLabel": "Kwota doładowania w złotych",
+    "placeholder": "0",
+    "range": "Od {min} do {max} zł",
+    "presets": "Szybki wybór kwoty",
+    "payWith": "Zapłać przez",
+    "addCard": "+ Dodaj kartę",
+    "now": "Saldo teraz",
+    "after": "Po doładowaniu",
+    "dash": "–",
+    "note": "Doładowanie to przedpłata na przejazdy. Pieniądze pojawią się w portfelu, gdy bank potwierdzi płatność.",
+    "submit": "Doładuj",
+    "pay": "Zapłać {amount}",
+    "blik": {
+      "title": "Kod BLIK",
+      "lead": "Wygeneruj kod w aplikacji swojego banku i wpisz go poniżej.",
+      "label": "Kod BLIK",
+      "hint": "Po wpisaniu kodu potwierdź płatność w aplikacji banku."
+    }
+  },
+  "card": {
+    "title": "Dodaj kartę",
+    "number": "Numer karty",
+    "numberPlaceholder": "1234 1234 1234 1234",
+    "expiry": "Ważna do",
+    "expiryPlaceholder": "MM/RR",
+    "cvc": "CVC",
+    "cvcPlaceholder": "•••",
+    "holder": "Imię i nazwisko na karcie",
+    "holderPreview": "IMIĘ I NAZWISKO",
+    "preview": "Podgląd karty",
+    "secure": "Dane karty trafiają bezpośrednio do operatora płatności. Aplikacja nie przechowuje pełnego numeru karty.",
+    "fakeHint": "Atrapa operatora płatności (środowisko deweloperskie): użyj karty testowej, np. 4242 4242 4242 4242, dowolnej przyszłej daty i dowolnego CVC.",
+    "submit": "Dodaj kartę",
+    "waiting": "Czekamy na potwierdzenie karty",
+    "slow": "Karta jest jeszcze weryfikowana przez operatora. Pojawi się w metodach płatności za chwilę."
+  },
+  "payment": {
+    "blik": "BLIK",
+    "cardGeneric": "Karta",
+    "card": {
+      "title": "Karta •••• {last4}"
+    },
+    "brands": {
+      "visa": "Visa",
+      "mastercard": "Mastercard",
+      "amex": "American Express",
+      "other": "Karta"
+    },
+    "mini": {
+      "visa": "VISA",
+      "blik": "BLIK"
+    },
+    "amount": "Kwota",
+    "method": "Metoda",
+    "date": "Data",
+    "topup": "Doładowanie",
+    "balance": "Saldo",
+    "balanceUnchanged": "Saldo bez zmian",
+    "notCharged": "Nie pobraliśmy pieniędzy.",
+    "failedLead": "{reason} Nie pobraliśmy pieniędzy.",
+    "retry": "Spróbuj ponownie",
+    "changeMethod": "Zmień metodę",
+    "toMap": "Wróć do mapy",
+    "wallet": "Portfel",
+    "receipt": "Paragon",
+    "success": {
+      "topupTitle": "Portfel doładowany",
+      "topupLead": "Wpłata {amount} jest już w portfelu. Możesz jechać.",
+      "rideTitle": "Przejazd opłacony",
+      "rideLead": "Zapłaciliśmy {amount} za przejazd. Możesz znów rezerwować i jeździć.",
+      "vat": "Doładowanie to przedpłata, więc nie ma na nim VAT. VAT znajdziesz na paragonie każdego przejazdu."
+    },
+    "wait": {
+      "blikTitle": "Potwierdź płatność w aplikacji banku",
+      "blikLead": "Otwórz aplikację swojego banku i zatwierdź płatność BLIK. Potem wróć tutaj.",
+      "cardTitle": "Czekamy na potwierdzenie z banku",
+      "cardLead": "Karta została potwierdzona. Wynik płatności pojawi się za chwilę.",
+      "timeLeft": "Czas na potwierdzenie",
+      "blikAccepted": "Kod BLIK przyjęty",
+      "cardAccepted": "Karta potwierdzona",
+      "bank": "Czekamy na potwierdzenie w banku",
+      "bankCard": "Czekamy na wynik płatności",
+      "stepTopup": "Doładowanie portfela",
+      "stepRide": "Opłacenie przejazdu",
+      "slow": "To trwa dłużej niż zwykle. Sprawdzimy płatność u operatora, a wynik zobaczysz w portfelu.",
+      "close": "Wróć do portfela"
+    },
+    "threeDs": {
+      "title": "Potwierdzenie w banku",
+      "lead": "Bank prosi o potwierdzenie płatności (3-D Secure). To okno atrapy operatora w środowisku deweloperskim.",
+      "approve": "Potwierdź",
+      "reject": "Odrzuć"
+    },
+    "failure": {
+      "default": {
+        "title": "Płatność odrzucona",
+        "reason": "Operator płatności odrzucił płatność.",
+        "short": "odmowa"
+      },
+      "card_declined": {
+        "title": "Karta odrzucona",
+        "reason": "Bank odrzucił płatność kartą.",
+        "short": "odmowa"
+      },
+      "insufficient_funds": {
+        "title": "Brak środków na karcie",
+        "reason": "Na karcie nie ma wystarczających środków.",
+        "short": "brak środków"
+      },
+      "authentication_failed": {
+        "title": "Płatność niepotwierdzona",
+        "reason": "Płatność nie została potwierdzona w banku (3-D Secure).",
+        "short": "brak potwierdzenia"
+      },
+      "payment_method_provider_decline": {
+        "title": "Płatność odrzucona",
+        "reason": "Bank nie zatwierdził płatności BLIK.",
+        "short": "odmowa banku"
+      },
+      "payment_intent_payment_attempt_expired": {
+        "title": "Czas minął",
+        "reason": "Płatność BLIK nie została potwierdzona w banku na czas.",
+        "short": "czas minął"
+      },
+      "expired": {
+        "title": "Karta wygasła",
+        "reason": "Termin ważności karty minął.",
+        "short": "karta wygasła"
+      },
+      "incorrect_number": {
+        "title": "Nieprawidłowy numer karty",
+        "reason": "Sprawdź numer karty.",
+        "short": "zły numer karty"
+      },
+      "invalid_blik_code": {
+        "title": "Nieprawidłowy kod BLIK",
+        "reason": "Wygeneruj nowy kod w aplikacji banku.",
+        "short": "zły kod BLIK"
+      },
+      "canceled": {
+        "title": "Płatność przerwana",
+        "reason": "Płatność została przerwana przed potwierdzeniem.",
+        "short": "przerwana"
+      },
+      "blik_unsupported": {
+        "title": "BLIK niedostępny",
+        "reason": "Ta wersja aplikacji nie obsługuje BLIK-u. Wybierz kartę.",
+        "short": "BLIK niedostępny"
+      },
+      "provider_unavailable": {
+        "title": "Operator niedostępny",
+        "reason": "Operator płatności chwilowo nie odpowiada.",
+        "short": "operator niedostępny"
+      }
+    }
+  },
+  "methods": {
+    "title": "Metody płatności",
+    "cards": "Karty",
+    "other": "Inne metody",
+    "subtitle": "{brand} · ważna do {expiry}",
+    "default": "Domyślna",
+    "expiring": "Wygasa",
+    "expired": "Wygasła",
+    "add": "Dodaj kartę",
+    "expiringNote": "Karta •••• {last4} wygasa z końcem {month}. Dodaj nową, żeby płacić bez przerw.",
+    "blik": "Kod z aplikacji banku przy każdej płatności",
+    "note": "Dane kart przechowuje operator płatności. W aplikacji widzisz tylko cztery ostatnie cyfry.",
+    "makeDefault": "Ustaw jako domyślną",
+    "remove": {
+      "open": "Usuń kartę",
+      "title": "Usunąć kartę •••• {last4}?",
+      "lead": "{brand} •••• {last4} zniknie z aplikacji. Opłacone przejazdy i paragony się nie zmienią.",
+      "confirm": "Usuń kartę",
+      "keep": "Zostaw kartę"
+    }
+  },
+  "receipt": {
+    "title": "Paragon",
+    "kind": "Potwierdzenie sprzedaży",
+    "correction": "Korekta potwierdzenia sprzedaży",
+    "ride": "Przejazd",
+    "scooter": "Hulajnoga #{number}",
+    "time": "Czas",
+    "timeRange": "{from}–{to}",
+    "distance": "Dystans",
+    "corrects": "Koryguje",
+    "quantity": "{quantity} × {price}",
+    "net": "Netto",
+    "vat": "VAT {rate}%",
+    "vatNoRate": "VAT",
+    "gross": "Razem brutto",
+    "paidWith": "Zapłacono z",
+    "refundedTo": "Zwrot na",
+    "wallet": "Portfel",
+    "buyer": "Nabywca",
+    "seller": "Sprzedawca",
+    "taxId": "NIP {taxId}",
+    "corrections": "Korekty",
+    "note": "To potwierdzenie sprzedaży, a nie paragon fiskalny. Ceny zawierają VAT.",
+    "items": {
+      "UNLOCK": "Odblokowanie",
+      "RIDE_MINUTES": "Minuty jazdy",
+      "PAUSE_MINUTES": "Minuty pauzy",
+      "REFUND": "Zwrot"
+    },
+    "issuedAt": "{date}\n{time}"
+  },
+  "debt": {
+    "title": "Zaległa płatność",
+    "due": "Do zapłaty",
+    "ride": "Przejazd",
+    "rideValue": "{when} · #{number}",
+    "failed": "Nieudana płatność",
+    "failedValue": "{card}, {reason}",
+    "payFrom": "Zapłać z",
+    "wallet": "Portfel",
+    "walletBalance": "Saldo {balance}",
+    "walletShort": "Saldo {balance}, za mało na całą kwotę",
+    "pending": "Płatność za ten przejazd jest w toku. Poczekaj na wynik.",
+    "retry": "Jeśli nie zapłacisz teraz, {when} jeszcze raz spróbujemy pobrać kwotę z karty •••• {last4}. Ponowimy tylko raz.",
+    "pay": "Zapłać {amount}",
+    "settled": "Ten przejazd jest już opłacony albo płatność jest w toku."
+  },
+  "funds": {
+    "balance": "Saldo: {balance}",
+    "topup": "Doładuj portfel",
+    "payByCard": "Płać kartą za przejazd",
+    "below": {
+      "title": "Za mało środków na start",
+      "lead": "Żeby rozpocząć jazdę, w portfelu musi być co najmniej {minimum}."
+    },
+    "negative": {
+      "title": "Ujemne saldo",
+      "lead": "Ostatni przejazd kosztował więcej, niż było w portfelu. Doładuj portfel, żeby znów rezerwować i jeździć."
+    },
+    "overdue": {
+      "title": "Nieopłacony przejazd",
+      "lead": "Zapłać za poprzedni przejazd, żeby znów rezerwować i jeździć.",
+      "pay": "Zapłać teraz"
+    },
+    "cardRequired": {
+      "title": "Brak ważnej karty",
+      "lead": "Dodaj kartę, żeby płacić nią za przejazd.",
+      "add": "Dodaj kartę"
+    }
+  },
+  "cardStart": {
+    "caption": "Hulajnoga #{number} · bateria {battery}%",
+    "captionShort": "Hulajnoga #{number}",
+    "title": "Płatność kartą",
+    "lead": "Zapłacisz kartą •••• {last4} po zakończeniu przejazdu. Saldo portfela się nie zmieni.",
+    "change": "Zmień",
+    "changeLabel": "Zmień kartę dla tego przejazdu",
+    "unlock": "Odblokowanie",
+    "minute": "Minuta jazdy",
+    "pause": "Minuta pauzy",
+    "note": "Płacisz za każdą rozpoczętą minutę. Gdy płatność nie przejdzie, kolejną jazdę zaczniesz po spłacie.",
+    "reserve": "Zarezerwuj"
+  },
+  "tariff": {
+    "title": "Cennik",
+    "unlock": "Odblokowanie",
+    "unlockHint": "Raz na przejazd",
+    "minute": "Minuta jazdy",
+    "pause": "Minuta pauzy",
+    "pauseHint": "Hulajnoga zablokowana i zarezerwowana dla Ciebie",
+    "reservation": "Rezerwacja",
+    "reservationHint": "Przez pierwsze {minutes} min",
+    "free": "Bezpłatnie",
+    "outOfZone": "Parkowanie poza strefą",
+    "outOfZoneHint": "Gdy hulajnoga zostanie odholowana",
+    "vat": "Ceny zawierają {rate}% VAT. Do jazdy z portfela potrzebujesz co najmniej {minimum}.",
+    "footer": "Za czas jazdy płacisz za każdą rozpoczętą minutę."
   }
 }

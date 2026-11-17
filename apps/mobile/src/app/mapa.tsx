@@ -29,16 +29,18 @@ import {
   sheetStyles,
   Toast,
 } from '../components/sheet';
+import { usePaymentGate, type GateTarget } from '../components/start-payment';
 import { Button, useTheme } from '../components/ui';
 import { t } from '../i18n';
 import { ApiError, api, errorMessage } from '../lib/api';
-import { clock, distance, money, scooterNo, walkMinutes } from '../lib/format';
+import { around, clock, dayTime, distance, money, pln, scooterNo, walkMinutes } from '../lib/format';
 import { useLocation } from '../lib/location';
 import { useMapIntent, type Place } from '../lib/map-intent';
 import { usePreferences } from '../lib/preferences';
 import { reservationSecondsLeft, useNow, useRental, type TrackedRental } from '../lib/rental';
 import { loadWalk, routeMinutes, useLiveRoute, walkLabel } from '../lib/routes';
 import { homeFor, useSession } from '../lib/session';
+import { cardTitle, useWallet } from '../lib/wallet';
 import { LEGEND_TYPES, slowLimits, useZones } from '../lib/zones';
 
 const NEARBY_REFRESH_MS = 15000;
@@ -64,6 +66,7 @@ export default function MapScreen() {
   const { rental, outcome, reserve, cancelReservation, clearOutcome } = useRental();
   const { destination, setDestination, walkTo, setWalkTo } = useMapIntent();
   const { zones, error: zonesError, reload: reloadZones } = useZones();
+  const { summary: wallet } = useWallet();
   const [nearby, setNearby] = useState<NearbyResponse | null>(null);
   const [offline, setOffline] = useState(false);
   const [manualCenter, setManualCenter] = useState<MapPoint | null>(null);
@@ -77,6 +80,13 @@ export default function MapScreen() {
   const [noLocationDismissed, setNoLocationDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Rezerwacja odrzucona przez regułę płatności (ADR 0049): brak środków, zaległość, jazda kartą.
+  const gate = usePaymentGate({
+    action: t('cardStart.reserve'),
+    perform: async (id, payment) => {
+      await reserve(id, payment);
+    },
+  });
 
   const user = location.position;
   const area = useMemo(() => serviceAreaCenter(zones), [zones]);
@@ -202,12 +212,13 @@ export default function MapScreen() {
 
   const tariff = nearby?.tariff ?? null;
 
-  async function run(action: () => Promise<unknown>) {
+  async function run(action: () => Promise<unknown>, target?: GateTarget | null) {
     setBusy(true);
     setError(null);
     try {
       await action();
     } catch (e) {
+      if (target && gate.handle(target, e)) return;
       if (e instanceof ApiError && (e.code === 'CONSENT_REQUIRED' || e.code === 'DOCUMENTS_NOT_ACCEPTED'))
         router.push('/zgody');
       else setError(errorMessage(e));
@@ -215,6 +226,22 @@ export default function MapScreen() {
       setBusy(false);
     }
   }
+
+  /** Opis hulajnogi i stawki do arkusza płatności kartą przy rezerwacji. */
+  const gateTarget = (
+    scooter: { id: string; number: number; batteryPct: number | null } | null,
+    rates = tariff,
+  ): GateTarget | null =>
+    scooter && rates
+      ? {
+          scooterId: scooter.id,
+          caption:
+            scooter.batteryPct !== null
+              ? t('cardStart.caption', { number: scooterNo(scooter.number), battery: scooter.batteryPct })
+              : t('cardStart.captionShort', { number: scooterNo(scooter.number) }),
+          tariff: rates,
+        }
+      : null;
 
   const select = (id: string | null) => {
     setError(null);
@@ -242,6 +269,22 @@ export default function MapScreen() {
   let sheet: ReactNode = null;
   if (legend) {
     sheet = <LegendSheet zones={zones} />;
+  } else if (!reservation && wallet && wallet.overdue.length) {
+    // Zaległość (makieta mapa-zaleglosc): panel bez zamykania, pierwszeństwo przed ujemnym saldem.
+    sheet = <OverdueCard overdue={wallet.overdue} />;
+  } else if (!reservation && wallet && wallet.balance < 0) {
+    sheet = (
+      <FloatingSheet>
+        <AlertHeader
+          icon="wallet"
+          tone="danger"
+          title={t('funds.negative.title')}
+          subtitle={t('funds.balance', { balance: pln(wallet.balance) })}
+        />
+        <SheetText>{t('funds.negative.lead')}</SheetText>
+        <Button label={t('funds.topup')} onPress={() => router.push('/portfel')} />
+      </FloatingSheet>
+    );
   } else if (reservation) {
     sheet = (
       <ReservationCard
@@ -267,7 +310,11 @@ export default function MapScreen() {
         <SheetText>{t('map.expired.lead', { minutes: v.tariff.freeReservationMinutes })}</SheetText>
         {error && <SheetText style={{ color: theme.danger }}>{error}</SheetText>}
         <View style={{ gap: 10 }}>
-          <Button label={t('map.expired.again')} busy={busy} onPress={() => void run(() => reserve(v.scooter.id))} />
+          <Button
+            label={t('map.expired.again')}
+            busy={busy}
+            onPress={() => void run(() => reserve(v.scooter.id), gateTarget(v.scooter, v.tariff))}
+          />
           <Button label={t('map.expired.close')} kind="secondary" onPress={clearOutcome} />
         </View>
       </FloatingSheet>
@@ -282,7 +329,7 @@ export default function MapScreen() {
         freeMinutes={tariff.freeReservationMinutes}
         busy={busy}
         error={error}
-        onReserve={() => void run(() => reserve(selected.id))}
+        onReserve={() => void run(() => reserve(selected.id), gateTarget(selected))}
         onScan={() => router.push('/skan')}
       />
     );
@@ -297,7 +344,7 @@ export default function MapScreen() {
         error={error}
         onParking={(anchor) => requestFocus({ center: anchor, zoom: 17 })}
         onScooter={(id) => select(id)}
-        onReserve={(id) => void run(() => reserve(id))}
+        onReserve={(id) => void run(() => reserve(id), gateTarget(nearby?.scooters.find((s) => s.id === id) ?? null))}
         onScan={() => router.push('/skan')}
       />
     );
@@ -489,6 +536,7 @@ export default function MapScreen() {
         <Toast title={t('map.cancelled.title')} subtitle={t('map.cancelled.subtitle')} />
       )}
       {sheet}
+      {gate.sheets}
       {reservation && (
         <CancelSheet
           visible={cancelOpen}
@@ -504,6 +552,55 @@ export default function MapScreen() {
         />
       )}
     </View>
+  );
+}
+
+const capitalize = (text: string) => text.charAt(0).toLocaleUpperCase('pl-PL') + text.slice(1);
+
+/**
+ * Nieopłacony przejazd (makieta mapa-zaleglosc, ADR 0049): kwota, nieudana karta i termin automatycznego
+ * ponowienia; przy kilku zaległościach suma. Panelu nie można zamknąć, bo zaległość blokuje rezerwację i start.
+ */
+function OverdueCard({ overdue }: { overdue: NonNullable<ReturnType<typeof useWallet>['summary']>['overdue'] }) {
+  const theme = useTheme();
+  const first = overdue[0]!;
+  const many = overdue.length > 1;
+  const total = overdue.reduce((sum, o) => sum + o.amount, 0);
+  const subtitle = many
+    ? t('map.overdue.subtitleMany', { amount: pln(total) })
+    : first.endedAt
+      ? t('map.overdue.subtitle', {
+          amount: pln(first.amount),
+          when: dayTime(first.endedAt).toLocaleLowerCase('pl-PL'),
+        })
+      : pln(first.amount);
+  const lead = many
+    ? t('map.overdue.leadMany', { count: overdue.length })
+    : first.card
+      ? t('map.overdue.leadCard', { card: cardTitle(first.card) })
+      : t('map.overdue.lead');
+  return (
+    <FloatingSheet>
+      <AlertHeader
+        icon="card"
+        tone="danger"
+        title={many ? t('map.overdue.titleMany') : t('map.overdue.title')}
+        subtitle={subtitle}
+      />
+      <SheetText>{first.paymentPending ? t('map.overdue.pending') : lead}</SheetText>
+      {!many && first.retryAt && !first.paymentPending && (
+        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: -4 }}>
+          <Icon name="clock" color={theme.muted} size={18} />
+          <Text style={{ flex: 1, fontSize: 14, lineHeight: 20, color: theme.muted }}>
+            {t('map.overdue.retry', { when: capitalize(around(first.retryAt)) })}
+          </Text>
+        </View>
+      )}
+      <Button
+        label={t('map.overdue.pay')}
+        onPress={() => router.push({ pathname: '/zaleglosc/[id]', params: { id: first.rentalId } })}
+      />
+    </FloatingSheet>
   );
 }
 

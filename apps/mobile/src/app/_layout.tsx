@@ -4,9 +4,11 @@ import { useEffect } from 'react';
 import { useTheme } from '../components/ui';
 import { LocationProvider } from '../lib/location';
 import { MapIntentProvider } from '../lib/map-intent';
+import { PaymentsProvider } from '../lib/payments';
 import { PreferencesProvider } from '../lib/preferences';
 import { isRiding, RentalProvider, useRental } from '../lib/rental';
 import { SessionProvider } from '../lib/session';
+import { WalletProvider } from '../lib/wallet';
 
 /** Ekrany dostępne w trakcie przejazdu; z każdego innego aplikacja wraca na ekran przejazdu. */
 const RIDE_PATHS = ['/przejazd', '/dokument'];
@@ -40,13 +42,17 @@ export default function RootLayout() {
   return (
     <PreferencesProvider>
       <SessionProvider>
-        <LocationProvider>
-          <RentalProvider>
-            <MapIntentProvider>
-              <Shell />
-            </MapIntentProvider>
-          </RentalProvider>
-        </LocationProvider>
+        <PaymentsProvider>
+          <WalletProvider>
+            <LocationProvider>
+              <RentalProvider>
+                <MapIntentProvider>
+                  <Shell />
+                </MapIntentProvider>
+              </RentalProvider>
+            </LocationProvider>
+          </WalletProvider>
+        </PaymentsProvider>
       </SessionProvider>
     </PreferencesProvider>
   );

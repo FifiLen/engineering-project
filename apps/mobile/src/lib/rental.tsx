@@ -6,6 +6,7 @@
 import {
   OPEN_RENTAL_STATES,
   type ClientToServerEvents,
+  type PaymentSource,
   type RentalView,
   type ServerToClientEvents,
 } from '@hulajnogi/shared';
@@ -13,6 +14,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { io, type Socket } from 'socket.io-client';
 import { api, API_URL, getAccessToken, refreshTokens } from './api';
 import { useSession } from './session';
+import { notifyWalletUpdated } from './wallet';
 import { notifyZonesChanged } from './zones';
 
 /** Widok z chwilą otrzymania (zegar urządzenia), od której aplikacja dolicza upływ czasu. */
@@ -27,13 +29,22 @@ export interface RentalOutcome {
   cause: 'cancelled' | 'expired' | 'unlockFailed' | 'ended';
 }
 
+/**
+ * Źródło płatności wybrane przy rezerwacji albo starcie (ADR 0049): bez niego portfel, a start
+ * z rezerwacji zachowuje źródło rezerwacji. Karta przy `CARD`, bez niej domyślna.
+ */
+export interface PaymentChoice {
+  paymentSource: PaymentSource;
+  paymentMethodId?: string | null;
+}
+
 interface RentalValue {
   rental: TrackedRental | null;
   loaded: boolean;
   outcome: RentalOutcome | null;
-  reserve(scooterId: string): Promise<RentalView>;
+  reserve(scooterId: string, payment?: PaymentChoice): Promise<RentalView>;
   cancelReservation(): Promise<RentalView>;
-  start(scooterId: string): Promise<RentalView>;
+  start(scooterId: string, payment?: PaymentChoice): Promise<RentalView>;
   pause(): Promise<RentalView>;
   resume(): Promise<RentalView>;
   end(): Promise<RentalView>;
@@ -146,12 +157,16 @@ function RentalState({ enabled, children }: { enabled: boolean; children: ReactN
     let reconnect = false;
     socket.on('connect', () => {
       void refresh().catch(() => undefined);
-      // Po przerwie w połączeniu zmiany stref mogły przepaść: mapa pobiera je ponownie.
-      if (reconnect) notifyZonesChanged();
+      // Po przerwie w połączeniu zmiany stref i portfela mogły przepaść: ekrany pobierają je ponownie.
+      if (reconnect) {
+        notifyZonesChanged();
+        notifyWalletUpdated(null);
+      }
       reconnect = true;
     });
     socket.on('rental.updated', apply);
     socket.on('zones.changed', notifyZonesChanged);
+    socket.on('wallet.updated', notifyWalletUpdated);
     socket.on('disconnect', (reason) => {
       // Serwer rozłącza po wygaśnięciu tokenu: nowy token i ponowne połączenie.
       if (reason === 'io server disconnect') void refreshTokens().then((ok) => ok && socket.connect());
@@ -179,17 +194,17 @@ function RentalState({ enabled, children }: { enabled: boolean; children: ReactN
       rental,
       loaded,
       outcome,
-      reserve: (scooterId) => {
+      reserve: (scooterId, payment) => {
         setOutcome(null);
-        return act('/reservations', { method: 'POST', json: { scooterId } });
+        return act('/reservations', { method: 'POST', json: { scooterId, ...payment } });
       },
       cancelReservation: () => {
         if (current.current) cancelled.current.add(current.current.view.id);
         return act('/reservations/current', { method: 'DELETE' });
       },
-      start: (scooterId) => {
+      start: (scooterId, payment) => {
         setOutcome(null);
-        return act('/rentals', { method: 'POST', json: { scooterId } });
+        return act('/rentals', { method: 'POST', json: { scooterId, ...payment } });
       },
       pause: () => act('/rentals/current/pause', { method: 'POST' }),
       resume: () => act('/rentals/current/resume', { method: 'POST' }),

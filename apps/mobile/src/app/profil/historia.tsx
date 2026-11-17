@@ -97,7 +97,12 @@ export default function HistoryScreen() {
                   <Text style={{ fontSize: 14, color: theme.muted }}>{t('history.line', { distance: km(item.distanceM), minutes })}</Text>
                 </View>
                 {item.totalAmount !== null && (
-                  <Text style={{ fontSize: 15, fontWeight: '500', color: theme.ink }}>{t('units.amount', { amount: money(item.totalAmount) })}</Text>
+                  <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '500', color: item.settlement === 'FAILED' ? theme.danger : theme.ink }}>
+                      {t('units.amount', { amount: money(item.totalAmount) })}
+                    </Text>
+                    {item.settlement === 'FAILED' && <Text style={{ fontSize: 13, color: theme.danger }}>{t('history.unpaid')}</Text>}
+                  </View>
                 )}
               </Pressable>
             </Fragment>

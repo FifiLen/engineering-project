@@ -18,6 +18,25 @@ export const scooterNo = (n: number): string => n.toString().padStart(4, '0');
 /** Kwota w groszach bez symbolu waluty („12,50”); jednostka „zł” jest osobną etykietą. */
 export const money = (grosze: number): string => amount.format(grosze / 100);
 
+/** „12,50 zł”, a ujemna kwota ze znakiem minus typograficznym („−3,40 zł”). */
+export const pln = (grosze: number): string =>
+  grosze < 0 ? t('units.minusAmount', { amount: money(-grosze) }) : t('units.amount', { amount: money(grosze) });
+
+/** Kwota ruchu w portfelu ze znakiem („+50,00 zł”, „−12,40 zł”). */
+export const signedPln = (grosze: number): string =>
+  grosze < 0 ? t('units.minusAmount', { amount: money(-grosze) }) : t('units.plusAmount', { amount: money(grosze) });
+
+/** Pełne złote bez groszy na pigułkach i przyciskach doładowania („50 zł”). */
+export const wholePln = (grosze: number): string => t('units.amount', { amount: Math.round(grosze / 100) });
+
+const numericDate = new Intl.DateTimeFormat('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+/** „17.11.2026” (paragon). */
+export const dateNumeric = (iso: string): string => numericDate.format(new Date(iso));
+
+/** „14:32”. */
+export const timeOnly = (iso: string): string => time.format(new Date(iso));
+
 /** „120 m” do kilometra, dalej „1,2 km”. */
 export function distance(m: number): string {
   return m < 1000 ? t('units.m', { value: Math.round(m) }) : t('units.km', { value: decimal1.format(m / 1000) });
@@ -56,6 +75,17 @@ export function dayTime(iso: string, now = new Date()): string {
   if (sameDay(d, now)) return t('dates.today', { time: hm });
   if (sameDay(d, yesterday)) return t('dates.yesterday', { time: hm });
   return t('dates.dayTime', { day: dayMonth.format(d), time: hm });
+}
+
+/** „dziś około 9:15”, „jutro około 9:15”, „19 listopada około 9:15” (ponowienie płatności). */
+export function around(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const hm = time.format(d);
+  if (sameDay(d, now)) return t('dates.aroundToday', { time: hm });
+  if (sameDay(d, tomorrow)) return t('dates.aroundTomorrow', { time: hm });
+  return t('dates.aroundDay', { day: dayMonth.format(d), time: hm });
 }
 
 /** Nagłówek miesiąca w historii („Listopad”). */

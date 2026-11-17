@@ -7,6 +7,7 @@ import { Icon, type IconName } from '../../components/icons';
 import { metersBetween } from '../../components/map/map-layers';
 import { ScooterRender, UnlockSlider } from '../../components/scooter';
 import { AlertHeader, FloatingSheet, RoundButton, SheetText, Stats, type BadgeTone } from '../../components/sheet';
+import { usePaymentGate } from '../../components/start-payment';
 import { Button, ErrorBox, useTheme } from '../../components/ui';
 import { t } from '../../i18n';
 import { ApiError, api, errorMessage } from '../../lib/api';
@@ -42,6 +43,14 @@ export default function ScooterScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [rung, setRung] = useState(false);
+  // Za mało środków, zaległość albo jazda kartą (ADR 0049): arkusze płatności przy starcie.
+  const gate = usePaymentGate({
+    action: t('cardStart.unlock'),
+    perform: async (id, payment) => {
+      await start(id, payment);
+      router.replace('/przejazd');
+    },
+  });
 
   useEffect(() => {
     api<CustomerScooterView>(`/scooters/by-number/${Number(number)}`)
@@ -104,6 +113,15 @@ export default function ScooterScreen() {
       await start(scooter!.id);
       router.replace('/przejazd');
     } catch (e) {
+      const target = {
+        scooterId: scooter!.id,
+        caption:
+          scooter!.batteryPct !== null
+            ? t('cardStart.caption', { number: scooterNo(scooter!.number), battery: scooter!.batteryPct })
+            : t('cardStart.captionShort', { number: scooterNo(scooter!.number) }),
+        tariff: scooter!.tariff,
+      };
+      if (gate.handle(target, e)) return;
       if (e instanceof ApiError && (e.code === 'CONSENT_REQUIRED' || e.code === 'DOCUMENTS_NOT_ACCEPTED'))
         router.push('/zgody');
       else setError(errorMessage(e));
@@ -194,6 +212,7 @@ export default function ScooterScreen() {
         <View style={{ flex: 1 }} />
         <UnlockSlider label={t('scooter.unlock')} onUnlock={() => void unlock()} disabled={busy} />
       </View>
+      {gate.sheets}
     </SafeAreaView>
   );
 }

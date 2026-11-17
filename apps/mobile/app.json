@@ -30,7 +30,15 @@
         }
       ],
       "expo-secure-store",
-      "@maplibre/maplibre-react-native"
+      "@maplibre/maplibre-react-native",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": [],
+          "enableGooglePay": false,
+          "disableSPM": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

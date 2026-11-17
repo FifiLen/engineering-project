@@ -98,6 +98,19 @@ const ICONS = {
       <Path d="M8 11V7a4 4 0 017.6-1.8" />
     </>
   ),
+  card: (
+    <>
+      <Rect x="3" y="6" width="18" height="13" rx="2" />
+      <Path d="M3 10h18" />
+    </>
+  ),
+  phone: (
+    <>
+      <Rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+      <Path d="M11 18h2" />
+    </>
+  ),
+  plus: <Path d="M12 5v14M5 12h14" />,
   check: <Path d="M5 12l5 5 9-10" />,
   info: (
     <>
