@@ -54,7 +54,8 @@ Iteracja 3 (`docs/iteracje/iteracja-03-wypozyczenie.md`, ADR 0036–0042): decyz
 Do zrobienia:
 - [x] Wypchnąć iterację 3 i potwierdzić zielone CI (2026-11-17, commit `f010476`).
 - [ ] Development build aplikacji z natywną mapą i aparatem (Xcode jest już zainstalowany) i sprawdzenie ekranów awarii w aplikacji (`control silent`).
-- [ ] Przed iteracją 4: plan iteracji 4 (strefy).
+- [x] Przed iteracją 4: plan iteracji 4 (2026-11-17, `docs/iteracje/iteracja-04-strefy.md`).
+- [ ] Przed iteracją 4: odpowiedzi autora na pytania 1–10 i decyzje D1–D8 z planu, makiety brakujących stanów (lista w planie), ADR 0043–0048.
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.

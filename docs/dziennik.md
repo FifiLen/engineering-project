@@ -561,3 +561,36 @@ Plan: [iteracja 3](iteracje/iteracja-03-wypozyczenie.md). Autor przyjął rekome
 **Commit i CI**
 - Siedem commitów iteracji 3 (`fc47661`–`3bbea14`). Pierwsze CI padło na typach: import `maplibre-gl/dist/maplibre-gl.css` w mapie web potrzebuje deklaracji `*.css` z `expo/types`, którą lokalnie dawał generowany i ignorowany `expo-env.d.ts`. Poprawka: `apps/mobile/src/types/expo.d.ts` (commit `f010476`), sprawdzona na czystej kopii repozytorium; CI zielone.
 - Systemowy `git` czekał na akceptację licencji Xcode; commity zrobione `git` z Command Line Tools (`DEVELOPER_DIR=/Library/Developer/CommandLineTools`).
+
+## Plan iteracji 4: strefy (17 listopada 2026)
+
+Plan: [iteracja 4](iteracje/iteracja-04-strefy.md). Etap planowania, bez kodu i bez makiet.
+
+**Co powstało**
+- Plan iteracji 4. Cel: edytor stref w panelu, wykrywanie wjazdu i wyjazdu ze strefy z telemetrii, komendy limitu prędkości i zatrzymania, komunikaty stref w aplikacji, prowadzenie do strefy parkowania, trasa do hulajnogi i wyszukiwanie celu. Granice z iteracjami 5, 6 i 8, zakres z migracją 0006, kolejność kroków i scenariusz demo w 10 krokach.
+- Stan wyjściowy spisany z kodu: tabela `zones`, `fn_zones_at_point`, `evaluatePosition`, zdarzenia `ZONE_ENTERED` i `ZONE_EXITED` w typie, komendy `speed_limit` i `stop_gradually` w kontrakcie i w symulatorze. Brakuje edytora, wykrywania zmian i komunikatów stref.
+- Lista 11 brakujących makiet: 5 panelu i 6 aplikacji, m.in. nowa strefa, formularz według typu, błędy geometrii, dezaktywacja, strefa zakazu w trakcie jazdy, prowadzenie do strefy i wynik wyszukiwania.
+- Lista ADR-ów do napisania: 0043 wykrywanie zmian stref, 0044 komendy stref dla hulajnogi, 0045 wyszukiwanie miejsc (Photon), 0046 symulator a strefy, 0047 edytor geometrii w panelu, 0048 trasy dla klienta z OSRM.
+- 10 pytań o wartości biznesowe:
+  - limit w wolnej strefie;
+  - zakaz i wyjazd poza obszar w trakcie jazdy;
+  - start w strefie zakazu;
+  - pełna strefa parkowania;
+  - histereza na granicy;
+  - zmiana strefy w trakcie przejazdów;
+  - miejsce strefy zakazu w danych startowych;
+  - zasięg wyszukiwania;
+  - kto edytuje strefy.
+
+  Do tego 8 decyzji zakresu z rekomendacją (D1–D8).
+
+**Wnioski z przeglądu kodu, migracji i makiet**
+- Indeks `scooter_commands_one_pending_per_rental` dopuszcza jedną oczekującą komendę na przejazd. Komenda limitu powiązana z przejazdem zablokowałaby pauzę albo zakończenie (`RENTAL_COMMAND_PENDING`), więc ADR 0044 musi to rozstrzygnąć.
+- `stop_gradually` nie ma w kontrakcie MQTT odwrotności, więc nie da się wznowić jazdy po wyjeździe ze strefy zakazu bez zmiany kontraktu albo nowej reguły.
+- Symulator czyta strefy parkowania z pliku miejsc, a nie z bazy, więc nie zobaczy stref zmienionych w panelu (ADR 0046).
+- OSRM ma tylko profil rowerowy, więc trasa piesza do hulajnogi wymaga decyzji D6.
+- Dane startowe nie mają strefy zakazu, a strefy to okręgi z `ST_Buffer`. Miejsce strefy zakazu wybierze autor, a współrzędne pobierze `pnpm db:places`.
+- Makieta `admin-strefy` pokazuje edycję stref przez Dyspozytora, a migracja 0002 daje `zones.write` tylko Administratorowi (pytanie 10).
+
+**Do zrobienia przed implementacją**
+- Odpowiedzi autora na pytania i decyzje z planu; makiety brakujących stanów; ADR-y 0043–0048.
