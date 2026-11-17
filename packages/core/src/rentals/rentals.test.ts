@@ -258,6 +258,9 @@ describe('wynik komendy przejazdu', () => {
   it('hulajnoga już w żądanym stanie to sukces, inne odmowy to porażka', () => {
     expect(commandResultFromAck('LOCK', false, 'ALREADY_IN_STATE')).toBe('CONFIRMED');
     expect(commandResultFromAck('UNLOCK', false, 'ALREADY_IN_STATE')).toBe('CONFIRMED');
+    // Komendy stref (ADR 0044): zgubione potwierdzenie i ponowienie nie mogą zapętlić uzgadniania.
+    expect(commandResultFromAck('RELEASE_STOP', false, 'ALREADY_IN_STATE')).toBe('CONFIRMED');
+    expect(commandResultFromAck('SPEED_LIMIT', false, 'ALREADY_IN_STATE')).toBe('FAILED');
     expect(commandResultFromAck('UNLOCK', false, 'LOW_BATTERY')).toBe('FAILED');
     expect(commandResultFromAck('UNLOCK', false, 'EXPIRED')).toBe('FAILED');
     expect(commandResultFromAck('UNLOCK', true)).toBe('CONFIRMED');

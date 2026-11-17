@@ -46,6 +46,8 @@ export interface RentableScooter {
   status: ScooterStatus;
   online: boolean;
   batteryPct: number | null;
+  /** Pozycja w obszarze działania i poza strefą zakazu (`evaluatePosition(...).canRide`); `null`, gdy brak pozycji. */
+  canRide?: boolean | null;
 }
 
 /** Otwarty przejazd (stan niekońcowy) z komendą, na którą czeka. */
@@ -58,7 +60,15 @@ export interface OpenRental {
   pendingCommand: CommandType | null;
 }
 
-export const UNAVAILABLE_REASONS = ['RESERVED', 'IN_USE', 'MAINTENANCE', 'RETIRED', 'OFFLINE', 'LOW_BATTERY'] as const;
+export const UNAVAILABLE_REASONS = [
+  'RESERVED',
+  'IN_USE',
+  'MAINTENANCE',
+  'RETIRED',
+  'OFFLINE',
+  'OUT_OF_AREA',
+  'LOW_BATTERY',
+] as const;
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
 
 /** Dlaczego klient nie wypożyczy hulajnogi; `null`, gdy może. Kolejność odpowiada `deriveFleetStatus`. */
@@ -69,6 +79,8 @@ export function unavailableReason(
   if (scooter.status === 'RETIRED' || scooter.status === 'MAINTENANCE') return scooter.status;
   if (scooter.status === 'RESERVED' || scooter.status === 'IN_USE') return scooter.status;
   if (!scooter.online) return 'OFFLINE';
+  // Strefa zakazu albo poza obszarem działania: hulajnoga czeka na serwis (pytanie 4 w planie iteracji 4).
+  if (scooter.canRide === false) return 'OUT_OF_AREA';
   if ((scooter.batteryPct ?? 0) < tariff.minBatteryPct) return 'LOW_BATTERY';
   return null;
 }
@@ -291,9 +303,12 @@ export function rentalCommandOutcome(input: {
  * Potwierdzenie z hulajnogi. `ALREADY_IN_STATE` przy blokadzie i odblokowaniu też jest sukcesem: hulajnoga
  * jest w stanie, o który prosiliśmy (np. kończenie z pauzy, hulajnoga zostawiona odblokowana).
  */
+/** Komendy stanu: hulajnoga już w docelowym stanie to sukces (blokada, odblokowanie, zatrzymanie, napęd). */
+const STATE_COMMANDS: readonly CommandType[] = ['LOCK', 'UNLOCK', 'STOP_GRADUALLY', 'RELEASE_STOP'];
+
 export function commandResultFromAck(command: CommandType, ok: boolean, reason?: string): CommandResult {
   if (ok) return 'CONFIRMED';
-  return (command === 'LOCK' || command === 'UNLOCK') && reason === 'ALREADY_IN_STATE' ? 'CONFIRMED' : 'FAILED';
+  return STATE_COMMANDS.includes(command) && reason === 'ALREADY_IN_STATE' ? 'CONFIRMED' : 'FAILED';
 }
 
 /** Dzwonek z aplikacji (decyzja D5): przy własnej rezerwacji albo przy wolnej hulajnodze, gdy klient nie ma przejazdu. */

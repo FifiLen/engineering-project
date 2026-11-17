@@ -42,7 +42,19 @@ export const statusSchema = z.object({
 });
 export type Status = z.infer<typeof statusSchema>;
 
-export const commandNames = ['unlock', 'lock', 'speed_limit', 'stop_gradually', 'ring', 'lights'] as const;
+/**
+ * Kontrakt 1.2.0 (ADR 0044): `release_stop` przywraca napęd po `stop_gradually`, `speed_limit` bez `kmh` zdejmuje
+ * limit, a `lock` kasuje limit i zatrzymanie w urządzeniu.
+ */
+export const commandNames = [
+  'unlock',
+  'lock',
+  'speed_limit',
+  'stop_gradually',
+  'ring',
+  'lights',
+  'release_stop',
+] as const;
 export type CommandName = (typeof commandNames)[number];
 
 export const commandSchema = z.object({

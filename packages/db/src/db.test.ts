@@ -6,13 +6,21 @@ import { randomUUID } from 'node:crypto';
 import { copyFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { OPEN_RENTAL_STATES, PERMISSIONS, priceRental, RENTAL_STATES, RentalStateMachine, type RentalState } from '@hulajnogi/core';
+import {
+  OPEN_RENTAL_STATES,
+  PERMISSIONS,
+  priceRental,
+  RENTAL_STATES,
+  RentalStateMachine,
+  type RentalState,
+} from '@hulajnogi/core';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb } from './client.js';
 import { migrationsDir, runMigrations } from './migrator.js';
 import type { PlacesFile } from './places.js';
 import { DrizzleZoneRepository } from './repositories/zones.repository.js';
+import { rethrowDatabaseRule } from './repositories/errors.js';
 import { seedDatabase } from './seed.js';
 
 const adminUrl = process.env.DATABASE_URL;
@@ -26,7 +34,16 @@ const places: PlacesFile = {
   places: [
     { code: 'P-01', name: 'Centrum', query: '', type: 'PARKING', radiusM: 50, capacity: 20, lat: 50.0, lon: 18.5 },
     { code: 'P-02', name: 'Północ', query: '', type: 'PARKING', radiusM: 50, capacity: 20, lat: 50.01, lon: 18.5 },
-    { code: 'S-01', name: 'Wolna strefa', query: '', type: 'SLOW', radiusM: 200, speedLimitKmh: 10, lat: 50.0, lon: 18.5 },
+    {
+      code: 'S-01',
+      name: 'Wolna strefa',
+      query: '',
+      type: 'SLOW',
+      radiusM: 200,
+      speedLimitKmh: 10,
+      lat: 50.0,
+      lon: 18.5,
+    },
   ],
 };
 
@@ -61,7 +78,13 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     await pool.query(`INSERT INTO scooters (number, serial_number, variant) VALUES (900, 'OLD-900', 'GRAFIT')`);
 
     const first = await runMigrations(pool);
-    expect(first.applied).toEqual(['0002_admin_modules.sql', '0003_fleet_lists.sql', '0004_accounts_access.sql', '0005_rentals.sql']);
+    expect(first.applied).toEqual([
+      '0002_admin_modules.sql',
+      '0003_fleet_lists.sql',
+      '0004_accounts_access.sql',
+      '0005_rentals.sql',
+      '0006_zones.sql',
+    ]);
     const second = await runMigrations(pool);
     expect(second.applied).toEqual([]);
 
@@ -143,7 +166,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
          (SELECT count(*)::int FROM pg_proc WHERE pronamespace = 'public'::regnamespace
            AND prokind = 'p' AND proname LIKE 'sp\\_%') AS procedures`,
     );
-    expect(rows[0]).toEqual({ tables: 48, views: 21, functions: 11, procedures: 9 });
+    expect(rows[0]).toEqual({ tables: 50, views: 23, functions: 15, procedures: 10 });
   });
 
   it('fn_zones_at_point zwraca strefy od najbardziej restrykcyjnej', async () => {
@@ -192,17 +215,25 @@ describe.skipIf(!adminUrl)('baza danych', () => {
       `INSERT INTO wallet_ledger (user_id, type, amount, balance_after) VALUES ($1, 'TOPUP', 2000, 2000), ($1, 'ADJUSTMENT', -300, 1700)`,
       [userId],
     );
-    const before = await pool.query(`SELECT cached_balance, ledger_balance, out_of_sync FROM v_wallet_balances WHERE user_id = $1`, [userId]);
+    const before = await pool.query(
+      `SELECT cached_balance, ledger_balance, out_of_sync FROM v_wallet_balances WHERE user_id = $1`,
+      [userId],
+    );
     expect(before.rows[0]).toEqual({ cached_balance: '500', ledger_balance: '1700', out_of_sync: true });
 
     const fixed = await pool.query<{ fixed_count: number }>(`CALL sp_rebuild_wallet_balances(NULL)`);
     expect(fixed.rows[0]!.fixed_count).toBe(1);
-    const after = await pool.query(`SELECT fn_wallet_balance($1) AS balance, (SELECT out_of_sync FROM v_wallet_balances WHERE user_id = $1)`, [userId]);
+    const after = await pool.query(
+      `SELECT fn_wallet_balance($1) AS balance, (SELECT out_of_sync FROM v_wallet_balances WHERE user_id = $1)`,
+      [userId],
+    );
     expect(after.rows[0]).toEqual({ balance: '1700', out_of_sync: false });
   });
 
   it('sp_anonymize_user odmawia przy otwartym przejeździe i usuwa dane osobowe', async () => {
-    const busy = await pool.query<{ id: string }>(`SELECT user_id AS id FROM rentals WHERE state = 'UNLOCKING' LIMIT 1`);
+    const busy = await pool.query<{ id: string }>(
+      `SELECT user_id AS id FROM rentals WHERE state = 'UNLOCKING' LIMIT 1`,
+    );
     await expect(pool.query(`CALL sp_anonymize_user($1)`, [busy.rows[0]!.id])).rejects.toThrow(/USER_HAS_OPEN_RENTAL/);
 
     const user = await pool.query<{ id: string }>(
@@ -233,9 +264,13 @@ describe.skipIf(!adminUrl)('baza danych', () => {
       `INSERT INTO staff (email, name, password_hash) VALUES ('d@test.local', 'D', 'x') RETURNING id`,
     );
     const staffId = staff.rows[0]!.id;
-    await pool.query(`INSERT INTO staff_roles (staff_id, role_id) SELECT $1, id FROM roles WHERE name = 'Dyspozytor'`, [staffId]);
+    await pool.query(`INSERT INTO staff_roles (staff_id, role_id) SELECT $1, id FROM roles WHERE name = 'Dyspozytor'`, [
+      staffId,
+    ]);
     const check = (code: string) =>
-      pool.query<{ ok: boolean }>(`SELECT fn_staff_has_permission($1, $2) AS ok`, [staffId, code]).then((r) => r.rows[0]!.ok);
+      pool
+        .query<{ ok: boolean }>(`SELECT fn_staff_has_permission($1, $2) AS ok`, [staffId, code])
+        .then((r) => r.rows[0]!.ok);
     expect(await check('rentals.manage')).toBe(true);
     expect(await check('roles.manage')).toBe(false);
 
@@ -257,7 +292,9 @@ describe.skipIf(!adminUrl)('baza danych', () => {
       [scooterId, rentalId],
     );
     const today = `(now() AT TIME ZONE 'UTC')::date`;
-    const created = await pool.query<{ created_count: number }>(`CALL sp_ensure_telemetry_partitions(${today}, 2, NULL)`);
+    const created = await pool.query<{ created_count: number }>(
+      `CALL sp_ensure_telemetry_partitions(${today}, 2, NULL)`,
+    );
     expect(created.rows[0]!.created_count).toBe(2);
     const again = await pool.query<{ created_count: number }>(`CALL sp_ensure_telemetry_partitions(${today}, 2, NULL)`);
     expect(again.rows[0]!.created_count).toBe(0);
@@ -274,7 +311,8 @@ describe.skipIf(!adminUrl)('baza danych', () => {
   });
 
   it('zmiana treści zwiększa licznik, a dokument ma najwyżej jedną obowiązującą wersję', async () => {
-    const revision = () => pool.query<{ r: string }>(`SELECT fn_content_revision() AS r`).then((r) => Number(r.rows[0]!.r));
+    const revision = () =>
+      pool.query<{ r: string }>(`SELECT fn_content_revision() AS r`).then((r) => Number(r.rows[0]!.r));
     const before = await revision();
     const page = await pool.query<{ id: string }>(
       `INSERT INTO content_pages (slug, name, consent_type) VALUES ('regulamin', 'Regulamin', 'TERMS') RETURNING id`,
@@ -299,7 +337,9 @@ describe.skipIf(!adminUrl)('baza danych', () => {
 
   it('hulajnoga ma najwyżej jedno otwarte zadanie serwisowe danego rodzaju', async () => {
     const insert = () =>
-      pool.query(`INSERT INTO service_tasks (scooter_id, type) SELECT id, 'BATTERY_SWAP' FROM scooters WHERE number = 3`);
+      pool.query(
+        `INSERT INTO service_tasks (scooter_id, type) SELECT id, 'BATTERY_SWAP' FROM scooters WHERE number = 3`,
+      );
     await insert();
     await expect(insert()).rejects.toThrow(/service_tasks_one_open_per_type/);
     const fleet = await pool.query(`SELECT open_service_tasks FROM v_fleet_status WHERE number = 3`);
@@ -373,7 +413,9 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     } finally {
       client.release();
     }
-    const managers = await pool.query(`SELECT staff_id FROM v_staff_permissions WHERE permission_code = 'roles.manage'`);
+    const managers = await pool.query(
+      `SELECT staff_id FROM v_staff_permissions WHERE permission_code = 'roles.manage'`,
+    );
     expect(managers.rows).toEqual([{ staff_id: adminId }]);
   });
 
@@ -392,16 +434,18 @@ describe.skipIf(!adminUrl)('baza danych', () => {
 
     const overview = () =>
       pool
-        .query(`SELECT status, totp_enabled, invitation_expires_at IS NOT NULL AS invited FROM v_staff_overview WHERE id = $1`, [
-          staffId,
-        ])
+        .query(
+          `SELECT status, totp_enabled, invitation_expires_at IS NOT NULL AS invited FROM v_staff_overview WHERE id = $1`,
+          [staffId],
+        )
         .then((r) => r.rows[0]);
     expect(await overview()).toEqual({ status: 'INVITED', totp_enabled: false, invited: true });
 
     await pool.query(`UPDATE staff_invitations SET accepted_at = now() WHERE staff_id = $1`, [staffId]);
-    await pool.query(`UPDATE staff SET password_hash = 'x', totp_secret_enc = 'enc', totp_confirmed_at = now() WHERE id = $1`, [
-      staffId,
-    ]);
+    await pool.query(
+      `UPDATE staff SET password_hash = 'x', totp_secret_enc = 'enc', totp_confirmed_at = now() WHERE id = $1`,
+      [staffId],
+    );
     expect(await overview()).toEqual({ status: 'ACTIVE', totp_enabled: true, invited: false });
     await expect(pool.query(`UPDATE staff SET totp_secret_enc = NULL WHERE id = $1`, [staffId])).rejects.toThrow(
       /staff_totp_confirmed_has_secret/,
@@ -425,10 +469,15 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     await expect(
       pool.query(`UPDATE sessions SET replaced_by = $1 WHERE id = $2`, [second.rows[0]!.id, firstId]),
     ).rejects.toThrow(/sessions_replaced_is_revoked/);
-    await pool.query(`UPDATE sessions SET replaced_by = $1, revoked_at = now() WHERE id = $2`, [second.rows[0]!.id, firstId]);
+    await pool.query(`UPDATE sessions SET replaced_by = $1, revoked_at = now() WHERE id = $2`, [
+      second.rows[0]!.id,
+      firstId,
+    ]);
 
     const active = () =>
-      pool.query<{ n: string }>(`SELECT active_sessions AS n FROM v_user_activity WHERE id = $1`, [userId]).then((r) => Number(r.rows[0]!.n));
+      pool
+        .query<{ n: string }>(`SELECT active_sessions AS n FROM v_user_activity WHERE id = $1`, [userId])
+        .then((r) => Number(r.rows[0]!.n));
     expect(await active()).toBe(1);
     const revoked = await pool.query<{ revoked_count: number }>(`CALL sp_revoke_user_sessions($1, NULL)`, [userId]);
     expect(revoked.rows[0]!.revoked_count).toBe(1);
@@ -443,7 +492,9 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     );
     const staffActive = await pool.query(`SELECT active_sessions FROM v_staff_overview WHERE id = $1`, [staffId]);
     expect(staffActive.rows[0]).toEqual({ active_sessions: '1' });
-    const staffRevoked = await pool.query<{ revoked_count: number }>(`CALL sp_revoke_staff_sessions($1, NULL)`, [staffId]);
+    const staffRevoked = await pool.query<{ revoked_count: number }>(`CALL sp_revoke_staff_sessions($1, NULL)`, [
+      staffId,
+    ]);
     expect(staffRevoked.rows[0]!.revoked_count).toBe(1);
   });
 
@@ -470,9 +521,10 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     );
     const pageId = page.rows[0]!.id;
     const publish = async (no: number, summary: string | null) => {
-      await pool.query(`UPDATE content_page_versions SET status = 'ARCHIVED' WHERE page_id = $1 AND status = 'PUBLISHED'`, [
-        pageId,
-      ]);
+      await pool.query(
+        `UPDATE content_page_versions SET status = 'ARCHIVED' WHERE page_id = $1 AND status = 'PUBLISHED'`,
+        [pageId],
+      );
       const v = await pool.query<{ id: string }>(
         `INSERT INTO content_page_versions (page_id, version_no, title, body_md, change_summary, status, published_at)
          VALUES ($1, $2, 'Polityka prywatności', 'Treść', $3, 'PUBLISHED', now()) RETURNING id`,
@@ -498,7 +550,9 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     expect(await pending()).toEqual([]);
 
     await publish(2, 'Nowy odbiorca danych');
-    expect(await pending()).toEqual([{ consent_type: 'PRIVACY', version_no: 2, change_summary: 'Nowy odbiorca danych' }]);
+    expect(await pending()).toEqual([
+      { consent_type: 'PRIVACY', version_no: 2, change_summary: 'Nowy odbiorca danych' },
+    ]);
     const view = await pool.query(
       `SELECT version_no, current_version_no, is_current FROM v_user_consents WHERE user_id = $1 AND type = 'PRIVACY'`,
       [userId],
@@ -706,5 +760,143 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     const left = await pool.query(`SELECT refresh_token_hash FROM sessions WHERE user_id = $1 ORDER BY 1`, [userId]);
     expect(left.rows).toEqual([{ refresh_token_hash: 'p3' }, { refresh_token_hash: 'p4' }]);
     expect((await pool.query(`CALL sp_purge_expired_sessions(30, NULL)`)).rows[0].deleted_count).toBe(0);
+  });
+
+  // --- 0006: strefy ------------------------------------------------------------------------------
+
+  /** Kwadrat o boku `size` stopni z lewym dolnym rogiem w (lon, lat); syntetyczne współrzędne testowe. */
+  const square = (lon: number, lat: number, size: number) =>
+    `ST_Multi(ST_GeomFromText('POLYGON((${lon} ${lat}, ${lon + size} ${lat}, ${lon + size} ${lat + size}, ${lon} ${lat + size}, ${lon} ${lat}))', 4326))`;
+  const domainCode = async (query: Promise<unknown>) => {
+    try {
+      await query;
+    } catch (error) {
+      try {
+        rethrowDatabaseRule(error);
+      } catch (mapped) {
+        return { code: (mapped as { code?: string }).code, details: (mapped as { details?: unknown }).details };
+      }
+    }
+    return null;
+  };
+
+  it('strefy: obszar działania, nakładanie parkowania i niezmienny typ pilnuje baza (0006)', async () => {
+    // Poza obszarem działania (promień 3 km od 50.0, 18.5).
+    expect(
+      await domainCode(
+        pool.query(
+          `INSERT INTO zones (code, name, type, geom) VALUES ('P-90', 'Daleko', 'PARKING', ${square(18.6, 50.1, 0.001)})`,
+        ),
+      ),
+    ).toEqual({ code: 'ZONE_OUTSIDE_SERVICE_AREA', details: undefined });
+    // Część wspólna z P-01 (okrąg 50 m w 50.0, 18.5).
+    expect(
+      await domainCode(
+        pool.query(
+          `INSERT INTO zones (code, name, type, geom) VALUES ('P-91', 'Obok', 'PARKING', ${square(18.4999, 49.9999, 0.001)})`,
+        ),
+      ),
+    ).toEqual({ code: 'ZONE_OVERLAP', details: { zoneCode: 'P-01' } });
+    // Strefa zakazu może nachodzić na parkowanie (D3), limit tylko w wolnej jeździe.
+    await pool.query(
+      `INSERT INTO zones (code, name, type, geom) VALUES ('Z-90', 'Zakaz', 'NO_RIDE', ${square(18.4999, 49.9999, 0.001)})`,
+    );
+    expect(await domainCode(pool.query(`UPDATE zones SET speed_limit_kmh = 10 WHERE code = 'Z-90'`))).toEqual({
+      code: 'VALIDATION_FAILED',
+      details: undefined,
+    });
+    expect(await domainCode(pool.query(`UPDATE zones SET type = 'PARKING' WHERE code = 'Z-90'`))).toEqual({
+      code: 'ZONE_TYPE_IMMUTABLE',
+      details: undefined,
+    });
+    // Obszar działania: nie zniknie i nie odsłoni aktywnych stref.
+    expect(await domainCode(pool.query(`UPDATE zones SET active = false WHERE type = 'SERVICE_AREA'`))).toEqual({
+      code: 'SERVICE_AREA_REQUIRED',
+      details: undefined,
+    });
+    expect(
+      await domainCode(pool.query(`UPDATE zones SET geom = ${square(18.6, 50.1, 0.01)} WHERE type = 'SERVICE_AREA'`)),
+    ).toEqual({ code: 'ZONE_OUTSIDE_SERVICE_AREA', details: { zoneCode: 'P-01' } });
+    // Samoprzecięcie odrzuca CHECK z 0001.
+    expect(
+      await domainCode(
+        pool.query(
+          `INSERT INTO zones (code, name, type, geom) VALUES ('Z-92', 'Kokardka', 'NO_RIDE',
+             ST_Multi(ST_GeomFromText('POLYGON((18.5 50.0, 18.501 50.001, 18.501 50.0, 18.5 50.001, 18.5 50.0))', 4326)))`,
+        ),
+      ),
+    ).toEqual({ code: 'ZONE_INVALID_GEOMETRY', details: undefined });
+    await pool.query(`DELETE FROM zones WHERE code = 'Z-90'`);
+  });
+
+  it('hulajnoga w strefie zakazu jest niedostępna; strefy w promieniu i najbliższe parkowanie (0006)', async () => {
+    const scooter = await pool.query<{ id: string; lon: number; lat: number }>(
+      `SELECT id, ST_X(position) AS lon, ST_Y(position) AS lat FROM fn_nearest_scooters(18.5, 50.0, 3000, 1, 0) n
+       JOIN scooters s USING (id)`,
+    );
+    const { id, lon, lat } = scooter.rows[0]!;
+    await pool.query(
+      `INSERT INTO zones (code, name, type, geom) VALUES ('Z-91', 'Zakaz', 'NO_RIDE', ${square(lon - 0.0005, lat - 0.0005, 0.001)})`,
+    );
+    const nearby = await pool.query<{ id: string }>(`SELECT id FROM fn_nearest_scooters(18.5, 50.0, 3000, 100, 0)`);
+    expect(nearby.rows.map((r) => r.id)).not.toContain(id);
+    const near = await new DrizzleZoneRepository(createDb(pool)).near({ lat, lon }, 10);
+    expect(near.filter((n) => n.inside).map((n) => n.zone.code)).toContain('Z-91');
+    await pool.query(`DELETE FROM zones WHERE code = 'Z-91'`);
+
+    const parking = await new DrizzleZoneRepository(createDb(pool)).nearestParking({ lat: 50.016, lon: 18.5 });
+    expect(parking?.code).toBe('P-02');
+    // Odległość do granicy strefy (okrąg 50 m w 50.01, 18.5), nie do środka: około 667 − 50 m.
+    expect(parking!.distanceM).toBeGreaterThan(600);
+    expect(parking!.distanceM).toBeLessThan(630);
+    expect(parking!.target[1]).toBeGreaterThan(50.0103);
+  });
+
+  it('komendy stref nie blokują pauzy, a usunięcie i lista stref uwzględniają użycie (0006)', async () => {
+    const user = await pool.query<{ id: string }>(
+      `INSERT INTO users (phone, name) VALUES ('+48500000060', 'Zoe') RETURNING id`,
+    );
+    const rental = await pool.query<{ id: string; scooter_id: string }>(
+      `INSERT INTO rentals (user_id, scooter_id, tariff_id, state, started_at)
+       SELECT $1, (SELECT id FROM scooters WHERE number = 7), (SELECT id FROM tariffs WHERE version = 1), 'ACTIVE', now()
+       RETURNING id, scooter_id`,
+      [user.rows[0]!.id],
+    );
+    const { id: rentalId, scooter_id: scooterId } = rental.rows[0]!;
+    const command = (type: string) =>
+      pool.query(`INSERT INTO scooter_commands (scooter_id, rental_id, type) VALUES ($1, $2, $3)`, [
+        scooterId,
+        rentalId,
+        type,
+      ]);
+    await command('SPEED_LIMIT');
+    await command('STOP_GRADUALLY');
+    await command('LOCK');
+    const details = await pool.query(`SELECT pending_command FROM v_rental_details WHERE id = $1`, [rentalId]);
+    expect(details.rows[0]).toEqual({ pending_command: 'LOCK' });
+
+    await pool.query(
+      `INSERT INTO zones (code, name, type, geom) VALUES ('Z-93', 'Nowa', 'NO_RIDE', ${square(18.51, 50.01, 0.001)})`,
+    );
+    const zone = await pool.query<{ id: string; points: number; used: boolean; area_m2: number }>(
+      `SELECT id, points, used, area_m2 FROM v_zone_list WHERE code = 'Z-93'`,
+    );
+    expect(zone.rows[0]).toMatchObject({ points: 4, used: false });
+    expect(Number(zone.rows[0]!.area_m2)).toBeGreaterThan(7_000);
+    // Przejazd w strefie (stan z wykrywania) blokuje usunięcie i trafia do ostrzeżenia przed zmianą.
+    await pool.query(
+      `INSERT INTO scooter_zone_presence (scooter_id, zone_id, rental_id, entered_at) VALUES ($1, $2, $3, now())`,
+      [scooterId, zone.rows[0]!.id, rentalId],
+    );
+    const impact = await new DrizzleZoneRepository(createDb(pool)).impact(zone.rows[0]!.id, null);
+    expect(impact.map((r) => r.rentalId)).toEqual([rentalId]);
+    expect(await domainCode(pool.query(`CALL sp_delete_zone($1)`, [zone.rows[0]!.id]))).toEqual({
+      code: 'ZONE_IN_USE',
+      details: undefined,
+    });
+    await pool.query(`DELETE FROM scooter_zone_presence WHERE rental_id = $1`, [rentalId]);
+    await pool.query(`CALL sp_delete_zone($1)`, [zone.rows[0]!.id]);
+    expect((await pool.query(`SELECT 1 FROM zones WHERE code = 'Z-93'`)).rowCount).toBe(0);
+    await pool.query(`UPDATE rentals SET state = 'ENDED', ended_at = now() WHERE id = $1`, [rentalId]);
   });
 });

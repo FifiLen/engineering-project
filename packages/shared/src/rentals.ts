@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 import type { ScooterVariant } from './admin/fleet.js';
+import type { ZoneType } from './admin/zones.js';
 
 export const RENTAL_STATES = [
   'RESERVED',
@@ -26,7 +27,15 @@ export const OPEN_RENTAL_STATES = [
   'ENDING',
 ] as const satisfies readonly RentalState[];
 
-export const UNAVAILABLE_REASONS = ['RESERVED', 'IN_USE', 'MAINTENANCE', 'RETIRED', 'OFFLINE', 'LOW_BATTERY'] as const;
+export const UNAVAILABLE_REASONS = [
+  'RESERVED',
+  'IN_USE',
+  'MAINTENANCE',
+  'RETIRED',
+  'OFFLINE',
+  'OUT_OF_AREA',
+  'LOW_BATTERY',
+] as const;
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
 
 /** Zdarzenia, które aplikacja pokazuje jako komunikat (nieudana pauza, wznowienie, blokada, odblokowanie). */
@@ -129,6 +138,13 @@ export interface RentalView {
   /** Ostatni komunikat dla klienta, jeśli nastąpił po ostatniej zmianie stanu. */
   notice: RentalNotice | null;
   endZone: { code: string; name: string } | null;
+  /** Strefy, w których jest hulajnoga (wykrywanie z telemetrii, ADR 0043); pusta lista przed pierwszym odczytem. */
+  zones: RentalZone[];
+  /**
+   * Co strefy wymagają od hulajnogi (ADR 0044): zatrzymanie w strefie zakazu i poza obszarem działania,
+   * limit w strefie wolnej jazdy. Aplikacja pokazuje z tego komunikat strefy na ekranie jazdy.
+   */
+  zoneControl: { stopped: boolean; speedLimitKmh: number | null };
   /** Obciążenie portfela przychodzi w iteracji 5 (D1). */
   settlement: 'PENDING';
   asOf: string;
@@ -177,3 +193,70 @@ export function parseScooterCode(input: string): number | null {
 
 export const scooterCodeUrl = (siteUrl: string, number: number): string =>
   `${siteUrl.replace(/\/$/, '')}/h/${number.toString().padStart(4, '0')}`;
+
+export interface RentalZone {
+  code: string;
+  name: string;
+  type: ZoneType;
+  speedLimitKmh: number | null;
+}
+
+// --- Trasy i wyszukiwanie (ADR 0045, ADR 0048) -------------------------------------------------
+
+export const pointQuerySchema = nearbyQuerySchema;
+
+/** Trasa z OSRM przez API; bez OSRM linia prosta z `approximate: true` i bez czasu. */
+export interface RouteView {
+  /** [lon, lat] */
+  line: Array<[number, number]>;
+  distanceM: number;
+  durationSec: number | null;
+  approximate: boolean;
+  profile: 'bike' | 'foot';
+}
+
+/** Prowadzenie do najbliższej strefy parkowania: cel na granicy strefy najbliżej klienta. */
+export interface NearestParkingRoute {
+  zone: { id: string; code: string; name: string; anchor: [number, number] };
+  target: [number, number];
+  route: RouteView;
+}
+
+export const placeSearchQuerySchema = z.object({
+  q: z.string().trim().min(3).max(100),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lon: z.coerce.number().min(-180).max(180).optional(),
+});
+export type PlaceSearchQuery = z.infer<typeof placeSearchQuerySchema>;
+
+export interface PlaceResult {
+  id: string;
+  name: string;
+  /** Ulica, dzielnica, miasto. */
+  description: string | null;
+  lat: number;
+  lon: number;
+  /** Odległość od klienta w linii prostej, gdy podał pozycję. */
+  distanceM: number | null;
+}
+
+export interface PlaceSearchResponse {
+  places: PlaceResult[];
+}
+
+export const destinationQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lon: z.coerce.number().min(-180).max(180),
+  toLat: z.coerce.number().min(-90).max(90),
+  toLon: z.coerce.number().min(-180).max(180),
+});
+export type DestinationQuery = z.infer<typeof destinationQuerySchema>;
+
+/** Wybrany cel: szacunek dojazdu hulajnogą i strefa parkowania przy celu (decyzja D5). */
+export interface DestinationView {
+  route: RouteView;
+  parking: { code: string; name: string; distanceM: number; anchor: [number, number] } | null;
+  /** Limit wolnej jazdy w miejscu celu (notka „Przy celu obowiązuje wolna jazda”). */
+  speedLimitKmh: number | null;
+  insideServiceArea: boolean;
+}

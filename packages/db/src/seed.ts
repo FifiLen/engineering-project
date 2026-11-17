@@ -66,7 +66,7 @@ function mulberry32(seed: number) {
   };
 }
 
-const bufferSql = `ST_Multi(ST_Buffer(ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $3::float8, 'quad_segs=16')::geometry)`;
+const bufferSql = `ST_Multi(ST_Buffer(ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $3::float8, 'quad_segs=4')::geometry)`;
 
 function requireCoords(place: Place): { lat: number; lon: number } {
   if (place.lat === undefined || place.lon === undefined) {
@@ -83,7 +83,16 @@ async function upsertZone(client: PoolClient, place: Place) {
      ON CONFLICT (code) DO UPDATE SET
        name = EXCLUDED.name, type = EXCLUDED.type, geom = EXCLUDED.geom,
        speed_limit_kmh = EXCLUDED.speed_limit_kmh, capacity = EXCLUDED.capacity, updated_at = now()`,
-    [lon, lat, place.radiusM, place.code, place.name, place.type, place.speedLimitKmh ?? null, place.type === 'PARKING' ? (place.capacity ?? null) : null],
+    [
+      lon,
+      lat,
+      place.radiusM,
+      place.code,
+      place.name,
+      place.type,
+      place.speedLimitKmh ?? null,
+      place.type === 'PARKING' ? (place.capacity ?? null) : null,
+    ],
   );
 }
 
@@ -155,7 +164,8 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
     }
 
     const center = places.places.find((p) => p.code === places.serviceArea.centerPlace);
-    if (!center) throw new Error(`Brak miejsca ${places.serviceArea.centerPlace} wskazanego jako środek obszaru działania`);
+    if (!center)
+      throw new Error(`Brak miejsca ${places.serviceArea.centerPlace} wskazanego jako środek obszaru działania`);
     const c = requireCoords(center);
     await upsertZone(client, {
       code: places.serviceArea.code,
@@ -194,7 +204,11 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
     await client.query('COMMIT');
     const zones = await pool.query<{ count: string }>('SELECT count(*) FROM zones');
     const total = await pool.query<{ count: string }>('SELECT count(*) FROM scooters');
-    return { zones: Number(zones.rows[0]!.count), scootersCreated: created, scootersTotal: Number(total.rows[0]!.count) };
+    return {
+      zones: Number(zones.rows[0]!.count),
+      scootersCreated: created,
+      scootersTotal: Number(total.rows[0]!.count),
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

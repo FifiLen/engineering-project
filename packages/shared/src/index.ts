@@ -6,5 +6,6 @@ export * from './admin/list.js';
 export * from './admin/fleet.js';
 export * from './admin/access.js';
 export * from './admin/rentals.js';
+export * from './admin/zones.js';
 export * from './rentals.js';
 export * from './auth.js';

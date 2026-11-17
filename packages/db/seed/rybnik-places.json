@@ -73,6 +73,16 @@
       "lat": 50.095541,
       "lon": 18.542034,
       "osmDisplayName": "Rynek, Osiedle Dworek, Śródmieście, Rybnik, województwo śląskie, 44-200, Polska"
+    },
+    {
+      "code": "Z-01",
+      "name": "Park im. św. Jana Sarkandra",
+      "query": "Park imienia świętego Jana Sarkandra, Rybnik",
+      "type": "NO_RIDE",
+      "radiusM": 70,
+      "lat": 50.099171,
+      "lon": 18.543995,
+      "osmDisplayName": "Park imienia świętego Jana Sarkandra, Śródmieście, Rybnik, województwo śląskie, 44-200, Polska"
     }
   ]
 }

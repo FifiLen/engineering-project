@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Komunikacja z hulajnogami (MQTT)
-  version: 1.1.0
+  version: 1.2.0
   description: |
     Kontrakt między hulajnogą (lub symulatorem) a backendem systemu wypożyczania.
     Operacje są opisane z perspektywy hulajnogi: hulajnoga wysyła telemetrię,
@@ -19,8 +19,20 @@ info:
     * Komenda z polem expiresAt po tym czasie nie jest wykonywana; hulajnoga
       odpowiada ok = false z powodem EXPIRED. Dotyczy też komendy, którą broker
       dostarczył z sesji trwałej po powrocie hulajnogi online (ADR 0038).
+    * Komendy stref (ADR 0044): speed_limit z params.kmh ustawia limit,
+      a bez params.kmh go zdejmuje; stop_gradually wyłącza napęd (prędkość
+      spada do 0 w kilka sekund), release_stop włącza go z powrotem bez zmiany
+      limitu; lock kasuje limit i zatrzymanie, więc po odblokowaniu hulajnoga
+      jedzie bez ograniczeń, dopóki backend nie wyśle nowych komend. Hulajnoga
+      już w stanie docelowym (lock, unlock, stop_gradually, release_stop)
+      odpowiada ok = false z powodem ALREADY_IN_STATE, a backend uznaje to
+      za wykonanie (ponowiona komenda po zgubionym potwierdzeniu). lock na
+      zablokowanej hulajnodze też kasuje limit i zatrzymanie.
 
     Zmiany:
+    * 1.2.0 (2026-11-17): komenda release_stop, zasady komend stref (speed_limit
+      bez kmh, lock kasuje limit i zatrzymanie; ADR 0044). Urządzenie
+      z kontraktem 1.1.0 odpowiada na release_stop powodem UNKNOWN_COMMAND.
     * 1.1.0 (2026-11-16): opcjonalne pole expiresAt w komendzie i powód
       odrzucenia EXPIRED (ADR 0038). Zgodne wstecz: komenda bez expiresAt
       nie wygasa, a urządzenie z kontraktem 1.0.0 pole pomija.
@@ -206,7 +218,7 @@ components:
           format: uuid
         cmd:
           type: string
-          enum: [unlock, lock, speed_limit, stop_gradually, ring, lights]
+          enum: [unlock, lock, speed_limit, stop_gradually, ring, lights, release_stop]
         issuedAt:
           type: string
           format: date-time
@@ -224,7 +236,7 @@ components:
             kmh:
               type: integer
               minimum: 0
-              description: Limit prędkości dla speed_limit
+              description: Limit prędkości dla speed_limit; brak pola zdejmuje limit (od 1.2.0)
             on:
               type: boolean
               description: Włączenie lub wyłączenie dla lights

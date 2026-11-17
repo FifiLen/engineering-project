@@ -8,6 +8,8 @@ import type {
   RentalTariff,
   ScooterStatus,
   TimelineEvent,
+  Zone,
+  ZoneType,
 } from '@hulajnogi/core';
 import {
   rentalsResource,
@@ -20,10 +22,10 @@ import {
   type RentalTimelineEntry,
   type ScooterVariant,
 } from '@hulajnogi/shared';
-import { sql } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
 import { runListQuery, type ListSource } from '../admin/list-query.js';
 import type { DbExecutor } from '../client.js';
-import { vRentalDetails } from '../schema/schema.js';
+import { rentals, vRentalDetails } from '../schema/schema.js';
 
 type RentalField = keyof typeof rentalsResource.fields;
 
@@ -84,6 +86,7 @@ export interface RentalCommandRecord {
   status: 'SENT' | 'ACKED' | 'REJECTED' | 'TIMEOUT';
   sentAt: Date;
   expiresAt: Date | null;
+  params?: { kmh?: number };
 }
 
 export interface NewRental {
@@ -128,8 +131,10 @@ const toTariff = (r: Row): RentalTariff => ({
   minBatteryPct: r.min_battery_pct as number,
 });
 
+// can_ride: strefa zakazu albo poza obszarem działania daje przyczynę OUT_OF_AREA (migracja 0006).
 const scooterSql = sql`SELECT s.id, s.number, s.status, s.online, s.battery_pct, s.variant,
-                              ST_Y(s.position) AS lat, ST_X(s.position) AS lon, m.range_km AS model_range_km
+                              ST_Y(s.position) AS lat, ST_X(s.position) AS lon, m.range_km AS model_range_km,
+                              CASE WHEN s.position IS NULL THEN NULL ELSE fn_scooter_can_ride(s.position) END AS can_ride
                        FROM scooters s JOIN scooter_models m ON m.id = s.model_id`;
 const toScooter = (r: Row): CustomerScooterRow => ({
   id: r.id as string,
@@ -137,6 +142,7 @@ const toScooter = (r: Row): CustomerScooterRow => ({
   status: r.status as ScooterStatus,
   online: r.online as boolean,
   batteryPct: r.battery_pct as number | null,
+  canRide: (r.can_ride as boolean | null) ?? null,
   variant: r.variant as ScooterVariant,
   lat: num(r.lat),
   lon: num(r.lon),
@@ -149,7 +155,8 @@ const rentalSql = sql`
          ez.code AS end_zone_code, ez.name AS end_zone_name,
          s.number AS scooter_number, s.variant AS scooter_variant, s.battery_pct AS scooter_battery_pct,
          s.online AS scooter_online, ST_Y(s.position) AS scooter_lat, ST_X(s.position) AS scooter_lon,
-         (SELECT c.type FROM scooter_commands c WHERE c.rental_id = r.id AND c.status = 'SENT') AS pending_command
+         (SELECT c.type FROM scooter_commands c
+          WHERE c.rental_id = r.id AND c.status = 'SENT' AND c.type IN ('LOCK', 'UNLOCK')) AS pending_command
   FROM rentals r
   JOIN scooters s ON s.id = r.scooter_id
   LEFT JOIN zones ez ON ez.id = r.end_zone_id`;
@@ -179,7 +186,8 @@ const toRental = (r: Row): RentalRecord => ({
   pendingCommand: (r.pending_command as CommandType | null) ?? null,
 });
 
-const commandSql = sql`SELECT c.id, c.scooter_id, s.number AS scooter_number, c.rental_id, c.type, c.status, c.sent_at, c.expires_at
+const commandSql = sql`SELECT c.id, c.scooter_id, s.number AS scooter_number, c.rental_id, c.type, c.status, c.sent_at,
+                              c.expires_at, c.payload
                        FROM scooter_commands c JOIN scooters s ON s.id = c.scooter_id`;
 const toCommand = (r: Row): RentalCommandRecord => ({
   id: r.id as string,
@@ -190,6 +198,7 @@ const toCommand = (r: Row): RentalCommandRecord => ({
   status: r.status as RentalCommandRecord['status'],
   sentAt: new Date(r.sent_at as string),
   expiresAt: date(r.expires_at),
+  ...(r.payload && Object.keys(r.payload as object).length > 0 ? { params: r.payload as { kmh?: number } } : {}),
 });
 
 /**
@@ -274,7 +283,7 @@ export class DrizzleRentalRepository {
              ST_Y(ST_PointOnSurface(geom)) AS lat, ST_X(ST_PointOnSurface(geom)) AS lon
       FROM zones, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326) p
       WHERE active AND type = 'PARKING'
-      ORDER BY geom <-> p LIMIT 1`);
+      ORDER BY ST_Distance(geom::geography, p::geography), code LIMIT 1`);
     return row
       ? {
           code: row.code as string,
@@ -362,7 +371,12 @@ export class DrizzleRentalRepository {
   async addEvent(
     rentalId: string,
     type: RentalEventType,
-    change: { from?: RentalState | null; to?: RentalState | null; data?: Record<string, unknown>; zoneId?: string | null } = {},
+    change: {
+      from?: RentalState | null;
+      to?: RentalState | null;
+      data?: Record<string, unknown>;
+      zoneId?: string | null;
+    } = {},
   ): Promise<void> {
     await this.db.execute(sql`
       INSERT INTO rental_events (rental_id, type, from_state, to_state, data, zone_id)
@@ -402,6 +416,36 @@ export class DrizzleRentalRepository {
   }
 
   /** Rezerwacje po terminie, których zadanie wygaśnięcia się zgubiło (zadanie zabezpieczające, ADR 0037). */
+  /** Hulajnogi w przejeździe po odblokowaniu, przed zakończeniem: śledzenie stref (ADR 0043). */
+  async ridingByScooter(scooterIds: string[]): Promise<Map<string, string>> {
+    if (!scooterIds.length) return new Map();
+    const rows = await this.rows(sql`
+      SELECT id, scooter_id FROM rentals
+      WHERE ${inArray(rentals.scooterId, scooterIds)} AND state IN ('ACTIVE', 'PAUSED', 'ENDING')`);
+    return new Map(rows.map((r) => [r.scooter_id as string, r.id as string]));
+  }
+
+  /**
+   * Strefy, w których jest hulajnoga przejazdu (stan z wykrywania stref, migracja 0006); `null`, dopóki
+   * śledzenie się nie zaczęło (pusta lista po starcie śledzenia znaczy „poza obszarem działania”).
+   */
+  async currentZones(rentalId: string): Promise<Zone[] | null> {
+    const [started] = await this.rows(sql`SELECT 1 FROM scooter_zone_control WHERE rental_id = ${rentalId}`);
+    if (!started) return null;
+    const rows = await this.rows(sql`
+      SELECT z.id, z.code, z.name, z.type, z.speed_limit_kmh
+      FROM scooter_zone_presence p JOIN zones z ON z.id = p.zone_id
+      WHERE p.rental_id = ${rentalId}
+      ORDER BY CASE z.type WHEN 'NO_RIDE' THEN 0 WHEN 'SLOW' THEN 1 WHEN 'PARKING' THEN 2 ELSE 3 END, z.code`);
+    return rows.map((r) => ({
+      id: r.id as string,
+      code: r.code as string,
+      name: r.name as string,
+      type: r.type as ZoneType,
+      speedLimitKmh: (r.speed_limit_kmh as number | null) ?? null,
+    }));
+  }
+
   async dueReservations(now: Date, limit = 100): Promise<string[]> {
     const rows = await this.rows(sql`
       SELECT id FROM rentals WHERE state = 'RESERVED' AND reservation_expires_at <= ${now}
@@ -417,10 +461,13 @@ export class DrizzleRentalRepository {
     rentalId: string | null;
     type: CommandType;
     ttlMs: number;
+    /** Parametry komendy MQTT (limit prędkości strefy; `speed_limit` bez `kmh` zdejmuje limit). */
+    params?: { kmh?: number };
   }): Promise<RentalCommandRecord> {
     const row = await this.one(sql`
-      INSERT INTO scooter_commands (scooter_id, rental_id, type, expires_at)
-      VALUES (${input.scooterId}, ${input.rentalId}, ${input.type}, now() + make_interval(secs => ${input.ttlMs / 1000}))
+      INSERT INTO scooter_commands (scooter_id, rental_id, type, payload, expires_at)
+      VALUES (${input.scooterId}, ${input.rentalId}, ${input.type}, ${JSON.stringify(input.params ?? {})}::jsonb,
+              now() + make_interval(secs => ${input.ttlMs / 1000}))
       RETURNING id`);
     return (await this.command(row!.id as string))!;
   }
@@ -501,7 +548,9 @@ export class DrizzleRentalRepository {
 
   /** Prędkość z ostatniego punktu telemetrii przejazdu. */
   async lastSpeed(rentalId: string): Promise<number | null> {
-    const row = await this.one(sql`SELECT speed_kmh FROM telemetry WHERE rental_id = ${rentalId} ORDER BY recorded_at DESC LIMIT 1`);
+    const row = await this.one(
+      sql`SELECT speed_kmh FROM telemetry WHERE rental_id = ${rentalId} ORDER BY recorded_at DESC LIMIT 1`,
+    );
     return row ? Number(row.speed_kmh) : null;
   }
 

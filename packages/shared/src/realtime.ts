@@ -34,8 +34,15 @@ export interface ServerToClientEvents {
   'fleet.command': (command: CommandView) => void;
   /** Panel: każda zmiana przejazdu (stan, komenda w toku, problem). */
   'rentals.changed': (rental: RentalListItem) => void;
+  /** Wszyscy połączeni: strefy się zmieniły (panel, aplikacja); szczegóły pobiera się przez REST. */
+  'zones.changed': (event: ZonesChanged) => void;
   /** Klient: pełny widok jego przejazdu po każdej zmianie (stan, komenda, komunikat, liczniki). */
   'rental.updated': (rental: RentalView) => void;
+}
+
+export interface ZonesChanged {
+  zoneIds: string[];
+  at: string;
 }
 
 /** Odpowiedź na dołączenie do pokoju (potwierdzenie Socket.IO). */

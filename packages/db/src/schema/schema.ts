@@ -36,6 +36,7 @@ export const commandType = pgEnum('command_type', [
   'STOP_GRADUALLY',
   'RING',
   'LIGHTS',
+  'RELEASE_STOP',
 ]);
 export const consentType = pgEnum('consent_type', ['TERMS', 'PRIVACY', 'MARKETING', 'AGE']);
 export const contentClient = pgEnum('content_client', ['WEB', 'MOBILE', 'ADMIN']);
@@ -359,7 +360,9 @@ export const scooterCommands = pgTable(
   (table) => [
     uniqueIndex('scooter_commands_one_pending_per_rental')
       .using('btree', table.rentalId.asc().nullsLast().op('uuid_ops'))
-      .where(sql`((status = 'SENT'::command_status) AND (rental_id IS NOT NULL))`),
+      .where(
+        sql`((status = 'SENT'::command_status) AND (rental_id IS NOT NULL) AND (type = ANY (ARRAY['LOCK'::command_type, 'UNLOCK'::command_type])))`,
+      ),
     index('scooter_commands_pending_idx')
       .using('btree', table.sentAt.asc().nullsLast().op('timestamptz_ops'))
       .where(sql`(status = 'SENT'::command_status)`),
@@ -414,6 +417,9 @@ export const zones = pgTable(
     index('zones_geom_gix')
       .using('gist', table.geom.asc().nullsLast().op('gist_geometry_ops_2d'))
       .where(sql`active`),
+    uniqueIndex('zones_one_active_service_area')
+      .using('btree', table.type.asc().nullsLast().op('enum_ops'))
+      .where(sql`(active AND (type = 'SERVICE_AREA'::zone_type))`),
     foreignKey({
       columns: [table.updatedBy],
       foreignColumns: [staff.id],
@@ -423,6 +429,7 @@ export const zones = pgTable(
     check('zones_check', sql`(type <> 'SLOW'::zone_type) OR (speed_limit_kmh IS NOT NULL)`),
     check('zones_check1', sql`(type = 'PARKING'::zone_type) OR (capacity IS NULL)`),
     check('zones_geom_check', sql`CHECK (st_isvalid(geom`),
+    check('zones_speed_limit_only_slow', sql`(type = 'SLOW'::zone_type) OR (speed_limit_kmh IS NULL)`),
   ],
 );
 
@@ -466,16 +473,14 @@ export const rentalEvents = pgTable(
   'rental_events',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'rental_events_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'rental_events_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     rentalId: uuid('rental_id').notNull(),
     type: rentalEventType().notNull(),
     fromState: rentalState('from_state'),
@@ -692,16 +697,14 @@ export const walletLedger = pgTable(
   'wallet_ledger',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'wallet_ledger_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'wallet_ledger_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     userId: uuid('user_id').notNull(),
     type: ledgerEntryType().notNull(),
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -751,16 +754,14 @@ export const paymentWebhookEvents = pgTable(
   'payment_webhook_events',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'payment_webhook_events_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'payment_webhook_events_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     providerEventId: text('provider_event_id').notNull(),
     type: text().notNull(),
     payload: jsonb().notNull(),
@@ -822,16 +823,14 @@ export const notifications = pgTable(
   'notifications',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'notifications_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'notifications_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     userId: uuid('user_id').notNull(),
     type: text().notNull(),
     payload: jsonb().default({}).notNull(),
@@ -879,16 +878,14 @@ export const auditLog = pgTable(
   'audit_log',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'audit_log_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'audit_log_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     staffId: uuid('staff_id').notNull(),
     action: text().notNull(),
     entityType: text('entity_type').notNull(),
@@ -1634,6 +1631,46 @@ export const staffInvitations = pgTable(
   ],
 );
 
+export const scooterZoneControl = pgTable(
+  'scooter_zone_control',
+  {
+    scooterId: uuid('scooter_id').primaryKey().notNull(),
+    rentalId: uuid('rental_id').notNull(),
+    speedLimitKmh: smallint('speed_limit_kmh'),
+    limitSynced: boolean('limit_synced').default(true).notNull(),
+    limitCommandId: uuid('limit_command_id'),
+    stopped: boolean().default(false).notNull(),
+    stopSynced: boolean('stop_synced').default(true).notNull(),
+    stopCommandId: uuid('stop_command_id'),
+    startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('scooter_zone_control_rental_key').using('btree', table.rentalId.asc().nullsLast().op('uuid_ops')),
+    foreignKey({
+      columns: [table.limitCommandId],
+      foreignColumns: [scooterCommands.id],
+      name: 'scooter_zone_control_limit_command_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.rentalId],
+      foreignColumns: [rentals.id],
+      name: 'scooter_zone_control_rental_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.scooterId],
+      foreignColumns: [scooters.id],
+      name: 'scooter_zone_control_scooter_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.stopCommandId],
+      foreignColumns: [scooterCommands.id],
+      name: 'scooter_zone_control_stop_command_id_fkey',
+    }),
+    check('scooter_zone_control_speed_limit_kmh_check', sql`speed_limit_kmh > 0`),
+  ],
+);
+
 export const ticketPhotos = pgTable(
   'ticket_photos',
   {
@@ -1732,6 +1769,38 @@ export const serviceTaskParts = pgTable(
   ],
 );
 
+export const scooterZonePresence = pgTable(
+  'scooter_zone_presence',
+  {
+    scooterId: uuid('scooter_id').notNull(),
+    zoneId: uuid('zone_id').notNull(),
+    rentalId: uuid('rental_id').notNull(),
+    enteredAt: timestamp('entered_at', { withTimezone: true, mode: 'date' }).notNull(),
+    outsideCount: smallint('outside_count').default(0).notNull(),
+  },
+  (table) => [
+    index('scooter_zone_presence_rental_idx').using('btree', table.rentalId.asc().nullsLast().op('uuid_ops')),
+    index('scooter_zone_presence_zone_idx').using('btree', table.zoneId.asc().nullsLast().op('uuid_ops')),
+    foreignKey({
+      columns: [table.rentalId],
+      foreignColumns: [rentals.id],
+      name: 'scooter_zone_presence_rental_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.scooterId],
+      foreignColumns: [scooters.id],
+      name: 'scooter_zone_presence_scooter_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.zoneId],
+      foreignColumns: [zones.id],
+      name: 'scooter_zone_presence_zone_id_fkey',
+    }),
+    primaryKey({ columns: [table.scooterId, table.zoneId], name: 'scooter_zone_presence_pkey' }),
+    check('scooter_zone_presence_outside_count_check', sql`outside_count >= 0`),
+  ],
+);
+
 export const receiptItems = pgTable(
   'receipt_items',
   {
@@ -1757,47 +1826,6 @@ export const receiptItems = pgTable(
     check('receipt_items_vat_rate_check', sql`vat_rate >= (0)::numeric`),
   ],
 );
-export const vRentalDetails = pgView('v_rental_details', {
-  id: uuid(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  number: bigint({ mode: 'number' }),
-  state: rentalState(),
-  paymentSource: paymentSource('payment_source'),
-  reservedAt: timestamp('reserved_at', { withTimezone: true, mode: 'date' }),
-  reservationExpiresAt: timestamp('reservation_expires_at', { withTimezone: true, mode: 'date' }),
-  startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
-  endedAt: timestamp('ended_at', { withTimezone: true, mode: 'date' }),
-  rideSeconds: integer('ride_seconds'),
-  pauseSeconds: integer('pause_seconds'),
-  distanceM: integer('distance_m'),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  totalAmount: bigint('total_amount', { mode: 'number' }),
-  userId: uuid('user_id'),
-  userPhone: text('user_phone'),
-  userName: text('user_name'),
-  scooterId: uuid('scooter_id'),
-  scooterNumber: integer('scooter_number'),
-  tariffId: uuid('tariff_id'),
-  tariffVersion: integer('tariff_version'),
-  endZoneId: uuid('end_zone_id'),
-  endZoneCode: text('end_zone_code'),
-  endZoneName: text('end_zone_name'),
-  hasParkingPhoto: boolean('has_parking_photo'),
-  cardPaymentStatus: paymentStatus('card_payment_status'),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  walletCharge: bigint('wallet_charge', { mode: 'number' }),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
-  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
-  scooterOnline: boolean('scooter_online'),
-  scooterBatteryPct: smallint('scooter_battery_pct'),
-  elapsedSeconds: integer('elapsed_seconds'),
-  hasProblem: boolean('has_problem'),
-  userStatus: userStatus('user_status'),
-  pendingCommand: commandType('pending_command'),
-}).as(
-  sql`SELECT r.id, r.number, r.state, r.payment_source, r.reserved_at, r.reservation_expires_at, r.started_at, r.ended_at, r.ride_seconds, r.pause_seconds, r.distance_m, r.total_amount, r.user_id, u.phone AS user_phone, u.name AS user_name, r.scooter_id, s.number AS scooter_number, r.tariff_id, t.version AS tariff_version, r.end_zone_id, ez.code AS end_zone_code, ez.name AS end_zone_name, r.parking_photo_id IS NOT NULL AS has_parking_photo, p.status AS card_payment_status, l.amount AS wallet_charge, r.created_at, r.updated_at, s.online AS scooter_online, s.battery_pct AS scooter_battery_pct, CASE WHEN r.started_at IS NULL THEN 0 ELSE floor(EXTRACT(epoch FROM COALESCE(r.ended_at, now()) - r.started_at))::integer END AS elapsed_seconds, r.state = 'UNLOCK_FAILED'::rental_state OR (r.state = ANY (ARRAY['UNLOCKING'::rental_state, 'ACTIVE'::rental_state, 'PAUSED'::rental_state, 'ENDING'::rental_state])) AND (NOT s.online OR (EXISTS ( SELECT 1 FROM rental_events fe WHERE fe.rental_id = r.id AND (fe.type::text = ANY (ARRAY['PAUSE_FAILED'::text, 'RESUME_FAILED'::text, 'LOCK_FAILED'::text])) AND fe.created_at >= COALESCE(( SELECT max(se.created_at) AS max FROM rental_events se WHERE se.rental_id = r.id AND se.type = 'STATE_CHANGED'::rental_event_type AND se.to_state <> 'ENDING'::rental_state), '-infinity'::timestamp with time zone)))) AS has_problem, u.status AS user_status, ( SELECT c.type FROM scooter_commands c WHERE c.rental_id = r.id AND c.status = 'SENT'::command_status) AS pending_command FROM rentals r JOIN users u ON u.id = r.user_id JOIN scooters s ON s.id = r.scooter_id JOIN tariffs t ON t.id = r.tariff_id LEFT JOIN zones ez ON ez.id = r.end_zone_id LEFT JOIN LATERAL ( SELECT pay.status FROM payments pay WHERE pay.rental_id = r.id AND pay.purpose = 'RIDE'::payment_purpose ORDER BY pay.created_at DESC LIMIT 1) p ON true LEFT JOIN wallet_ledger l ON l.rental_id = r.id AND l.type = 'RIDE_CHARGE'::ledger_entry_type`,
-);
-
 export const vFleetStatus = pgView('v_fleet_status', {
   id: uuid(),
   number: integer(),
@@ -1863,6 +1891,47 @@ export const vDailyRevenue = pgView('v_daily_revenue', {
   refunds: bigint({ mode: 'number' }),
 }).as(
   sql`WITH rides AS ( SELECT (rentals.ended_at AT TIME ZONE 'Europe/Warsaw'::text)::date AS day, count(*) AS rides, sum(rentals.total_amount)::bigint AS ride_revenue, sum(rentals.ride_seconds) AS ride_seconds FROM rentals WHERE rentals.state = 'ENDED'::rental_state AND rentals.ended_at IS NOT NULL GROUP BY ((rentals.ended_at AT TIME ZONE 'Europe/Warsaw'::text)::date) ), topups AS ( SELECT (payments.created_at AT TIME ZONE 'Europe/Warsaw'::text)::date AS day, sum(payments.amount)::bigint AS topups FROM payments WHERE payments.purpose = 'TOPUP'::payment_purpose AND payments.status = 'SUCCEEDED'::payment_status GROUP BY ((payments.created_at AT TIME ZONE 'Europe/Warsaw'::text)::date) ), refunds AS ( SELECT (wallet_ledger.created_at AT TIME ZONE 'Europe/Warsaw'::text)::date AS day, sum(wallet_ledger.amount)::bigint AS refunds FROM wallet_ledger WHERE wallet_ledger.type = 'REFUND'::ledger_entry_type GROUP BY ((wallet_ledger.created_at AT TIME ZONE 'Europe/Warsaw'::text)::date) ) SELECT day, COALESCE(rides.rides, 0::bigint) AS rides, COALESCE(rides.ride_revenue, 0::bigint) AS ride_revenue, COALESCE(rides.ride_seconds, 0::bigint) AS ride_seconds, COALESCE(topups.topups, 0::bigint) AS topups, COALESCE(refunds.refunds, 0::bigint) AS refunds FROM rides FULL JOIN topups USING (day) FULL JOIN refunds USING (day)`,
+);
+
+export const vRentalDetails = pgView('v_rental_details', {
+  id: uuid(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  number: bigint({ mode: 'number' }),
+  state: rentalState(),
+  paymentSource: paymentSource('payment_source'),
+  reservedAt: timestamp('reserved_at', { withTimezone: true, mode: 'date' }),
+  reservationExpiresAt: timestamp('reservation_expires_at', { withTimezone: true, mode: 'date' }),
+  startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+  endedAt: timestamp('ended_at', { withTimezone: true, mode: 'date' }),
+  rideSeconds: integer('ride_seconds'),
+  pauseSeconds: integer('pause_seconds'),
+  distanceM: integer('distance_m'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  totalAmount: bigint('total_amount', { mode: 'number' }),
+  userId: uuid('user_id'),
+  userPhone: text('user_phone'),
+  userName: text('user_name'),
+  scooterId: uuid('scooter_id'),
+  scooterNumber: integer('scooter_number'),
+  tariffId: uuid('tariff_id'),
+  tariffVersion: integer('tariff_version'),
+  endZoneId: uuid('end_zone_id'),
+  endZoneCode: text('end_zone_code'),
+  endZoneName: text('end_zone_name'),
+  hasParkingPhoto: boolean('has_parking_photo'),
+  cardPaymentStatus: paymentStatus('card_payment_status'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  walletCharge: bigint('wallet_charge', { mode: 'number' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  scooterOnline: boolean('scooter_online'),
+  scooterBatteryPct: smallint('scooter_battery_pct'),
+  elapsedSeconds: integer('elapsed_seconds'),
+  hasProblem: boolean('has_problem'),
+  userStatus: userStatus('user_status'),
+  pendingCommand: commandType('pending_command'),
+}).as(
+  sql`SELECT r.id, r.number, r.state, r.payment_source, r.reserved_at, r.reservation_expires_at, r.started_at, r.ended_at, r.ride_seconds, r.pause_seconds, r.distance_m, r.total_amount, r.user_id, u.phone AS user_phone, u.name AS user_name, r.scooter_id, s.number AS scooter_number, r.tariff_id, t.version AS tariff_version, r.end_zone_id, ez.code AS end_zone_code, ez.name AS end_zone_name, r.parking_photo_id IS NOT NULL AS has_parking_photo, p.status AS card_payment_status, l.amount AS wallet_charge, r.created_at, r.updated_at, s.online AS scooter_online, s.battery_pct AS scooter_battery_pct, CASE WHEN r.started_at IS NULL THEN 0 ELSE floor(EXTRACT(epoch FROM COALESCE(r.ended_at, now()) - r.started_at))::integer END AS elapsed_seconds, r.state = 'UNLOCK_FAILED'::rental_state OR (r.state = ANY (ARRAY['UNLOCKING'::rental_state, 'ACTIVE'::rental_state, 'PAUSED'::rental_state, 'ENDING'::rental_state])) AND (NOT s.online OR (EXISTS ( SELECT 1 FROM rental_events fe WHERE fe.rental_id = r.id AND (fe.type::text = ANY (ARRAY['PAUSE_FAILED'::text, 'RESUME_FAILED'::text, 'LOCK_FAILED'::text])) AND fe.created_at >= COALESCE(( SELECT max(se.created_at) AS max FROM rental_events se WHERE se.rental_id = r.id AND se.type = 'STATE_CHANGED'::rental_event_type AND se.to_state <> 'ENDING'::rental_state), '-infinity'::timestamp with time zone)))) AS has_problem, u.status AS user_status, ( SELECT c.type FROM scooter_commands c WHERE c.rental_id = r.id AND c.status = 'SENT'::command_status AND (c.type = ANY (ARRAY['LOCK'::command_type, 'UNLOCK'::command_type]))) AS pending_command FROM rentals r JOIN users u ON u.id = r.user_id JOIN scooters s ON s.id = r.scooter_id JOIN tariffs t ON t.id = r.tariff_id LEFT JOIN zones ez ON ez.id = r.end_zone_id LEFT JOIN LATERAL ( SELECT pay.status FROM payments pay WHERE pay.rental_id = r.id AND pay.purpose = 'RIDE'::payment_purpose ORDER BY pay.created_at DESC LIMIT 1) p ON true LEFT JOIN wallet_ledger l ON l.rental_id = r.id AND l.type = 'RIDE_CHARGE'::ledger_entry_type`,
 );
 
 export const vTicketQueue = pgView('v_ticket_queue', {
@@ -2176,4 +2245,39 @@ export const vRentalTimeline = pgView('v_rental_timeline', {
   ackReason: text('ack_reason'),
 }).as(
   sql`SELECT e.rental_id, e.created_at AS at, 'EVENT'::text AS kind, e.id AS event_id, e.type::text AS type, e.from_state, e.to_state, e.data, z.code AS zone_code, NULL::uuid AS command_id, NULL::command_status AS command_status, NULL::timestamp with time zone AS acked_at, NULL::text AS ack_reason FROM rental_events e LEFT JOIN zones z ON z.id = e.zone_id UNION ALL SELECT c.rental_id, c.sent_at AS at, 'COMMAND'::text AS kind, NULL::bigint AS event_id, c.type::text AS type, NULL::rental_state AS from_state, NULL::rental_state AS to_state, c.payload AS data, NULL::text AS zone_code, c.id AS command_id, c.status AS command_status, c.acked_at, c.ack_reason FROM scooter_commands c WHERE c.rental_id IS NOT NULL`,
+);
+
+export const vZoneList = pgView('v_zone_list', {
+  id: uuid(),
+  code: text(),
+  name: text(),
+  type: zoneType(),
+  active: boolean(),
+  visibleInApp: boolean('visible_in_app'),
+  speedLimitKmh: smallint('speed_limit_kmh'),
+  capacity: smallint(),
+  version: integer(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  updatedBy: uuid('updated_by'),
+  updatedByName: text('updated_by_name'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  areaM2: bigint('area_m2', { mode: 'number' }),
+  points: integer(),
+  scootersInside: integer('scooters_inside'),
+  ridesInside: integer('rides_inside'),
+  used: boolean(),
+}).as(
+  sql`SELECT z.id, z.code, z.name, z.type, z.active, z.visible_in_app, z.speed_limit_kmh, z.capacity, z.version, z.updated_at, z.updated_by, st.name AS updated_by_name, round(st_area(z.geom::geography))::bigint AS area_m2, st_npoints(z.geom) - st_nrings(z.geom) AS points, (( SELECT count(*) AS count FROM scooters s WHERE s.status <> 'RETIRED'::scooter_status AND s."position" IS NOT NULL AND st_contains(z.geom, s."position")))::integer AS scooters_inside, (( SELECT count(*) AS count FROM scooter_zone_presence pr WHERE pr.zone_id = z.id))::integer AS rides_inside, (EXISTS ( SELECT 1 FROM rentals r WHERE r.end_zone_id = z.id)) OR (EXISTS ( SELECT 1 FROM rental_events e WHERE e.zone_id = z.id)) AS used FROM zones z LEFT JOIN staff st ON st.id = z.updated_by`,
+);
+
+export const vParkingOccupancy = pgView('v_parking_occupancy', {
+  zoneId: uuid('zone_id'),
+  code: text(),
+  name: text(),
+  capacity: smallint(),
+  scootersCount: integer('scooters_count'),
+  availableCount: integer('available_count'),
+  isFull: boolean('is_full'),
+}).as(
+  sql`SELECT z.id AS zone_id, z.code, z.name, z.capacity, count(s.id)::integer AS scooters_count, count(s.id) FILTER (WHERE s.status = 'AVAILABLE'::scooter_status)::integer AS available_count, z.capacity IS NOT NULL AND count(s.id) >= z.capacity AS is_full FROM zones z LEFT JOIN scooters s ON s.status <> 'RETIRED'::scooter_status AND s."position" IS NOT NULL AND st_contains(z.geom, s."position") WHERE z.active AND z.type = 'PARKING'::zone_type GROUP BY z.id`,
 );

@@ -16,6 +16,8 @@ export * from './rentals/rental-state-machine.js';
 export * from './rentals/rentals.js';
 export * from './rentals/pricing.js';
 export * from './zones/zones.js';
+export * from './zones/editing.js';
+export * from './zones/tracking.js';
 export * from './fleet/fleet-status.js';
 export * from './fleet/scooters.js';
 export * from './fleet/commands.js';

@@ -38,12 +38,14 @@ import {
   receipts,
   staffSessions,
   staffInvitations,
+  scooterZoneControl,
   ticketPhotos,
   rolePermissions,
   roles,
   staffRoles,
   spareParts,
   serviceTaskParts,
+  scooterZonePresence,
   receiptItems,
 } from './schema.js';
 
@@ -173,7 +175,7 @@ export const sessionsRelations = relations(sessions, ({ one, many }) => ({
   }),
 }));
 
-export const scooterCommandsRelations = relations(scooterCommands, ({ one }) => ({
+export const scooterCommandsRelations = relations(scooterCommands, ({ one, many }) => ({
   staff: one(staff, {
     fields: [scooterCommands.issuedByStaff],
     references: [staff.id],
@@ -185,6 +187,12 @@ export const scooterCommandsRelations = relations(scooterCommands, ({ one }) => 
   scooter: one(scooters, {
     fields: [scooterCommands.scooterId],
     references: [scooters.id],
+  }),
+  scooterZoneControls_limitCommandId: many(scooterZoneControl, {
+    relationName: 'scooterZoneControl_limitCommandId_scooterCommands_id',
+  }),
+  scooterZoneControls_stopCommandId: many(scooterZoneControl, {
+    relationName: 'scooterZoneControl_stopCommandId_scooterCommands_id',
   }),
 }));
 
@@ -215,6 +223,8 @@ export const rentalsRelations = relations(rentals, ({ one, many }) => ({
   walletLedgers: many(walletLedger),
   tickets: many(tickets),
   receipts: many(receipts),
+  scooterZoneControls: many(scooterZoneControl),
+  scooterZonePresences: many(scooterZonePresence),
 }));
 
 export const scootersRelations = relations(scooters, ({ one, many }) => ({
@@ -226,6 +236,8 @@ export const scootersRelations = relations(scooters, ({ one, many }) => ({
   rentals: many(rentals),
   tickets: many(tickets),
   serviceTasks: many(serviceTasks),
+  scooterZoneControls: many(scooterZoneControl),
+  scooterZonePresences: many(scooterZonePresence),
 }));
 
 export const zonesRelations = relations(zones, ({ one, many }) => ({
@@ -235,6 +247,7 @@ export const zonesRelations = relations(zones, ({ one, many }) => ({
   }),
   rentalEvents: many(rentalEvents),
   rentals: many(rentals),
+  scooterZonePresences: many(scooterZonePresence),
 }));
 
 export const scooterModelsRelations = relations(scooterModels, ({ one, many }) => ({
@@ -578,6 +591,27 @@ export const staffInvitationsRelations = relations(staffInvitations, ({ one }) =
   }),
 }));
 
+export const scooterZoneControlRelations = relations(scooterZoneControl, ({ one }) => ({
+  scooterCommand_limitCommandId: one(scooterCommands, {
+    fields: [scooterZoneControl.limitCommandId],
+    references: [scooterCommands.id],
+    relationName: 'scooterZoneControl_limitCommandId_scooterCommands_id',
+  }),
+  rental: one(rentals, {
+    fields: [scooterZoneControl.rentalId],
+    references: [rentals.id],
+  }),
+  scooter: one(scooters, {
+    fields: [scooterZoneControl.scooterId],
+    references: [scooters.id],
+  }),
+  scooterCommand_stopCommandId: one(scooterCommands, {
+    fields: [scooterZoneControl.stopCommandId],
+    references: [scooterCommands.id],
+    relationName: 'scooterZoneControl_stopCommandId_scooterCommands_id',
+  }),
+}));
+
 export const ticketPhotosRelations = relations(ticketPhotos, ({ one }) => ({
   file: one(files, {
     fields: [ticketPhotos.fileId],
@@ -635,6 +669,21 @@ export const serviceTaskPartsRelations = relations(serviceTaskParts, ({ one }) =
 
 export const sparePartsRelations = relations(spareParts, ({ many }) => ({
   serviceTaskParts: many(serviceTaskParts),
+}));
+
+export const scooterZonePresenceRelations = relations(scooterZonePresence, ({ one }) => ({
+  rental: one(rentals, {
+    fields: [scooterZonePresence.rentalId],
+    references: [rentals.id],
+  }),
+  scooter: one(scooters, {
+    fields: [scooterZonePresence.scooterId],
+    references: [scooters.id],
+  }),
+  zone: one(zones, {
+    fields: [scooterZonePresence.zoneId],
+    references: [zones.id],
+  }),
 }));
 
 export const receiptItemsRelations = relations(receiptItems, ({ one }) => ({

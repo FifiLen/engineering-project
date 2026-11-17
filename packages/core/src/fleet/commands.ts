@@ -2,7 +2,15 @@ import { DomainError } from '../errors.js';
 import type { ScooterStatus } from './fleet-status.js';
 
 /** Komendy do hulajnogi (typ `command_type`); w MQTT te same nazwy małymi literami. */
-export const COMMAND_TYPES = ['UNLOCK', 'LOCK', 'SPEED_LIMIT', 'STOP_GRADUALLY', 'RING', 'LIGHTS'] as const;
+export const COMMAND_TYPES = [
+  'UNLOCK',
+  'LOCK',
+  'SPEED_LIMIT',
+  'STOP_GRADUALLY',
+  'RING',
+  'LIGHTS',
+  'RELEASE_STOP',
+] as const;
 export type CommandType = (typeof COMMAND_TYPES)[number];
 
 export const COMMAND_STATUSES = ['SENT', 'ACKED', 'REJECTED', 'TIMEOUT'] as const;
@@ -11,6 +19,17 @@ export type CommandStatus = (typeof COMMAND_STATUSES)[number];
 /** Komendy dostępne dla operatora w panelu; limit prędkości i zatrzymanie wysyła system w trakcie przejazdu. */
 export const PANEL_COMMANDS = ['UNLOCK', 'LOCK', 'RING', 'LIGHTS'] as const satisfies readonly CommandType[];
 export type PanelCommand = (typeof PANEL_COMMANDS)[number];
+
+/** Komendy stref (ADR 0044): uzgadnia je moduł Strefy, nie maszyna stanów przejazdu. */
+export const ZONE_COMMANDS = [
+  'SPEED_LIMIT',
+  'STOP_GRADUALLY',
+  'RELEASE_STOP',
+] as const satisfies readonly CommandType[];
+export type ZoneCommand = (typeof ZONE_COMMANDS)[number];
+
+export const isZoneCommand = (type: CommandType): type is ZoneCommand =>
+  (ZONE_COMMANDS as readonly CommandType[]).includes(type);
 
 /** Czas na potwierdzenie komendy (ADR 0016: limit 10 s na potwierdzenie odblokowania). */
 export const COMMAND_ACK_TIMEOUT_MS = 10_000;
