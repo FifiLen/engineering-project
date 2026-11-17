@@ -236,8 +236,9 @@ describe.skipIf(!adminUrl)('flota i telemetria w bazie', () => {
     expect(ring.status).toBe('SENT');
     expect((await commands.complete(ring.id, 'ACKED', new Date()))!.status).toBe('ACKED');
     expect(await commands.complete(ring.id, 'REJECTED', new Date())).toBeNull();
-    const expired = await commands.expirePending(new Date(Date.now() + 60_000));
-    expect(expired.map((c) => c.id)).toEqual([lock.id]);
+    expect(await commands.overdue(new Date(Date.now() + 60_000))).toEqual([lock.id]);
+    expect((await commands.timeout(lock.id))!.status).toBe('TIMEOUT');
+    expect(await commands.timeout(lock.id)).toBeNull();
     const recent = await commands.recentForScooter(scooterId, 5);
     expect(recent.map((c) => [c.type, c.status, c.scooterNumber])).toEqual([
       ['LOCK', 'TIMEOUT', 1],

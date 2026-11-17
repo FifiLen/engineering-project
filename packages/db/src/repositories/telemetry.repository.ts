@@ -57,6 +57,8 @@ export class DrizzleTelemetryRepository implements TelemetryRepository {
               position: point(reading),
               batteryPct: reading.batteryPct,
               speedKmh: reading.speedKmh,
+              // Punkt należy do przejazdu w trakcie jazdy (dystans i trasa przejazdu, ADR 0042).
+              rentalId: sql`(SELECT id FROM rentals WHERE scooter_id = ${scooterId} AND state IN ('ACTIVE', 'PAUSED', 'ENDING'))`,
             })),
           )
           // QoS 1 może dostarczyć wiadomość ponownie; klucz (hulajnoga, czas) czyni zapis idempotentnym.

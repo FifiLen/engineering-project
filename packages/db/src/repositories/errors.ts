@@ -30,12 +30,26 @@ export function rethrowUniqueViolation(error: unknown): never {
  * rolami (migracja 0004) jest odroczony: w transakcji błąd przychodzi przy zatwierdzeniu, więc serwis
  * w API przepuszcza przez tę funkcję także błąd całej transakcji.
  */
-const DATABASE_RULES = ['LAST_ROLE_MANAGER'] as const;
+const DATABASE_RULES = ['LAST_ROLE_MANAGER', 'USER_HAS_OPEN_RENTAL', 'WALLET_BALANCE_NOT_ZERO'] as const;
+
+/**
+ * Indeksy częściowe przejazdu (ADR 0036): wyścig, którego nie wyłapała blokada wiersza, kończy się
+ * tym samym błędem co sprawdzenie w core.
+ */
+const RENTAL_CONSTRAINTS: Record<string, string> = {
+  rentals_one_open_per_user: 'RENTAL_ALREADY_OPEN',
+  rentals_one_open_per_scooter: 'SCOOTER_UNAVAILABLE',
+  scooter_commands_one_pending_per_rental: 'RENTAL_COMMAND_PENDING',
+};
 
 export function rethrowDatabaseRule(error: unknown): never {
-  const cause = (error as { cause?: { message?: string } }).cause ?? (error as { message?: string });
+  const cause =
+    (error as { cause?: { message?: string; code?: string; constraint?: string } }).cause ??
+    (error as { message?: string; code?: string; constraint?: string });
   const rule = DATABASE_RULES.find((r) => cause?.message === r);
   if (rule) throw new DomainError(rule);
+  if (cause?.code === '23505' && cause.constraint && RENTAL_CONSTRAINTS[cause.constraint]) {
+    throw new DomainError(RENTAL_CONSTRAINTS[cause.constraint]!);
+  }
   rethrowUniqueViolation(error);
 }
-

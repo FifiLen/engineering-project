@@ -26,6 +26,7 @@ async function main() {
     const summary = await seedDatabase(pool, {
       places,
       fleetSize: Number(process.env.SEED_FLEET_SIZE ?? 40),
+      sampleRentals: Number(process.env.SEED_SAMPLE_RENTALS ?? 12),
       admin: {
         email: requireEnv('SEED_ADMIN_EMAIL', 'admin@hulajnogi.local'),
         name: 'Administrator',

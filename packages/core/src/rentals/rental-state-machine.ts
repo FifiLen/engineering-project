@@ -15,19 +15,29 @@ export const RENTAL_STATES = [
 export type RentalState = (typeof RENTAL_STATES)[number];
 
 /** Stany niekońcowe: hulajnoga i użytkownik mogą mieć najwyżej jeden taki przejazd (indeksy częściowe w bazie). */
-export const OPEN_RENTAL_STATES = ['RESERVED', 'UNLOCKING', 'ACTIVE', 'PAUSED', 'ENDING'] as const satisfies readonly RentalState[];
+export const OPEN_RENTAL_STATES = [
+  'RESERVED',
+  'UNLOCKING',
+  'ACTIVE',
+  'PAUSED',
+  'ENDING',
+] as const satisfies readonly RentalState[];
 
 /** Zdarzenia zmieniające stan; nazwy odpowiadają przejściom z diagramu w arc42 §6.1. */
 export type RentalAction =
   | 'RESERVE'
   | 'START'
   | 'EXPIRE_RESERVATION'
+  | 'CANCEL_RESERVATION'
   | 'CONFIRM_UNLOCK'
   | 'UNLOCK_TIMEOUT'
   | 'PAUSE'
   | 'RESUME'
   | 'REQUEST_END'
   | 'COMPLETE_END'
+  | 'ABORT_END'
+  | 'ABORT_END_PAUSED'
+  | 'END_REMOTELY'
   | 'DECLINE_PAYMENT'
   | 'SETTLE_DEBT';
 
@@ -41,6 +51,7 @@ const TRANSITIONS: Record<RentalAction, ReadonlyArray<readonly [From, RentalStat
     ['RESERVED', 'UNLOCKING'],
   ],
   EXPIRE_RESERVATION: [['RESERVED', 'EXPIRED']],
+  CANCEL_RESERVATION: [['RESERVED', 'EXPIRED']],
   CONFIRM_UNLOCK: [['UNLOCKING', 'ACTIVE']],
   UNLOCK_TIMEOUT: [['UNLOCKING', 'UNLOCK_FAILED']],
   PAUSE: [['ACTIVE', 'PAUSED']],
@@ -50,6 +61,15 @@ const TRANSITIONS: Record<RentalAction, ReadonlyArray<readonly [From, RentalStat
     ['PAUSED', 'ENDING'],
   ],
   COMPLETE_END: [['ENDING', 'ENDED']],
+  // Hulajnoga nie potwierdziła blokady: przejazd wraca do stanu sprzed żądania zakończenia (ADR 0036).
+  ABORT_END: [['ENDING', 'ACTIVE']],
+  ABORT_END_PAUSED: [['ENDING', 'PAUSED']],
+  // Operator kończy przejazd niezależnie od strefy i bez czekania na blokadę (decyzja D7).
+  END_REMOTELY: [
+    ['ACTIVE', 'ENDED'],
+    ['PAUSED', 'ENDED'],
+    ['ENDING', 'ENDED'],
+  ],
   DECLINE_PAYMENT: [['ENDING', 'UNPAID']],
   SETTLE_DEBT: [['UNPAID', 'ENDED']],
 };
@@ -74,7 +94,9 @@ export const RentalStateMachine = {
   },
 
   isAllowed(from: From, to: RentalState): boolean {
-    return Object.values(TRANSITIONS).some((pairs) => pairs.some(([source, target]) => source === from && target === to));
+    return Object.values(TRANSITIONS).some((pairs) =>
+      pairs.some(([source, target]) => source === from && target === to),
+    );
   },
 
   isOpen(state: RentalState): boolean {

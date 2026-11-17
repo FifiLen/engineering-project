@@ -6,14 +6,14 @@ import {
   text,
   smallint,
   timestamp,
-  foreignKey,
   unique,
-  geometry,
-  uniqueIndex,
   check,
   integer,
-  bigint,
   boolean,
+  foreignKey,
+  geometry,
+  uniqueIndex,
+  bigint,
   jsonb,
   char,
   numeric,
@@ -73,6 +73,12 @@ export const rentalEventType = pgEnum('rental_event_type', [
   'CONNECTION_LOST',
   'CONNECTION_RESTORED',
   'PHOTO_UPLOADED',
+  'END_REQUESTED',
+  'PAUSE_FAILED',
+  'RESUME_FAILED',
+  'LOCK_FAILED',
+  'ENDED_REMOTELY',
+  'LATE_UNLOCK_LOCKED',
 ]);
 export const rentalState = pgEnum('rental_state', [
   'RESERVED',
@@ -156,6 +162,34 @@ export const otpCodes = pgTable(
       table.phone.asc().nullsLast().op('text_ops'),
       table.createdAt.desc().nullsFirst().op('text_ops'),
     ),
+  ],
+);
+
+export const users = pgTable(
+  'users',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    phone: text(),
+    email: text(),
+    name: text(),
+    status: userStatus().default('ACTIVE').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    version: integer().default(1).notNull(),
+    blockedAt: timestamp('blocked_at', { withTimezone: true, mode: 'date' }),
+    blockedReason: blockReason('blocked_reason'),
+    notifyReservationEnd: boolean('notify_reservation_end').default(true).notNull(),
+    notifyReceipts: boolean('notify_receipts').default(true).notNull(),
+  },
+  (table) => [
+    unique('users_phone_key').on(table.phone),
+    unique('users_email_key').on(table.email),
+    check(
+      'users_block_consistent',
+      sql`((status = 'BLOCKED'::user_status) = (blocked_at IS NOT NULL)) AND ((blocked_at IS NULL) = (blocked_reason IS NULL))`,
+    ),
+    check('users_check', sql`(status <> 'DELETED'::user_status) OR ((phone IS NULL) AND (email IS NULL))`),
   ],
 );
 
@@ -272,32 +306,6 @@ export const tariffs = pgTable(
   ],
 );
 
-export const users = pgTable(
-  'users',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    phone: text(),
-    email: text(),
-    name: text(),
-    status: userStatus().default('ACTIVE').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    version: integer().default(1).notNull(),
-    blockedAt: timestamp('blocked_at', { withTimezone: true, mode: 'date' }),
-    blockedReason: blockReason('blocked_reason'),
-  },
-  (table) => [
-    unique('users_phone_key').on(table.phone),
-    unique('users_email_key').on(table.email),
-    check(
-      'users_block_consistent',
-      sql`((status = 'BLOCKED'::user_status) = (blocked_at IS NOT NULL)) AND ((blocked_at IS NULL) = (blocked_reason IS NULL))`,
-    ),
-    check('users_check', sql`(status <> 'DELETED'::user_status) OR ((phone IS NULL) AND (email IS NULL))`),
-  ],
-);
-
 export const sessions = pgTable(
   'sessions',
   {
@@ -330,6 +338,59 @@ export const sessions = pgTable(
     }),
     unique('sessions_refresh_token_hash_key').on(table.refreshTokenHash),
     check('sessions_replaced_is_revoked', sql`(replaced_by IS NULL) OR (revoked_at IS NOT NULL)`),
+  ],
+);
+
+export const scooterCommands = pgTable(
+  'scooter_commands',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    scooterId: uuid('scooter_id').notNull(),
+    rentalId: uuid('rental_id'),
+    type: commandType().notNull(),
+    payload: jsonb().default({}).notNull(),
+    status: commandStatus().default('SENT').notNull(),
+    issuedByStaff: uuid('issued_by_staff'),
+    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    ackedAt: timestamp('acked_at', { withTimezone: true, mode: 'date' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+    ackReason: text('ack_reason'),
+  },
+  (table) => [
+    uniqueIndex('scooter_commands_one_pending_per_rental')
+      .using('btree', table.rentalId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`((status = 'SENT'::command_status) AND (rental_id IS NOT NULL))`),
+    index('scooter_commands_pending_idx')
+      .using('btree', table.sentAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(status = 'SENT'::command_status)`),
+    index('scooter_commands_rental_idx')
+      .using(
+        'btree',
+        table.rentalId.asc().nullsLast().op('uuid_ops'),
+        table.sentAt.asc().nullsLast().op('timestamptz_ops'),
+      )
+      .where(sql`(rental_id IS NOT NULL)`),
+    index('scooter_commands_scooter_idx').using(
+      'btree',
+      table.scooterId.asc().nullsLast().op('timestamptz_ops'),
+      table.sentAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    foreignKey({
+      columns: [table.issuedByStaff],
+      foreignColumns: [staff.id],
+      name: 'scooter_commands_issued_by_staff_fkey',
+    }),
+    foreignKey({
+      columns: [table.rentalId],
+      foreignColumns: [rentals.id],
+      name: 'scooter_commands_rental_fk',
+    }),
+    foreignKey({
+      columns: [table.scooterId],
+      foreignColumns: [scooters.id],
+      name: 'scooter_commands_scooter_id_fkey',
+    }),
+    check('scooter_commands_expiry_after_sent', sql`(expires_at IS NULL) OR (expires_at > sent_at)`),
   ],
 );
 
@@ -401,126 +462,6 @@ export const scooters = pgTable(
   ],
 );
 
-export const scooterCommands = pgTable(
-  'scooter_commands',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    scooterId: uuid('scooter_id').notNull(),
-    rentalId: uuid('rental_id'),
-    type: commandType().notNull(),
-    payload: jsonb().default({}).notNull(),
-    status: commandStatus().default('SENT').notNull(),
-    issuedByStaff: uuid('issued_by_staff'),
-    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    ackedAt: timestamp('acked_at', { withTimezone: true, mode: 'date' }),
-  },
-  (table) => [
-    index('scooter_commands_pending_idx')
-      .using('btree', table.sentAt.asc().nullsLast().op('timestamptz_ops'))
-      .where(sql`(status = 'SENT'::command_status)`),
-    index('scooter_commands_scooter_idx').using(
-      'btree',
-      table.scooterId.asc().nullsLast().op('timestamptz_ops'),
-      table.sentAt.desc().nullsFirst().op('timestamptz_ops'),
-    ),
-    foreignKey({
-      columns: [table.issuedByStaff],
-      foreignColumns: [staff.id],
-      name: 'scooter_commands_issued_by_staff_fkey',
-    }),
-    foreignKey({
-      columns: [table.rentalId],
-      foreignColumns: [rentals.id],
-      name: 'scooter_commands_rental_fk',
-    }),
-    foreignKey({
-      columns: [table.scooterId],
-      foreignColumns: [scooters.id],
-      name: 'scooter_commands_scooter_id_fkey',
-    }),
-  ],
-);
-
-export const rentals = pgTable(
-  'rentals',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    number: bigint({ mode: 'number' })
-      .default(sql`nextval('rental_number_seq'::regclass)`)
-      .notNull(),
-    userId: uuid('user_id').notNull(),
-    scooterId: uuid('scooter_id').notNull(),
-    tariffId: uuid('tariff_id').notNull(),
-    state: rentalState().notNull(),
-    paymentSource: paymentSource('payment_source').default('WALLET').notNull(),
-    reservedAt: timestamp('reserved_at', { withTimezone: true, mode: 'date' }),
-    reservationExpiresAt: timestamp('reservation_expires_at', { withTimezone: true, mode: 'date' }),
-    startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
-    endedAt: timestamp('ended_at', { withTimezone: true, mode: 'date' }),
-    rideSeconds: integer('ride_seconds').default(0).notNull(),
-    pauseSeconds: integer('pause_seconds').default(0).notNull(),
-    distanceM: integer('distance_m').default(0).notNull(),
-    startPosition: geometry('start_position', { type: 'point', srid: 4326 }),
-    endPosition: geometry('end_position', { type: 'point', srid: 4326 }),
-    endZoneId: uuid('end_zone_id'),
-    route: geometry({ type: 'linestring', srid: 4326 }),
-    parkingPhotoId: uuid('parking_photo_id'),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    totalAmount: bigint('total_amount', { mode: 'number' }),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-  },
-  (table) => [
-    uniqueIndex('rentals_one_open_per_scooter')
-      .using('btree', table.scooterId.asc().nullsLast().op('uuid_ops'))
-      .where(
-        sql`(state = ANY (ARRAY['RESERVED'::rental_state, 'UNLOCKING'::rental_state, 'ACTIVE'::rental_state, 'PAUSED'::rental_state, 'ENDING'::rental_state]))`,
-      ),
-    uniqueIndex('rentals_one_open_per_user')
-      .using('btree', table.userId.asc().nullsLast().op('uuid_ops'))
-      .where(
-        sql`(state = ANY (ARRAY['RESERVED'::rental_state, 'UNLOCKING'::rental_state, 'ACTIVE'::rental_state, 'PAUSED'::rental_state, 'ENDING'::rental_state]))`,
-      ),
-    index('rentals_scooter_idx').using(
-      'btree',
-      table.scooterId.asc().nullsLast().op('uuid_ops'),
-      table.createdAt.desc().nullsFirst().op('uuid_ops'),
-    ),
-    index('rentals_user_idx').using(
-      'btree',
-      table.userId.asc().nullsLast().op('timestamptz_ops'),
-      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
-    ),
-    foreignKey({
-      columns: [table.endZoneId],
-      foreignColumns: [zones.id],
-      name: 'rentals_end_zone_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.parkingPhotoId],
-      foreignColumns: [files.id],
-      name: 'rentals_photo_fk',
-    }),
-    foreignKey({
-      columns: [table.scooterId],
-      foreignColumns: [scooters.id],
-      name: 'rentals_scooter_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.tariffId],
-      foreignColumns: [tariffs.id],
-      name: 'rentals_tariff_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: 'rentals_user_id_fkey',
-    }),
-    unique('rentals_number_key').on(table.number),
-  ],
-);
-
 export const rentalEvents = pgTable(
   'rental_events',
   {
@@ -576,6 +517,100 @@ export const wallets = pgTable(
       foreignColumns: [users.id],
       name: 'wallets_user_id_fkey',
     }),
+  ],
+);
+
+export const rentals = pgTable(
+  'rentals',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    number: bigint({ mode: 'number' })
+      .default(sql`nextval('rental_number_seq'::regclass)`)
+      .notNull(),
+    userId: uuid('user_id').notNull(),
+    scooterId: uuid('scooter_id').notNull(),
+    tariffId: uuid('tariff_id').notNull(),
+    state: rentalState().notNull(),
+    paymentSource: paymentSource('payment_source').default('WALLET').notNull(),
+    reservedAt: timestamp('reserved_at', { withTimezone: true, mode: 'date' }),
+    reservationExpiresAt: timestamp('reservation_expires_at', { withTimezone: true, mode: 'date' }),
+    startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+    endedAt: timestamp('ended_at', { withTimezone: true, mode: 'date' }),
+    rideSeconds: integer('ride_seconds').default(0).notNull(),
+    pauseSeconds: integer('pause_seconds').default(0).notNull(),
+    distanceM: integer('distance_m').default(0).notNull(),
+    startPosition: geometry('start_position', { type: 'point', srid: 4326 }),
+    endPosition: geometry('end_position', { type: 'point', srid: 4326 }),
+    endZoneId: uuid('end_zone_id'),
+    route: geometry({ type: 'linestring', srid: 4326 }),
+    parkingPhotoId: uuid('parking_photo_id'),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    totalAmount: bigint('total_amount', { mode: 'number' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('rentals_created_idx').using('btree', table.createdAt.desc().nullsFirst().op('timestamptz_ops')),
+    uniqueIndex('rentals_one_open_per_scooter')
+      .using('btree', table.scooterId.asc().nullsLast().op('uuid_ops'))
+      .where(
+        sql`(state = ANY (ARRAY['RESERVED'::rental_state, 'UNLOCKING'::rental_state, 'ACTIVE'::rental_state, 'PAUSED'::rental_state, 'ENDING'::rental_state]))`,
+      ),
+    uniqueIndex('rentals_one_open_per_user')
+      .using('btree', table.userId.asc().nullsLast().op('uuid_ops'))
+      .where(
+        sql`(state = ANY (ARRAY['RESERVED'::rental_state, 'UNLOCKING'::rental_state, 'ACTIVE'::rental_state, 'PAUSED'::rental_state, 'ENDING'::rental_state]))`,
+      ),
+    index('rentals_reservation_due_idx')
+      .using('btree', table.reservationExpiresAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(state = 'RESERVED'::rental_state)`),
+    index('rentals_scooter_idx').using(
+      'btree',
+      table.scooterId.asc().nullsLast().op('uuid_ops'),
+      table.createdAt.desc().nullsFirst().op('uuid_ops'),
+    ),
+    index('rentals_state_created_idx').using(
+      'btree',
+      table.state.asc().nullsLast().op('enum_ops'),
+      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    index('rentals_user_idx').using(
+      'btree',
+      table.userId.asc().nullsLast().op('timestamptz_ops'),
+      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    foreignKey({
+      columns: [table.endZoneId],
+      foreignColumns: [zones.id],
+      name: 'rentals_end_zone_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.parkingPhotoId],
+      foreignColumns: [files.id],
+      name: 'rentals_photo_fk',
+    }),
+    foreignKey({
+      columns: [table.scooterId],
+      foreignColumns: [scooters.id],
+      name: 'rentals_scooter_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.tariffId],
+      foreignColumns: [tariffs.id],
+      name: 'rentals_tariff_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: 'rentals_user_id_fkey',
+    }),
+    unique('rentals_number_key').on(table.number),
+    check('rentals_amount_not_negative', sql`(total_amount IS NULL) OR (total_amount >= 0)`),
+    check(
+      'rentals_reservation_has_expiry',
+      sql`(state <> 'RESERVED'::rental_state) OR ((reserved_at IS NOT NULL) AND (reservation_expires_at IS NOT NULL))`,
+    ),
   ],
 );
 
@@ -1722,39 +1757,6 @@ export const receiptItems = pgTable(
     check('receipt_items_vat_rate_check', sql`vat_rate >= (0)::numeric`),
   ],
 );
-export const vFleetStatus = pgView('v_fleet_status', {
-  id: uuid(),
-  number: integer(),
-  serialNumber: text('serial_number'),
-  variant: scooterVariant(),
-  status: scooterStatus(),
-  online: boolean(),
-  batteryPct: smallint('battery_pct'),
-  position: geometry({ type: 'point', srid: 4326 }),
-  lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }),
-  firmware: text(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  odometerM: bigint('odometer_m', { mode: 'number' }),
-  modelId: uuid('model_id'),
-  modelCode: text('model_code'),
-  modelName: text('model_name'),
-  rentalId: uuid('rental_id'),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  rentalNumber: bigint('rental_number', { mode: 'number' }),
-  rentalState: rentalState('rental_state'),
-  rentalUserId: uuid('rental_user_id'),
-  parkingZoneCode: text('parking_zone_code'),
-  parkingZoneName: text('parking_zone_name'),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  openTickets: bigint('open_tickets', { mode: 'number' }),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  openServiceTasks: bigint('open_service_tasks', { mode: 'number' }),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  rentals30D: bigint('rentals_30d', { mode: 'number' }),
-}).as(
-  sql`SELECT s.id, s.number, s.serial_number, s.variant, s.status, s.online, s.battery_pct, s."position", s.last_seen_at, s.firmware, s.odometer_m, s.model_id, m.code AS model_code, m.name AS model_name, r.id AS rental_id, r.number AS rental_number, r.state AS rental_state, r.user_id AS rental_user_id, pz.code AS parking_zone_code, pz.name AS parking_zone_name, ( SELECT count(*) AS count FROM tickets t WHERE t.scooter_id = s.id AND t.status <> 'RESOLVED'::ticket_status) AS open_tickets, ( SELECT count(*) AS count FROM service_tasks st WHERE st.scooter_id = s.id AND (st.status = ANY (ARRAY['OPEN'::service_task_status, 'IN_PROGRESS'::service_task_status]))) AS open_service_tasks, ( SELECT count(*) AS count FROM rentals r30 WHERE r30.scooter_id = s.id AND r30.state = 'ENDED'::rental_state AND r30.ended_at >= (now() - '30 days'::interval)) AS rentals_30d FROM scooters s JOIN scooter_models m ON m.id = s.model_id LEFT JOIN rentals r ON r.scooter_id = s.id AND (r.state = ANY (ARRAY['RESERVED'::rental_state, 'UNLOCKING'::rental_state, 'ACTIVE'::rental_state, 'PAUSED'::rental_state, 'ENDING'::rental_state])) LEFT JOIN LATERAL ( SELECT z.code, z.name FROM zones z WHERE z.active AND z.type = 'PARKING'::zone_type AND st_contains(z.geom, s."position") ORDER BY z.code LIMIT 1) pz ON true`,
-);
-
 export const vRentalDetails = pgView('v_rental_details', {
   id: uuid(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -1786,8 +1788,47 @@ export const vRentalDetails = pgView('v_rental_details', {
   walletCharge: bigint('wallet_charge', { mode: 'number' }),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  scooterOnline: boolean('scooter_online'),
+  scooterBatteryPct: smallint('scooter_battery_pct'),
+  elapsedSeconds: integer('elapsed_seconds'),
+  hasProblem: boolean('has_problem'),
+  userStatus: userStatus('user_status'),
+  pendingCommand: commandType('pending_command'),
 }).as(
-  sql`SELECT r.id, r.number, r.state, r.payment_source, r.reserved_at, r.reservation_expires_at, r.started_at, r.ended_at, r.ride_seconds, r.pause_seconds, r.distance_m, r.total_amount, r.user_id, u.phone AS user_phone, u.name AS user_name, r.scooter_id, s.number AS scooter_number, r.tariff_id, t.version AS tariff_version, r.end_zone_id, ez.code AS end_zone_code, ez.name AS end_zone_name, r.parking_photo_id IS NOT NULL AS has_parking_photo, p.status AS card_payment_status, l.amount AS wallet_charge, r.created_at, r.updated_at FROM rentals r JOIN users u ON u.id = r.user_id JOIN scooters s ON s.id = r.scooter_id JOIN tariffs t ON t.id = r.tariff_id LEFT JOIN zones ez ON ez.id = r.end_zone_id LEFT JOIN LATERAL ( SELECT pay.status FROM payments pay WHERE pay.rental_id = r.id AND pay.purpose = 'RIDE'::payment_purpose ORDER BY pay.created_at DESC LIMIT 1) p ON true LEFT JOIN wallet_ledger l ON l.rental_id = r.id AND l.type = 'RIDE_CHARGE'::ledger_entry_type`,
+  sql`SELECT r.id, r.number, r.state, r.payment_source, r.reserved_at, r.reservation_expires_at, r.started_at, r.ended_at, r.ride_seconds, r.pause_seconds, r.distance_m, r.total_amount, r.user_id, u.phone AS user_phone, u.name AS user_name, r.scooter_id, s.number AS scooter_number, r.tariff_id, t.version AS tariff_version, r.end_zone_id, ez.code AS end_zone_code, ez.name AS end_zone_name, r.parking_photo_id IS NOT NULL AS has_parking_photo, p.status AS card_payment_status, l.amount AS wallet_charge, r.created_at, r.updated_at, s.online AS scooter_online, s.battery_pct AS scooter_battery_pct, CASE WHEN r.started_at IS NULL THEN 0 ELSE floor(EXTRACT(epoch FROM COALESCE(r.ended_at, now()) - r.started_at))::integer END AS elapsed_seconds, r.state = 'UNLOCK_FAILED'::rental_state OR (r.state = ANY (ARRAY['UNLOCKING'::rental_state, 'ACTIVE'::rental_state, 'PAUSED'::rental_state, 'ENDING'::rental_state])) AND (NOT s.online OR (EXISTS ( SELECT 1 FROM rental_events fe WHERE fe.rental_id = r.id AND (fe.type::text = ANY (ARRAY['PAUSE_FAILED'::text, 'RESUME_FAILED'::text, 'LOCK_FAILED'::text])) AND fe.created_at >= COALESCE(( SELECT max(se.created_at) AS max FROM rental_events se WHERE se.rental_id = r.id AND se.type = 'STATE_CHANGED'::rental_event_type AND se.to_state <> 'ENDING'::rental_state), '-infinity'::timestamp with time zone)))) AS has_problem, u.status AS user_status, ( SELECT c.type FROM scooter_commands c WHERE c.rental_id = r.id AND c.status = 'SENT'::command_status) AS pending_command FROM rentals r JOIN users u ON u.id = r.user_id JOIN scooters s ON s.id = r.scooter_id JOIN tariffs t ON t.id = r.tariff_id LEFT JOIN zones ez ON ez.id = r.end_zone_id LEFT JOIN LATERAL ( SELECT pay.status FROM payments pay WHERE pay.rental_id = r.id AND pay.purpose = 'RIDE'::payment_purpose ORDER BY pay.created_at DESC LIMIT 1) p ON true LEFT JOIN wallet_ledger l ON l.rental_id = r.id AND l.type = 'RIDE_CHARGE'::ledger_entry_type`,
+);
+
+export const vFleetStatus = pgView('v_fleet_status', {
+  id: uuid(),
+  number: integer(),
+  serialNumber: text('serial_number'),
+  variant: scooterVariant(),
+  status: scooterStatus(),
+  online: boolean(),
+  batteryPct: smallint('battery_pct'),
+  position: geometry({ type: 'point', srid: 4326 }),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }),
+  firmware: text(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  odometerM: bigint('odometer_m', { mode: 'number' }),
+  modelId: uuid('model_id'),
+  modelCode: text('model_code'),
+  modelName: text('model_name'),
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentalNumber: bigint('rental_number', { mode: 'number' }),
+  rentalState: rentalState('rental_state'),
+  rentalUserId: uuid('rental_user_id'),
+  parkingZoneCode: text('parking_zone_code'),
+  parkingZoneName: text('parking_zone_name'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  openTickets: bigint('open_tickets', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  openServiceTasks: bigint('open_service_tasks', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentals30D: bigint('rentals_30d', { mode: 'number' }),
+}).as(
+  sql`SELECT s.id, s.number, s.serial_number, s.variant, s.status, s.online, s.battery_pct, s."position", s.last_seen_at, s.firmware, s.odometer_m, s.model_id, m.code AS model_code, m.name AS model_name, r.id AS rental_id, r.number AS rental_number, r.state AS rental_state, r.user_id AS rental_user_id, pz.code AS parking_zone_code, pz.name AS parking_zone_name, ( SELECT count(*) AS count FROM tickets t WHERE t.scooter_id = s.id AND t.status <> 'RESOLVED'::ticket_status) AS open_tickets, ( SELECT count(*) AS count FROM service_tasks st WHERE st.scooter_id = s.id AND (st.status = ANY (ARRAY['OPEN'::service_task_status, 'IN_PROGRESS'::service_task_status]))) AS open_service_tasks, ( SELECT count(*) AS count FROM rentals r30 WHERE r30.scooter_id = s.id AND r30.state = 'ENDED'::rental_state AND r30.ended_at >= (now() - '30 days'::interval)) AS rentals_30d FROM scooters s JOIN scooter_models m ON m.id = s.model_id LEFT JOIN rentals r ON r.scooter_id = s.id AND (r.state = ANY (ARRAY['RESERVED'::rental_state, 'UNLOCKING'::rental_state, 'ACTIVE'::rental_state, 'PAUSED'::rental_state, 'ENDING'::rental_state])) LEFT JOIN LATERAL ( SELECT z.code, z.name FROM zones z WHERE z.active AND z.type = 'PARKING'::zone_type AND st_contains(z.geom, s."position") ORDER BY z.code LIMIT 1) pz ON true`,
 );
 
 export const vWalletBalances = pgView('v_wallet_balances', {
@@ -2084,4 +2125,55 @@ export const vScooterModels = pgView('v_scooter_models', {
   scootersActive: bigint('scooters_active', { mode: 'number' }),
 }).as(
   sql`SELECT id, code, name, manufacturer, max_speed_kmh, battery_wh, range_km, weight_kg, description, photo_media_id, active, created_at, updated_at, version, ( SELECT count(*) AS count FROM scooters s WHERE s.model_id = m.id) AS scooters_total, ( SELECT count(*) AS count FROM scooters s WHERE s.model_id = m.id AND s.status <> 'RETIRED'::scooter_status) AS scooters_active FROM scooter_models m`,
+);
+
+export const vUserRentalHistory = pgView('v_user_rental_history', {
+  id: uuid(),
+  userId: uuid('user_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  number: bigint({ mode: 'number' }),
+  scooterNumber: integer('scooter_number'),
+  scooterVariant: scooterVariant('scooter_variant'),
+  startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+  endedAt: timestamp('ended_at', { withTimezone: true, mode: 'date' }),
+  rideSeconds: integer('ride_seconds'),
+  pauseSeconds: integer('pause_seconds'),
+  distanceM: integer('distance_m'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  totalAmount: bigint('total_amount', { mode: 'number' }),
+  endZoneCode: text('end_zone_code'),
+  endZoneName: text('end_zone_name'),
+  tariffVersion: integer('tariff_version'),
+}).as(
+  sql`SELECT r.id, r.user_id, r.number, s.number AS scooter_number, s.variant AS scooter_variant, r.started_at, r.ended_at, r.ride_seconds, r.pause_seconds, r.distance_m, r.total_amount, ez.code AS end_zone_code, ez.name AS end_zone_name, t.version AS tariff_version FROM rentals r JOIN scooters s ON s.id = r.scooter_id JOIN tariffs t ON t.id = r.tariff_id LEFT JOIN zones ez ON ez.id = r.end_zone_id WHERE r.state = ANY (ARRAY['ENDED'::rental_state, 'UNPAID'::rental_state])`,
+);
+
+export const vUserRideStats = pgView('v_user_ride_stats', {
+  userId: uuid('user_id'),
+  ridesCount: integer('rides_count'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  distanceM: bigint('distance_m', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  travelSeconds: bigint('travel_seconds', { mode: 'number' }),
+}).as(
+  sql`SELECT u.id AS user_id, count(r.id)::integer AS rides_count, COALESCE(sum(r.distance_m), 0::bigint) AS distance_m, COALESCE(sum(r.ride_seconds + r.pause_seconds), 0::bigint) AS travel_seconds FROM users u LEFT JOIN rentals r ON r.user_id = u.id AND (r.state = ANY (ARRAY['ENDED'::rental_state, 'UNPAID'::rental_state])) GROUP BY u.id`,
+);
+
+export const vRentalTimeline = pgView('v_rental_timeline', {
+  rentalId: uuid('rental_id'),
+  at: timestamp({ withTimezone: true, mode: 'date' }),
+  kind: text(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  eventId: bigint('event_id', { mode: 'number' }),
+  type: text(),
+  fromState: rentalState('from_state'),
+  toState: rentalState('to_state'),
+  data: jsonb(),
+  zoneCode: text('zone_code'),
+  commandId: uuid('command_id'),
+  commandStatus: commandStatus('command_status'),
+  ackedAt: timestamp('acked_at', { withTimezone: true, mode: 'date' }),
+  ackReason: text('ack_reason'),
+}).as(
+  sql`SELECT e.rental_id, e.created_at AS at, 'EVENT'::text AS kind, e.id AS event_id, e.type::text AS type, e.from_state, e.to_state, e.data, z.code AS zone_code, NULL::uuid AS command_id, NULL::command_status AS command_status, NULL::timestamp with time zone AS acked_at, NULL::text AS ack_reason FROM rental_events e LEFT JOIN zones z ON z.id = e.zone_id UNION ALL SELECT c.rental_id, c.sent_at AS at, 'COMMAND'::text AS kind, NULL::bigint AS event_id, c.type::text AS type, NULL::rental_state AS from_state, NULL::rental_state AS to_state, c.payload AS data, NULL::text AS zone_code, c.id AS command_id, c.status AS command_status, c.acked_at, c.ack_reason FROM scooter_commands c WHERE c.rental_id IS NOT NULL`,
 );

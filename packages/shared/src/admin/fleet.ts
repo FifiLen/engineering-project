@@ -112,6 +112,7 @@ export interface ScooterDetails extends ScooterListItem {
   modelCode: string;
   /** Szacowany zasięg przy obecnej baterii (packages/core). */
   rangeKm: number | null;
+  rentalId: string | null;
   rentalNumber: number | null;
   openTickets: number;
   openServiceTasks: number;

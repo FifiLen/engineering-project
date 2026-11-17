@@ -49,6 +49,8 @@ export const commandSchema = z.object({
   commandId: z.uuid(),
   cmd: z.enum(commandNames),
   issuedAt: z.iso.datetime(),
+  /** Kontrakt 1.1.0 (ADR 0038): po tym czasie hulajnoga nie wykonuje komendy i odpowiada powodem EXPIRED. */
+  expiresAt: z.iso.datetime().optional(),
   params: z
     .object({
       kmh: z.number().int().min(0).optional(),
@@ -58,7 +60,7 @@ export const commandSchema = z.object({
 });
 export type Command = z.infer<typeof commandSchema>;
 
-export const ackReasons = ['LOW_BATTERY', 'ALREADY_IN_STATE', 'HARDWARE_ERROR', 'UNKNOWN_COMMAND'] as const;
+export const ackReasons = ['LOW_BATTERY', 'ALREADY_IN_STATE', 'HARDWARE_ERROR', 'UNKNOWN_COMMAND', 'EXPIRED'] as const;
 
 export const ackSchema = z.object({
   commandId: z.uuid(),

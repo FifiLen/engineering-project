@@ -23,8 +23,17 @@ const toRecord = (r: { [K in keyof typeof recordColumns]: unknown }): CommandRec
 export class DrizzleCommandRepository implements CommandRepository {
   constructor(private readonly db: DbExecutor) {}
 
-  async create(scooterId: string, type: CommandType, payload: Record<string, unknown>): Promise<CommandRecord> {
-    const [row] = await this.db.insert(scooterCommands).values({ scooterId, type, payload }).returning(recordColumns);
+  /** `expiresAt`: termin z kontraktu MQTT 1.1.0, po którym hulajnoga nie wykona komendy (ADR 0038). */
+  async create(
+    scooterId: string,
+    type: CommandType,
+    payload: Record<string, unknown>,
+    expiresAt?: Date,
+  ): Promise<CommandRecord> {
+    const [row] = await this.db
+      .insert(scooterCommands)
+      .values({ scooterId, type, payload, expiresAt })
+      .returning(recordColumns);
     return toRecord(row!);
   }
 
@@ -34,22 +43,37 @@ export class DrizzleCommandRepository implements CommandRepository {
   }
 
   /** Zmienia tylko komendę czekającą na odpowiedź; powtórzone lub spóźnione potwierdzenie nic nie zmienia. */
-  async complete(id: string, status: CommandStatus, at: Date): Promise<CommandRecord | null> {
+  async complete(
+    id: string,
+    status: CommandStatus,
+    at: Date,
+    reason: string | null = null,
+  ): Promise<CommandRecord | null> {
     const [row] = await this.db
       .update(scooterCommands)
-      .set({ status, ackedAt: at })
+      .set({ status, ackedAt: at, ackReason: reason })
       .where(and(eq(scooterCommands.id, id), eq(scooterCommands.status, 'SENT')))
       .returning(recordColumns);
     return row ? toRecord(row) : null;
   }
 
-  async expirePending(sentBefore: Date): Promise<CommandRecord[]> {
-    const rows = await this.db
+  async timeout(id: string): Promise<CommandRecord | null> {
+    const [row] = await this.db
       .update(scooterCommands)
       .set({ status: 'TIMEOUT' })
-      .where(and(eq(scooterCommands.status, 'SENT'), lt(scooterCommands.sentAt, sentBefore)))
+      .where(and(eq(scooterCommands.id, id), eq(scooterCommands.status, 'SENT')))
       .returning(recordColumns);
-    return rows.map(toRecord);
+    return row ? toRecord(row) : null;
+  }
+
+  async overdue(sentBefore: Date): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: scooterCommands.id })
+      .from(scooterCommands)
+      .where(and(eq(scooterCommands.status, 'SENT'), lt(scooterCommands.sentAt, sentBefore)))
+      .orderBy(scooterCommands.sentAt)
+      .limit(100);
+    return rows.map((r) => r.id);
   }
 
   /** Ostatnie komendy hulajnogi do karty na mapie floty. */

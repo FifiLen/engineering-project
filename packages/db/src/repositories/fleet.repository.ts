@@ -46,6 +46,7 @@ const listSource: ListSource<ScooterField> = {
 export interface ScooterDetailsRow extends ScooterListItem {
   modelCode: string;
   modelRangeKm: number | null;
+  rentalId: string | null;
   rentalNumber: number | null;
   openTickets: number;
   openServiceTasks: number;
@@ -74,6 +75,7 @@ export class DrizzleScooterRepository implements ScooterRepository {
         ...listSource.columns,
         modelCode: vFleetList.modelCode,
         modelRangeKm: vFleetList.modelRangeKm,
+        rentalId: vFleetList.rentalId,
         rentalNumber: vFleetList.rentalNumber,
         openTickets: vFleetList.openTickets,
         openServiceTasks: vFleetList.openServiceTasks,

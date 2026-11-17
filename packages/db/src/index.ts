@@ -11,6 +11,7 @@ export * from './repositories/fleet.repository.js';
 export * from './repositories/scooter-models.repository.js';
 export * from './repositories/telemetry.repository.js';
 export * from './repositories/commands.repository.js';
+export * from './repositories/rentals.repository.js';
 export * from './repositories/otp.repository.js';
 export * from './repositories/sessions.repository.js';
 export * from './repositories/customers.repository.js';

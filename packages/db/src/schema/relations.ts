@@ -8,14 +8,14 @@ import {
   staff,
   tariffs,
   sessions,
-  zones,
-  scooterModels,
-  scooters,
   scooterCommands,
   rentals,
-  files,
+  scooters,
+  zones,
+  scooterModels,
   rentalEvents,
   wallets,
+  files,
   paymentMethods,
   payments,
   walletLedger,
@@ -59,8 +59,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   savedPlaces: many(savedPlaces),
   consents: many(consents),
   sessions: many(sessions),
-  rentals: many(rentals),
   wallets: many(wallets),
+  rentals: many(rentals),
   paymentMethods: many(paymentMethods),
   payments: many(payments),
   tickets: many(tickets),
@@ -110,8 +110,8 @@ export const tariffsRelations = relations(tariffs, ({ one, many }) => ({
 
 export const staffRelations = relations(staff, ({ many }) => ({
   tariffs: many(tariffs),
-  zones: many(zones),
   scooterCommands: many(scooterCommands),
+  zones: many(zones),
   walletLedgers: many(walletLedger),
   tickets: many(tickets),
   files: many(files),
@@ -173,34 +173,6 @@ export const sessionsRelations = relations(sessions, ({ one, many }) => ({
   }),
 }));
 
-export const zonesRelations = relations(zones, ({ one, many }) => ({
-  staff: one(staff, {
-    fields: [zones.updatedBy],
-    references: [staff.id],
-  }),
-  rentals: many(rentals),
-  rentalEvents: many(rentalEvents),
-}));
-
-export const scootersRelations = relations(scooters, ({ one, many }) => ({
-  scooterModel: one(scooterModels, {
-    fields: [scooters.modelId],
-    references: [scooterModels.id],
-  }),
-  scooterCommands: many(scooterCommands),
-  rentals: many(rentals),
-  tickets: many(tickets),
-  serviceTasks: many(serviceTasks),
-}));
-
-export const scooterModelsRelations = relations(scooterModels, ({ one, many }) => ({
-  scooters: many(scooters),
-  mediaAsset: one(mediaAssets, {
-    fields: [scooterModels.photoMediaId],
-    references: [mediaAssets.id],
-  }),
-}));
-
 export const scooterCommandsRelations = relations(scooterCommands, ({ one }) => ({
   staff: one(staff, {
     fields: [scooterCommands.issuedByStaff],
@@ -218,6 +190,7 @@ export const scooterCommandsRelations = relations(scooterCommands, ({ one }) => 
 
 export const rentalsRelations = relations(rentals, ({ one, many }) => ({
   scooterCommands: many(scooterCommands),
+  rentalEvents: many(rentalEvents),
   zone: one(zones, {
     fields: [rentals.endZoneId],
     references: [zones.id],
@@ -238,11 +211,57 @@ export const rentalsRelations = relations(rentals, ({ one, many }) => ({
     fields: [rentals.userId],
     references: [users.id],
   }),
-  rentalEvents: many(rentalEvents),
   payments: many(payments),
   walletLedgers: many(walletLedger),
   tickets: many(tickets),
   receipts: many(receipts),
+}));
+
+export const scootersRelations = relations(scooters, ({ one, many }) => ({
+  scooterCommands: many(scooterCommands),
+  scooterModel: one(scooterModels, {
+    fields: [scooters.modelId],
+    references: [scooterModels.id],
+  }),
+  rentals: many(rentals),
+  tickets: many(tickets),
+  serviceTasks: many(serviceTasks),
+}));
+
+export const zonesRelations = relations(zones, ({ one, many }) => ({
+  staff: one(staff, {
+    fields: [zones.updatedBy],
+    references: [staff.id],
+  }),
+  rentalEvents: many(rentalEvents),
+  rentals: many(rentals),
+}));
+
+export const scooterModelsRelations = relations(scooterModels, ({ one, many }) => ({
+  scooters: many(scooters),
+  mediaAsset: one(mediaAssets, {
+    fields: [scooterModels.photoMediaId],
+    references: [mediaAssets.id],
+  }),
+}));
+
+export const rentalEventsRelations = relations(rentalEvents, ({ one }) => ({
+  rental: one(rentals, {
+    fields: [rentalEvents.rentalId],
+    references: [rentals.id],
+  }),
+  zone: one(zones, {
+    fields: [rentalEvents.zoneId],
+    references: [zones.id],
+  }),
+}));
+
+export const walletsRelations = relations(wallets, ({ one, many }) => ({
+  user: one(users, {
+    fields: [wallets.userId],
+    references: [users.id],
+  }),
+  walletLedgers: many(walletLedger),
 }));
 
 export const filesRelations = relations(files, ({ one, many }) => ({
@@ -265,25 +284,6 @@ export const filesRelations = relations(files, ({ one, many }) => ({
     relationName: 'generatedDocuments_pdfFileId_files_id',
   }),
   ticketPhotos: many(ticketPhotos),
-}));
-
-export const rentalEventsRelations = relations(rentalEvents, ({ one }) => ({
-  rental: one(rentals, {
-    fields: [rentalEvents.rentalId],
-    references: [rentals.id],
-  }),
-  zone: one(zones, {
-    fields: [rentalEvents.zoneId],
-    references: [zones.id],
-  }),
-}));
-
-export const walletsRelations = relations(wallets, ({ one, many }) => ({
-  user: one(users, {
-    fields: [wallets.userId],
-    references: [users.id],
-  }),
-  walletLedgers: many(walletLedger),
 }));
 
 export const paymentMethodsRelations = relations(paymentMethods, ({ one, many }) => ({

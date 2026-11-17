@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { priceRental } from '@hulajnogi/core';
 import type { Place, PlacesFile } from './places.js';
 
 /**
@@ -41,6 +42,8 @@ export interface SeedOptions {
   /** Dodatkowi operatorzy deweloperscy (demo ról i uprawnień). */
   staff?: readonly SeedStaff[];
   documents?: readonly SeedDocument[];
+  /** Przykładowe zakończone przejazdy (lista w panelu, historia w aplikacji); 0 = bez przejazdów. */
+  sampleRentals?: number;
 }
 
 export interface SeedSummary {
@@ -186,6 +189,8 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
       created++;
     }
 
+    if (options.sampleRentals) await seedSampleRentals(client, parking, options.sampleRentals);
+
     await client.query('COMMIT');
     const zones = await pool.query<{ count: string }>('SELECT count(*) FROM zones');
     const total = await pool.query<{ count: string }>('SELECT count(*) FROM scooters');
@@ -195,5 +200,111 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
     throw error;
   } finally {
     client.release();
+  }
+}
+
+/** Klienci deweloperscy z przykładowymi przejazdami (numery z zakresu testowego, bez zgód na dokumenty). */
+const SAMPLE_CUSTOMERS = [
+  { phone: '+48500000101', name: 'Anna Kowalczyk' },
+  { phone: '+48500000102', name: 'Piotr Zieliński' },
+  { phone: '+48500000103', name: 'Karolina Mazur' },
+] as const;
+
+/**
+ * Zakończone przejazdy między strefami parkowania z pełną osią czasu i komendami. Liczniki i kwota
+ * pochodzą z wyceny w packages/core (ADR 0042), więc zgadzają się z tym, co policzyłby proces wypożyczenia.
+ * Idempotentne: klienci, którzy mają już przejazdy, nie dostają nowych.
+ */
+async function seedSampleRentals(client: PoolClient, parking: readonly Place[], count: number): Promise<void> {
+  const tariff = await client.query<{ id: string; unlock_fee: string; minute_rate: string; pause_minute_rate: string }>(
+    'SELECT id, unlock_fee, minute_rate, pause_minute_rate FROM tariffs WHERE version = $1',
+    [DEV_TARIFF.version],
+  );
+  const rate = tariff.rows[0]!;
+  const customers: string[] = [];
+  for (const customer of SAMPLE_CUSTOMERS) {
+    const row = await client.query<{ id: string; rentals: number }>(
+      `INSERT INTO users (phone, name) VALUES ($1, $2)
+       ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name
+       RETURNING id, (SELECT count(*)::int FROM rentals WHERE user_id = users.id) AS rentals`,
+      [customer.phone, customer.name],
+    );
+    if (row.rows[0]!.rentals === 0) customers.push(row.rows[0]!.id);
+  }
+  if (!customers.length || parking.length < 2) return;
+
+  const rand = mulberry32(2026);
+  const scooters = await client.query<{ id: string }>(
+    `SELECT id FROM scooters WHERE status = 'AVAILABLE' ORDER BY number LIMIT 10`,
+  );
+  for (let i = 0; i < count; i++) {
+    const from = requireCoords(parking[i % parking.length]!);
+    const to = requireCoords(parking[(i + 1 + Math.floor(rand() * (parking.length - 1))) % parking.length]!);
+    const rideSeconds = 240 + Math.floor(rand() * 1200);
+    const pauseSeconds = i % 3 === 0 ? 60 + Math.floor(rand() * 300) : 0;
+    const startedAt = new Date(Date.now() - (i + 1) * 26 * 3600_000 - Math.floor(rand() * 3600_000));
+    const endRequestedAt = new Date(startedAt.getTime() + (rideSeconds + pauseSeconds) * 1000);
+    const price = priceRental(
+      {
+        unlockFee: Number(rate.unlock_fee),
+        minuteRate: Number(rate.minute_rate),
+        pauseMinuteRate: Number(rate.pause_minute_rate),
+      },
+      { rideSeconds, pauseSeconds, startedAt },
+    );
+    const at = (date: Date, plusMs = 0) => new Date(date.getTime() + plusMs);
+    const rental = await client.query<{ id: string }>(
+      `INSERT INTO rentals (user_id, scooter_id, tariff_id, state, started_at, ended_at, ride_seconds, pause_seconds,
+                            total_amount, start_position, end_position, route, distance_m, end_zone_id, created_at, updated_at)
+       SELECT $1, $2, $3, 'ENDED', $4, $5, $6, $7, $8, a, b, ST_MakeLine(a, b), round(ST_Distance(a::geography, b::geography)),
+              (SELECT id FROM fn_zones_at_point($11, $12) WHERE type = 'PARKING' LIMIT 1), $13, $5
+       FROM ST_SetSRID(ST_MakePoint($9, $10), 4326) a, ST_SetSRID(ST_MakePoint($11, $12), 4326) b
+       RETURNING id`,
+      [
+        customers[i % customers.length],
+        scooters.rows[i % scooters.rows.length]!.id,
+        rate.id,
+        startedAt,
+        at(endRequestedAt, 1500),
+        rideSeconds,
+        pauseSeconds,
+        price.total,
+        from.lon,
+        from.lat,
+        to.lon,
+        to.lat,
+        at(startedAt, -3000),
+      ],
+    );
+    const id = rental.rows[0]!.id;
+    const events: Array<[string, string | null, string | null, Date, object]> = [
+      ['STATE_CHANGED', null, 'UNLOCKING', at(startedAt, -3000), { action: 'START' }],
+      ['STATE_CHANGED', 'UNLOCKING', 'ACTIVE', startedAt, { action: 'CONFIRM_UNLOCK' }],
+    ];
+    if (pauseSeconds) {
+      const pausedAt = at(startedAt, Math.floor(rideSeconds / 2) * 1000);
+      events.push(['STATE_CHANGED', 'ACTIVE', 'PAUSED', pausedAt, { action: 'PAUSE' }]);
+      events.push(['STATE_CHANGED', 'PAUSED', 'ACTIVE', at(pausedAt, pauseSeconds * 1000), { action: 'RESUME' }]);
+    }
+    events.push(['END_REQUESTED', null, null, endRequestedAt, { resumeState: 'ACTIVE' }]);
+    events.push(['STATE_CHANGED', 'ACTIVE', 'ENDING', endRequestedAt, { action: 'REQUEST_END' }]);
+    events.push(['STATE_CHANGED', 'ENDING', 'ENDED', at(endRequestedAt, 1500), { action: 'COMPLETE_END' }]);
+    for (const [type, fromState, toState, createdAt, data] of events) {
+      await client.query(
+        `INSERT INTO rental_events (rental_id, type, from_state, to_state, data, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [id, type, fromState, toState, JSON.stringify(data), createdAt],
+      );
+    }
+    for (const [type, sentAt] of [
+      ['UNLOCK', at(startedAt, -3000)],
+      ['LOCK', endRequestedAt],
+    ] as const) {
+      await client.query(
+        `INSERT INTO scooter_commands (scooter_id, rental_id, type, status, sent_at, acked_at, expires_at)
+         SELECT scooter_id, id, $2, 'ACKED', $3, $3::timestamptz + interval '400 milliseconds', $3::timestamptz + interval '10 seconds'
+         FROM rentals WHERE id = $1`,
+        [id, type, sentAt],
+      );
+    }
   }
 }

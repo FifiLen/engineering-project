@@ -13,6 +13,8 @@ export * from './accounts/legal-documents.js';
 export * from './accounts/ports.js';
 export * from './audit/audit.js';
 export * from './rentals/rental-state-machine.js';
+export * from './rentals/rentals.js';
+export * from './rentals/pricing.js';
 export * from './zones/zones.js';
 export * from './fleet/fleet-status.js';
 export * from './fleet/scooters.js';

@@ -103,9 +103,11 @@ export interface CommandRecord {
 }
 
 export interface CommandRepository {
-  create(scooterId: string, type: CommandType, payload: Record<string, unknown>): Promise<CommandRecord>;
+  create(scooterId: string, type: CommandType, payload: Record<string, unknown>, expiresAt?: Date): Promise<CommandRecord>;
   find(id: string): Promise<CommandRecord | null>;
-  complete(id: string, status: CommandStatus, at: Date): Promise<CommandRecord | null>;
-  /** Oznacza jako TIMEOUT komendy bez odpowiedzi wysłane przed `sentBefore`. */
-  expirePending(sentBefore: Date): Promise<CommandRecord[]>;
+  complete(id: string, status: CommandStatus, at: Date, reason?: string | null): Promise<CommandRecord | null>;
+  /** Komenda bez odpowiedzi w limicie przechodzi w TIMEOUT; `null`, gdy już ma wynik. */
+  timeout(id: string): Promise<CommandRecord | null>;
+  /** Identyfikatory komend bez odpowiedzi wysłanych przed `sentBefore` (zadanie zabezpieczające). */
+  overdue(sentBefore: Date): Promise<string[]>;
 }

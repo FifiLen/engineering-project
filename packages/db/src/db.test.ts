@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { copyFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { OPEN_RENTAL_STATES, PERMISSIONS, RENTAL_STATES, RentalStateMachine, type RentalState } from '@hulajnogi/core';
+import { OPEN_RENTAL_STATES, PERMISSIONS, priceRental, RENTAL_STATES, RentalStateMachine, type RentalState } from '@hulajnogi/core';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb } from './client.js';
@@ -61,7 +61,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     await pool.query(`INSERT INTO scooters (number, serial_number, variant) VALUES (900, 'OLD-900', 'GRAFIT')`);
 
     const first = await runMigrations(pool);
-    expect(first.applied).toEqual(['0002_admin_modules.sql', '0003_fleet_lists.sql', '0004_accounts_access.sql']);
+    expect(first.applied).toEqual(['0002_admin_modules.sql', '0003_fleet_lists.sql', '0004_accounts_access.sql', '0005_rentals.sql']);
     const second = await runMigrations(pool);
     expect(second.applied).toEqual([]);
 
@@ -143,7 +143,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
          (SELECT count(*)::int FROM pg_proc WHERE pronamespace = 'public'::regnamespace
            AND prokind = 'p' AND proname LIKE 'sp\\_%') AS procedures`,
     );
-    expect(rows[0]).toEqual({ tables: 48, views: 18, functions: 10, procedures: 8 });
+    expect(rows[0]).toEqual({ tables: 48, views: 21, functions: 11, procedures: 9 });
   });
 
   it('fn_zones_at_point zwraca strefy od najbardziej restrykcyjnej', async () => {
@@ -186,7 +186,8 @@ describe.skipIf(!adminUrl)('baza danych', () => {
   it('v_wallet_balances wykrywa rozjazd salda z księgą, a sp_rebuild_wallet_balances go naprawia', async () => {
     const user = await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000011') RETURNING id`);
     const userId = user.rows[0]!.id;
-    await pool.query(`INSERT INTO wallets (user_id, balance) VALUES ($1, 500)`, [userId]);
+    // Portfel zakłada wyzwalacz przy rejestracji (0005); tu psujemy pamięć podręczną salda.
+    await pool.query(`UPDATE wallets SET balance = 500 WHERE user_id = $1`, [userId]);
     await pool.query(
       `INSERT INTO wallet_ledger (user_id, type, amount, balance_after) VALUES ($1, 'TOPUP', 2000, 2000), ($1, 'ADJUSTMENT', -300, 1700)`,
       [userId],
@@ -518,5 +519,192 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     );
     const audit = await pool.query(`SELECT staff_email, action FROM v_audit_log ORDER BY id DESC LIMIT 1`);
     expect(audit.rows[0]).toEqual({ staff_email: 'a@test.local', action: 'scooter.updated' });
+  });
+
+  it('portfel powstaje razem z klientem, a usunięcie konta blokuje saldo różne od 0 (0005)', async () => {
+    const user = await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000020') RETURNING id`);
+    const userId = user.rows[0]!.id;
+    const wallet = await pool.query(`SELECT balance FROM wallets WHERE user_id = $1`, [userId]);
+    expect(wallet.rows).toEqual([{ balance: '0' }]);
+    const missing = await pool.query(
+      `SELECT count(*)::int AS n FROM users u WHERE NOT EXISTS (SELECT 1 FROM wallets w WHERE w.user_id = u.id)`,
+    );
+    expect(missing.rows[0]).toEqual({ n: 0 });
+
+    await pool.query(
+      `INSERT INTO wallet_ledger (user_id, type, amount, balance_after) VALUES ($1, 'TOPUP', 500, 500)`,
+      [userId],
+    );
+    await expect(pool.query(`CALL sp_anonymize_user($1)`, [userId])).rejects.toThrow(/WALLET_BALANCE_NOT_ZERO/);
+    await pool.query(
+      `INSERT INTO wallet_ledger (user_id, type, amount, balance_after) VALUES ($1, 'REFUND', -500, 0)`,
+      [userId],
+    );
+    await pool.query(`CALL sp_anonymize_user($1)`, [userId]);
+    const after = await pool.query(`SELECT status FROM users WHERE id = $1`, [userId]);
+    expect(after.rows[0]).toEqual({ status: 'DELETED' });
+  });
+
+  it('przejazd ma najwyżej jedną komendę w toku, a oś czasu łączy zdarzenia z komendami (0005)', async () => {
+    const user = await pool.query<{ id: string }>(
+      `INSERT INTO users (phone, name) VALUES ('+48500000021', 'Ola') RETURNING id`,
+    );
+    const rental = await pool.query<{ id: string; scooter_id: string }>(
+      `INSERT INTO rentals (user_id, scooter_id, tariff_id, state, started_at)
+       SELECT $1, (SELECT id FROM scooters WHERE number = 5), (SELECT id FROM tariffs WHERE version = 1),
+              'ACTIVE', now() - interval '90 seconds'
+       RETURNING id, scooter_id`,
+      [user.rows[0]!.id],
+    );
+    const { id: rentalId, scooter_id: scooterId } = rental.rows[0]!;
+    // Hulajnoga offline sama w sobie oznacza problem otwartego przejazdu.
+    await pool.query(`UPDATE scooters SET online = true WHERE id = $1`, [scooterId]);
+    await pool.query(
+      `INSERT INTO rental_events (rental_id, type, from_state, to_state, created_at)
+       VALUES ($1, 'STATE_CHANGED', 'UNLOCKING', 'ACTIVE', now() - interval '90 seconds')`,
+      [rentalId],
+    );
+    const command = (type: string) =>
+      pool.query(
+        `INSERT INTO scooter_commands (scooter_id, rental_id, type, expires_at) VALUES ($1, $2, $3, now() + interval '10 seconds')`,
+        [scooterId, rentalId, type],
+      );
+    await command('LOCK');
+    await expect(command('UNLOCK')).rejects.toThrow(/scooter_commands_one_pending_per_rental/);
+
+    const pending = await pool.query(
+      `SELECT pending_command, has_problem, elapsed_seconds >= 90 AS elapsed FROM v_rental_details WHERE id = $1`,
+      [rentalId],
+    );
+    expect(pending.rows[0]).toEqual({ pending_command: 'LOCK', has_problem: false, elapsed: true });
+
+    await pool.query(`UPDATE scooter_commands SET status = 'TIMEOUT' WHERE rental_id = $1`, [rentalId]);
+    await pool.query(`INSERT INTO rental_events (rental_id, type, data) VALUES ($1, 'PAUSE_FAILED', '{}')`, [rentalId]);
+    const problem = await pool.query(`SELECT pending_command, has_problem FROM v_rental_details WHERE id = $1`, [
+      rentalId,
+    ]);
+    expect(problem.rows[0]).toEqual({ pending_command: null, has_problem: true });
+
+    const timeline = await pool.query<{ kind: string; type: string }>(
+      `SELECT kind, type FROM v_rental_timeline WHERE rental_id = $1 ORDER BY at, kind`,
+      [rentalId],
+    );
+    expect(timeline.rows).toEqual([
+      { kind: 'EVENT', type: 'STATE_CHANGED' },
+      { kind: 'COMMAND', type: 'LOCK' },
+      { kind: 'EVENT', type: 'PAUSE_FAILED' },
+    ]);
+  });
+
+  it('historia i statystyki klienta obejmują tylko przejazdy, które się odbyły; trasa z telemetrii (0005)', async () => {
+    const user = await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000022') RETURNING id`);
+    const userId = user.rows[0]!.id;
+    const insert = (state: string, scooter: number, ride: number, distance: number) =>
+      pool.query<{ id: string }>(
+        `INSERT INTO rentals (user_id, scooter_id, tariff_id, state, started_at, ended_at, ride_seconds, pause_seconds, distance_m, total_amount,
+                              reserved_at, reservation_expires_at)
+         SELECT $1, (SELECT id FROM scooters WHERE number = $2), (SELECT id FROM tariffs WHERE version = 1), $3::rental_state,
+                now() - interval '1 hour', now() - interval '50 minutes', $4, 60, $5, 1000, now(), now()
+         RETURNING id`,
+        [userId, scooter, state, ride, distance],
+      );
+    const ended = await insert('ENDED', 6, 600, 2000);
+    await insert('ENDED', 7, 300, 1000);
+    await insert('EXPIRED', 8, 0, 0);
+    const history = await pool.query(
+      `SELECT scooter_number FROM v_user_rental_history WHERE user_id = $1 ORDER BY scooter_number`,
+      [userId],
+    );
+    expect(history.rows).toEqual([{ scooter_number: 6 }, { scooter_number: 7 }]);
+    const stats = await pool.query(
+      `SELECT rides_count, distance_m, travel_seconds FROM v_user_ride_stats WHERE user_id = $1`,
+      [userId],
+    );
+    expect(stats.rows[0]).toEqual({ rides_count: 2, distance_m: '3000', travel_seconds: '1020' });
+
+    const rentalId = ended.rows[0]!.id;
+    const route = () =>
+      pool.query(`SELECT ST_NPoints(fn_rental_route($1)) AS points`, [rentalId]).then((r) => r.rows[0].points);
+    expect(await route()).toBeNull();
+    await pool.query(
+      `INSERT INTO telemetry (scooter_id, recorded_at, position, battery_pct, speed_kmh, rental_id)
+       SELECT (SELECT id FROM scooters WHERE number = 6), now() - make_interval(secs => g), ST_SetSRID(ST_MakePoint(18.5 + g / 10000.0, 50.0), 4326), 80, 15, $1
+       FROM generate_series(1, 3) g`,
+      [rentalId],
+    );
+    expect(await route()).toBe(3);
+  });
+
+  it('dane startowe mają przykładowe przejazdy z osią czasu dozwoloną w core i kwotą z wyceny, idempotentnie', async () => {
+    const seed = (n: number) =>
+      seedDatabase(pool, {
+        places,
+        fleetSize: 10,
+        admin: { email: 'a@test.local', name: 'A', passwordHash: 'x' },
+        sampleRentals: n,
+      });
+    await seed(4);
+    await seed(4);
+    const rentals = await pool.query<{
+      total_amount: string;
+      ride_seconds: number;
+      pause_seconds: number;
+      events: number;
+      commands: number;
+    }>(
+      `SELECT r.total_amount, r.ride_seconds, r.pause_seconds,
+              (SELECT count(*)::int FROM rental_events e WHERE e.rental_id = r.id) AS events,
+              (SELECT count(*)::int FROM scooter_commands c WHERE c.rental_id = r.id AND c.status = 'ACKED') AS commands
+       FROM rentals r JOIN users u ON u.id = r.user_id WHERE u.phone LIKE '+485000001%'`,
+    );
+    expect(rentals.rows).toHaveLength(4);
+    for (const r of rentals.rows) {
+      expect(Number(r.total_amount)).toBe(
+        priceRental(
+          { unlockFee: 300, minuteRate: 80, pauseMinuteRate: 30 },
+          { rideSeconds: r.ride_seconds, pauseSeconds: r.pause_seconds, startedAt: new Date() },
+        ).total,
+      );
+      expect(r.commands).toBe(2);
+      expect(r.events).toBeGreaterThanOrEqual(5);
+    }
+  });
+
+  it('sp_purge_expired_sessions usuwa rodziny sesji bez ważnego tokenu i stare zaproszenia (0005)', async () => {
+    const user = await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000023') RETURNING id`);
+    const userId = user.rows[0]!.id;
+    const old = await pool.query<{ id: string; family_id: string }>(
+      `INSERT INTO sessions (user_id, refresh_token_hash, expires_at, revoked_at)
+       VALUES ($1, 'p1', now() - interval '40 days', now() - interval '45 days') RETURNING id, family_id`,
+      [userId],
+    );
+    const successor = await pool.query<{ id: string }>(
+      `INSERT INTO sessions (user_id, family_id, refresh_token_hash, expires_at) VALUES ($1, $2, 'p2', now() - interval '35 days') RETURNING id`,
+      [userId, old.rows[0]!.family_id],
+    );
+    await pool.query(`UPDATE sessions SET replaced_by = $1 WHERE id = $2`, [successor.rows[0]!.id, old.rows[0]!.id]);
+    // Rodzina z jednym wciąż ważnym tokenem zostaje w całości.
+    const live = await pool.query<{ family_id: string }>(
+      `INSERT INTO sessions (user_id, refresh_token_hash, expires_at) VALUES ($1, 'p3', now() - interval '40 days') RETURNING family_id`,
+      [userId],
+    );
+    await pool.query(
+      `INSERT INTO sessions (user_id, family_id, refresh_token_hash, expires_at) VALUES ($1, $2, 'p4', now() + interval '1 day')`,
+      [userId, live.rows[0]!.family_id],
+    );
+    const staff = await pool.query<{ id: string }>(
+      `INSERT INTO staff (email, name) VALUES ('purge@test.local', 'P') RETURNING id`,
+    );
+    await pool.query(
+      `INSERT INTO staff_invitations (staff_id, token_hash, expires_at, created_at)
+       VALUES ($1, 'i1', now() - interval '31 days', now() - interval '40 days')`,
+      [staff.rows[0]!.id],
+    );
+
+    const call = await pool.query<{ deleted_count: number }>(`CALL sp_purge_expired_sessions(30, NULL)`);
+    expect(call.rows[0]!.deleted_count).toBe(3);
+    const left = await pool.query(`SELECT refresh_token_hash FROM sessions WHERE user_id = $1 ORDER BY 1`, [userId]);
+    expect(left.rows).toEqual([{ refresh_token_hash: 'p3' }, { refresh_token_hash: 'p4' }]);
+    expect((await pool.query(`CALL sp_purge_expired_sessions(30, NULL)`)).rows[0].deleted_count).toBe(0);
   });
 });
