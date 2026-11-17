@@ -557,3 +557,7 @@ Plan: [iteracja 3](iteracje/iteracja-03-wypozyczenie.md). Autor przyjął rekome
 **Środowisko**
 - Dev server panelu na 3002 zapętlił się w przeładowaniach Turbopacka po zmianach w `node_modules` (wymaga restartu). Panel sprawdzony na tymczasowej kopii.
 - W bazie deweloperskiej zostały przejazdy testowe agentów (R-50012–R-50014 zakończone zdalnie oraz dwa przejazdy usuniętego konta testowego).
+
+**Commit i CI**
+- Siedem commitów iteracji 3 (`fc47661`–`3bbea14`). Pierwsze CI padło na typach: import `maplibre-gl/dist/maplibre-gl.css` w mapie web potrzebuje deklaracji `*.css` z `expo/types`, którą lokalnie dawał generowany i ignorowany `expo-env.d.ts`. Poprawka: `apps/mobile/src/types/expo.d.ts` (commit `f010476`), sprawdzona na czystej kopii repozytorium; CI zielone.
+- Systemowy `git` czekał na akceptację licencji Xcode; commity zrobione `git` z Command Line Tools (`DEVELOPER_DIR=/Library/Developer/CommandLineTools`).

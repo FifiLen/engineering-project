@@ -46,13 +46,13 @@ Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny 
 - `docs/projekt/ekrany/00-eksploracja/` to archiwum odrzuconych kierunków, nie implementować.
 - Kanwa w claude.ai jest archiwum; źródłem prawdy jest repozytorium. Nowe makiety można tworzyć jako HTML w `docs/projekt/ekrany/` według design systemu.
 
-## Stan: iteracja 3 zrealizowana (2026-11-17), czeka na commit i CI
+## Stan: iteracja 3 zakończona (2026-11-17)
 Iteracja 0: monorepo, Docker Compose, migracje 0001–0002, `packages/core`, dane startowe Rybnika, CI, ADR 0001–0031 (repozytorium github.com/FifiLen/engineering-project, gałąź `main`).
 Iteracja 1 (`docs/iteracje/iteracja-01-symulator-telemetria.md`): symulator z własnym połączeniem MQTT na hulajnogę i przejazdami pokazowymi (ADR 0034), telemetria partiami i status floty w core i w bazie (ADR 0033, migracja 0003), Socket.IO pokój `fleet`, wspólny mechanizm list i definicje zasobów (`scooters`, `scooter-models`), panel: mapa floty, lista i formularz floty i modeli, etykiety w plikach tłumaczeń z regułą lintera (ADR 0032).
 Iteracja 2 (`docs/iteracje/iteracja-02-konta-dostep.md`): migracja 0004 (sesje i zaproszenia operatorów, blokada klienta, strażnik ostatniego `roles.manage` w bazie), reguły kont w core, repozytoria kont, logowanie klientów kodem SMS i operatorów z TOTP (ADR 0035), strażnik dostępu na każdym punkcie, dziennik audytu w transakcji z historią rekordu, panel: logowanie, operatorzy, role z macierzą, użytkownicy, dziennik, dokumenty prawne; aplikacja: rejestracja, zgody, blokada; OpenAPI w `docs/kontrakty/openapi.json`.
 Iteracja 3 (`docs/iteracje/iteracja-03-wypozyczenie.md`, ADR 0036–0042): decyzje autora D1–D8 i odpowiedzi 1–10 w planie, makiety `20-mobile-wypozyczenie` i `21-panel-przejazdy`, migracja 0005, reguły przejazdu i wycena w core, moduł Wypożyczenia w API (rezerwacja, przejazd z komendami MQTT z `expiresAt`, zdalne zakończenie, profil, usunięcie konta), pg-boss (schemat `pgboss`), symulator jadący do strefy po odblokowaniu (`control offline|silent|online`), panel: przejazdy, aplikacja: mapa, wypożyczenie, profil.
 Do zrobienia:
-- [ ] Commit iteracji 3 i zielone CI (git wymaga akceptacji licencji Xcode: `sudo xcodebuild -license`).
+- [x] Wypchnąć iterację 3 i potwierdzić zielone CI (2026-11-17, commit `f010476`).
 - [ ] Development build aplikacji z natywną mapą i aparatem (Xcode jest już zainstalowany) i sprawdzenie ekranów awarii w aplikacji (`control silent`).
 - [ ] Przed iteracją 4: plan iteracji 4 (strefy).
 

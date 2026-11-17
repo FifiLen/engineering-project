@@ -198,4 +198,4 @@ Wymaga infrastruktury z OSRM i danych startowych (`pnpm infra:up && pnpm db:migr
 10. Profil: statystyki, saldo 0 zł, ustawienia (motyw, powiadomienia, zgoda marketingowa widoczna w karcie klienta w panelu), edycja danych. „Usuń konto” w trakcie przejazdu jest odrzucone; po zakończeniu konto jest zanonimizowane, aplikacja wraca do ekranu startowego, a w panelu klient ma status „Usunięty” z zachowanymi przejazdami.
 
 ## Wynik
-Zakres zrealizowany 16–17 listopada 2026; przebieg, odstępstwa i weryfikacja w [dzienniku](../dziennik.md#iteracja-3-wypożyczenie-16-listopada-2026). Otwarte: development build aplikacji z natywną mapą i aparatem (ADR 0040), ekrany awarii w aplikacji sprawdzone tylko testami API, zmiana numeru telefonu klienta (decyzja na później), zielone CI.
+Zakres zrealizowany 16–17 listopada 2026; przebieg, odstępstwa i weryfikacja w [dzienniku](../dziennik.md#iteracja-3-wypożyczenie-16-listopada-2026). Otwarte: development build aplikacji z natywną mapą i aparatem (ADR 0040), ekrany awarii w aplikacji sprawdzone tylko testami API, zmiana numeru telefonu klienta (decyzja na później). Zielone CI 17 listopada 2026 (commit `f010476`).
