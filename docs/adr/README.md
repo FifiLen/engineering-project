@@ -52,3 +52,9 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0046 | [Symulator a strefy](0046-symulator-a-strefy.md) | zaakceptowana |
 | 0047 | [Edytor geometrii stref w panelu](0047-edytor-geometrii-w-panelu.md) | zaakceptowana |
 | 0048 | [Trasy dla klienta z OSRM](0048-trasy-dla-klienta-z-osrm.md) | zaakceptowana |
+| 0049 | [Rozliczenie przejazdu](0049-rozliczenie-przejazdu.md) | zaakceptowana |
+| 0050 | [Integracja ze Stripe](0050-integracja-stripe.md) | zaakceptowana |
+| 0051 | [Płatności w aplikacji](0051-platnosci-w-aplikacji.md) | zaakceptowana |
+| 0052 | [Paragony](0052-paragony.md) | zaakceptowana |
+| 0053 | [Wersje cennika w panelu](0053-wersje-cennika-w-panelu.md) | zaakceptowana |
+| 0054 | [Zwroty i korekty salda](0054-zwroty-i-korekty-salda.md) | zaakceptowana |

@@ -64,7 +64,9 @@ Do zrobienia:
 - [x] Przed iteracją 5: plan iteracji 5 (2026-11-17, `docs/iteracje/iteracja-05-platnosci.md`).
 - [x] Przed iteracją 5: odpowiedzi autora na pytania 1–12 i decyzje D1–D8 (2026-11-17, wszystkie rekomendacje).
 - [x] Przed iteracją 5: makiety brakujących stanów (2026-11-17, `24-mobile-platnosci`, `25-panel-platnosci`, 18 plansz).
-- [ ] Przed iteracją 5: konto Stripe w trybie testowym z kluczami w `.env` (autor; do tego czasu atrapa operatora), ADR 0049–0054.
+- [x] Przed iteracją 5: ADR 0049–0054 (2026-11-17, zaakceptowane).
+- [ ] Iteracja 5: implementacja według planu.
+- [ ] Konto Stripe w trybie testowym z kluczami w `.env` i Stripe CLI (autor; bez nich działa atrapa operatora).
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.

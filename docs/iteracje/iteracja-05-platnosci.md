@@ -1,6 +1,6 @@
 # Iteracja 5: płatności
 
-**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; czeka na konto Stripe (autor) i ADR 0049–0054
+**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; ADR 0049–0054 przyjęte 17 listopada 2026; konto Stripe (autor) opcjonalne dzięki atrapie
 
 ## Cel
 Klient dodaje kartę, doładowuje portfel kartą albo BLIK-iem i płaci za przejazd z portfela albo kartą. Pieniądze trafiają do portfela dopiero po zweryfikowanym webhooku operatora płatności ([ADR 0018](../adr/0018-platnosci-stripe.md)), a każdy ruch środków to wpis w księdze ([ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md)). Zakończony przejazd jest obciążany kwotą wyliczoną w iteracji 3 ([ADR 0042](../adr/0042-wycena-przejazdu.md)), a klient dostaje paragon. Nieudana płatność kartą zostawia przejazd w stanie `UNPAID`, co blokuje kolejną jazdę do spłaty. Operator w panelu tworzy nowe wersje cennika ([ADR 0015](../adr/0015-wersjonowany-cennik.md)), przegląda płatności, księgę i paragony, koryguje saldo i zwraca pieniądze za przejazd.
@@ -163,7 +163,7 @@ Stany, które nie wymagają nowych plansz:
   - spis makiet w [`projekt/README.md`](../projekt/README.md).
 
 ## ADR-y do napisania
-Numery są propozycją, ostatni ADR to 0048. Każdy ADR powstaje przed kodem, którego dotyczy.
+Napisane i przyjęte przez autora 17 listopada 2026: [0049](../adr/0049-rozliczenie-przejazdu.md), [0050](../adr/0050-integracja-stripe.md), [0051](../adr/0051-platnosci-w-aplikacji.md), [0052](../adr/0052-paragony.md), [0053](../adr/0053-wersje-cennika-w-panelu.md), [0054](../adr/0054-zwroty-i-korekty-salda.md). Każdy ADR powstaje przed kodem, którego dotyczy.
 
 | Nr | Temat | Co rozstrzyga |
 |---|---|---|

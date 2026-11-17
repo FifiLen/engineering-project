@@ -811,3 +811,39 @@ Plan: [iteracja 5](iteracje/iteracja-05-platnosci.md). Etap planowania, bez kodu
   - macierz operacji pozwala usuwać metody płatności w panelu, a D5 mówi „tylko do odczytu”;
   - plansza `20-mobile-wypozyczenie/profil-dane` obiecuje potwierdzenia płatności na e-mail, a D7 wyklucza e-mail. Do poprawy przy implementacji.
 
+**ADR 0049–0054 (17 listopada 2026, zaakceptowane przez autora)**
+- **Sprawdzone przed pisaniem:**
+  - wersje: `stripe` 23.1.0, `@stripe/stripe-js` 10.3.0, `@stripe/react-stripe-js` 7.1.0 (wszystkie starsze niż 3 dni), `@stripe/stripe-react-native` 0.81.0 przez `expo install` dla Expo SDK 58 (najnowsza 0.85.1);
+  - dokumentacja Stripe:
+    - BLIK w PLN dla konta z Polski, w trybie testowym działa każdy 6-cyfrowy kod, klient ma 60 s na potwierdzenie;
+    - karty testowe: 4242 sukces, 0002 odmowa, 3220 wymaga 3-D Secure, 0341 zapis tak, obciążenie nie, 9995 brak środków;
+    - SetupIntent z `off_session`, błąd 402 przy obciążeniu bez udziału klienta;
+    - webhooki z surową treścią, bez gwarancji kolejności, z duplikatami.
+
+  D2 rozstrzygnięte: BLIK przez Stripe działa w trybie testowym.
+- **0049 Rozliczenie:**
+  - portfel w transakcji `ENDED` przez `sp_wallet_post` z blokadą portfela;
+  - karta zadaniem `payment.charge-ride` po `ENDED`;
+  - zmiana maszyny stanów z ADR 0013: `DECLINE_PAYMENT` to teraz `ENDED → UNPAID` zamiast `ENDING → UNPAID`, bo przy D4 przejazd kartą kończy się przed wynikiem płatności;
+  - stan rozliczenia `NONE`, `WALLET_PAID`, `CARD_PENDING`, `CARD_PAID` albo `FAILED`, liczony w widoku.
+- **0050 Stripe:**
+  - port `PaymentProvider` z atrapą w procesie (te same zdarzenia, podpis HMAC);
+  - `payment_customers`;
+  - webhook z `rawBody` i przetwarzaniem w pg-boss;
+  - sprawdzanie statusu po 2 min;
+  - odrzucenie klucza `sk_live_` przy starcie.
+- **0051 Aplikacja:** trzy implementacje modułu płatności (web: Stripe.js, natywnie: SDK, atrapa); klucz publiczny z `GET /payments/config`.
+- **0052 Paragony:**
+  - potwierdzenie sprzedaży, niefiskalne;
+  - VAT „w stu” od sumy brutto;
+  - `tariffs.vat_rate`;
+  - korekta jako osobny dokument `CORRECTION`;
+  - dane sprzedawcy z konfiguracji;
+  - opis wymogów fiskalnych do sprawdzenia przez autora.
+- **0053 Cennik:** nowa wersja z `valid_from`, najwyżej jedna zaplanowana, usunięcie zaplanowanej bez przejazdów, bez limitu strefy.
+- **0054 Zwroty i korekty:**
+  - tabela `refunds` z sumą pilnowaną w bazie;
+  - `wallet_ledger.reason`;
+  - zwrot salda na kartę jako nowy typ księgi `PAYOUT`;
+  - uprawnienia: zwrot `rentals.manage`, korekta i zwrot salda `wallet.adjust`.
+
