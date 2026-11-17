@@ -1,6 +1,6 @@
 # Iteracja 4: strefy
 
-**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; czeka na ADR 0043–0048
+**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; ADR 0043–0048 przyjęte 17 listopada 2026; gotowa do implementacji
 
 ## Cel
 Operator rysuje i zmienia strefy w panelu: obszar działania, strefy parkowania, wolnej jazdy i zakazu. Zmiana działa od razu w aplikacji, w symulatorze i w trwających przejazdach. W trakcie jazdy API wykrywa z telemetrii wjazd i wyjazd ze strefy i zapisuje je na osi czasu przejazdu. Wysyła też hulajnodze komendę limitu prędkości albo stopniowego zatrzymania, a klientowi komunikat na ekranie jazdy, jak w makiecie `przejazd-strefa`. Aplikacja dostaje legendę stref, prowadzenie do najbliższej strefy parkowania, trasę do hulajnogi i wyszukiwanie celu „Dokąd jedziesz?”, czyli rzeczy odłożone w iteracji 3.
@@ -162,7 +162,7 @@ Stany, które nie wymagają nowych plansz:
   - spis makiet w [`projekt/README.md`](../projekt/README.md).
 
 ## ADR-y do napisania
-Numery są propozycją, ostatni ADR to 0042. Każdy ADR powstaje przed kodem, którego dotyczy.
+Napisane i przyjęte przez autora 17 listopada 2026: [0043](../adr/0043-wykrywanie-zmian-stref.md), [0044](../adr/0044-komendy-stref-dla-hulajnogi.md), [0045](../adr/0045-wyszukiwanie-miejsc-photon.md), [0046](../adr/0046-symulator-a-strefy.md), [0047](../adr/0047-edytor-geometrii-w-panelu.md), [0048](../adr/0048-trasy-dla-klienta-z-osrm.md). Każdy ADR powstaje przed kodem, którego dotyczy.
 
 | Nr | Temat | Co rozstrzyga |
 |---|---|---|

@@ -57,7 +57,8 @@ Do zrobienia:
 - [x] Przed iteracją 4: plan iteracji 4 (2026-11-17, `docs/iteracje/iteracja-04-strefy.md`).
 - [x] Przed iteracją 4: odpowiedzi autora na pytania 1–10 i decyzje D1–D8 (2026-11-17, wszystkie rekomendacje; strefa zakazu: Park im. św. Jana Sarkandra).
 - [x] Przed iteracją 4: makiety brakujących stanów (2026-11-17, `22-mobile-strefy`, `23-panel-strefy`, 14 plansz).
-- [ ] Przed iteracją 4: ADR 0043–0048.
+- [x] Przed iteracją 4: ADR 0043–0048 (2026-11-17, zaakceptowane).
+- [ ] Iteracja 4: implementacja według planu (`docs/iteracje/iteracja-04-strefy.md`, kolejność kroków od 4).
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.

@@ -611,3 +611,32 @@ Plan: [iteracja 4](iteracje/iteracja-04-strefy.md). Etap planowania, bez kodu i 
   - uproszczenie okręgów z danych startowych (64 punkty);
   - czas wjazdu do strefy w kolumnie „W strefie od”.
 
+**ADR 0043–0048 (17 listopada 2026, zaakceptowane przez autora)**
+- **0043 Wykrywanie zmian stref:**
+  - moduł Strefy za portem, wołany przez Telemetrię po zapisie partii, tylko dla hulajnóg w przejeździe;
+  - stan w `scooter_zone_presence`;
+  - histereza w core: wjazd od pierwszego odczytu, wyjazd po dwóch odczytach albo poza 10 m;
+  - pierwszy odczyt przejazdu bez zdarzeń; punkty z bufora dają zdarzenia, ale nie komendy.
+- **0044 Komendy stref:**
+  - indeks jednej oczekującej komendy ograniczony do `LOCK` i `UNLOCK`, więc komendy stref mają `rental_id` i są na osi czasu;
+  - kontrakt MQTT 1.2.0 z `release_stop` (`speed_limit` bez `kmh` zdejmuje limit, `lock` kasuje limit i zatrzymanie);
+  - uzgadnianie stanu docelowego zamiast komendy na każde przejście.
+- **0045 Wyszukiwanie:** API pośredniczy w zapytaniach do publicznego Photon.
+  - `bbox` obszaru z zapasem 1 km, `lang=default` (sprawdzone: `pl` nie jest obsługiwany, nazwy lokalne są polskie);
+  - pamięć podręczna 24 h i limit 30 zapytań na minutę;
+  - przy awarii `503 PLACES_UNAVAILABLE`.
+- **0046 Symulator a strefy:**
+  - wirtualny klient czyta `GET /zones` z punktem `anchor`, a część hulajnogi zna tylko MQTT;
+  - po zatrzymaniu prowadzi hulajnogę pieszo wstecz po trasie;
+  - `control goto <numer> <strefa|punkt>` do demo.
+- **0047 Edytor geometrii:**
+  - `terra-draw` 1.39.0 (1.40.0 z 15 listopada za nowa) i `terra-draw-maplibre-gl-adapter` 1.5.0;
+  - walidacja w panelu, w core i w bazie, a rozstrzyga baza;
+  - cofanie z własnego stosu;
+  - typ strefy niezmienny po utworzeniu, co jest odstępstwem od makiet;
+  - okręgi w danych startowych z 16 punktami.
+- **0048 Trasy:**
+  - drugi kontener OSRM z profilem pieszym; pomiar na wycinku śląskim: 54 s przygotowania, 796 MB, około 500 MiB pamięci (dane testowe usunięte);
+  - trasy przez API;
+  - przy awarii OSRM linia prosta z `approximate: true`.
+

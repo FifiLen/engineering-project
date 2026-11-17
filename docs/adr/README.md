@@ -46,3 +46,9 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0040 | [Mapa, lokalizacja i aparat w aplikacji](0040-mapa-lokalizacja-aparat-w-aplikacji.md) | zaakceptowana |
 | 0041 | [Kod QR hulajnogi](0041-kod-qr-hulajnogi.md) | zaakceptowana |
 | 0042 | [Wycena przejazdu](0042-wycena-przejazdu.md) | zaakceptowana |
+| 0043 | [Wykrywanie zmian stref z telemetrii](0043-wykrywanie-zmian-stref.md) | zaakceptowana |
+| 0044 | [Komendy stref dla hulajnogi](0044-komendy-stref-dla-hulajnogi.md) | zaakceptowana |
+| 0045 | [Wyszukiwanie miejsc (Photon)](0045-wyszukiwanie-miejsc-photon.md) | zaakceptowana |
+| 0046 | [Symulator a strefy](0046-symulator-a-strefy.md) | zaakceptowana |
+| 0047 | [Edytor geometrii stref w panelu](0047-edytor-geometrii-w-panelu.md) | zaakceptowana |
+| 0048 | [Trasy dla klienta z OSRM](0048-trasy-dla-klienta-z-osrm.md) | zaakceptowana |
