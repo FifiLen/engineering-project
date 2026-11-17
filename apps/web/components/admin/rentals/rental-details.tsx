@@ -22,7 +22,9 @@ import { useStaffFeed } from '../../../lib/realtime';
 import { useSession } from '../../../lib/session';
 import { Banner, initials } from '../access/common';
 import { rentalNumber, scooterNumber } from '../fleet/fleet-format';
-import { BellIcon, ChevronRightIcon, MapIcon, ScooterIcon, StopIcon } from '../icons';
+import { BellIcon, ChevronRightIcon, MapIcon, ScooterIcon, StopIcon, UndoIcon } from '../icons';
+import { RentalSettlementCard, settlementPill } from './rental-settlement';
+import { RefundDialog } from './refund-dialog';
 import { valueLabel } from '../labels';
 import { useRentalDetails } from './rental-data';
 import {
@@ -53,6 +55,7 @@ export function RentalDetailsPage({ id }: { id: string }) {
   const [scooter, setScooter] = useState<ScooterDetails | null>(null);
   const [live, setLive] = useState<LiveScooter | null>(null);
   const [ending, setEnding] = useState(false);
+  const [refunding, setRefunding] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const scooterId = rental?.scooterId ?? null;
@@ -153,6 +156,12 @@ export function RentalDetailsPage({ id }: { id: string }) {
               {t('rentals.showOnMap')}
             </Link>
           )}
+          {can('rentals.manage') && rental.refundable > 0 && (
+            <button type="button" className="btn" onClick={() => setRefunding(true)}>
+              <UndoIcon />
+              {t('rentals.refund.open')}
+            </button>
+          )}
           {can('rentals.manage') && REMOTE_END_STATES.includes(rental.state) && (
             <button type="button" className="btn danger" onClick={() => setEnding(true)}>
               <StopIcon />
@@ -206,7 +215,7 @@ export function RentalDetailsPage({ id }: { id: string }) {
             <section className="card price-card">
               <div className="card-head">
                 <h2>{t('rentals.price.title')}</h2>
-                <span className="pill muted">{t('rentals.price.settlement')}</span>
+                {settlementPill(rental)}
               </div>
               <div className="lines">
                 <Line label={t('rentals.price.tariff')}>
@@ -240,45 +249,55 @@ export function RentalDetailsPage({ id }: { id: string }) {
                 </Line>
               </div>
               <div className="price-total">
-                <span>{rental.billedUntil === null ? t('rentals.price.soFar') : t('rentals.price.total')}</span>
-                <b className="num">{formatPln(rental.price.total)}</b>
+                <span>
+                  {rental.settlement.paidAmount > 0
+                    ? t('rentals.price.paid')
+                    : rental.billedUntil === null
+                      ? t('rentals.price.soFar')
+                      : t('rentals.price.total')}
+                </span>
+                <b className="num">
+                  {formatPln(rental.settlement.paidAmount > 0 ? rental.settlement.paidAmount : rental.price.total)}
+                </b>
               </div>
               <p className="small">{t('rentals.price.note')}</p>
             </section>
 
-            <section className="card commands-card">
-              <div className="card-head">
-                <h2>{t('rentals.commands.title')}</h2>
-                <span className="code">{topics.command(String(rental.scooterNumber).padStart(4, '0'))}</span>
-              </div>
-              <div className="table" role="table">
-                <div className="row head" role="row">
-                  <span role="columnheader">{t('rentals.commands.sent')}</span>
-                  <span role="columnheader">{t('rentals.commands.command')}</span>
-                  <span role="columnheader">{t('rentals.commands.response')}</span>
-                  <span role="columnheader">{t('rentals.commands.result')}</span>
-                </div>
-                {commands.length === 0 && <p className="muted">{t('rentals.commands.none')}</p>}
-                {commands.map(({ entry, context }) => (
-                  <div key={entry.commandId ?? entry.at} className="row" role="row">
-                    <span role="cell" className="num">
-                      {formatTime(entry.at)}
-                    </span>
-                    <span role="cell" className="stack">
-                      <span className="strong">{commandLabel(entry)}</span>
-                      <small>{context}</small>
-                    </span>
-                    <span role="cell">
-                      <CommandResponse entry={entry} />
-                    </span>
-                    <span role="cell">
-                      <CommandResult entry={entry} />
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
+            <RentalSettlementCard rental={rental} />
           </div>
+
+          <section className="card commands-card">
+            <div className="card-head">
+              <h2>{t('rentals.commands.title')}</h2>
+              <span className="code">{topics.command(String(rental.scooterNumber).padStart(4, '0'))}</span>
+            </div>
+            <div className="table" role="table">
+              <div className="row head" role="row">
+                <span role="columnheader">{t('rentals.commands.sent')}</span>
+                <span role="columnheader">{t('rentals.commands.command')}</span>
+                <span role="columnheader">{t('rentals.commands.response')}</span>
+                <span role="columnheader">{t('rentals.commands.result')}</span>
+              </div>
+              {commands.length === 0 && <p className="muted">{t('rentals.commands.none')}</p>}
+              {commands.map(({ entry, context }) => (
+                <div key={entry.commandId ?? entry.at} className="row" role="row">
+                  <span role="cell" className="num">
+                    {formatTime(entry.at)}
+                  </span>
+                  <span role="cell" className="stack">
+                    <span className="strong">{commandLabel(entry)}</span>
+                    <small>{context}</small>
+                  </span>
+                  <span role="cell">
+                    <CommandResponse entry={entry} />
+                  </span>
+                  <span role="cell">
+                    <CommandResult entry={entry} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
 
         <div className="col">
@@ -333,6 +352,17 @@ export function RentalDetailsPage({ id }: { id: string }) {
         </div>
       </div>
 
+      {refunding && (
+        <RefundDialog
+          rental={rental}
+          onClose={() => setRefunding(false)}
+          onRefunded={(next, amount) => {
+            setRefunding(false);
+            apply(next);
+            setNotice(t('rentals.refund.done', { amount: formatPln(amount), number }));
+          }}
+        />
+      )}
       {ending && (
         <RemoteEndDialog
           rental={rental}

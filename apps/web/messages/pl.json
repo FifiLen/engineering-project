@@ -24,7 +24,9 @@
       "users": "Użytkownicy",
       "staff": "Operatorzy i role",
       "content": "Treści",
-      "zones": "Strefy"
+      "zones": "Strefy",
+      "payments": "Płatności",
+      "tariffs": "Cennik i zasady"
     },
     "auth": {
       "sideTitle": "Panel operatora floty",
@@ -204,7 +206,23 @@
     "ZONE_IN_USE": "Strefa była używana w przejazdach; można ją tylko dezaktywować",
     "ZONE_ALREADY_INACTIVE": "Strefa jest już nieaktywna",
     "SERVICE_AREA_REQUIRED": "Obszar działania jest wymagany i musi być dokładnie jeden aktywny",
-    "ZONE_NOT_FOUND": "Nie znaleziono strefy"
+    "ZONE_NOT_FOUND": "Nie znaleziono strefy",
+    "INSUFFICIENT_BALANCE": "Za mało środków w portfelu klienta",
+    "PAYMENT_OVERDUE": "Klient ma nieopłacony przejazd",
+    "PAYMENT_METHOD_REQUIRED": "Klient nie ma ważnej karty",
+    "PAYMENT_FAILED": "Płatność nie przeszła",
+    "PAYMENT_PROVIDER_UNAVAILABLE": "Operator płatności jest niedostępny. Spróbuj ponownie za chwilę.",
+    "TOPUP_AMOUNT_INVALID": "Nieprawidłowa kwota doładowania",
+    "REFUND_EXCEEDS_PAYMENT": "Kwota zwrotu przekracza to, co zostało do zwrotu",
+    "RENTAL_NOT_REFUNDABLE": "Tego przejazdu nie można zwrócić: nie jest opłacony albo zwrócono już całą kwotę",
+    "TARIFF_INVALID": "Popraw zaznaczone pola cennika",
+    "TARIFF_ALREADY_SCHEDULED": "Wersja {version} jest już zaplanowana. Usuń ją, aby zaplanować inną.",
+    "TARIFF_NOT_SCHEDULED": "Usunąć można tylko zaplanowaną wersję, zanim zacznie obowiązywać",
+    "TARIFF_IN_USE": "Tę wersję wskazują już przejazdy; nie można jej usunąć",
+    "NOTHING_TO_PAY_OUT": "Saldo klienta nie ma nic do zwrotu na kartę",
+    "PAYMENT_IN_PROGRESS": "Płatność jest w toku; poczekaj na jej wynik",
+    "PAYMENT_METHOD_IN_USE": "Karta jest używana w trwającym przejeździe albo zaległości",
+    "WEBHOOK_SIGNATURE_INVALID": "Nieprawidłowy podpis zdarzenia operatora płatności"
   },
   "fleetStatus": {
     "AVAILABLE": "Dostępna",
@@ -388,7 +406,8 @@
         "inProgress": "W trakcie",
         "reserved": "Rezerwacje",
         "ended": "Zakończone",
-        "problems": "Problemy"
+        "problems": "Problemy",
+        "unpaid": "Nieopłacone"
       },
       "fields": {
         "id": "Identyfikator",
@@ -408,7 +427,9 @@
         "totalAmount": "Kwota",
         "tariffVersion": "Wersja cennika",
         "endZoneCode": "Strefa końcowa",
-        "pendingCommand": "Komenda w toku"
+        "pendingCommand": "Komenda w toku",
+        "settlement": "Rozliczenie",
+        "paidAmount": "Zapłacono"
       },
       "values": {
         "state": {
@@ -425,6 +446,13 @@
         "hasProblem": {
           "true": "Z problemem",
           "false": "Bez problemu"
+        },
+        "settlement": {
+          "NONE": "Brak",
+          "WALLET_PAID": "Z portfela",
+          "CARD_PENDING": "Karta w toku",
+          "CARD_PAID": "Kartą",
+          "FAILED": "Nieudane"
         }
       }
     },
@@ -524,7 +552,8 @@
         "activeSessions": "Sesje",
         "lastSeenAt": "Ostatnia aktywność",
         "createdAt": "Rejestracja",
-        "version": "Wersja"
+        "version": "Wersja",
+        "unpaidRentals": "Nieopłacone przejazdy"
       },
       "values": {
         "status": {
@@ -620,6 +649,365 @@
           "false": "Ukryta"
         }
       }
+    },
+    "tariffs": {
+      "title": "Cennik i zasady",
+      "fields": {
+        "id": "Identyfikator",
+        "version": "Wersja",
+        "state": "Stan",
+        "validFrom": "Obowiązuje od",
+        "validTo": "Obowiązywała do",
+        "unlockFee": "Odblokowanie",
+        "minuteRate": "Minuta jazdy",
+        "pauseMinuteRate": "Minuta pauzy",
+        "outOfZoneFee": "Parkowanie poza strefą",
+        "freeReservationMinutes": "Bezpłatna rezerwacja",
+        "minWalletBalance": "Minimalne saldo do startu",
+        "minBatteryPct": "Minimalna bateria do wypożyczenia",
+        "minUserAge": "Minimalny wiek użytkownika",
+        "vatRate": "Stawka VAT",
+        "createdByName": "Autor",
+        "createdAt": "Utworzono",
+        "rentalsCount": "Przejazdy"
+      },
+      "values": {
+        "state": {
+          "CURRENT": "Obowiązuje",
+          "SCHEDULED": "Zaplanowana",
+          "ARCHIVED": "Archiwalna"
+        }
+      }
+    },
+    "payments": {
+      "title": "Płatności",
+      "searchPlaceholder": "Klient, przejazd lub identyfikator",
+      "new": "",
+      "emptyTitle": "Nie ma jeszcze płatności",
+      "emptyBody": "Płatności pojawią się po pierwszym doładowaniu albo przejeździe opłaconym kartą.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# płatność} few {# płatności} other {# płatności}}",
+      "summaryToday": "Dziś: {succeeded, plural, one {# udana} few {# udane} other {# udanych}}, {failed, plural, one {# nieudana} few {# nieudane} other {# nieudanych}}, {pending} w toku",
+      "quick": {
+        "SUCCEEDED": "Udane",
+        "PENDING": "W toku",
+        "FAILED": "Nieudane",
+        "REFUNDED": "Zwrócone"
+      },
+      "fields": {
+        "id": "Identyfikator",
+        "createdAt": "Czas",
+        "updatedAt": "Ostatnia zmiana",
+        "status": "Stan",
+        "purpose": "Cel",
+        "method": "Metoda",
+        "amount": "Kwota",
+        "provider": "Operator",
+        "providerPaymentId": "Identyfikator u operatora",
+        "idempotencyKey": "Klucz idempotencji",
+        "failureCode": "Kod odmowy",
+        "failureReason": "Powód odmowy",
+        "userId": "Klient",
+        "userName": "Klient",
+        "userPhone": "Telefon klienta",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "cardBrand": "Karta",
+        "cardLast4": "Końcówka karty",
+        "refundedAmount": "Zwrócono",
+        "receiptId": "Paragon",
+        "receiptNumber": "Paragon",
+        "webhookEvents": "Webhooki"
+      },
+      "values": {
+        "status": {
+          "PENDING": "W toku",
+          "SUCCEEDED": "Udana",
+          "FAILED": "Nieudana",
+          "REFUNDED": "Zwrócona"
+        },
+        "purpose": {
+          "TOPUP": "Doładowanie",
+          "RIDE": "Przejazd"
+        },
+        "method": {
+          "CARD": "Karta",
+          "BLIK": "BLIK"
+        }
+      }
+    },
+    "receipts": {
+      "title": "Płatności",
+      "searchPlaceholder": "Numer, klient lub przejazd",
+      "new": "",
+      "emptyTitle": "Nie ma jeszcze paragonów",
+      "emptyBody": "Paragon powstaje przy rozliczeniu przejazdu z portfela albo kartą.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# paragon} few {# paragony} other {# paragonów}}",
+      "summaryToday": "Dziś: {count, plural, one {# paragon} few {# paragony} other {# paragonów}} za przejazdy",
+      "quick": {
+        "wallet": "Z portfela",
+        "card": "Kartą",
+        "corrections": "Korekty"
+      },
+      "fields": {
+        "id": "Identyfikator",
+        "number": "Numer",
+        "kind": "Rodzaj",
+        "issuedAt": "Czas",
+        "userId": "Klient",
+        "buyerName": "Klient",
+        "buyerPhone": "Telefon klienta",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "paymentId": "Płatność",
+        "refundId": "Zwrot",
+        "paymentSource": "Zapłacono",
+        "cardBrand": "Karta",
+        "cardLast4": "Końcówka karty",
+        "totalAmount": "Kwota",
+        "vatAmount": "VAT",
+        "netAmount": "Netto",
+        "vatRate": "Stawka VAT",
+        "correctsReceiptId": "Korygowany paragon",
+        "correctsNumber": "Korygowany paragon",
+        "corrections": "Korekty"
+      },
+      "values": {
+        "kind": {
+          "SALE": "Sprzedaż",
+          "CORRECTION": "Korekta"
+        },
+        "paymentSource": {
+          "WALLET": "Portfel",
+          "CARD": "Karta"
+        }
+      }
+    },
+    "wallet-ledger": {
+      "title": "Płatności",
+      "searchPlaceholder": "Klient, telefon lub przejazd",
+      "new": "",
+      "emptyTitle": "Księga jest pusta",
+      "emptyBody": "Wpisy pojawią się po doładowaniu, rozliczeniu przejazdu, zwrocie albo korekcie salda.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# wpis} few {# wpisy} other {# wpisów}}",
+      "fields": {
+        "id": "Wpis",
+        "createdAt": "Data",
+        "userId": "Klient",
+        "userName": "Klient",
+        "userPhone": "Telefon klienta",
+        "type": "Typ",
+        "amount": "Kwota",
+        "balanceAfter": "Saldo po",
+        "reason": "Powód korekty",
+        "note": "Szczegóły",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "paymentId": "Płatność",
+        "paymentMethod": "Metoda",
+        "providerPaymentId": "Identyfikator u operatora",
+        "cardBrand": "Karta",
+        "cardLast4": "Końcówka karty",
+        "refundId": "Zwrot",
+        "refundReason": "Powód zwrotu",
+        "staffId": "Operator",
+        "staffName": "Operator",
+        "receiptId": "Paragon",
+        "receiptNumber": "Paragon"
+      },
+      "values": {
+        "type": {
+          "TOPUP": "Doładowanie",
+          "RIDE_CHARGE": "Przejazd",
+          "REFUND": "Zwrot",
+          "ADJUSTMENT": "Korekta",
+          "PAYOUT": "Zwrot salda"
+        },
+        "reason": {
+          "COMPLAINT": "Reklamacja",
+          "SYSTEM_ERROR": "Błąd systemu",
+          "GOODWILL": "Gest dobrej woli",
+          "OTHER": "Inny powód"
+        },
+        "paymentMethod": {
+          "CARD": "Karta",
+          "BLIK": "BLIK"
+        },
+        "refundReason": {
+          "SCOOTER_FAILURE": "Awaria hulajnogi",
+          "BILLING_ERROR": "Błąd naliczenia",
+          "CUSTOMER_COMPLAINT": "Reklamacja klienta",
+          "OTHER": "Inny powód",
+          "BALANCE_PAYOUT": "Zwrot salda"
+        }
+      }
+    },
+    "wallets": {
+      "title": "Płatności",
+      "searchPlaceholder": "Klient lub telefon",
+      "new": "",
+      "emptyTitle": "Nie ma jeszcze portfeli",
+      "emptyBody": "Portfel powstaje razem z kontem klienta.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# portfel} few {# portfele} other {# portfeli}}",
+      "quick": {
+        "outOfSync": "Niezgodne z księgą"
+      },
+      "fields": {
+        "userId": "Klient",
+        "name": "Klient",
+        "phone": "Telefon",
+        "userStatus": "Stan konta",
+        "cachedBalance": "Saldo w portfelu",
+        "ledgerBalance": "Saldo",
+        "outOfSync": "Zgodność z księgą",
+        "entries": "Wpisy",
+        "lastEntryAt": "Ostatni wpis"
+      },
+      "values": {
+        "outOfSync": {
+          "true": "Niezgodne",
+          "false": "Zgodne"
+        }
+      }
+    },
+    "payment-methods": {
+      "title": "Płatności",
+      "searchPlaceholder": "Klient, telefon lub końcówka karty",
+      "new": "",
+      "emptyTitle": "Nie ma jeszcze kart",
+      "emptyBody": "Karty dodają klienci w aplikacji; panel ich nie zmienia.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# karta} few {# karty} other {# kart}}",
+      "fields": {
+        "id": "Identyfikator",
+        "userId": "Klient",
+        "userName": "Klient",
+        "userPhone": "Telefon klienta",
+        "provider": "Operator",
+        "brand": "Karta",
+        "last4": "Końcówka",
+        "expMonth": "Miesiąc ważności",
+        "expYear": "Ważna do",
+        "isDefault": "Domyślna",
+        "state": "Stan",
+        "createdAt": "Dodana",
+        "removedAt": "Usunięta"
+      },
+      "values": {
+        "state": {
+          "ACTIVE": "Aktywna",
+          "EXPIRING": "Wygasa",
+          "EXPIRED": "Wygasła",
+          "REMOVED": "Usunięta"
+        },
+        "isDefault": {
+          "true": "Domyślna",
+          "false": "Inna"
+        }
+      }
+    },
+    "payment-webhook-events": {
+      "title": "Płatności",
+      "searchPlaceholder": "Identyfikator zdarzenia lub obiektu",
+      "new": "",
+      "emptyTitle": "Nie ma jeszcze zdarzeń",
+      "emptyBody": "Zdarzenia operatora płatności pojawią się po pierwszej płatności.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# zdarzenie} few {# zdarzenia} other {# zdarzeń}}",
+      "fields": {
+        "id": "Identyfikator",
+        "provider": "Operator",
+        "providerEventId": "Identyfikator zdarzenia",
+        "type": "Zdarzenie",
+        "objectId": "Obiekt",
+        "receivedAt": "Otrzymano",
+        "lastReceivedAt": "Ostatnie dostarczenie",
+        "processedAt": "Przetworzono",
+        "deliveries": "Dostarczenia",
+        "result": "Wynik",
+        "error": "Błąd",
+        "paymentId": "Płatność",
+        "paymentPurpose": "Cel płatności",
+        "paymentAmount": "Kwota",
+        "userId": "Klient",
+        "userName": "Klient"
+      },
+      "values": {
+        "result": {
+          "APPLIED": "Zastosowano",
+          "NO_CHANGE": "Bez zmian",
+          "IGNORED": "Pominięto",
+          "FAILED": "Błąd"
+        },
+        "paymentPurpose": {
+          "TOPUP": "Doładowanie",
+          "RIDE": "Przejazd"
+        }
+      }
+    },
+    "refunds": {
+      "title": "Płatności",
+      "searchPlaceholder": "Klient, przejazd lub identyfikator",
+      "new": "",
+      "emptyTitle": "Nie ma jeszcze zwrotów",
+      "emptyBody": "Zwrot robi się w szczegółach przejazdu, a zwrot salda na karcie klienta.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# zwrot} few {# zwroty} other {# zwrotów}}",
+      "fields": {
+        "id": "Identyfikator",
+        "createdAt": "Czas",
+        "updatedAt": "Ostatnia zmiana",
+        "status": "Stan",
+        "source": "Cel",
+        "amount": "Kwota",
+        "reason": "Powód",
+        "note": "Notatka",
+        "userId": "Klient",
+        "userName": "Klient",
+        "userPhone": "Telefon klienta",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Dotyczy",
+        "paymentId": "Płatność",
+        "paymentPurpose": "Cel płatności",
+        "providerRefundId": "Identyfikator u operatora",
+        "failureReason": "Powód odmowy",
+        "staffId": "Operator",
+        "staffName": "Operator",
+        "receiptId": "Korekta paragonu",
+        "receiptNumber": "Korekta paragonu"
+      },
+      "values": {
+        "status": {
+          "PENDING": "W toku",
+          "SUCCEEDED": "Zwrócono",
+          "FAILED": "Nieudany"
+        },
+        "source": {
+          "WALLET": "Portfel",
+          "CARD": "Karta"
+        },
+        "reason": {
+          "SCOOTER_FAILURE": "Awaria hulajnogi",
+          "BILLING_ERROR": "Błąd naliczenia",
+          "CUSTOMER_COMPLAINT": "Reklamacja klienta",
+          "OTHER": "Inny powód",
+          "BALANCE_PAYOUT": "Zwrot salda"
+        },
+        "paymentPurpose": {
+          "TOPUP": "Doładowanie",
+          "RIDE": "Przejazd"
+        }
+      }
     }
   },
   "history": {
@@ -679,6 +1067,18 @@
         "deactivated": "Dezaktywacja strefy",
         "restored": "Przywrócenie strefy",
         "deleted": "Usunięcie strefy"
+      },
+      "tariff": {
+        "created": "Nowa wersja cennika",
+        "deleted": "Usunięcie zaplanowanej wersji cennika"
+      },
+      "rental": {
+        "refunded": "Zwrot za przejazd",
+        "ended_remotely": "Zdalne zakończenie przejazdu"
+      },
+      "wallet": {
+        "adjusted": "Korekta salda",
+        "paid_out": "Zwrot salda na kartę"
       }
     },
     "entityTypes": {
@@ -688,7 +1088,9 @@
       "role": "Rola",
       "user": "Klient",
       "legal_document": "Dokument",
-      "zone": "Strefa"
+      "zone": "Strefa",
+      "tariff": "Cennik",
+      "rental": "Przejazd"
     },
     "detailsTitle": "Wpis {id}",
     "changed": "Zmienione pola",
@@ -779,7 +1181,8 @@
         "balance": "saldo portfela",
         "tickets": "zgłoszenia",
         "sessions": "aktywne sesje",
-        "lastSeen": "ostatnia aktywność"
+        "lastSeen": "ostatnia aktywność",
+        "overdue": "zaległości"
       },
       "consents": "Zgody",
       "consentsHint": "Wersje dokumentów z chwili akceptacji",
@@ -814,6 +1217,15 @@
         "TERMS_VIOLATION": "np. jazda we dwoje, parkowanie w zakazie",
         "UNPAID_BALANCE": "odblokuj po uregulowaniu salda",
         "SUSPECTED_ABUSE": "np. wiele kont na jedno urządzenie"
+      },
+      "unpaid": "{count, plural, one {# nieopłacony przejazd} few {# nieopłacone przejazdy} other {# nieopłaconych przejazdów}}",
+      "unpaidShort": "Zaległość",
+      "tabs": {
+        "label": "Karta klienta",
+        "profile": "Profil",
+        "wallet": "Portfel",
+        "rentals": "Przejazdy",
+        "payments": "Płatności"
       }
     },
     "documents": {
@@ -937,7 +1349,8 @@
       "times": "{count} × {rate}",
       "soFar": "Do tej pory",
       "total": "Razem",
-      "note": "Każda rozpoczęta minuta jazdy i pauzy. Naliczanie kończy się przy żądaniu zakończenia, jeśli blokada zostanie potwierdzona."
+      "note": "Każda rozpoczęta minuta jazdy i pauzy. Naliczanie kończy się przy żądaniu zakończenia, jeśli blokada zostanie potwierdzona.",
+      "paid": "Zapłacono"
     },
     "commands": {
       "title": "Komendy MQTT",
@@ -995,7 +1408,9 @@
         "ZONE_ENTERED": "Wjazd do strefy",
         "ZONE_EXITED": "Wyjazd ze strefy",
         "BATTERY_LOW": "Niska bateria",
-        "PHOTO_UPLOADED": "Zdjęcie parkowania"
+        "PHOTO_UPLOADED": "Zdjęcie parkowania",
+        "DECLINE_PAYMENT": "Płatność odrzucona",
+        "SETTLE_DEBT": "Spłacono zaległość"
       },
       "details": {
         "RESERVE": "w aplikacji",
@@ -1082,7 +1497,57 @@
       "audit": "Powód i notatka trafią do dziennika audytu, a zakończenie na oś czasu przejazdu.",
       "submit": "Zakończ przejazd"
     },
-    "ringSent": "Hulajnoga {scooter} dostała komendę Dzwonek."
+    "ringSent": "Hulajnoga {scooter} dostała komendę Dzwonek.",
+    "settlement": {
+      "title": "Rozliczenie",
+      "NONE": "Nierozliczony",
+      "WALLET_PAID": "Opłacony z portfela",
+      "CARD_PENDING": "Płatność w toku",
+      "CARD_PAID": "Opłacony kartą",
+      "FAILED": "Płatność nieudana",
+      "source": "Źródło",
+      "chosenAtStart": "wybrane przy starcie",
+      "payment": "Płatność",
+      "paymentLink": "Szczegóły płatności",
+      "paid": "Zapłacono",
+      "receipt": "Paragon",
+      "failure": "Powód odmowy",
+      "refunds": "Zwroty",
+      "noneNote": "Przejazd bez rozliczenia: sprzed iteracji 5 albo bez kwoty. Nie ma obciążenia, paragonu ani zwrotu."
+    },
+    "refund": {
+      "open": "Zwrot",
+      "title": "Zwrot za przejazd {number}",
+      "body": "Za przejazd zapłacono {amount} {source} (klient: {name}). Zwrotu nie da się cofnąć; pieniądze wracają tą samą drogą, którą przyszły.",
+      "byCard": "kartą {card}",
+      "byWallet": "z portfela",
+      "amount": "Kwota zwrotu",
+      "whole": "Całość, {amount}",
+      "part": "Część",
+      "max": "Najwyżej {max}: zapłacono {paid}, zwrócono dotąd {refunded}.",
+      "target": "Zwrot trafi",
+      "toCard": "Na kartę {card}",
+      "toCardHint": "zwrot u operatora płatności",
+      "toWallet": "Do portfela klienta",
+      "toWalletHint": "wpis „Zwrot” w księdze",
+      "cardNote": "Przejazd był opłacony kartą. Termin wpływu zależy od banku klienta.",
+      "walletNote": "Przejazd był opłacony z portfela. Saldo wzrośnie od razu.",
+      "reason": "Powód",
+      "reasonHints": {
+        "SCOOTER_FAILURE": "np. hulajnoga zgasła w trakcie jazdy",
+        "BILLING_ERROR": "np. blokada potwierdzona za późno",
+        "CUSTOMER_COMPLAINT": "uznana reklamacja przejazdu",
+        "OTHER": "opisz w notatce"
+      },
+      "conseqCard": "Operator płatności zwróci {amount} na kartę {card}. Płatność pokaże zwrot po potwierdzeniu od operatora.",
+      "conseqWallet": "Saldo portfela klienta wzrośnie o {amount} od razu (wpis „Zwrot” w księdze).",
+      "conseqReceipt": "Do paragonu {receipt} powstanie korekta na {amount}, widoczna dla klienta w aplikacji.",
+      "conseqAudit": "Kwota, powód i notatka trafią do dziennika audytu, a zwrot do rozliczenia przejazdu.",
+      "submitCard": "Zwróć {amount} na kartę",
+      "submitWallet": "Zwróć {amount} do portfela",
+      "exceeds": "Można zwrócić najwyżej {remaining}. Odśwież widok.",
+      "done": "Zapisano zwrot {amount} za przejazd {number}."
+    }
   },
   "zones": {
     "list": {
@@ -1280,6 +1745,373 @@
       "audit": "Zmiana trafi do dziennika audytu jako wersja {version} strefy.",
       "auditNew": "Utworzenie strefy trafi do dziennika audytu.",
       "confirm": "Zapisz i zastosuj"
+    }
+  },
+  "payments": {
+    "tabs": {
+      "payments": "Płatności",
+      "ledger": "Księga",
+      "wallets": "Portfele",
+      "receipts": "Paragony",
+      "methods": "Metody płatności",
+      "webhooks": "Webhooki",
+      "refunds": "Zwroty"
+    },
+    "brands": {
+      "visa": "Visa",
+      "mastercard": "Mastercard",
+      "amex": "American Express"
+    },
+    "brandMarks": {
+      "visa": "VISA",
+      "mastercard": "MC",
+      "amex": "AMEX",
+      "blik": "BLIK"
+    },
+    "card": "{brand} •••• {last4}",
+    "blik": "BLIK",
+    "walletMark": "zł",
+    "currency": "PLN",
+    "source": {
+      "WALLET": "Portfel",
+      "CARD": "Karta"
+    },
+    "providers": {
+      "fake": "Atrapa operatora",
+      "stripe": "Stripe"
+    },
+    "purposeRide": "Przejazd",
+    "purposeRideNumber": "Przejazd {number}",
+    "refundReason": {
+      "SCOOTER_FAILURE": "Awaria hulajnogi",
+      "BILLING_ERROR": "Błąd naliczenia",
+      "CUSTOMER_COMPLAINT": "Reklamacja klienta",
+      "OTHER": "Inny powód",
+      "BALANCE_PAYOUT": "Zwrot salda"
+    },
+    "webhookResult": {
+      "APPLIED": "zastosowano",
+      "NO_CHANGE": "bez zmian",
+      "IGNORED": "pominięto",
+      "FAILED": "błąd"
+    },
+    "details": {
+      "label": "Szczegóły płatności",
+      "title": {
+        "TOPUP": "Doładowanie portfela",
+        "RIDE": "Płatność za przejazd"
+      },
+      "how": {
+        "TOPUP_CARD": "doładowanie portfela kartą",
+        "TOPUP_BLIK": "doładowanie portfela BLIK-iem",
+        "RIDE_CARD": "kartą, po zakończeniu przejazdu albo przy spłacie",
+        "RIDE_BLIK": "BLIK-iem, przy spłacie zaległości"
+      },
+      "rental": "Przejazd",
+      "purpose": "Cel",
+      "method": "Metoda",
+      "provider": "Operator",
+      "providerId": "Identyfikator",
+      "idempotencyKey": "Klucz idempotencji",
+      "receipt": "Paragon",
+      "refunds": "Zwroty",
+      "none": "brak",
+      "failure": "Powód odmowy",
+      "events": "Zdarzenia operatora",
+      "eventsHint": "webhooki i zwroty",
+      "copy": "Kopiuj identyfikator",
+      "customer": "Karta klienta",
+      "toRental": "Przejazd {number}",
+      "open": "Szczegóły płatności"
+    },
+    "events": {
+      "created": {
+        "TOPUP": "Rozpoczęto doładowanie",
+        "RIDE": "Zlecono obciążenie karty"
+      },
+      "idempotency": "klucz {key}",
+      "notProcessed": "nieprzetworzone",
+      "received": "otrzymano",
+      "deliveries": "dostarczono {count} razy",
+      "refund": "Zwrot {amount}"
+    },
+    "ledger": {
+      "fromWallet": "z portfela",
+      "toWallet": "do portfela",
+      "payout": "zwrot salda na kartę · {staff}",
+      "note": "„{note}”"
+    },
+    "wallets": {
+      "cached": "Saldo w portfelu: {amount}",
+      "outOfSync": "Niezgodny z księgą",
+      "inSync": "Zgodny"
+    },
+    "methods": {
+      "expiry": "{month}/{year}",
+      "default": "Domyślna"
+    },
+    "webhooks": {
+      "noPayment": "bez płatności"
+    },
+    "refunds": {
+      "balance": "Zwrot salda"
+    }
+  },
+  "receipt": {
+    "label": "Paragon",
+    "correction": "Korekta",
+    "issued": "Wystawiono {date}",
+    "times": "{count} × {price} · VAT {vat}%",
+    "minutesTimes": "{count} min × {price} · VAT {vat}%",
+    "taxId": "NIP {taxId}",
+    "kind": {
+      "SALE": "Potwierdzenie sprzedaży",
+      "CORRECTION": "Korekta potwierdzenia sprzedaży"
+    },
+    "nonFiscal": "niefiskalne",
+    "buyer": "Nabywca",
+    "rental": "Przejazd",
+    "corrects": "Koryguje",
+    "items": {
+      "UNLOCK": "Odblokowanie",
+      "RIDE_MINUTES": "Jazda",
+      "PAUSE_MINUTES": "Pauza",
+      "REFUND": "Zwrot za przejazd"
+    },
+    "net": "Netto",
+    "vat": "VAT",
+    "vatRate": "VAT {rate}%",
+    "total": "Razem brutto",
+    "paid": "Zapłacono",
+    "refundedTo": "Zwrócono na",
+    "corrections": "Korekty",
+    "note": "Potwierdzenie sprzedaży, dokument niefiskalny. Dane nabywcy z chwili wystawienia. Klient widzi ten sam paragon w aplikacji.",
+    "payment": "Płatność",
+    "open": "Pokaż paragon"
+  },
+  "wallet": {
+    "title": "Portfel",
+    "inSync": "zgodny z księgą",
+    "outOfSync": "niezgodny z księgą (portfel: {cached})",
+    "lastChange": "saldo · ostatnia zmiana {date}",
+    "noEntries": "saldo · bez wpisów w księdze",
+    "negative": "Saldo ujemne blokuje rezerwację i start do doładowania.",
+    "belowMinimum": "Poniżej minimum do startu ({minimum}). Klient pojedzie, płacąc kartą, albo po doładowaniu.",
+    "ledger": {
+      "title": "Księga portfela",
+      "hint": "Każdy ruch środków to nowy wpis; wpisów się nie zmienia.",
+      "type": "Typ",
+      "allTypes": "Wszystkie typy",
+      "period": "Okres",
+      "periods": {
+        "30": "30 dni",
+        "90": "90 dni",
+        "all": "Cała historia"
+      },
+      "date": "Data",
+      "details": "Szczegóły",
+      "amount": "Kwota",
+      "balanceAfter": "Saldo po",
+      "empty": "Brak wpisów w wybranym okresie.",
+      "count": {
+        "30": "{count, plural, one {# wpis} few {# wpisy} other {# wpisów}} z 30 dni",
+        "90": "{count, plural, one {# wpis} few {# wpisy} other {# wpisów}} z 90 dni",
+        "all": "{count, plural, one {# wpis} few {# wpisy} other {# wpisów}}"
+      },
+      "cardRides": "przejazdy opłacone kartą są w zakładce Płatności",
+      "full": "Pełna księga"
+    },
+    "methods": {
+      "title": "Metody płatności",
+      "hint": "dodaje klient w aplikacji",
+      "expires": "wygasa {expiry}",
+      "removed": "usunięta {date}",
+      "blik": "kod przy każdej płatności, bez zapisu"
+    },
+    "overdue": {
+      "title": "Zaległości",
+      "pending": "płatność w toku",
+      "retry": "ponowienie {relative}",
+      "attempts": "{count, plural, one {# nieudana próba} few {# nieudane próby} other {# nieudanych prób}}"
+    },
+    "adjust": {
+      "open": "Korekta salda",
+      "title": "Korekta salda: {name}",
+      "body": "Korekta to nowy wpis w księdze portfela. Wcześniejszych wpisów nie zmienia i nie da się jej cofnąć; błąd poprawia kolejna korekta.",
+      "amount": "Kwota",
+      "add": "Dopisz do salda",
+      "subtract": "Odejmij od salda",
+      "placeholder": "0,00",
+      "invalidAmount": "Podaj kwotę w złotych, np. 10,00 (najwyżej 10 000 zł).",
+      "balanceNow": "Saldo teraz",
+      "correction": "Korekta",
+      "balanceAfter": "Saldo po korekcie",
+      "reason": "Powód",
+      "reasonHint": "(klient zobaczy go w historii portfela)",
+      "reasonHints": {
+        "COMPLAINT": "np. przejazd naliczony za długo",
+        "SYSTEM_ERROR": "np. podwójne obciążenie",
+        "GOODWILL": "rekompensata bez reklamacji",
+        "OTHER": "opisz w notatce"
+      },
+      "note": "Notatka",
+      "noteHint": "(tylko w księdze i dzienniku audytu)",
+      "noteRequired": "(wymagana przy innym powodzie; tylko w księdze i dzienniku audytu)",
+      "conseqLedger": "W księdze powstanie wpis korekty {amount} z Twoim nazwiskiem i saldem po operacji {after}.",
+      "conseqLedgerEmpty": "W księdze powstanie wpis korekty z Twoim nazwiskiem i saldem po operacji.",
+      "conseqApp": "Klient od razu zobaczy nowe saldo i w historii portfela pozycję „Korekta salda: {reason}”.",
+      "conseqAppEmpty": "Klient od razu zobaczy nowe saldo i powód korekty w historii portfela.",
+      "conseqAudit": "Kwota, powód i notatka trafią do dziennika audytu.",
+      "submit": "Zapisz korektę",
+      "submitAdd": "Dopisz {amount} do salda",
+      "submitSubtract": "Odejmij {amount} od salda",
+      "done": "Zapisano korektę {amount}. Saldo: {balance}."
+    },
+    "payout": {
+      "open": "Zwrot salda",
+      "title": "Zwrot salda na kartę: {name}",
+      "body": "Saldo {amount} wróci na kartę klienta zwrotami ostatnich doładowań, od najnowszego. Zwrotu nie da się cofnąć.",
+      "conseqRefunds": "Operator płatności dostanie zlecenia zwrotu, każde najwyżej do kwoty doładowania; termin wpływu zależy od banku.",
+      "conseqLedger": "W księdze powstaną wpisy „Zwrot salda” z kwotą ujemną; odmowa operatora przywróci saldo wpisem odwracającym.",
+      "conseqRemainder": "Część bez doładowania do zwrotu (np. starsza niż limit operatora) zostanie na saldzie do rozliczenia korektą.",
+      "conseqAudit": "Zwrot salda trafi do dziennika audytu.",
+      "submit": "Zwróć {amount} na kartę",
+      "done": "Zlecono zwrot {amount} na kartę.",
+      "doneRemainder": "Zlecono zwrot {amount} na kartę. Pozostałe {remainder} rozlicz korektą salda z powodem „Inny powód”."
+    }
+  },
+  "tariffs": {
+    "title": "Cennik i zasady",
+    "sub": "Zmiana cennika to nowa wersja. Przejazd zapamiętuje wersję z chwili rezerwacji.",
+    "history": "Historia zmian",
+    "new": "Nowa wersja",
+    "scheduledNotice": "Wersja {version} zacznie obowiązywać sama {date}. Rezerwacje sprzed tej chwili zostają przy wersji {current}.",
+    "showVersion": "Pokaż wersję {version}",
+    "versions": "Wersje",
+    "newestFirst": "najnowsze u góry",
+    "version": "Wersja {version}",
+    "noRentals": "jeszcze bez rezerwacji",
+    "rentalsWord": "{count, plural, one {przejazd} few {przejazdy} other {przejazdów}}",
+    "rentalsInVersion": "{count, plural, one {przejazd w tej wersji} few {przejazdy w tej wersji} other {przejazdów w tej wersji}}",
+    "versionsNote": "Wersji nie edytuje się. Zaplanowaną wersję można usunąć, dopóki nie zacznie obowiązywać.",
+    "createdBy": "utworzył(a) {name}",
+    "author": "{name} · {date}",
+    "authorSystem": "System · dane startowe",
+    "from": "od {date}",
+    "range": "{from} – {to}",
+    "sections": {
+      "fees": "Opłaty",
+      "reservation": "Rezerwacja i portfel",
+      "safety": "Bezpieczeństwo"
+    },
+    "hints": {
+      "unlockFee": "Pobierane raz, przy odblokowaniu",
+      "minuteRate": "Za każdą rozpoczętą minutę",
+      "pauseMinuteRate": "Za każdą rozpoczętą minutę pauzy",
+      "outOfZoneFee": "Za odholowanie hulajnogi przez serwis",
+      "freeReservationMinutes": "Potem rezerwacja wygasa",
+      "minWalletBalance": "Przy rezerwacji i starcie; nie dotyczy jazdy opłacanej kartą"
+    },
+    "formHints": {
+      "unlockFee": "Pobierane raz, przy odblokowaniu",
+      "minuteRate": "Za każdą rozpoczętą minutę",
+      "pauseMinuteRate": "Za każdą rozpoczętą minutę pauzy",
+      "outOfZoneFee": "Za odholowanie hulajnogi przez serwis",
+      "minWalletBalance": "Nie dotyczy jazdy opłacanej kartą",
+      "vatRate": "Ceny są brutto; stawka trafia na paragon"
+    },
+    "short": {
+      "unlockFee": "Odblokowanie",
+      "minuteRate": "Minuta jazdy",
+      "pauseMinuteRate": "Minuta pauzy",
+      "outOfZoneFee": "Parkowanie poza strefą",
+      "freeReservationMinutes": "Bezpłatna rezerwacja",
+      "minWalletBalance": "Minimalne saldo",
+      "minBatteryPct": "Minimalna bateria",
+      "minUserAge": "Minimalny wiek",
+      "vatRate": "Stawka VAT"
+    },
+    "units": {
+      "minutes": "{value} min",
+      "percent": "{value} %",
+      "years": "{value} lat",
+      "vat": "{value}%"
+    },
+    "suffix": {
+      "money": "zł",
+      "minutes": "min",
+      "percent": "%",
+      "years": "lat",
+      "vat": "%"
+    },
+    "errors": {
+      "money": "Podaj kwotę w złotych, np. 3,00 (najwyżej 10 000 zł).",
+      "range": "Podaj wartość od {min} do {max} {unit}.",
+      "pastDate": "Podaj datę i godzinę w przyszłości.",
+      "server": "API odrzuciło tę wartość."
+    },
+    "vatNote": "Ceny brutto z {vat} VAT. Limit prędkości w wolnej jeździe ustawia się w",
+    "zonesLink": "Strefach",
+    "vatNoteEnd": ".",
+    "delete": "Usuń wersję",
+    "deleteHint": "Zaplanowaną wersję można usunąć do {date}, dopóki żaden przejazd jej nie wskazuje.",
+    "deleteTitle": "Usunąć zaplanowaną wersję {version}?",
+    "deleteBody": "Wersja zniknie z listy, a po jej dacie dalej będzie obowiązywać wersja {current}. Usunięcie trafi do dziennika audytu.",
+    "deleted": "Usunięto zaplanowaną wersję {version}.",
+    "noCurrent": "Brak obowiązującej wersji cennika.",
+    "preview": {
+      "title": "Podgląd",
+      "version": "wersja {version}",
+      "heading": "Cennik",
+      "rows": {
+        "unlock": "Odblokowanie",
+        "minute": "Minuta jazdy",
+        "pause": "Minuta pauzy",
+        "reservation": "Rezerwacja",
+        "towing": "Parkowanie poza strefą"
+      },
+      "unlockHint": "Raz na przejazd",
+      "pauseHint": "Hulajnoga zablokowana i zarezerwowana dla Ciebie",
+      "reservationHint": "Przez pierwsze {minutes} min",
+      "free": "Bezpłatnie",
+      "towingHint": "Gdy hulajnoga zostanie odholowana",
+      "note": "Tak cennik zobaczą klienci w aplikacji.",
+      "noteWithScheduled": "Tak cennik zobaczą klienci w aplikacji. Wersja {version} pokaże się sama od {date}.",
+      "noteScheduled": "Tak klienci zobaczą cennik od {date}; do tej chwili aplikacja pokazuje obowiązującą wersję.",
+      "noteArchived": "Wersja archiwalna: klienci jej już nie widzą, ale pamiętają ją przejazdy z jej okresu."
+    },
+    "form": {
+      "crumb": "Nowa wersja",
+      "title": "Nowa wersja {version}",
+      "sub": "Na podstawie obowiązującej wersji {version}. Wartości można zmienić tylko teraz; zapisanej wersji się nie edytuje.",
+      "changed": "zmiana",
+      "currentValue": "Obowiązuje: {value}",
+      "immediately": "od razu",
+      "validFrom": "Obowiązuje od",
+      "mode": {
+        "now": "Od teraz",
+        "date": "Od daty"
+      },
+      "dateTime": "Data i godzina",
+      "dateHint": "Czas polski. Wersja zacznie obowiązywać sama.",
+      "nowHint": "Nowe rezerwacje od razu po zapisaniu dostaną nową wersję; trwające przejazdy zostają przy wersji {version}.",
+      "submitNow": "Wprowadź wersję {version}",
+      "submitScheduled": "Zaplanuj wersję {version}"
+    },
+    "compare": {
+      "title": "Porównanie z wersją {version}",
+      "field": "Pole",
+      "same": "bez zmian",
+      "changes": "{count, plural, one {zmiana} few {zmiany} other {zmian}}",
+      "errors": "{count, plural, one {# błąd} few {# błędy} other {# błędów}}"
+    },
+    "conseq": {
+      "title": "Co się stanie",
+      "start": "Od {date} nowe rezerwacje dostaną wersję {version}, a aplikacja pokaże nowy cennik.",
+      "startNow": "Od razu po zapisaniu nowe rezerwacje dostaną wersję {version}, a aplikacja pokaże nowy cennik.",
+      "keep": "Rezerwacje i przejazdy rozpoczęte wcześniej zostają przy wersji {version}.",
+      "audit": "Utworzenie wersji trafi do dziennika audytu. Do {date} wersję {version} można usunąć.",
+      "auditNow": "Utworzenie wersji trafi do dziennika audytu. Obowiązującej wersji nie można usunąć; pomyłkę poprawia kolejna wersja."
     }
   }
 }

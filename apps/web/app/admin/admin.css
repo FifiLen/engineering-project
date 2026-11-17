@@ -3219,3 +3219,765 @@ dialog.zone-dialog .end-icon.warn {
   font-size: 13px;
   font-weight: 500;
 }
+
+/* Płatności: listy, panel boczny płatności i paragonu (makiety 25-panel-platnosci) */
+.amount-cell {
+  display: block;
+  text-align: right;
+}
+.code.ink {
+  color: var(--ink);
+}
+.strong-500 {
+  font-weight: 500;
+}
+.right {
+  text-align: right;
+  justify-self: end;
+}
+.bad {
+  color: var(--danger);
+  font-weight: 500;
+}
+.wrap,
+.stack.wrap > * {
+  white-space: normal;
+}
+.nowrap {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.pill.sm {
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+  border-radius: 10px;
+}
+.pill.on-surface {
+  background: var(--surface);
+}
+.notice.info {
+  background: var(--accent-tint);
+  align-items: center;
+}
+.notice.info .ic {
+  color: var(--accent);
+}
+.notice.info > span:last-child {
+  padding-top: 0;
+}
+.notice .grow {
+  flex-grow: 1;
+}
+.small-link {
+  font-size: 12px;
+}
+.amount-box {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+.amount-big {
+  font-size: 27px;
+  letter-spacing: -0.02em;
+}
+.kv-grid {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 9px 12px;
+  font-size: 13px;
+  margin: 0;
+}
+.kv-grid dt {
+  color: var(--muted);
+}
+.kv-grid dd {
+  margin: 0;
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kv-grid dd.wrap {
+  white-space: normal;
+}
+.kv-grid .link {
+  font-size: 13px;
+}
+.copy-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+}
+.copy-code .code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.icon-btn.small-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.detail-card {
+  max-width: 560px;
+}
+.receipt-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cardmark {
+  width: 44px;
+  height: 30px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 0 0 4px 6px;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+.cardmark.light {
+  background: var(--line);
+  color: var(--ink);
+}
+.cardmark.sm {
+  width: 36px;
+  height: 24px;
+  border-radius: 5px;
+  font-size: 9px;
+  padding: 0 0 3px 5px;
+}
+
+/* Paragon */
+.rc {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px 18px;
+  flex-shrink: 0;
+}
+.rc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.rc-head .stack > * {
+  white-space: normal;
+}
+.rc-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.rc-sum {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+.rc-items {
+  margin-top: 8px;
+}
+.rc-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.rc-line .num {
+  white-space: nowrap;
+}
+.rc-totals {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  margin-top: 2px;
+}
+.rc-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px 0 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.rc-total span {
+  font-size: 13px;
+  font-weight: 600;
+}
+.rc-total b {
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.small.note {
+  line-height: 1.45;
+}
+
+/* Cennik i zasady (makiety cennik-wersje, cennik-nowa-wersja) */
+.tariffs-grid {
+  display: grid;
+  grid-template-columns: 316px minmax(0, 1fr) 296px;
+  gap: 16px;
+  align-items: stretch;
+}
+.tariffs-grid h2,
+.tariff-form-grid h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.tariff-versions {
+  padding: 18px 12px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.tariff-versions .card-head {
+  padding: 0 8px 10px;
+}
+.ver-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ver {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.ver:hover {
+  background: var(--bg);
+}
+.ver[aria-current='true'] {
+  background: var(--accent-tint);
+}
+.ver:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.ver-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ver-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+.num.ink {
+  color: var(--ink);
+}
+.card-foot {
+  margin-top: auto;
+  line-height: 1.45;
+  padding: 12px 8px 0;
+  border-top: 1px solid var(--line);
+}
+.tariff-details {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tariff-details .card-foot {
+  padding: 12px 0 0;
+  margin-top: 16px;
+}
+.tariff-details-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.tariff-details-head .stack {
+  gap: 4px;
+}
+.tariff-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.tariff-details-head .small {
+  font-size: 13px;
+}
+.big-stat {
+  font-size: 20px;
+  letter-spacing: -0.015em;
+}
+.sect {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 16px 0 4px;
+}
+.kvline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.kvline .k {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.kvline .k b {
+  font-size: 14px;
+  font-weight: 500;
+}
+.kvline .v {
+  font-size: 15px;
+  white-space: nowrap;
+}
+.tariff-delete {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+.tariff-preview {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+}
+.phone-card {
+  margin-top: 14px;
+  border-radius: 24px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 16px 16px 6px;
+}
+.phone-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+.phone-img {
+  display: block;
+  width: 100%;
+  height: 96px;
+  object-fit: contain;
+  margin: 6px 0 4px;
+}
+.pv {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.pv .num {
+  white-space: nowrap;
+}
+.pv .stack > * {
+  white-space: normal;
+  overflow: visible;
+}
+.preview-note {
+  line-height: 1.45;
+  margin-top: 12px;
+}
+.tariff-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: 16px;
+  align-items: start;
+  margin-top: 16px;
+}
+.tariff-form {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.tariff-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px 24px;
+  align-items: start;
+}
+.tariff-form-row.sections {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.col-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.fsect {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.col-fields .fsect:not(:first-child) {
+  margin-top: 4px;
+}
+.chg {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+.affix {
+  position: relative;
+  display: block;
+}
+.affix .input {
+  padding-right: 56px;
+  font-weight: 500;
+}
+.affix .suf {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.input.changed {
+  border: 1.5px solid var(--accent);
+}
+.input.changed[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.seg-wide {
+  width: 240px;
+}
+.now-hint {
+  line-height: 1.45;
+  padding-top: 8px;
+}
+.compare-card {
+  padding: 18px 20px 10px;
+}
+.compare-card .card-head {
+  margin-bottom: 12px;
+}
+.cmp {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px 122px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.cmp > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmp.head {
+  border-top: none;
+  padding-top: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.cmp .same {
+  color: #9a9ca1;
+}
+.cmp .new {
+  font-weight: 600;
+}
+.cmp .bad {
+  font-weight: 600;
+}
+.cmp .old {
+  color: var(--muted);
+}
+.conseq-card {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.conseq {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.conseq .ci {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.conseq > span:last-child {
+  padding-top: 5px;
+}
+
+/* Karta klienta: portfel (makiety klient-portfel, korekta-salda) */
+.tab .n {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.client-stats b.bad {
+  color: var(--danger);
+}
+.wallet-layout {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+.ledger-card .section-head {
+  align-items: flex-start;
+}
+.ledger-card .section-head h2 {
+  margin: 0;
+}
+.lg {
+  display: grid;
+  grid-template-columns: 112px 112px minmax(0, 1fr) 92px 84px;
+  gap: 12px;
+  align-items: center;
+  min-height: 52px;
+  padding: 6px 4px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.lg > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lg.head {
+  min-height: 0;
+  border-top: none;
+  padding: 0 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.lg .num {
+  font-size: 13px;
+}
+.lg .right,
+.lg.head .right {
+  text-align: right;
+  justify-self: stretch;
+}
+.empty-line {
+  padding: 16px 4px;
+  margin: 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.ledger-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.wallet-card .section-head,
+.methods-card .section-head,
+.overdue-card .section-head {
+  align-items: center;
+}
+.wallet-card h2,
+.methods-card h2,
+.overdue-card h2 {
+  margin: 0;
+}
+.sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.sync.bad {
+  color: var(--danger);
+}
+.balance-big {
+  font-size: 40px;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.negative {
+  color: var(--danger);
+}
+.pm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+.pm .grow {
+  flex: 1;
+}
+.overdue-card .list-plain .grow {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Okna kwot: korekta salda, zwrot salda, zwrot za przejazd (makiety korekta-salda, przejazd-zwrot) */
+dialog.end-dialog.money-dialog {
+  width: 620px;
+}
+dialog.end-dialog.money-dialog.wide {
+  width: 640px;
+}
+.end-icon.accent {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+.money-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 16px;
+  align-items: start;
+}
+.money-dialog.wide .money-row {
+  grid-template-columns: minmax(0, 1fr) 250px;
+}
+.money-row .field {
+  gap: 8px;
+}
+.money-input {
+  height: 48px;
+  font-size: 17px;
+}
+.prev {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--bg);
+}
+.prev .r {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+}
+.prev .r.total {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.prev .big {
+  font-size: 22px;
+  letter-spacing: -0.015em;
+}
+.prev .target {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.prev .small.wrap {
+  line-height: 1.45;
+}
+.reason-grid-wrap .label {
+  display: block;
+  margin-bottom: 6px;
+}
+.reason-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 8px;
+}
+.reason-grid .radio-option {
+  padding: 8px 12px;
+}
+dialog.end-dialog.money-dialog textarea.input {
+  min-height: 52px;
+}
+
+/* Rozliczenie w szczegółach przejazdu */
+.rental-cards .settlement-card {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.settlement-card .card-head {
+  align-items: center;
+}
+.settlement-card .lines {
+  margin-top: 12px;
+}
+.settlement-card > .small {
+  margin: auto 0 0;
+  padding-top: 10px;
+  line-height: 1.45;
+}
+.refund-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.refund-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.refund-list .grow {
+  flex: 1;
+}
+.prev .r.total .strong {
+  white-space: nowrap;
+}

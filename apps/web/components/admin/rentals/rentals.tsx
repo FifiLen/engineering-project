@@ -23,6 +23,8 @@ import { useSession } from '../../../lib/session';
 import type { FilterSpec } from '../filter-drawer';
 import { rentalNumber, scooterNumber } from '../fleet/fleet-format';
 import { ChevronRightIcon, CloseIcon, RouteIcon, StopIcon, WarningIcon } from '../icons';
+import { valueLabel } from '../labels';
+import { SETTLEMENT_PILL } from '../payments/payment-format';
 import { ResourceList, type Column, type QuickPreset } from '../resource-list';
 import { useRentalDetails } from './rental-data';
 import {
@@ -61,7 +63,11 @@ const columns: Column<RentalListItem>[] = [
     ),
   },
   { field: 'userName', width: 'minmax(0,1fr)', render: customerName },
-  { field: 'scooterNumber', width: '64px', render: (r) => <span className="strong">{scooterNumber(r.scooterNumber)}</span> },
+  {
+    field: 'scooterNumber',
+    width: '64px',
+    render: (r) => <span className="strong">{scooterNumber(r.scooterNumber)}</span>,
+  },
   {
     field: 'createdAt',
     width: '46px',
@@ -78,11 +84,24 @@ const columns: Column<RentalListItem>[] = [
     width: '80px',
     render: (r) => <span className={r.totalAmount === null ? 'muted' : 'num'}>{amountLabel(r)}</span>,
   },
+  {
+    field: 'settlement',
+    width: '112px',
+    render: (r) =>
+      r.settlement === 'NONE' ? (
+        <span className="muted">{t('common.none')}</span>
+      ) : (
+        <span className={`${SETTLEMENT_PILL[r.settlement]} sm`}>
+          {valueLabel(rentalsResource, 'settlement', r.settlement)}
+        </span>
+      ),
+  },
 ];
 
 const filters: FilterSpec[] = [
   { field: 'state', kind: 'checklist' },
   { field: 'hasProblem', kind: 'boolean' },
+  { field: 'settlement', kind: 'checklist' },
   { field: 'createdAt', kind: 'dateRange' },
   { field: 'endedAt', kind: 'dateRange' },
 ];
@@ -98,15 +117,15 @@ const presets: { items: QuickPreset[]; facets: string[]; total: (f: ListResponse
     { key: 'inProgress', states: RUNNING_STATES },
     { key: 'reserved', states: ['RESERVED'] },
     { key: 'ended', states: ['ENDED'] },
+    // Zaległości po odmowie obciążenia karty (ADR 0049).
+    { key: 'unpaid', states: ['UNPAID'] },
   ]
-    .map(
-      ({ key, states }): QuickPreset => ({
-        key,
-        label: t.dynamic(`resource.rentals.quick.${key}`),
-        filters: [{ field: 'state', op: 'eq', values: [...states] }],
-        count: (f) => sum(f.state, states),
-      }),
-    )
+    .map(({ key, states }): QuickPreset => ({
+      key,
+      label: t.dynamic(`resource.rentals.quick.${key}`),
+      filters: [{ field: 'state', op: 'eq', values: [...states] }],
+      count: (f) => sum(f.state, states),
+    }))
     .concat({
       key: 'problems',
       label: t('resource.rentals.quick.problems'),
@@ -173,9 +192,7 @@ export function RentalList() {
         filters={filters}
         rowLabel={(r) => rentalNumber(r.number)}
         summary={(data) =>
-          today
-            ? t('resource.rentals.summaryToday', today)
-            : t('resource.rentals.summary', { count: data.total })
+          today ? t('resource.rentals.summaryToday', today) : t('resource.rentals.summary', { count: data.total })
         }
         emptyIcon={<RouteIcon size={22} />}
         createLabel={null}
@@ -288,7 +305,9 @@ function RentalDrawer({ id, revision, onClose }: { id: string; revision: number;
               </div>
               <div className="stat">
                 <span className="v">{formatPln(rental.price.total)}</span>
-                <span className="l">{rental.billedUntil === null ? t('rentals.stats.soFar') : t('rentals.stats.total')}</span>
+                <span className="l">
+                  {rental.billedUntil === null ? t('rentals.stats.soFar') : t('rentals.stats.total')}
+                </span>
               </div>
             </div>
             <section>

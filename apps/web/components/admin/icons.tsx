@@ -297,3 +297,52 @@ export const MinusIcon = (p: P) => (
     <path d="M5 12h14" />
   </Icon>
 );
+
+export const CardIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="3" y="5.5" width="18" height="13" rx="2.5" />
+    <path d="M3 10h18M7 15h3" />
+  </Icon>
+);
+
+export const TagIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M3 12.6V4.5A1.5 1.5 0 014.5 3h8.1a1.5 1.5 0 011.06.44l6.9 6.9a1.5 1.5 0 010 2.12l-8.1 8.1a1.5 1.5 0 01-2.12 0l-6.9-6.9A1.5 1.5 0 013 12.6Z" />
+    <path d="M8 8h.01" />
+  </Icon>
+);
+
+export const HistoryIcon = (p: P) => (
+  <Icon size={16} strokeWidth={2} {...p}>
+    <path d="M3.5 12a8.5 8.5 0 102.5-6" />
+    <path d="M3 4v4h4M12 8v4l3 2" />
+  </Icon>
+);
+
+export const CalendarIcon = (p: P) => (
+  <Icon size={16} strokeWidth={2} {...p}>
+    <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+    <path d="M3.5 10h17M8 3v4M16 3v4" />
+  </Icon>
+);
+
+export const ReceiptIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
+    <path d="M9 8h6M9 12h6M9 16h3" />
+  </Icon>
+);
+
+export const PhoneIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <rect x="7" y="3" width="10" height="18" rx="2.5" />
+    <path d="M11 17.5h2" />
+  </Icon>
+);
+
+export const PersonIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4.5 20c1.2-3.5 4-5 7.5-5s6.3 1.5 7.5 5" />
+  </Icon>
+);

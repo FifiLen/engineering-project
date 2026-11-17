@@ -54,6 +54,13 @@ export interface ResourceListProps<T extends ListRecord> {
   quick?: { field: string; values: readonly string[]; pluralKey?: string };
   /** Szybkie filtry złożone; zamiast `quick`. `total` to licznik „Wszystkie”, `facets` to pola liczników. */
   presets?: { items: QuickPreset[]; facets: string[]; total: (facets: Facets) => number };
+  /**
+   * Adres wiersza zamiast `basePath/id` (np. księga prowadzi do portfela klienta); `null` to wiersz bez
+   * odnośnika (lista tylko do odczytu bez szczegółów).
+   */
+  itemHref?: (item: T) => string | null;
+  /** Klucz wiersza, gdy rekord listy nie ma pola `id` (np. portfele: `userId`). */
+  rowKey?: (item: T) => string | number;
   /** Kliknięcie wiersza otwiera podgląd zamiast karty rekordu; `activeId` wyróżnia otwarty wiersz. */
   onOpen?: (item: T) => void;
   activeId?: string | number | null;
@@ -85,7 +92,8 @@ const EMPTY: ListQuery = { filters: [], sort: [], page: 1, pageSize: 25, facets:
 
 export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) {
   const { resource, basePath, columns, filters, rowLabel, summary, emptyIcon, tabs, createLabel } = props;
-  const { onOpen, activeId, selectable = true, subscribe } = props;
+  const { onOpen, activeId, selectable = true, subscribe, itemHref, rowKey } = props;
+  const hrefOf = (item: T) => (itemHref ? itemHref(item) : `${basePath}/${item.id}`);
   const router = useRouter();
   // Panel ukrywa operacje bez uprawnień; decyzję podejmuje API (ADR 0028).
   const { can } = useSession();
@@ -109,20 +117,15 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
     return {
       facets: [field],
       total: (facets: Facets) => Object.values(facets[field] ?? {}).reduce((a, b) => a + b, 0),
-      items: values.map(
-        (value): QuickPreset => ({
-          key: value,
-          label: pluralKey ? t.dynamic(`${pluralKey}.${value}`) : valueLabel(resource, field, value),
-          filters: [{ field, op: 'eq', values: [value] }],
-          count: (facets) => facets[field]?.[value] ?? 0,
-        }),
-      ),
+      items: values.map((value): QuickPreset => ({
+        key: value,
+        label: pluralKey ? t.dynamic(`${pluralKey}.${value}`) : valueLabel(resource, field, value),
+        filters: [{ field, op: 'eq', values: [value] }],
+        count: (facets) => facets[field]?.[value] ?? 0,
+      })),
     };
   }, [props.presets, props.quick, resource]);
-  const quickFields = useMemo(
-    () => new Set(quick?.items.flatMap((p) => p.filters.map((f) => f.field)) ?? []),
-    [quick],
-  );
+  const quickFields = useMemo(() => new Set(quick?.items.flatMap((p) => p.filters.map((f) => f.field)) ?? []), [quick]);
 
   const facetFields = useMemo(
     () => [
@@ -194,7 +197,8 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
   const onQuickFields = query.filters.filter((f) => quickFields.has(f.field));
   const activePreset = quick?.items.find(
     (p) =>
-      p.filters.length === onQuickFields.length && p.filters.every((pf) => onQuickFields.some((f) => sameFilter(f, pf))),
+      p.filters.length === onQuickFields.length &&
+      p.filters.every((pf) => onQuickFields.some((f) => sameFilter(f, pf))),
   );
   const quickFilters = activePreset ? onQuickFields : [];
   const otherFilters = query.filters.filter((f) => !quickFilters.includes(f));
@@ -335,11 +339,7 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
             </span>
           ))}
           {otherFilters.length > 0 && (
-            <button
-              type="button"
-              className="link"
-              onClick={() => navigate({ filters: quickFilters })}
-            >
+            <button type="button" className="link" onClick={() => navigate({ filters: quickFilters })}>
               {t('list.clearFilters')}
             </button>
           )}
@@ -368,20 +368,20 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
         <div className="table" role="table" aria-rowcount={data?.total}>
           <div className="row head" role="row" style={{ gridTemplateColumns: grid }}>
             {selectable && (
-            <span role="columnheader">
-              {canDelete && (
-              <input
-                type="checkbox"
-                className="cb"
-                aria-label={t('list.selectAll')}
-                checked={allSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = someSelected && !allSelected;
-                }}
-                onChange={() => setSelected(allSelected ? new Set() : new Set(items.map((i) => i.id)))}
-              />
-              )}
-            </span>
+              <span role="columnheader">
+                {canDelete && (
+                  <input
+                    type="checkbox"
+                    className="cb"
+                    aria-label={t('list.selectAll')}
+                    checked={allSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someSelected && !allSelected;
+                    }}
+                    onChange={() => setSelected(allSelected ? new Set() : new Set(items.map((i) => i.id)))}
+                  />
+                )}
+              </span>
             )}
             {columns.map(({ field }) => {
               const sortable = resource.fields[field]?.sortable;
@@ -471,61 +471,71 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
             </div>
           )}
 
-          {items.map((item) => (
-            <div
-              key={item.id}
-              role="row"
-              className={selected.has(item.id) || activeId === item.id ? 'row link-row selected' : 'row link-row'}
-              aria-selected={onOpen ? activeId === item.id : undefined}
-              style={{ gridTemplateColumns: grid }}
-              onClick={(e) => {
-                if ((e.target as HTMLElement).closest('input,button,a')) return;
-                if (onOpen) onOpen(item);
-                else router.push(`${basePath}/${item.id}`);
-              }}
-            >
-              {selectable && (
-              <span role="cell">
-                {canDelete && (
-                <input
-                  type="checkbox"
-                  className="cb"
-                  aria-label={t('list.selectRow', { label: rowLabel(item) })}
-                  checked={selected.has(item.id)}
-                  onChange={() => {
-                    const next = new Set(selected);
-                    if (next.has(item.id)) next.delete(item.id);
-                    else next.add(item.id);
-                    setSelected(next);
-                  }}
-                />
+          {items.map((item) => {
+            const href = onOpen ? null : hrefOf(item);
+            const linked = Boolean(onOpen) || href !== null;
+            return (
+              <div
+                key={rowKey ? rowKey(item) : item.id}
+                role="row"
+                className={[
+                  'row',
+                  linked && 'link-row',
+                  (selected.has(item.id) || (activeId != null && activeId === item.id)) && 'selected',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                aria-selected={onOpen ? activeId === item.id : undefined}
+                style={{ gridTemplateColumns: grid }}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest('input,button,a')) return;
+                  if (onOpen) onOpen(item);
+                  else if (href) router.push(href);
+                }}
+              >
+                {selectable && (
+                  <span role="cell">
+                    {canDelete && (
+                      <input
+                        type="checkbox"
+                        className="cb"
+                        aria-label={t('list.selectRow', { label: rowLabel(item) })}
+                        checked={selected.has(item.id)}
+                        onChange={() => {
+                          const next = new Set(selected);
+                          if (next.has(item.id)) next.delete(item.id);
+                          else next.add(item.id);
+                          setSelected(next);
+                        }}
+                      />
+                    )}
+                  </span>
                 )}
-              </span>
-              )}
-              {columns.map(({ field, render }, i) => (
-                <span key={field} role="cell">
-                  {i === 0 && onOpen ? (
-                    // Podgląd obok tabeli: pierwsza kolumna jest przyciskiem, więc działa też z klawiatury.
-                    <button type="button" className="row-open strong" onClick={() => onOpen(item)}>
-                      {render ? render(item) : String((item as Record<string, unknown>)[field] ?? '')}
-                    </button>
-                  ) : i === 0 ? (
-                    <Link
-                      href={`${basePath}/${item.id}`}
-                      className="strong"
-                      style={{ color: 'inherit', textDecoration: 'none' }}
-                    >
-                      {render ? render(item) : String((item as Record<string, unknown>)[field] ?? '')}
-                    </Link>
-                  ) : render ? (
-                    render(item)
-                  ) : (
-                    String((item as Record<string, unknown>)[field] ?? t('common.none'))
-                  )}
-                </span>
-              ))}
-            </div>
-          ))}
+                {columns.map(({ field, render }, i) => (
+                  <span key={field} role="cell">
+                    {i === 0 && onOpen ? (
+                      // Podgląd obok tabeli: pierwsza kolumna jest przyciskiem, więc działa też z klawiatury.
+                      <button type="button" className="row-open strong" onClick={() => onOpen(item)}>
+                        {render ? render(item) : String((item as Record<string, unknown>)[field] ?? '')}
+                      </button>
+                    ) : i === 0 && href ? (
+                      <Link href={href} className="strong" style={{ color: 'inherit', textDecoration: 'none' }}>
+                        {render ? render(item) : String((item as Record<string, unknown>)[field] ?? '')}
+                      </Link>
+                    ) : i === 0 ? (
+                      <span className="strong">
+                        {render ? render(item) : String((item as Record<string, unknown>)[field] ?? '')}
+                      </span>
+                    ) : render ? (
+                      render(item)
+                    ) : (
+                      String((item as Record<string, unknown>)[field] ?? t('common.none'))
+                    )}
+                  </span>
+                ))}
+              </div>
+            );
+          })}
         </div>
 
         {data && data.total > 0 && (

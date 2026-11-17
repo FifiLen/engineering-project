@@ -7,6 +7,7 @@ import { t } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import {
   BrandMark,
+  CardIcon,
   DocumentIcon,
   ListIcon,
   LogoutIcon,
@@ -15,6 +16,7 @@ import {
   RouteIcon,
   ScooterIcon,
   ShieldIcon,
+  TagIcon,
   UsersIcon,
 } from './icons';
 
@@ -38,12 +40,15 @@ const groups: Array<{ label?: string; items: NavItem[] }> = [
     items: [
       { href: '/admin/flota', label: t('admin.nav.fleet'), Icon: ListIcon, permission: 'scooters.read' },
       { href: '/admin/przejazdy', label: t('admin.nav.rentals'), Icon: RouteIcon, permission: 'rentals.read' },
+      // Płatności, księga, portfele, paragony, metody płatności, webhooki i zwroty to zakładki jednej pozycji (D5).
+      { href: '/admin/platnosci', label: t('admin.nav.payments'), Icon: CardIcon, permission: 'payments.read' },
     ],
   },
   {
     label: t('admin.nav.configuration'),
     items: [
       { href: '/admin/strefy', label: t('admin.nav.zones'), Icon: ZonesIcon, permission: 'zones.read' },
+      { href: '/admin/cennik', label: t('admin.nav.tariffs'), Icon: TagIcon, permission: 'tariffs.read' },
       { href: '/admin/modele', label: t('admin.nav.models'), Icon: ScooterIcon, permission: 'scooters.read' },
       { href: '/admin/tresci', label: t('admin.nav.content'), Icon: DocumentIcon, permission: 'content.read' },
     ],
