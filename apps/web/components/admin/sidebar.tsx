@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { ComponentType } from 'react';
 import { t } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
-import { BrandMark, DocumentIcon, ListIcon, LogoutIcon, MapIcon, ScooterIcon, ShieldIcon, UsersIcon } from './icons';
+import { BrandMark, DocumentIcon, ListIcon, LogoutIcon, MapIcon, RouteIcon, ScooterIcon, ShieldIcon, UsersIcon } from './icons';
 
 interface NavItem {
   href: string;
@@ -22,7 +22,10 @@ const groups: Array<{ label?: string; items: NavItem[] }> = [
   { items: [{ href: '/admin/mapa', label: t('admin.nav.map'), Icon: MapIcon, permission: 'scooters.read' }] },
   {
     label: t('admin.nav.operations'),
-    items: [{ href: '/admin/flota', label: t('admin.nav.fleet'), Icon: ListIcon, permission: 'scooters.read' }],
+    items: [
+      { href: '/admin/flota', label: t('admin.nav.fleet'), Icon: ListIcon, permission: 'scooters.read' },
+      { href: '/admin/przejazdy', label: t('admin.nav.rentals'), Icon: RouteIcon, permission: 'rentals.read' },
+    ],
   },
   {
     label: t('admin.nav.configuration'),

@@ -18,6 +18,7 @@
       "configuration": "Konfiguracja",
       "map": "Mapa floty",
       "fleet": "Flota",
+      "rentals": "Przejazdy",
       "models": "Modele hulajnóg",
       "access": "Klienci i dostęp",
       "users": "Użytkownicy",
@@ -88,6 +89,7 @@
     "kg": "{value, number, ::.0} kg",
     "wh": "{value} Wh",
     "scooterNumber": "#{number}",
+    "rentalNumber": "R-{number}",
     "relative": {
       "never": "nigdy"
     }
@@ -190,7 +192,10 @@
     "STAFF_INACTIVE": "Konto operatora jest dezaktywowane",
     "DRAFT_EXISTS": "Dokument ma już wersję roboczą",
     "DOCUMENT_VERSION_LOCKED": "Opublikowanej wersji nie można zmienić",
-    "VALIDATION_FAILED": "Uzupełnij wymagane pola"
+    "VALIDATION_FAILED": "Uzupełnij wymagane pola",
+    "INVALID_RENTAL_TRANSITION": "Przejazd jest już w innym stanie. Odśwież widok.",
+    "RENTAL_COMMAND_PENDING": "Hulajnoga nie odpowiedziała jeszcze na poprzednią komendę",
+    "RENTAL_NOTE_REQUIRED": "Opisz powód w notatce"
   },
   "fleetStatus": {
     "AVAILABLE": "Dostępna",
@@ -237,7 +242,7 @@
     "lastSignal": "Ostatni sygnał",
     "zone": "Strefa",
     "outsideZone": "poza strefą",
-    "lastRental": "Ostatni przejazd",
+    "currentRental": "Bieżący przejazd",
     "odometer": "Przebieg",
     "firmware": "Oprogramowanie",
     "toService": "Do serwisu",
@@ -355,6 +360,63 @@
         }
       },
       "archivedOption": "{name} ({state})"
+    },
+    "rentals": {
+      "title": "Przejazdy",
+      "summary": "{count, plural, one {# przejazd} few {# przejazdy} other {# przejazdów}}",
+      "summaryToday": "Dziś: {ended, plural, one {# zakończony} few {# zakończone} other {# zakończonych}}, {active} w trakcie",
+      "searchPlaceholder": "Numer, klient lub hulajnoga",
+      "new": "",
+      "newTitle": "",
+      "emptyTitle": "Nie ma jeszcze przejazdów",
+      "emptyBody": "Przejazdy pojawią się po pierwszej rezerwacji albo odblokowaniu w aplikacji.",
+      "bulkRemove": "",
+      "removeTitle": "",
+      "removeBody": "",
+      "removeAction": "",
+      "quick": {
+        "inProgress": "W trakcie",
+        "reserved": "Rezerwacje",
+        "ended": "Zakończone",
+        "problems": "Problemy"
+      },
+      "fields": {
+        "id": "Identyfikator",
+        "number": "Numer",
+        "state": "Stan",
+        "hasProblem": "Problem",
+        "userId": "Klient",
+        "userName": "Klient",
+        "userPhone": "Telefon klienta",
+        "scooterId": "Hulajnoga",
+        "scooterNumber": "Hulajnoga",
+        "createdAt": "Start",
+        "startedAt": "Odblokowanie",
+        "endedAt": "Koniec",
+        "elapsedSeconds": "Czas",
+        "distanceM": "Dystans",
+        "totalAmount": "Kwota",
+        "tariffVersion": "Wersja cennika",
+        "endZoneCode": "Strefa końcowa",
+        "pendingCommand": "Komenda w toku"
+      },
+      "values": {
+        "state": {
+          "RESERVED": "Rezerwacja",
+          "UNLOCKING": "Odblokowywanie",
+          "ACTIVE": "W trakcie",
+          "PAUSED": "Pauza",
+          "ENDING": "Kończenie",
+          "ENDED": "Zakończony",
+          "EXPIRED": "Rezerwacja wygasła",
+          "UNLOCK_FAILED": "Nie odblokowano",
+          "UNPAID": "Nieopłacony"
+        },
+        "hasProblem": {
+          "true": "Z problemem",
+          "false": "Bez problemu"
+        }
+      }
     },
     "staff": {
       "title": "Operatorzy i role",
@@ -760,5 +822,189 @@
     "DRAFT": "Robocza",
     "PUBLISHED": "Obowiązuje",
     "ARCHIVED": "Archiwalna"
+  },
+  "rentals": {
+    "free": "bez opłaty",
+    "problem": "Problem",
+    "preview": "Podgląd przejazdu",
+    "scooter": "hulajnoga",
+    "details": "Szczegóły przejazdu",
+    "endRemotely": "Zakończ zdalnie",
+    "showOnMap": "Pokaż na mapie floty",
+    "titleDetails": "Przejazd {number}",
+    "sub": {
+      "reserved": "rezerwacja {date}",
+      "unlocked": "odblokowano {time}",
+      "ended": "zakończono {time}"
+    },
+    "ended": "Przejazd {number} zakończony zdalnie.",
+    "stats": {
+      "ride": "jazda",
+      "rideTime": "czas jazdy",
+      "pause": "pauza",
+      "distance": "dystans",
+      "speed": "prędkość",
+      "soFar": "do tej pory",
+      "total": "razem"
+    },
+    "map": {
+      "live": "Na żywo",
+      "ended": "Trasa przejazdu",
+      "fromTelemetry": "trasa z telemetrii",
+      "start": "Start",
+      "now": "Teraz",
+      "end": "Koniec",
+      "noRoute": "Brak trasy: hulajnoga nie wysłała jeszcze pozycji w tym przejeździe",
+      "label": "Mapa trasy przejazdu"
+    },
+    "price": {
+      "title": "Opłata",
+      "settlement": "Rozliczenie: oczekuje",
+      "tariff": "Cennik",
+      "tariffVersion": "wersja {version}",
+      "fromReservation": "z chwili rezerwacji",
+      "fromUnlock": "z chwili odblokowania",
+      "unlock": "Odblokowanie",
+      "ride": "Jazda, {minutes} min",
+      "pause": "Pauza, {minutes} min",
+      "times": "{count} × {rate}",
+      "soFar": "Do tej pory",
+      "total": "Razem",
+      "note": "Każda rozpoczęta minuta jazdy i pauzy. Naliczanie kończy się przy żądaniu zakończenia, jeśli blokada zostanie potwierdzona."
+    },
+    "commands": {
+      "title": "Komendy MQTT",
+      "sent": "Wysłano",
+      "command": "Komenda",
+      "response": "Odpowiedź",
+      "result": "Wynik",
+      "none": "Przejazd nie ma jeszcze komend",
+      "limit": "limit 10 s",
+      "ms": "{ms} ms",
+      "context": {
+        "start": "start przejazdu · klient",
+        "resume": "wznowienie · klient",
+        "pause": "pauza · klient",
+        "end": "zakończenie · klient",
+        "remoteEnd": "zdalne zakończenie · operator",
+        "compensate": "blokada po spóźnionym odblokowaniu",
+        "other": "przejazd"
+      }
+    },
+    "people": {
+      "title": "Klient i hulajnoga",
+      "rides": "{count, plural, one {# przejazd} few {# przejazdy} other {# przejazdów}}",
+      "online": "online, sygnał {relative}",
+      "offline": "offline, sygnał {relative}",
+      "battery": "bateria"
+    },
+    "timeline": {
+      "title": "Oś czasu",
+      "hint": "zdarzenia i komendy",
+      "lastOf": "ostatnie {shown} z {total}",
+      "titles": {
+        "RESERVE": "Rezerwacja",
+        "START": "Żądanie odblokowania",
+        "CONFIRM_UNLOCK": "Odblokowano",
+        "UNLOCK_TIMEOUT": "Nie odblokowano",
+        "EXPIRE_RESERVATION": "Rezerwacja wygasła",
+        "CANCEL_RESERVATION": "Rezerwacja anulowana",
+        "PAUSE": "Pauza",
+        "RESUME": "Wznowiono jazdę",
+        "REQUEST_END": "Żądanie zakończenia",
+        "COMPLETE_END": "Zakończono",
+        "ABORT_END": "Blokada niepotwierdzona",
+        "ABORT_END_PAUSED": "Blokada niepotwierdzona",
+        "END_REMOTELY": "Zakończono zdalnie",
+        "PAUSE_FAILED": "Pauza niepotwierdzona",
+        "RESUME_FAILED": "Wznowienie niepotwierdzone",
+        "LOCK_FAILED": "Blokada niepotwierdzona",
+        "CONNECTION_LOST": "Utrata łączności",
+        "CONNECTION_RESTORED": "Łączność przywrócona",
+        "LATE_UNLOCK_LOCKED": "Spóźnione odblokowanie",
+        "ZONE_ENTERED": "Wjazd do strefy",
+        "ZONE_EXITED": "Wyjazd ze strefy",
+        "BATTERY_LOW": "Niska bateria",
+        "PHOTO_UPLOADED": "Zdjęcie parkowania"
+      },
+      "details": {
+        "RESERVE": "w aplikacji",
+        "START": "komenda Odblokuj",
+        "CONFIRM_UNLOCK": "start naliczania",
+        "EXPIRE_RESERVATION": "minął czas rezerwacji",
+        "CANCEL_RESERVATION": "anulowana przez klienta",
+        "PAUSE": "blokada potwierdzona",
+        "RESUME": "odblokowanie potwierdzone",
+        "REQUEST_END": "komenda Zablokuj",
+        "COMPLETE_END": "blokada potwierdzona",
+        "CONNECTION_LOST": "naliczanie bez zmian",
+        "LATE_UNLOCK_LOCKED": "hulajnoga zablokowana ponownie"
+      },
+      "inZone": "w strefie {zone}",
+      "restoredAfter": "po {seconds} s",
+      "remoteReason": "powód: {reason}",
+      "refused": "odmowa hulajnogi: {reason}",
+      "live": {
+        "RESERVED": "Trwa rezerwacja",
+        "UNLOCKING": "Odblokowywanie",
+        "ACTIVE": "Trwa przejazd",
+        "PAUSED": "Trwa pauza",
+        "ENDING": "Kończenie"
+      },
+      "liveDetail": "aktualizacja na żywo",
+      "waiting": "czeka na potwierdzenie: {command}"
+    },
+    "ackReason": {
+      "timeout": "brak odpowiedzi w 10 s",
+      "LOW_BATTERY": "niski poziom baterii",
+      "ALREADY_IN_STATE": "już w tym stanie",
+      "HARDWARE_ERROR": "błąd sprzętu",
+      "UNKNOWN_COMMAND": "nieznana komenda",
+      "EXPIRED": "komenda wygasła"
+    },
+    "problems": {
+      "pill": {
+        "LOCK_FAILED": "Blokada niepotwierdzona",
+        "PAUSE_FAILED": "Pauza niepotwierdzona",
+        "RESUME_FAILED": "Wznowienie niepotwierdzone",
+        "OFFLINE": "Brak łączności",
+        "UNLOCK_FAILED": "Nie odblokowano"
+      },
+      "notice": {
+        "LOCK_FAILED": "Hulajnoga nie potwierdziła blokady o {time}. Klient może ponowić zakończenie.",
+        "PAUSE_FAILED": "Hulajnoga nie potwierdziła blokady pauzy o {time}. Przejazd trwa dalej.",
+        "RESUME_FAILED": "Hulajnoga nie potwierdziła odblokowania o {time}. Pauza trwa dalej.",
+        "OFFLINE": "Hulajnoga nie ma łączności. Naliczanie trwa bez zmian.",
+        "UNLOCK_FAILED": "Hulajnoga nie potwierdziła odblokowania o {time}. Klient nie zapłaci za ten przejazd."
+      }
+    },
+    "end": {
+      "title": "Zakończyć przejazd {number}?",
+      "body": "{name}, hulajnoga {scooter}, w trakcie od {time}. Zakończenia nie można cofnąć: klient nie wznowi tego przejazdu.",
+      "reason": "Powód",
+      "reasonGroup": "Powód zakończenia",
+      "reasons": {
+        "SCOOTER_NOT_RESPONDING": "Hulajnoga nie odpowiada",
+        "CUSTOMER_REQUEST": "Prośba klienta",
+        "TERMS_VIOLATION": "Naruszenie regulaminu",
+        "OTHER": "Inny powód"
+      },
+      "reasonHints": {
+        "SCOOTER_NOT_RESPONDING": "brak potwierdzenia blokady albo utrata łączności",
+        "CUSTOMER_REQUEST": "np. awaria telefonu lub aplikacji",
+        "TERMS_VIOLATION": "np. jazda we dwoje, konto zablokowane",
+        "OTHER": "opisz w notatce"
+      },
+      "note": "Notatka",
+      "noteOptional": "(opcjonalna, tylko w dzienniku audytu)",
+      "noteRequired": "(wymagana, tylko w dzienniku audytu)",
+      "consequences": "Co się stanie",
+      "charge": "Klient płaci za czas do teraz: {ride} min jazdy i {pause} min pauzy, razem {total} według cennika w wersji {version}.",
+      "noParkingFee": "Bez opłaty za parkowanie poza strefą, niezależnie od tego, gdzie stoi hulajnoga.",
+      "lock": "Hulajnoga {scooter} dostanie komendę blokady. Przejazd kończy się od razu, także bez potwierdzenia.",
+      "audit": "Powód i notatka trafią do dziennika audytu, a zakończenie na oś czasu przejazdu.",
+      "submit": "Zakończ przejazd"
+    },
+    "ringSent": "Hulajnoga {scooter} dostała komendę Dzwonek."
   }
 }

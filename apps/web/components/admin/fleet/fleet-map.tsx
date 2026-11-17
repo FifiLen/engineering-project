@@ -14,7 +14,7 @@ import {
   type ScooterDetails,
   type ServerToClientEvents,
 } from '@hulajnogi/shared';
-import type { FeatureCollection, MultiPolygon } from 'geojson';
+import type { FeatureCollection } from 'geojson';
 import type { ExpressionSpecification, GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import Link from 'next/link';
@@ -25,11 +25,9 @@ import { useSession } from '../../../lib/session';
 import { formatKm, formatRelative, formatTime, t } from '../../../lib/i18n';
 import { BellIcon, CloseIcon, LockIcon, WrenchIcon } from '../icons';
 import { valueLabel } from '../labels';
-import { Battery, scooterNumber, STATUS_COLOR, StatusPill } from './fleet-format';
+import { addZoneLayers, boundsOf, MAP_STYLE, MAP_WORKER_URL, serviceAreaBounds, type ZoneCollection } from '../map-layers';
+import { Battery, RentalLink, scooterNumber, STATUS_COLOR, StatusPill } from './fleet-format';
 
-const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
-/** Wątek roboczy MapLibre kopiowany do public/ przez scripts/maplibre-worker.mjs. */
-const MAP_WORKER_URL = '/maplibre-gl-worker.mjs';
 const QUICK: FleetStatus[] = ['AVAILABLE', 'IN_USE', 'LOW_BATTERY', 'MAINTENANCE', 'OFFLINE'];
 const LEGEND: FleetStatus[] = ['AVAILABLE', 'IN_USE', 'LOW_BATTERY', 'MAINTENANCE', 'OFFLINE'];
 const DETAILS_REFRESH_MS = 5000;
@@ -39,8 +37,6 @@ const STATUS_COLOR_EXPRESSION = [
   ...Object.entries(STATUS_COLOR).flat(),
   '#16181D',
 ] as unknown as ExpressionSpecification;
-
-type ZoneCollection = FeatureCollection<MultiPolygon, { code: string; type: string; name: string }>;
 
 function toGeoJson(scooters: FleetMapScooter[], selected: string | null): FeatureCollection {
   return {
@@ -61,15 +57,9 @@ function toGeoJson(scooters: FleetMapScooter[], selected: string | null): Featur
  * wpisanych na sztywno współrzędnych miasta.
  */
 function bounds(zones: ZoneCollection, scooters: FleetMapScooter[]): [[number, number], [number, number]] {
-  const located = scooters.filter((s) => s.lat !== null && s.lon !== null).map((s) => [s.lon!, s.lat!]);
-  const area = zones.features.find((f) => f.properties.type === 'SERVICE_AREA') ?? zones.features[0];
-  const points = located.length >= 2 ? located : (area?.geometry.coordinates.flat(2) ?? [[0, 0]]);
-  const lons = points.map((p) => p[0]!);
-  const lats = points.map((p) => p[1]!);
-  return [
-    [Math.min(...lons), Math.min(...lats)],
-    [Math.max(...lons), Math.max(...lats)],
-  ];
+  const located = scooters.filter((s) => s.lat !== null && s.lon !== null).map((s): [number, number] => [s.lon!, s.lat!]);
+  if (located.length >= 2) return boundsOf(located);
+  return serviceAreaBounds(zones) ?? boundsOf(located.length ? located : [[0, 0]]);
 }
 
 export function FleetMap() {
@@ -79,7 +69,10 @@ export function FleetMap() {
   const [scooters, setScooters] = useState<Map<string, FleetMapScooter>>(new Map());
   const [zones, setZones] = useState<ZoneCollection | null>(null);
   const [filter, setFilter] = useState<FleetStatus | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // `?hulajnoga=<id>` z innych ekranów (np. „Pokaż na mapie floty” w szczegółach przejazdu) otwiera kartę hulajnogi.
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('hulajnoga'),
+  );
   const [zonesVisible, setZonesVisible] = useState(true);
   const [live, setLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,38 +150,8 @@ export function FleetMap() {
       map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right');
       // Warstwy po wczytaniu stylu, bez czekania na pełny render kafelków.
       map.once('style.load', () => {
-        map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        addZoneLayers(map);
         map.addSource('scooters', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        map.addLayer({
-          id: 'zones-fill',
-          type: 'fill',
-          source: 'zones',
-          filter: ['!=', ['get', 'type'], 'SERVICE_AREA'],
-          paint: {
-            'fill-color': ['match', ['get', 'type'], 'NO_RIDE', '#C62F2F', 'SLOW', '#2B3FF5', '#8F5500'],
-            'fill-opacity': ['match', ['get', 'type'], 'SLOW', 0.06, 0.14],
-          },
-        });
-        map.addLayer({
-          id: 'zones-line',
-          type: 'line',
-          source: 'zones',
-          paint: {
-            'line-color': [
-              'match',
-              ['get', 'type'],
-              'NO_RIDE',
-              '#C62F2F',
-              'SLOW',
-              '#2B3FF5',
-              'SERVICE_AREA',
-              '#6B6E75',
-              '#8F5500',
-            ],
-            'line-width': 1.5,
-            'line-dasharray': [3, 2],
-          },
-        });
         map.addLayer({
           id: 'scooters-halo',
           type: 'circle',
@@ -420,8 +383,10 @@ function ScooterPanel({
           <dd>{zone}</dd>
         </div>
         <div className="kv">
-          <dt>{t('map.lastRental')}</dt>
-          <dd className="num">{details?.rentalNumber ?? t('common.none')}</dd>
+          <dt>{t('map.currentRental')}</dt>
+          <dd className="num">
+            <RentalLink id={details?.rentalId ?? null} number={details?.rentalNumber ?? null} />
+          </dd>
         </div>
         <div className="kv">
           <dt>{t('map.odometer')}</dt>

@@ -4,6 +4,7 @@
  * Wspólny widok tabeli w panelu (ADR 0031, makiety 17-panel-wzorce): wyszukiwarka, szybkie filtry
  * z licznikami, panel filtrów, sortowanie w nagłówkach, stronicowanie, zaznaczanie i operacje grupowe.
  * Stan listy jest w adresie URL, więc działa „wstecz”, odświeżenie i udostępnienie odnośnika.
+ * Lista może też otwierać podgląd rekordu obok tabeli i przyjmować zmiany na żywo (przejazdy).
  */
 import {
   PAGE_SIZES,
@@ -16,7 +17,7 @@ import {
 } from '@hulajnogi/shared';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiRequestError, errorMessage } from '../../lib/api';
 import { t } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
@@ -32,12 +33,38 @@ export interface Column<T> {
   render?: (item: T) => ReactNode;
 }
 
+/**
+ * Szybki filtr złożony z kilku filtrów albo z kilku wartości pola (np. „W trakcie” = cztery stany przejazdu,
+ * „Problemy” = flaga). Licznik liczy się z liczników listy bez szybkich filtrów.
+ */
+export interface QuickPreset {
+  key: string;
+  label: string;
+  filters: ListFilter[];
+  count: (facets: Facets) => number;
+}
+
+type Facets = ListResponse<unknown>['facets'];
+
 export interface ResourceListProps<T extends ListRecord> {
   resource: ResourceDefinition;
   basePath: string;
   columns: Column<T>[];
   /** Szybkie filtry nad tabelą: pole z licznikami (`facets`) i kolejność wartości. */
   quick?: { field: string; values: readonly string[]; pluralKey?: string };
+  /** Szybkie filtry złożone; zamiast `quick`. `total` to licznik „Wszystkie”, `facets` to pola liczników. */
+  presets?: { items: QuickPreset[]; facets: string[]; total: (facets: Facets) => number };
+  /** Kliknięcie wiersza otwiera podgląd zamiast karty rekordu; `activeId` wyróżnia otwarty wiersz. */
+  onOpen?: (item: T) => void;
+  activeId?: string | number | null;
+  /** Bez kolumny zaznaczania (lista tylko do odczytu, bez operacji grupowych). */
+  selectable?: boolean;
+  /**
+   * Zmiany rekordów na żywo: wiersz na bieżącej stronie zmienia się od razu, a lista z licznikami
+   * odświeża się po krótkiej przerwie (nowe rekordy, zmiana kolejności). `null` to samo odświeżenie
+   * (np. po ponownym połączeniu, gdy zdarzenia z przerwy przepadły).
+   */
+  subscribe?: (listener: (item: T | null) => void) => () => void;
   filters: FilterSpec[];
   rowLabel: (item: T) => string;
   summary?: (data: ListResponse<T>) => string;
@@ -57,7 +84,8 @@ type LoadState<T> =
 const EMPTY: ListQuery = { filters: [], sort: [], page: 1, pageSize: 25, facets: [] };
 
 export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) {
-  const { resource, basePath, columns, quick, filters, rowLabel, summary, emptyIcon, tabs, createLabel } = props;
+  const { resource, basePath, columns, filters, rowLabel, summary, emptyIcon, tabs, createLabel } = props;
+  const { onOpen, activeId, selectable = true, subscribe } = props;
   const router = useRouter();
   // Panel ukrywa operacje bez uprawnień; decyzję podejmuje API (ADR 0028).
   const { can } = useSession();
@@ -73,12 +101,32 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
     return fallback.ok ? fallback.query : EMPTY;
   }, [resource, searchParams]);
 
+  // Szybki filtr jednego pola to szczególny przypadek filtrów złożonych.
+  const quick = useMemo(() => {
+    if (props.presets) return props.presets;
+    if (!props.quick) return undefined;
+    const { field, values, pluralKey } = props.quick;
+    return {
+      facets: [field],
+      total: (facets: Facets) => Object.values(facets[field] ?? {}).reduce((a, b) => a + b, 0),
+      items: values.map(
+        (value): QuickPreset => ({
+          key: value,
+          label: pluralKey ? t.dynamic(`${pluralKey}.${value}`) : valueLabel(resource, field, value),
+          filters: [{ field, op: 'eq', values: [value] }],
+          count: (facets) => facets[field]?.[value] ?? 0,
+        }),
+      ),
+    };
+  }, [props.presets, props.quick, resource]);
+  const quickFields = useMemo(
+    () => new Set(quick?.items.flatMap((p) => p.filters.map((f) => f.field)) ?? []),
+    [quick],
+  );
+
   const facetFields = useMemo(
     () => [
-      ...new Set([
-        ...(quick ? [quick.field] : []),
-        ...filters.filter((f) => f.kind === 'checklist').map((f) => f.field),
-      ]),
+      ...new Set([...(quick?.facets ?? []), ...filters.filter((f) => f.kind === 'checklist').map((f) => f.field)]),
     ],
     [quick, filters],
   );
@@ -91,6 +139,7 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
   const [confirm, setConfirm] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState(query.q ?? '');
+  const [quickFacets, setQuickFacets] = useState<Facets | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -105,6 +154,25 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
     setSelected(new Set());
     return () => controller.abort();
   }, [resource.name, requestParams, reload]);
+
+  // Zmiany na żywo: wiersz od razu, lista i liczniki po przerwie (kilka zmian naraz to jedno odświeżenie).
+  const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!subscribe) return;
+    const unsubscribe = subscribe((changed) => {
+      setState((s) =>
+        changed && s.status === 'ready' && s.data.items.some((i) => i.id === changed.id)
+          ? { ...s, data: { ...s.data, items: s.data.items.map((i) => (i.id === changed.id ? changed : i)) } }
+          : s,
+      );
+      if (liveTimer.current) clearTimeout(liveTimer.current);
+      liveTimer.current = setTimeout(() => setReload((n) => n + 1), 1500);
+    });
+    return () => {
+      unsubscribe();
+      if (liveTimer.current) clearTimeout(liveTimer.current);
+    };
+  }, [subscribe]);
 
   const navigate = useCallback(
     (next: Partial<ListQuery>) => {
@@ -121,25 +189,42 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
     return () => clearTimeout(timer);
   }, [search, query.q, navigate]);
 
-  // Szybki filtr to filtr pola z licznikami z jedną wartością z listy przycisków; inne filtry tego pola
+  // Szybki filtr jest aktywny, gdy filtry jego pól są dokładnie jego filtrami; inne filtry tych pól
   // (np. kilka statusów wybranych w panelu filtrów) są widoczne jako etykiety.
-  const quickFilter = quick
-    ? query.filters.find(
-        (f) =>
-          f.field === quick.field &&
-          f.op === 'eq' &&
-          f.values.length === 1 &&
-          quick.values.includes(String(f.values[0])),
-      )
-    : undefined;
-  const otherFilters = query.filters.filter((f) => f !== quickFilter);
-  const setQuick = (value: string | null) =>
-    navigate({
-      filters: [
-        ...query.filters.filter((f) => f.field !== quick?.field),
-        ...(value && quick ? [{ field: quick.field, op: 'eq' as const, values: [value] }] : []),
-      ],
-    });
+  const onQuickFields = query.filters.filter((f) => quickFields.has(f.field));
+  const activePreset = quick?.items.find(
+    (p) =>
+      p.filters.length === onQuickFields.length && p.filters.every((pf) => onQuickFields.some((f) => sameFilter(f, pf))),
+  );
+  const quickFilters = activePreset ? onQuickFields : [];
+  const otherFilters = query.filters.filter((f) => !quickFilters.includes(f));
+  const setQuick = (preset: QuickPreset | null) =>
+    navigate({ filters: [...query.filters.filter((f) => !quickFields.has(f.field)), ...(preset?.filters ?? [])] });
+
+  // Liczniki szybkich filtrów z kilku pól: przy aktywnym filtrze osobne zapytanie bez szybkich filtrów
+  // (liczniki listy pomijają filtr tylko własnego pola).
+  const countsParams =
+    activePreset && quickFields.size > 1
+      ? toSearchParams(resource, {
+          q: query.q,
+          filters: query.filters.filter((f) => !quickFields.has(f.field)),
+          sort: [],
+          page: 1,
+          pageSize: 1,
+          facets: quick?.facets ?? [],
+        }).toString()
+      : null;
+  useEffect(() => {
+    if (!countsParams) {
+      setQuickFacets(null);
+      return;
+    }
+    const controller = new AbortController();
+    api<ListResponse<T>>(`/admin/${resource.name}?${countsParams}`, { signal: controller.signal })
+      .then((data) => setQuickFacets(data.facets))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [resource.name, countsParams, reload]);
   const removeFilter = (filter: ListFilter) => navigate({ filters: query.filters.filter((f) => f !== filter) });
 
   const toggleSort = (field: string) => {
@@ -150,12 +235,12 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
 
   const data = state.status === 'ready' ? state.data : null;
   const items = data?.items ?? [];
-  const grid = `28px ${columns.map((c) => c.width).join(' ')}`;
+  const grid = `${selectable ? '28px ' : ''}${columns.map((c) => c.width).join(' ')}`;
   const hasFilters = query.filters.length > 0 || Boolean(query.q);
   const allSelected = items.length > 0 && items.every((i) => selected.has(i.id));
   const someSelected = items.some((i) => selected.has(i.id));
-  const facetCounts = quick && data?.facets[quick.field];
-  const totalAll = facetCounts ? Object.values(facetCounts).reduce((a, b) => a + b, 0) : undefined;
+  const facetCounts = quickFacets ?? (countsParams ? null : data?.facets);
+  const totalAll = quick && facetCounts ? quick.total(facetCounts) : undefined;
 
   const bulkRemove = async () => {
     setConfirm(false);
@@ -205,20 +290,20 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
         </label>
         {quick && (
           <>
-            <button type="button" className="chip" aria-pressed={!quickFilter} onClick={() => setQuick(null)}>
+            <button type="button" className="chip" aria-pressed={!activePreset} onClick={() => setQuick(null)}>
               {t('common.all')}
               {totalAll !== undefined && <span className="n num">{totalAll}</span>}
             </button>
-            {quick.values.map((value) => (
+            {quick.items.map((preset) => (
               <button
-                key={value}
+                key={preset.key}
                 type="button"
                 className="chip"
-                aria-pressed={quickFilter?.values.length === 1 && quickFilter.values[0] === value}
-                onClick={() => setQuick(value)}
+                aria-pressed={activePreset === preset}
+                onClick={() => setQuick(preset)}
               >
-                {quick.pluralKey ? t.dynamic(`${quick.pluralKey}.${value}`) : valueLabel(resource, quick.field, value)}
-                <span className="n num">{facetCounts?.[value] ?? 0}</span>
+                {preset.label}
+                <span className="n num">{facetCounts ? preset.count(facetCounts) : 0}</span>
               </button>
             ))}
           </>
@@ -253,7 +338,7 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
             <button
               type="button"
               className="link"
-              onClick={() => navigate({ filters: quickFilter ? [quickFilter] : [] })}
+              onClick={() => navigate({ filters: quickFilters })}
             >
               {t('list.clearFilters')}
             </button>
@@ -282,6 +367,7 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
       <div className="card" aria-busy={state.status === 'loading'}>
         <div className="table" role="table" aria-rowcount={data?.total}>
           <div className="row head" role="row" style={{ gridTemplateColumns: grid }}>
+            {selectable && (
             <span role="columnheader">
               {canDelete && (
               <input
@@ -296,6 +382,7 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
               />
               )}
             </span>
+            )}
             {columns.map(({ field }) => {
               const sortable = resource.fields[field]?.sortable;
               const active = sortInfo?.field === field;
@@ -326,7 +413,7 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
           {state.status === 'loading' &&
             Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="row" role="row" style={{ gridTemplateColumns: grid }}>
-                {[28, ...columns.map(() => 0)].map((w, j) => (
+                {[...(selectable ? [28] : []), ...columns.map(() => 0)].map((w, j) => (
                   <span key={j}>
                     <i className="skeleton" style={{ width: w ? 18 : `${50 + ((i * 7 + j * 13) % 40)}%` }} />
                   </span>
@@ -388,12 +475,16 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
             <div
               key={item.id}
               role="row"
-              className={selected.has(item.id) ? 'row link-row selected' : 'row link-row'}
+              className={selected.has(item.id) || activeId === item.id ? 'row link-row selected' : 'row link-row'}
+              aria-selected={onOpen ? activeId === item.id : undefined}
               style={{ gridTemplateColumns: grid }}
               onClick={(e) => {
-                if (!(e.target as HTMLElement).closest('input,button,a')) router.push(`${basePath}/${item.id}`);
+                if ((e.target as HTMLElement).closest('input,button,a')) return;
+                if (onOpen) onOpen(item);
+                else router.push(`${basePath}/${item.id}`);
               }}
             >
+              {selectable && (
               <span role="cell">
                 {canDelete && (
                 <input
@@ -410,9 +501,15 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
                 />
                 )}
               </span>
+              )}
               {columns.map(({ field, render }, i) => (
                 <span key={field} role="cell">
-                  {i === 0 ? (
+                  {i === 0 && onOpen ? (
+                    // Podgląd obok tabeli: pierwsza kolumna jest przyciskiem, więc działa też z klawiatury.
+                    <button type="button" className="row-open strong" onClick={() => onOpen(item)}>
+                      {render ? render(item) : String((item as Record<string, unknown>)[field] ?? '')}
+                    </button>
+                  ) : i === 0 ? (
                     <Link
                       href={`${basePath}/${item.id}`}
                       className="strong"
@@ -524,12 +621,17 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
           onApply={(next) => {
             setDrawer(false);
             // Pole szybkiego filtra, które jest też w panelu, ustawia panel.
-            const keepQuick = quickFilter && !filters.some((f) => f.field === quickFilter.field);
-            navigate({ filters: [...(keepQuick ? [quickFilter] : []), ...next] });
+            const keepQuick = quickFilters.filter((qf) => !filters.some((f) => f.field === qf.field));
+            navigate({ filters: [...keepQuick, ...next] });
           }}
           onClose={() => setDrawer(false)}
         />
       )}
     </>
   );
+}
+
+function sameFilter(a: ListFilter, b: ListFilter): boolean {
+  const values = (f: ListFilter) => f.values.map(String).sort().join(',');
+  return a.field === b.field && a.op === b.op && values(a) === values(b);
 }

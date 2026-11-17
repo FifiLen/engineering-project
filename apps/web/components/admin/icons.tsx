@@ -158,3 +158,44 @@ export const ShieldIcon = (p: P) => (
     <path d="M9 12l2 2 4-4" />
   </Icon>
 );
+
+export const RouteIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="6" cy="18" r="2" />
+    <circle cx="18" cy="6" r="2" />
+    <path d="M8 18h7a3 3 0 000-6H9a3 3 0 010-6h7" />
+  </Icon>
+);
+
+export const StopIcon = (p: P) => (
+  <Icon size={16} strokeWidth={2} {...p}>
+    <rect x="6" y="6" width="12" height="12" rx="2.5" />
+  </Icon>
+);
+
+export const ClockIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </Icon>
+);
+
+export const ParkingIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <rect x="4" y="4" width="16" height="16" rx="4" />
+    <path d="M10 16V8h3a2.5 2.5 0 010 5h-3" />
+  </Icon>
+);
+
+export const ChevronRightIcon = (p: P) => (
+  <Icon size={16} strokeWidth={2} {...p}>
+    <path d="M9 6l6 6-6 6" />
+  </Icon>
+);
+
+export const WarningIcon = (p: P) => (
+  <Icon size={14} strokeWidth={2} {...p}>
+    <path d="M12 4l9 16H3z" />
+    <path d="M12 10v4M12 17h.01" />
+  </Icon>
+);

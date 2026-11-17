@@ -18,7 +18,7 @@ import { ScooterIcon } from '../icons';
 import { valueLabel } from '../labels';
 import { ResourceForm, type FormFieldSpec } from '../resource-form';
 import { ResourceList, type Column } from '../resource-list';
-import { Battery, scooterNumber, StatusPill } from './fleet-format';
+import { Battery, RentalLink, scooterNumber, StatusPill } from './fleet-format';
 
 const BASE = '/admin/flota';
 
@@ -169,6 +169,12 @@ export function ScooterForm({ id }: { id?: string }) {
             <div className="kv">
               <dt>{t('map.odometer')}</dt>
               <dd className="num">{formatKm(s.odometerM)}</dd>
+            </div>
+            <div className="kv">
+              <dt>{t('map.currentRental')}</dt>
+              <dd className="num">
+                <RentalLink id={s.rentalId} number={s.rentalNumber} />
+              </dd>
             </div>
           </dl>
         </div>
