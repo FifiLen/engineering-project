@@ -1,0 +1,47 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@hulajnogi/web",
+        "exec",
+        "next",
+        "dev",
+        "--port",
+        "3002"
+      ],
+      "port": 3002
+    },
+    {
+      "name": "api-preview",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "API_PORT=3005",
+        "MQTT_ENABLED=false",
+        "MQTT_CLIENT_ID=hulajnogi-api-preview",
+        "PANEL_URL=http://localhost:3002",
+        "node",
+        "apps/api/dist/main.js"
+      ],
+      "port": 3005
+    },
+    {
+      "name": "mobile-web",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "EXPO_PUBLIC_API_URL=http://localhost:3005",
+        "pnpm",
+        "--filter",
+        "@hulajnogi/mobile",
+        "run",
+        "web",
+        "--port",
+        "8082"
+      ],
+      "port": 8082
+    }
+  ]
+}

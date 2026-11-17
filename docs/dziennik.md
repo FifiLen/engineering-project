@@ -487,3 +487,73 @@ Plan: [iteracja 3](iteracje/iteracja-03-wypozyczenie.md). Etap planowania, bez k
 
 **Do zrobienia przed implementacją**
 - Odpowiedzi autora na pytania i decyzje z planu; makiety brakujących stanów; ADR-y 0036–0041.
+
+## Iteracja 3: wypożyczenie (16 listopada 2026)
+
+Plan: [iteracja 3](iteracje/iteracja-03-wypozyczenie.md). Autor przyjął rekomendacje D1–D8 i domyślne odpowiedzi na pytania 1–10 ([odpowiedzi](iteracje/iteracja-03-wypozyczenie.md#odpowiedzi-autora-16-listopada-2026)), a potem ADR 0036–0042.
+
+**Decyzje i makiety**
+- Odpowiedzi autora w planie iteracji; wycena przeszła z iteracji 5 do 3 ([plan iteracji](iteracje/README.md)).
+- 16 nowych plansz: 13 w [`20-mobile-wypozyczenie`](projekt/README.md#aplikacja-wypożyczenie-iteracja-3) (w tym dodatkowa „rezerwacja anulowana”) i 3 w `21-panel-przejazdy`; ustalenia z plansz są w spisie makiet. Otwarta sprawa z plansz: zmiana numeru telefonu klienta (dziś ukryta, odesłanie do pomocy).
+- ADR [0036](adr/0036-proces-wypozyczenia-w-api.md) proces wypożyczenia, [0037](adr/0037-pg-boss-konfiguracja-i-zadania.md) pg-boss, [0038](adr/0038-wygasanie-komend-mqtt.md) wygasanie komend, [0039](adr/0039-symulator-w-trakcie-przejazdu.md) symulator w przejeździe, [0040](adr/0040-mapa-lokalizacja-aparat-w-aplikacji.md) mapa, lokalizacja i aparat, [0041](adr/0041-kod-qr-hulajnogi.md) kod QR, [0042](adr/0042-wycena-przejazdu.md) wycena.
+
+**Baza (migracja 0005)**
+- Nowe zdarzenia osi czasu, termin ważności i powód odmowy komendy, indeks jednej komendy w toku na przejazd, portfel zakładany wyzwalaczem (i uzupełniony dla istniejących klientów), preferencje powiadomień, saldo różne od 0 blokujące `sp_anonymize_user`.
+- Widoki `v_rental_timeline`, `v_user_rental_history`, `v_user_ride_stats`, rozszerzony `v_rental_details` (czas od odblokowania, flaga problemu, komenda w toku), funkcja `fn_rental_route`, procedura `sp_purge_expired_sessions`. Po migracji: 48 tabel, 21 widoków, 11 funkcji, 9 procedur.
+- Nowe wartości typu `rental_event_type` w tej samej transakcji co widoki: widoki porównują `type::text`, bo PostgreSQL nie pozwala użyć nowej wartości wyliczenia przed zatwierdzeniem.
+- Dane startowe: 12 przykładowych zakończonych przejazdów trzech klientów deweloperskich (`SEED_SAMPLE_RENTALS`), z osią czasu, komendami i kwotą z wyceny w core.
+
+**Logika (`packages/core`)**
+- Maszyna stanów: nowe akcje `CANCEL_RESERVATION`, `ABORT_END`, `ABORT_END_PAUSED`, `END_REMOTELY`.
+- Reguły rezerwacji, startu (z idempotencją przez otwarty przejazd), pauzy, wznowienia, zakończenia w strefie parkowania, zdalnego zakończenia z powodem, wyniku komendy przejazdu (z kompensacyjną blokadą po spóźnionym odblokowaniu), dzwonka i usunięcia konta.
+- Liczniki z osi czasu i wycena (każda rozpoczęta minuta jazdy i pauzy, co najmniej minuta jazdy, koniec naliczania przy żądaniu zakończenia).
+
+**API**
+- Moduł Wypożyczenia: mapa, hulajnoga po numerze, dzwonek, rezerwacja i anulowanie, start, pauza, wznowienie, zakończenie, bieżący przejazd, historia, profil, preferencje, `DELETE /me`; panel: lista, szczegóły z osią czasu i trasą, zdalne zakończenie z dziennikiem audytu.
+- pg-boss 12.38.2 (wydany 10 listopada) w schemacie `pgboss`: zadania planowane w transakcji przez adapter `fromDrizzle` wbudowany w pg-boss (zamiast własnego adaptera z ADR 0037, który tylko powtarzałby tę funkcję), harmonogramy w UTC; liczniki `setInterval` limitu komend i partycji usunięte.
+- Komendy panelu też mają `expiresAt` i zadanie limitu. Socket.IO: klient łączy się tokenem klienta i trafia do `user:{id}`, panel do pokoju `rentals`.
+- Kontrakty: MQTT 1.1.0, Socket.IO 1.1.0, OpenAPI 0.3.0.
+
+**Symulator**
+- Komendy po `expiresAt` odrzucane z powodem `EXPIRED`; po odblokowaniu hulajnoga jedzie trasą z OSRM do innej strefy parkowania niż ta, w której stoi, i czeka odblokowana; przejazdy pokazowe domyślnie wyłączone; plik sterujący i polecenie `control` (`offline`, `silent`, `online`).
+
+**Odstępstwa od ADR i planu**
+- ADR 0039: „na końcu trasy kolejne `unlock` nic nie robi” doprecyzowane. Blokada po dojechaniu do celu kończy trasę, więc następne odblokowanie planuje nową trasę do innej strefy. Inaczej hulajnoga nie ruszyłaby przy drugim wypożyczeniu (symulator nie odróżnia pauzy od końca przejazdu). Pauza w trakcie trasy zachowuje resztę trasy.
+- ADR 0036 i ADR 0012: pokój `rental:{id}` nie powstał. Właściciel dostaje zmiany w `user:{id}`, a panel wszystkie przejazdy w `rentals`, więc osobny pokój nic nie wnosił (kontrakt Socket.IO 1.1.0).
+- Odpowiedź na pytanie 5 doprecyzowana w ADR 0036: nieudana blokada przy kończeniu z pauzy wraca do `PAUSED`, nie do `ACTIVE`.
+- Wygaszanie rezerwacji przez zadanie zabezpieczające idzie przez repozytorium (z powiadomieniem klienta i panelu), a nie przez `sp_expire_reservations`, które zostaje narzędziem bazy (zmiana opisu w ADR 0037 przed zatwierdzeniem kodu).
+- Błąd braku zgód ma kod `CONSENT_REQUIRED` z iteracji 2 zamiast `DOCUMENTS_NOT_ACCEPTED` z planu, a `OUTSIDE_PARKING` zwraca 422 (wcześniej w arc42 §6.4: 409).
+- Krok 9 scenariusza demo: Dyspozytor ma `rentals.manage` z migracji 0002, więc brak uprawnienia pokazuje Serwisant.
+
+**Weryfikacja (backend)**
+- Testy: core 91, shared 18, db 52, api 68 (w tym 17 przypadków całego przejazdu i test kolejki pg-boss na prawdziwej bazie: zadanie limitu samo przestawia przejazd w `UNLOCK_FAILED` po około 10 s), symulator 27. Typy i lint bez błędów.
+- Symulator sprawdzony z działającym Mosquitto: `offline` publikuje Last Will, komenda dostarczona po powrocie z przeterminowanym `expiresAt` dostaje `EXPIRED`, `silent` wykonuje komendę bez potwierdzenia.
+
+**Panel**
+- „Przejazdy” w nawigacji (`rentals.read`): lista na wspólnym wzorcu z szybkimi filtrami (W trakcie, Rezerwacje, Zakończone, Problemy) i licznikami, panel boczny z trasą i osią czasu, aktualizacja na żywo z pokoju `rentals`; strona szczegółów z mapą trasy, licznikami, opłatą, komendami MQTT, osią czasu, kartą klienta i hulajnogi; okno zdalnego zakończenia z powodem (`rentals.manage`).
+- `ResourceList` dostał zgodne wstecz rozszerzenia: szybkie filtry z kilku pól (`presets`), otwieranie panelu bocznego zamiast przejścia (`onOpen`), listę bez zaznaczania (`selectable={false}`) i aktualizację wierszy na żywo (`subscribe`). Warstwy mapy wydzielone do `map-layers.ts` i używane przez mapę floty i mapę trasy.
+- Karta hulajnogi i mapa floty linkują do bieżącego przejazdu (nowe pole `rentalId` w szczegółach hulajnogi).
+- Odstępstwa od makiet: brak „Eksportuj XLSX” (iteracja 8); w otwartym przejeździe kolumny Kwota i Dystans na liście pokazują „—” (wartości bieżące są w panelu bocznym i szczegółach); mapa szczegółów bez znaczników pauzy; karta hulajnogi z ikoną zamiast renderu; wersja cennika bez odnośnika (strona cennika w iteracji 5); koszt na stronie szczegółów odświeżany co 20 s, czas co sekundę.
+
+**Aplikacja**
+- Mapa jest ekranem głównym po bramce z iteracji 2; otwarty przejazd przejmuje aplikację także po ponownym uruchomieniu. Ekrany: zgoda na lokalizację i stan bez zgody, mapa z hulajnogami i strefami, karta hulajnogi z rezerwacją, odliczanie, anulowanie i wygaśnięcie, skan, wpisanie numeru, brak aparatu, szczegóły z suwakiem, hulajnoga niedostępna, odblokowywanie i nieudane odblokowanie, jazda z pauzą i wznowieniem, poza strefą z najbliższą strefą, kończenie, nieudana blokada, podsumowanie, profil, historia, ustawienia (powiadomienia w bazie, zgoda marketingowa, motyw i strefy na urządzeniu), dane osobowe, usunięcie konta z blokadą.
+- Mapa w dwóch implementacjach ze wspólnymi warstwami (ADR 0040). Nowe pakiety przez `expo install` (wszystkie starsze niż 3 dni): `expo-location` 58.0.22, `expo-camera` 58.0.14, `@maplibre/maplibre-react-native` 11.5.1, `maplibre-gl` 6.18.0, `socket.io-client` 4.8.4, `react-native-svg` 15.16.0. Wątek roboczy MapLibre kopiuje `apps/mobile/scripts/maplibre-worker.mjs` (jak w panelu); konfiguracja `mobile-web` uruchamia teraz skrypt `web`.
+- Widok przejazdu dostał prędkość z ostatniego punktu telemetrii i trasę, a hulajnoga na mapie wariant (luki zgłoszone przy budowie ekranów). Aplikacja korzysta z nich zamiast szacować prędkość i zbierać trasę sama; miniatura w historii pokazuje tylko punkt końca, bo pozycja historii nie ma trasy.
+- Świadomy dług: aplikacja powtarza regułę wyceny z ADR 0042 do wyświetlania bieżącego kosztu między odświeżeniami, bo nie może importować `packages/core` (ADR 0025). Źródłem kwoty jest zawsze widok z API.
+- Odstępstwa od makiet: awatar zamiast „wstecz” na karcie rezerwacji; „brak hulajnóg” z promieniem i „Szukaj ponownie” zamiast odległości do najbliższej (API szuka w 2 km); oczekiwanie na pauzę jako wskaźnik na przycisku; nieudana pauza i wznowienie jako karta komunikatu w stylu `przejazd-blokada-nieudana`; „Prowadź do strefy”, „Trasa”, „Zgłoś”, „Metody płatności”, „Pomoc i zgłoszenia”, „Pobierz moje dane” ukryte; „Regulamin” i „Polityka prywatności” jako dwa wiersze; tekst usunięcia konta zgodny z anonimizacją (przejazdy zostają bez powiązania z osobą); odcień ostrzeżenia w trybie ciemnym (#3A2F1F) dobrany, bo nie ma go w `tokens.json`.
+
+**Poprawki po budowie ekranów**
+- Odpowiedź `ALREADY_IN_STATE` na `unlock` też jest sukcesem (jak przy `lock` w ADR 0036): hulajnoga zostawiona odblokowana po przejeździe pokazowym kończyła wypożyczenie jako `UNLOCK_FAILED`.
+- Zdarzenie `END_REQUESTED` zapisuje strefę parkowania (`zone_id`), więc oś czasu pokazuje „w strefie P-01”.
+
+**Weryfikacja (panel i aplikacja)**
+- Panel: zrzuty 1440×900 porównane z trzema makietami na danych z API; zdalne zakończenie od kliknięcia do wpisu na osi czasu; aktualizacja listy na żywo z drugiej karty.
+- Aplikacja (Expo web, 375×812, API z MQTT, symulatorem i pg-boss): rejestracja, mapa, rezerwacja z anulowaniem i prawdziwym wygaśnięciem po 10 min przez pg-boss, numer hulajnogi z baterią poniżej progu, dwa pełne przejazdy z pauzą, „Tu nie zakończysz jazdy”, zakończeniem w strefie i podsumowaniem (8,90 zł = 3,00 + 7 × 0,80 + 1 × 0,30 przy cenach deweloperskich), historia, ustawienia, edycja danych, usunięcie konta z blokadą przy rezerwacji, motyw ciemny.
+
+**Niesprawdzone**
+- Natywna mapa i aparat (bez Xcode w chwili budowy; tylko typy i lint).
+- W aplikacji: ekrany nieudanej blokady, nieudanej pauzy i wznowienia (wymagają `control silent` w symulatorze), stan offline, zdalne zakończenie widziane w aplikacji, brak hulajnóg w pobliżu. W API te przypadki obejmują testy.
+
+**Środowisko**
+- Dev server panelu na 3002 zapętlił się w przeładowaniach Turbopacka po zmianach w `node_modules` (wymaga restartu). Panel sprawdzony na tymczasowej kopii.
+- W bazie deweloperskiej zostały przejazdy testowe agentów (R-50012–R-50014 zakończone zdalnie oraz dwa przejazdy usuniętego konta testowego).

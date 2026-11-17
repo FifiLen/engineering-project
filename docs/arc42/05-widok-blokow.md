@@ -36,7 +36,8 @@ flowchart TB
 | Flota | Stan hulajnóg i modeli, komendy i potwierdzenia, mapa floty (pokój `fleet`) | `scooters`, `scooter_models`, `scooter_commands` |
 | Telemetria | Odbiór MQTT partiami, punkty tras, stan bieżący i przebieg ([ADR 0033](../adr/0033-telemetria-i-status-floty.md)), wykrywanie zmian stref (iteracja 4) | `telemetry` |
 | Strefy | Geometrie stref, zapytania przestrzenne | `zones` |
-| Wypożyczenia | Maszyna stanów przejazdu, rezerwacje | `rentals`, `rental_events` |
+| Wypożyczenia | Mapa wolnych hulajnóg, rezerwacja z wygaszaniem, przejazd z komendami i potwierdzeniami, wycena, zdalne zakończenie, historia i profil klienta, usunięcie konta (pokoje `user:{id}` i `rentals`, [ADR 0036](../adr/0036-proces-wypozyczenia-w-api.md)) | `rentals`, `rental_events` (komendy przejazdu w `scooter_commands` przez moduł Flota) |
+| Zadania w tle | Kolejka pg-boss w schemacie `pgboss`: wygaśnięcie rezerwacji, limit potwierdzenia komend, partycje i retencja telemetrii, czyszczenie kodów i sesji ([ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)) | schemat `pgboss` |
 | Płatności | Cennik, portfel, Stripe, webhooki | `tariffs`, `wallets`, `wallet_ledger`, `payments` |
 | Powiadomienia | Push, zdarzenia Socket.IO | `notifications`, `push_tokens` |
 | Operacje | Zgłoszenia, pliki | `tickets`, `files` |

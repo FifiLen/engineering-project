@@ -46,14 +46,15 @@ Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny 
 - `docs/projekt/ekrany/00-eksploracja/` to archiwum odrzuconych kierunków, nie implementować.
 - Kanwa w claude.ai jest archiwum; źródłem prawdy jest repozytorium. Nowe makiety można tworzyć jako HTML w `docs/projekt/ekrany/` według design systemu.
 
-## Stan: iteracja 2 zakończona (2026-11-16)
+## Stan: iteracja 3 zrealizowana (2026-11-17), czeka na commit i CI
 Iteracja 0: monorepo, Docker Compose, migracje 0001–0002, `packages/core`, dane startowe Rybnika, CI, ADR 0001–0031 (repozytorium github.com/FifiLen/engineering-project, gałąź `main`).
 Iteracja 1 (`docs/iteracje/iteracja-01-symulator-telemetria.md`): symulator z własnym połączeniem MQTT na hulajnogę i przejazdami pokazowymi (ADR 0034), telemetria partiami i status floty w core i w bazie (ADR 0033, migracja 0003), Socket.IO pokój `fleet`, wspólny mechanizm list i definicje zasobów (`scooters`, `scooter-models`), panel: mapa floty, lista i formularz floty i modeli, etykiety w plikach tłumaczeń z regułą lintera (ADR 0032).
 Iteracja 2 (`docs/iteracje/iteracja-02-konta-dostep.md`): migracja 0004 (sesje i zaproszenia operatorów, blokada klienta, strażnik ostatniego `roles.manage` w bazie), reguły kont w core, repozytoria kont, logowanie klientów kodem SMS i operatorów z TOTP (ADR 0035), strażnik dostępu na każdym punkcie, dziennik audytu w transakcji z historią rekordu, panel: logowanie, operatorzy, role z macierzą, użytkownicy, dziennik, dokumenty prawne; aplikacja: rejestracja, zgody, blokada; OpenAPI w `docs/kontrakty/openapi.json`.
+Iteracja 3 (`docs/iteracje/iteracja-03-wypozyczenie.md`, ADR 0036–0042): decyzje autora D1–D8 i odpowiedzi 1–10 w planie, makiety `20-mobile-wypozyczenie` i `21-panel-przejazdy`, migracja 0005, reguły przejazdu i wycena w core, moduł Wypożyczenia w API (rezerwacja, przejazd z komendami MQTT z `expiresAt`, zdalne zakończenie, profil, usunięcie konta), pg-boss (schemat `pgboss`), symulator jadący do strefy po odblokowaniu (`control offline|silent|online`), panel: przejazdy, aplikacja: mapa, wypożyczenie, profil.
 Do zrobienia:
-- [x] Wypchnąć iterację 2 i potwierdzić zielone CI (2026-11-16, commit `63fb0bf`).
-- [x] Przed iteracją 3: plan iteracji 3 (wypożyczenie) z profilem, ustawieniami i usunięciem konta w aplikacji razem z nawigacją (2026-11-16, `docs/iteracje/iteracja-03-wypozyczenie.md`).
-- [ ] Przed iteracją 3: odpowiedzi autora na pytania i decyzje D1–D8 z planu, makiety brakujących stanów (lista w planie), ADR 0036–0041.
+- [ ] Commit iteracji 3 i zielone CI (git wymaga akceptacji licencji Xcode: `sudo xcodebuild -license`).
+- [ ] Development build aplikacji z natywną mapą i aparatem (Xcode jest już zainstalowany) i sprawdzenie ekranów awarii w aplikacji (`control silent`).
+- [ ] Przed iteracją 4: plan iteracji 4 (strefy).
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.
@@ -62,10 +63,11 @@ Do zrobienia:
 - `apps/mobile` ma własny `eslint.config.js` (eslint-config-expo) i ESLint 9; reszta repo ESLint 10. Reguła tekstów w JSX jest w obu plikach (kopia).
 - Teksty w JSX tylko przez `t('klucz')` z `apps/web/messages/pl.json` lub `apps/mobile/src/i18n/pl.json` (ADR 0032); nowe pole zasobu panelu = klucz `resource.<zasób>.fields.<pole>`.
 - Nowy zasób panelu: definicja w `packages/shared/src/admin`, `ListSource` w repozytorium `packages/db`, kontroler z `ListQueryPipe`, komponenty `ResourceList`/`ResourceForm` w `apps/web/components/admin`.
-- MapLibre 6: wątek roboczy kopiuje `apps/web/scripts/maplibre-worker.mjs` do `public/` (w `dev` i `build`); plik jest w `.gitignore`.
+- MapLibre 6: wątek roboczy kopiuje `apps/web/scripts/maplibre-worker.mjs` (i `apps/mobile/scripts/maplibre-worker.mjs` w `dev`, `start`, `web`) do `public/`; plik jest w `.gitignore`.
 - Symulator trzyma stan w `apps/simulator/.state/fleet.json` (usunięcie = pozycje z danych startowych). Backend łączy się z MQTT ze stałym `MQTT_CLIENT_ID`: nie uruchamiaj dwóch API naraz na tym samym brokerze.
 - Panel: `NEXT_PUBLIC_API_URL` (domyślnie http://localhost:3001); na komputerze autora port 3000 jest zajęty: `WEB_PORT=3002`.
 - Aplikacja: `EXPO_PUBLIC_API_URL` (domyślnie http://localhost:3001); token odświeżający w `expo-secure-store`, w wersji web w `localStorage`. Typy tras Expo Router (`.expo/types`) odświeża `expo start`, nie `expo export`. Podgląd w przeglądarce: konfiguracje `api-preview` (API na 3005 bez MQTT, kod SMS w logu) i `mobile-web` (8082) w `.claude/launch.json`.
+- Zadania w tle: pg-boss w API (`JOBS_ENABLED`, testy API wyłączają kolejkę i wołają `JobsService.run`); zadanie planowane w transakcji przez `sendInTransaction` (ADR 0037).
 - Każdy punkt API deklaruje dostęp: `@Public()`, `@CustomerAuth()`, `@StaffAuth()` albo `@RequirePermission('…')` (ADR 0035); punkt bez deklaracji kończy się `403 PERMISSION_NOT_DECLARED`. Kod SMS w środowisku deweloperskim jest w logu API. Testy panelu: pomocnik `staffToken` w `apps/api/test/helpers.ts`.
 
 ## Otwarte decyzje

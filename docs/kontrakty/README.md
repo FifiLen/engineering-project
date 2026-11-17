@@ -2,9 +2,9 @@
 
 | Plik | Zakres | Status |
 |---|---|---|
-| [`asyncapi-mqtt.yaml`](asyncapi-mqtt.yaml) | Komunikacja hulajnoga ↔ backend przez MQTT | wersja 1, zaimplementowana w symulatorze i backendzie (iteracja 1) |
-| [`openapi.json`](openapi.json) | REST API dla aplikacji i panelu | wersja 0.2 (iteracja 2): logowanie klientów i operatorów, `/me`, `/legal`, zasoby panelu; generowany z kontrolerów (`pnpm api:openapi`), aktualność pilnuje test API; podgląd na żywo w `/docs` |
-| [`asyncapi-realtime.yaml`](asyncapi-realtime.yaml) | Zdarzenia Socket.IO dla aplikacji i panelu | wersja 1: pokój `fleet` (iteracja 1); pokoje użytkownika i przejazdu w iteracji 3 |
+| [`asyncapi-mqtt.yaml`](asyncapi-mqtt.yaml) | Komunikacja hulajnoga ↔ backend przez MQTT | wersja 1.1.0 (iteracja 3): termin ważności komendy `expiresAt` i powód `EXPIRED` ([ADR 0038](../adr/0038-wygasanie-komend-mqtt.md)); zaimplementowana w symulatorze i backendzie |
+| [`openapi.json`](openapi.json) | REST API dla aplikacji i panelu | wersja 0.3 (iteracja 3): wypożyczenie (mapa, hulajnoga po numerze, rezerwacja, przejazd, historia, profil, usunięcie konta) i przejazdy w panelu; wcześniej logowanie, `/me`, `/legal`, zasoby panelu; generowany z kontrolerów (`pnpm api:openapi`), aktualność pilnuje test API; podgląd na żywo w `/docs` |
+| [`asyncapi-realtime.yaml`](asyncapi-realtime.yaml) | Zdarzenia Socket.IO dla aplikacji i panelu | wersja 1.1.0: pokój `fleet` (iteracja 1), pokoje `rentals` (panel) i `user:{id}` (aplikacja) z iteracji 3 |
 
 Kontrakt MQTT jest jedynym źródłem prawdy o protokole urządzenia. Symulator i backend korzystają z tych samych schematów z pakietu `shared`, a ten plik je opisuje.
 

@@ -63,7 +63,9 @@ Panel operatora: `http://localhost:3000/admin` (mapa floty na żywo, flota, mode
 
 ### Symulator floty
 
-Każda wirtualna hulajnoga ma własne połączenie MQTT i jeździ trasami rowerowymi z OSRM ([ADR 0034](docs/adr/0034-symulator-floty.md)). Ustawienia w `.env`: `SIM_FLEET_SIZE` (domyślnie 40, numery jak w danych startowych), `SIM_TELEMETRY_INTERVAL_MS` (5000), `SIM_RIDES_PER_HOUR` (przejazdy pokazowe, 30; `0` wyłącza ruch). Stan hulajnóg zapisuje się w `apps/simulator/.state/fleet.json`; usunięcie pliku przywraca pozycje z danych startowych.
+Każda wirtualna hulajnoga ma własne połączenie MQTT i jeździ trasami rowerowymi z OSRM ([ADR 0034](docs/adr/0034-symulator-floty.md)). Ustawienia w `.env`: `SIM_FLEET_SIZE` (domyślnie 40, numery jak w danych startowych), `SIM_TELEMETRY_INTERVAL_MS` (5000), `SIM_RIDES_PER_HOUR` (przejazdy pokazowe, domyślnie 0). Od iteracji 3 hulajnoga odblokowana przez klienta sama jedzie trasą z OSRM do losowej strefy parkowania i tam czeka na blokadę ([ADR 0039](docs/adr/0039-symulator-w-trakcie-przejazdu.md)). Komendy po terminie `expiresAt` są odrzucane ([ADR 0038](docs/adr/0038-wygasanie-komend-mqtt.md)). Stan hulajnóg zapisuje się w `apps/simulator/.state/fleet.json`; usunięcie pliku przywraca pozycje z danych startowych.
+
+Awarie do demo: `pnpm --filter @hulajnogi/simulator control offline 0142` rozłącza hulajnogę (broker publikuje Last Will), `control silent 27` zostawia ją połączoną, ale bez potwierdzeń komend, `control online 0142 27` przywraca obie, a `control` bez argumentów wypisuje stan (plik `apps/simulator/.state/control.json`).
 
 ## Polecenia
 

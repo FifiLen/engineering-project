@@ -9,9 +9,9 @@ Plan z 16 listopada 2026 uwzględnia [wymagania uczelni](../wymagania-uczelni.md
 | 0 | Fundament i dostosowanie | Monorepo, Docker Compose, CI, migracje 0001–0002, `packages/core`, dane startowe dla Rybnika, ADR 0001–0031 | 3b, 3c, 8, 9 |
 | 1 | Symulator, telemetria i wzorzec panelu | Wirtualne hulajnogi jeżdżą po Rybniku; mapa floty na żywo; lista floty i modeli na wspólnym widoku tabeli; pliki tłumaczeń w klientach | 12, 14, 17 (etykiety) |
 | 2 | Konta i dostęp | Logowanie kodem SMS i rejestracja w aplikacji ze zgodą na wersję regulaminu; logowanie operatorów z TOTP; role, uprawnienia, operatorzy i klienci w panelu; dziennik audytu | 10, 11, 12, 13 |
-| 3 | Wypożyczenie | Mapa i skanowanie w aplikacji, rezerwacja z wygaszaniem, odblokowanie i zakończenie z komendami MQTT; przejazdy z osią czasu w panelu | 13 |
+| 3 | Wypożyczenie | Mapa i skanowanie w aplikacji, rezerwacja z wygaszaniem, odblokowanie i zakończenie z komendami MQTT, wycena przejazdu w `packages/core` (bez obciążenia); przejazdy z osią czasu w panelu | 13 |
 | 4 | Strefy | Wolna jazda, zakaz, parkowanie; edytor stref w panelu | 12, 13 |
-| 5 | Płatności | Wycena w `packages/core`, wersje cennika w panelu, portfel, Stripe, rozliczenie przejazdu, paragony, korekty salda | 12, 13 |
+| 5 | Płatności | Wersje cennika w panelu, portfel, Stripe, rozliczenie przejazdu, paragony, korekty salda | 12, 13 |
 | 6 | Operacje i serwis | Zgłoszenia, zadania serwisowe i części, powrót hulajnogi do floty, utrata łączności, powiadomienia push z szablonów | 12, 13 |
 | 7 | Treści i wydruki | Dokumenty z wersjami, bloki treści, FAQ, aktualności i biblioteka mediów w panelu; strona promocyjna z treści z bazy; szablony DOCX z wersjami, wydruki DOCX i PDF | 17, 19 |
 | 8 | Raporty i domknięcie panelu | Sześć raportów z eksportem PDF i XLSX, historia uruchomień; pozostałe tabele z macierzy w [modelu danych](../model-danych/README.md) dostępne w panelu | 12, 14, 18 |

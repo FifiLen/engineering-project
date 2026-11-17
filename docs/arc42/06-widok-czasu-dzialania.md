@@ -4,25 +4,34 @@ Najważniejsze scenariusze. Pełne wersje graficzne znajdują się na kanwie pro
 
 ## 6.1. Maszyna stanów przejazdu
 
+Przejścia decyduje maszyna stanów w `packages/core`; każde przejście to jedna transakcja z blokadą wiersza hulajnogi i przejazdu ([ADR 0036](../adr/0036-proces-wypozyczenia-w-api.md)). Pauza i wznowienie nie mają stanu przejściowego: stan zmienia się dopiero po potwierdzeniu komendy, a na czas oczekiwania przejazd ma komendę w toku (najwyżej jedną, indeks `scooter_commands_one_pending_per_rental`). Stan `UNPAID` i obciążenie portfela wchodzą w iteracji 5.
+
 ```mermaid
 stateDiagram-v2
     [*] --> RESERVED: POST /reservations
     [*] --> UNLOCKING: POST /rentals
     RESERVED --> UNLOCKING: POST /rentals
-    RESERVED --> EXPIRED: limit czasu lub anulowanie
+    RESERVED --> EXPIRED: zadanie pg-boss po free_reservation_minutes albo DELETE /reservations/current
     UNLOCKING --> ACTIVE: ack unlock
-    UNLOCKING --> UNLOCK_FAILED: brak ack w 10 s
+    UNLOCKING --> UNLOCK_FAILED: odmowa albo brak ack w 10 s
     ACTIVE --> PAUSED: POST /pause, ack lock
     PAUSED --> ACTIVE: POST /resume, ack unlock
     ACTIVE --> ENDING: POST /end w strefie parkowania
     PAUSED --> ENDING: POST /end w strefie parkowania
-    ENDING --> ENDED: ack lock i płatność
-    ENDING --> UNPAID: odmowa płatności
-    UNPAID --> ENDED: spłata zaległości
+    ENDING --> ENDED: ack lock (kwota z wyceny, ADR 0042)
+    ENDING --> ACTIVE: brak ack lock (LOCK_FAILED)
+    ENDING --> PAUSED: brak ack lock przy kończeniu z pauzy
+    ACTIVE --> ENDED: zdalne zakończenie (operator)
+    PAUSED --> ENDED: zdalne zakończenie (operator)
+    ENDING --> ENDED: zdalne zakończenie (operator)
+    ENDING --> UNPAID: odmowa płatności (iteracja 5)
+    UNPAID --> ENDED: spłata zaległości (iteracja 5)
     ENDED --> [*]
     EXPIRED --> [*]
     UNLOCK_FAILED --> [*]
 ```
+
+Nieudana pauza i nieudane wznowienie nie zmieniają stanu: zdarzenia `PAUSE_FAILED` i `RESUME_FAILED` są komunikatem dla klienta. Spóźnione potwierdzenie odblokowania, na które nikt nie czeka, uruchamia kompensacyjne `lock` ([ADR 0038](../adr/0038-wygasanie-komend-mqtt.md)).
 
 ## 6.2. Rozpoczęcie przejazdu
 
@@ -37,15 +46,15 @@ sequenceDiagram
     A->>API: POST /rentals (scooterId)
     API->>DB: BEGIN, SELECT scooter FOR UPDATE
     DB-->>API: AVAILABLE, bateria 87%
-    API->>DB: INSERT rental UNLOCKING, COMMIT
+    API->>DB: INSERT rental UNLOCKING, komenda, zadanie pg-boss limitu, COMMIT
     API-->>A: 202 (rentalId, UNLOCKING)
-    API->>MQ: scooters/0142/cmd unlock (commandId)
+    API->>MQ: scooters/0142/cmd unlock (commandId, expiresAt)
     MQ->>H: komenda
     H->>MQ: scooters/0142/ack (commandId, ok)
     MQ->>API: potwierdzenie
     API->>DB: rental ACTIVE, startedAt
-    API-->>A: Socket.IO rental.updated ACTIVE
-    Note over API: Brak potwierdzenia w 10 s: UNLOCK_FAILED, bez opłaty
+    API-->>A: Socket.IO rental.updated ACTIVE (pokój user:ID)
+    Note over API: Brak potwierdzenia w 10 s (zadanie pg-boss): UNLOCK_FAILED, bez opłaty; hulajnoga odrzuci komendę po expiresAt
 ```
 
 ## 6.3. Telemetria i strefy w trakcie jazdy
@@ -75,28 +84,35 @@ sequenceDiagram
 
 ## 6.4. Zakończenie i rozliczenie
 
+Od iteracji 3 zakończenie liczy kwotę z wersji cennika przejazdu (każda rozpoczęta minuta jazdy i pauzy, koniec naliczania przy żądaniu zakończenia, [ADR 0042](../adr/0042-wycena-przejazdu.md)), ale nie obciąża portfela: obciążenie, paragon i stan `UNPAID` dochodzą w iteracji 5. Zdjęcie parkowania przeszło do iteracji 6 (decyzja D2), więc w diagramie go nie ma.
+
 ```mermaid
 sequenceDiagram
     autonumber
     participant A as Aplikacja
     participant API as Backend API
     participant DB as PostGIS
-    participant FS as SeaweedFS (S3)
     participant MQ as Broker MQTT
-    A->>API: POST /rentals/ID/end
-    API->>DB: czy pozycja jest w strefie parkowania
+    A->>API: POST /rentals/current/end
+    API->>DB: blokada hulajnogi i przejazdu, strefy w pozycji hulajnogi
     alt poza strefą
-        API-->>A: 409 OUTSIDE_PARKING, najbliższa strefa
+        API-->>A: 422 OUTSIDE_PARKING, najbliższa strefa
     else w strefie
-        API-->>A: 200 ENDING, uploadUrl
-        A->>FS: PUT zdjęcie
-        A->>API: POST /rentals/ID/photo
-        API->>MQ: cmd lock
-        MQ-->>API: ack
-        API->>DB: obciążenie portfela, rental ENDED
-        API-->>A: rental.ended, paragon
+        API->>DB: END_REQUESTED, ENDING, komenda lock, zadanie limitu, COMMIT
+        API-->>A: 202 ENDING
+        API->>MQ: cmd lock (expiresAt)
+        alt ack lock
+            MQ-->>API: ack
+            API->>DB: ENDED: liczniki z osi czasu, kwota, dystans i trasa z telemetrii
+            API-->>A: rental.updated ENDED (podsumowanie)
+        else brak ack w 10 s
+            API->>DB: LOCK_FAILED, powrót do ACTIVE albo PAUSED
+            API-->>A: rental.updated z komunikatem, naliczanie trwa
+        end
     end
 ```
+
+Zdalne zakończenie przez operatora z uprawnieniem `rentals.manage` (decyzja D7) nie sprawdza strefy i nie czeka na blokadę: przejazd od razu przechodzi do `ENDED`, naliczanie kończy się w tej chwili (albo przy wcześniejszym żądaniu klienta), komenda `lock` idzie do hulajnogi, a powód trafia na oś czasu i do dziennika audytu w tej samej transakcji.
 
 ## 6.5. Doładowanie portfela
 
