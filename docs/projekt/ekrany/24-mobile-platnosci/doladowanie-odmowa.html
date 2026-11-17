@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Płatność odrzucona</title>
+<!-- Aplikacja mobilna, płatności (iteracja 5, pytanie 3, decyzje D2 i D3; ADR 0050 Stripe, ADR 0051 płatności w aplikacji). Wynik doładowania po 24-mobile-platnosci/doladowanie-oczekiwanie, gdy operator zgłosi odmowę (webhook payment_intent.payment_failed albo odpowiedź z błędem PAYMENT_FAILED z powodem od operatora): płatność FAILED, w księdze nie ma wpisu, saldo bez zmian. Układ jak 20-mobile-wypozyczenie/odblokowanie-nieudane i 08-mobile-stany/stan-platnosc: odznaka błędu, tytuł, lead zaczynający się od tego, co się stało, i zawsze zdanie „Nie pobraliśmy pieniędzy.”, potem wiersze płatności.
+     Zachowanie: „Spróbuj ponownie” zakłada nową płatność z nowym kluczem idempotencji (ta sama kwota i metoda; przy BLIK-u wraca do pola kodu w 07-mobile-platnosci/platnosci-blik, bo kod jest jednorazowy). „Zmień metodę” wraca do 24-mobile-platnosci/doladowanie-kwota z zachowaną kwotą i otwartym wyborem metody. Wstecz działa jak „Zmień metodę”.
+     Różnice tekstów według przyczyny (klucze topup.failed.reasons.*): odmowa BLIK w banku: tytuł „Płatność odrzucona”, lead „Bank nie zatwierdził płatności BLIK. Nie pobraliśmy pieniędzy.” (plansza); upływ czasu na potwierdzenie (BLIK): tytuł „Czas na potwierdzenie minął”, lead „Płatność nie została zatwierdzona w aplikacji banku na czas. Nie pobraliśmy pieniędzy.”; odmowa karty: tytuł „Karta odrzucona”, lead „Bank odrzucił płatność kartą •••• 4242. Nie pobraliśmy pieniędzy.”, a przy znanym powodzie od operatora drugie zdanie, np. „Na karcie brakuje środków.” albo „Karta straciła ważność.”; nieudane 3-D Secure: tytuł „Nie udało się potwierdzić płatności”, lead „Bank nie potwierdził płatności kartą •••• 4242. Nie pobraliśmy pieniędzy.”; operator niedostępny (PAYMENT_PROVIDER_UNAVAILABLE): tytuł „Płatności chwilowo nie działają”, lead „Nie mogliśmy połączyć się z operatorem płatności. Nie pobraliśmy pieniędzy.”, tylko „Spróbuj ponownie”. Anulowanie przez klienta w doladowanie-oczekiwanie nie pokazuje tego ekranu.
+     Dane przykładowe: klientka Anna, hulajnoga #0027 (numer czterocyfrowy jak w panelu i w temacie MQTT), karty testowe operatora płatności Visa •••• 4242 i Mastercard •••• 4444; salda i kwoty doładowań przykładowe. Ceny, minimum, koszt przejazdu i stawka VAT w nawiasach (otwarte decyzje; VAT 23% to wartość robocza z danych startowych do potwierdzenia przez autora). Etykiety pochodzą z plików tłumaczeń (ADR 0032). Plansza 390×844 px, wartości z docs/projekt/tokens.json. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+.phone{width:390px;height:844px;position:relative;overflow:hidden;background:#F6F6F3;color:#16181D;font-family:Inter,system-ui,sans-serif}
+.phone.map{background:#EFEFEC}
+.page{padding:20px 24px 32px;display:flex;flex-direction:column}
+.page.list{padding:20px 20px 28px}
+.glass{background:rgba(246,246,243,0.84);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);border:1px solid rgba(255,255,255,0.7);box-shadow:0 12px 40px rgba(22,24,29,0.14)}
+.topbar{position:absolute;left:16px;right:16px;top:20px;display:flex;gap:10px;align-items:center}
+.round{width:44px;height:44px;border-radius:22px;border:none;background:#E3E3DE;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.round.dark{background:#16181D;color:#F6F6F3;font-family:Inter,sans-serif;font-size:15px;font-weight:600}
+.round.small{width:40px;height:40px;border-radius:20px;background:transparent}
+.sheet{position:absolute;left:12px;right:12px;bottom:12px;border-radius:32px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.bottom-sheet{position:absolute;left:0;right:0;bottom:0;background:#F6F6F3;border-radius:32px 32px 0 0;padding:12px 24px 32px;display:flex;flex-direction:column}
+.grabber{width:36px;height:5px;border-radius:3px;background:#D5D5CF;align-self:center}
+.scrim{position:absolute;inset:0;background:rgba(22,24,29,0.32)}
+.btn{height:56px;border-radius:28px;border:none;padding:0 20px;font-family:Inter,sans-serif;font-size:17px;font-weight:600;width:100%;white-space:nowrap}
+.btn.primary{background:#2B3FF5;color:#FFFFFF}
+.btn.secondary{background:#E3E3DE;color:#16181D}
+.btn.dark{background:#16181D;color:#FFFFFF}
+.btn.danger{background:#C62F2F;color:#FFFFFF}
+.btns{display:flex;flex-direction:column;gap:10px}
+.btns.split{display:grid;grid-template-columns:1fr 1.6fr;gap:10px}
+.badge{border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.b44{width:44px;height:44px}
+.b48{width:48px;height:48px}
+.b72{width:72px;height:72px}
+.neutral{background:#E3E3DE} .danger{background:#FBE3E3} .warn{background:#FFF1DB} .accent{background:#EEF0FE} .solid{background:#2B3FF5}
+.alert-title{font-size:19px;font-weight:600;letter-spacing:-0.01em}
+.body15{font-size:15px;line-height:1.45;color:#6B6E75}
+.muted{color:#6B6E75}
+.num{font-weight:500}
+h1.status{margin:0;font-size:30px;font-weight:600;letter-spacing:-0.03em;line-height:1.12}
+h1.heading{margin:0;font-size:22px;font-weight:600;letter-spacing:-0.02em}
+h2.section{margin:0;font-size:17px;font-weight:600}
+.lead{margin:10px 0 0;font-size:16px;line-height:1.5;color:#6B6E75}
+.steps{display:flex;flex-direction:column;gap:18px}
+.step{display:flex;align-items:center;gap:14px;font-size:16px}
+.step .dot{width:26px;height:26px;border-radius:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.dot.done{background:#2B3FF5}
+.dot.spin{border:3px solid #D5D5CF;border-top-color:#2B3FF5;transform:rotate(45deg)}
+.dot.todo{border:1.5px solid #D5D5CF}
+.spinner{width:22px;height:22px;border-radius:11px;border:3px solid #D5D5CF;border-top-color:#2B3FF5;transform:rotate(45deg);flex-shrink:0}
+svg{flex-shrink:0}
+.group{background:#FFFFFF;border-radius:20px;border:1px solid #E3E3DE;overflow:hidden}
+.grow{display:flex;align-items:center;gap:14px;min-height:54px;padding:0 16px;font-size:16px}
+.grow + .grow{border-top:1px solid #E3E3DE}
+.grow .txt{flex-grow:1;display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 0}
+.grow .s{font-size:13px;color:#6B6E75}
+.grow.link{color:#2B3FF5;font-weight:500}
+.radio{width:22px;height:22px;border-radius:11px;border:1.5px solid #B9B9B2;flex-shrink:0}
+.radio.on{border:6px solid #2B3FF5}
+.radio.off{border-color:#D5D5CF;background:#EDEDE9}
+.cardmini{width:36px;height:24px;border-radius:5px;background:#16181D;color:#FFFFFF;font-size:8px;font-weight:700;letter-spacing:0.04em;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cardmini.mc{background:#3A3E46}
+.cardmini.blik{background:#E3E3DE;color:#16181D;font-size:9px;letter-spacing:0}
+.cardmini.wallet{background:transparent}
+.chip{display:inline-flex;height:26px;padding:0 10px;border-radius:13px;font-size:12px;font-weight:600;align-items:center;white-space:nowrap}
+.chip.neutral{background:#E3E3DE;color:#16181D}
+.chip.warn{background:#FFF1DB;color:#8F5500}
+.chip.danger{background:#FBE3E3;color:#C62F2F}
+.pillsel{height:40px;padding:0 16px;border-radius:20px;font-size:15px;font-weight:500;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pillsel.off{background:#FFFFFF;border:1px solid #E3E3DE}
+.pillsel.on{background:#16181D;color:#F6F6F3}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.stats > div{display:flex;flex-direction:column;gap:2px}
+.stats .v{font-size:18px;font-weight:500;letter-spacing:-0.015em}
+.stats .l{font-size:13px;color:#6B6E75}
+.lines{display:flex;flex-direction:column;font-size:15px}
+.lines > div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #E3E3DE}
+.lines > div:last-child{border-bottom:1px solid #E3E3DE}
+.lines .k{color:#6B6E75}
+.note{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.45;color:#6B6E75}
+
+</style>
+</head>
+<body>
+<div class="phone page" style="gap:0;padding-top:76px">
+<div class="badge b72 danger"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#C62F2F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"></rect><path d="M3 10h18"></path></svg></div>
+<h1 class="status" style="margin-top:24px">Płatność odrzucona</h1>
+<p class="lead">Bank nie zatwierdził płatności BLIK. Nie pobraliśmy pieniędzy.</p>
+<div class="group" style="margin-top:28px">
+<div class="grow"><span style="flex-grow:1;color:#6B6E75">Kwota</span><span class="num">35,00 zł</span></div>
+<div class="grow"><span style="flex-grow:1;color:#6B6E75">Metoda</span><span>BLIK</span></div>
+<div class="grow"><span style="flex-grow:1;color:#6B6E75">Saldo bez zmian</span><span class="num">15,00 zł</span></div>
+</div>
+<div style="flex-grow:1"></div>
+<div class="btns"><button type="button" class="btn primary">Spróbuj ponownie</button><button type="button" class="btn secondary">Zmień metodę</button></div>
+</div>
+</body>
+</html>

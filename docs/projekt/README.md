@@ -15,7 +15,7 @@ Uwagi do eksportu:
 - Plansze z katalogu `00-eksploracja` używały krojów Space Grotesk, JetBrains Mono, Bricolage Grotesque i DM Sans; na zrzutach zastąpiono je krojem systemowym. Obecny kierunek używa tylko Intera.
 - Liczby w makietach (np. 87%, 2,4 km, nazwiska w panelu) są przykładowe.
 
-Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **102**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
+Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **120**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
 
 ## Eksploracja kierunku (archiwum)
 
@@ -356,4 +356,56 @@ Ustalenia z plansz:
 - Pasek narzędzi mapy dostał „Cofnij” (ADR 0047); środki krawędzi to uchwyty dodawania punktu. Nowy wielokąt jest kobaltowy do wyboru typu, nowa strefa jest domyślnie widoczna w aplikacji.
 - Nienarysowane, opisane w komentarzach: widok tylko do odczytu dla `zones.read`, karta nieaktywnej strefy z „Przywróć strefę”, konflikt wersji `CONFLICT` jak w `17-panel-wzorce`, okno „Usunąć strefę?”.
 - Do rozstrzygnięcia w ADR 0043 i 0047: blokada zmiany typu strefy użytej w przejazdach, uproszczenie okręgów z danych startowych (64 punkty), czas wjazdu do strefy potrzebny w kolumnie „W strefie od”.
+
+## Aplikacja: płatności (iteracja 5)
+
+Brakujące stany z [planu iteracji 5](../iteracje/iteracja-05-platnosci.md) według odpowiedzi autora (17 listopada 2026), na stylach `07-mobile-platnosci`, `20-mobile-wypozyczenie` i `22-mobile-strefy`. Portfel (`flow-portfel`), dodanie karty, BLIK, cennik, brak środków i nieudana płatność zostają z wcześniejszych plansz.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Doładowanie z kwotą własną | [PNG](ekrany/24-mobile-platnosci/doladowanie-kwota.png) | [HTML](ekrany/24-mobile-platnosci/doladowanie-kwota.html) | 390×844 |
+| Doładowanie: oczekiwanie na bank | [PNG](ekrany/24-mobile-platnosci/doladowanie-oczekiwanie.png) | [HTML](ekrany/24-mobile-platnosci/doladowanie-oczekiwanie.html) | 390×844 |
+| Doładowanie udane | [PNG](ekrany/24-mobile-platnosci/doladowanie-sukces.png) | [HTML](ekrany/24-mobile-platnosci/doladowanie-sukces.html) | 390×844 |
+| Doładowanie odrzucone | [PNG](ekrany/24-mobile-platnosci/doladowanie-odmowa.png) | [HTML](ekrany/24-mobile-platnosci/doladowanie-odmowa.html) | 390×844 |
+| Metody płatności | [PNG](ekrany/24-mobile-platnosci/metody-platnosci.png) | [HTML](ekrany/24-mobile-platnosci/metody-platnosci.html) | 390×844 |
+| Paragon (potwierdzenie sprzedaży) | [PNG](ekrany/24-mobile-platnosci/paragon.png) | [HTML](ekrany/24-mobile-platnosci/paragon.html) | 390×844 |
+| Podsumowanie: zapłacono z portfela | [PNG](ekrany/24-mobile-platnosci/podsumowanie-portfel.png) | [HTML](ekrany/24-mobile-platnosci/podsumowanie-portfel.html) | 390×844 |
+| Podsumowanie: płatność kartą w toku | [PNG](ekrany/24-mobile-platnosci/podsumowanie-karta.png) | [HTML](ekrany/24-mobile-platnosci/podsumowanie-karta.html) | 390×844 |
+| Start z płatnością kartą | [PNG](ekrany/24-mobile-platnosci/start-karta.png) | [HTML](ekrany/24-mobile-platnosci/start-karta.html) | 390×844 |
+| Zaległość na mapie | [PNG](ekrany/24-mobile-platnosci/mapa-zaleglosc.png) | [HTML](ekrany/24-mobile-platnosci/mapa-zaleglosc.html) | 390×844 |
+| Spłata zaległości | [PNG](ekrany/24-mobile-platnosci/zaleglosc-splata.png) | [HTML](ekrany/24-mobile-platnosci/zaleglosc-splata.html) | 390×844 |
+
+Ustalenia z plansz:
+
+- Kwota własna to czwarta pigułka „Inna kwota” w portfelu i ekran „Doładowanie” w układzie `platnosci-blik`: pełne złote 10–500 zł, poza zakresem błąd przy polu i nieaktywny przycisk, saldo po doładowaniu liczone na bieżąco. Bez karty pigułka metody to „+ Dodaj kartę”.
+- Oczekiwanie na bank nie ma „wstecz”, tylko „Anuluj”; po powrocie z aplikacji banku ekran pyta API o stan, po 2 min bez webhooka „To trwa dłużej niż zwykle”. 3-D Secure to arkusz biblioteki operatora i ten sam ekran oczekiwania bez licznika.
+- Każda odmowa mówi „Nie pobraliśmy pieniędzy.”, tytuł zależy od przyczyny; ponowienie to nowa płatność z nowym kluczem idempotencji. Doładowanie to przedpłata bez VAT (VAT jest na paragonie przejazdu).
+- Metody płatności: karta „Domyślna”, „Wygasa” (mniej niż 30 dni) z bursztynowym paskiem, „Wygasła” bez wyboru; usunięcie z czerwonym potwierdzeniem, zablokowane (`PAYMENT_METHOD_REQUIRED`), gdy karta płaci za trwający przejazd albo jest jedyną przy zaległości.
+- Paragon jest niefiskalnym potwierdzeniem sprzedaży (pozycje, [VAT]%, netto, VAT, brutto, sposób zapłaty, nabywca, [dane sprzedawcy]); przejazd o kwocie 0 i przejazdy z iteracji 3 i 4 nie mają paragonu.
+- Podsumowanie po rozliczeniu ma kwoty w Medium i wiersze „Zapłacono z” i „Saldo po przejeździe”; przy ujemnym saldzie kwota w kolorze błędu i „Doładuj portfel” zamiast „Gotowe”. Przejazd kartą od razu „Przejazd zakończony” i „Płatność w toku” (D4), „Paragon” po sukcesie.
+- „Płać kartą za przejazd” tylko przy ważnej karcie; wybór karty w arkuszu „Odblokuj i jedź”, „Zmień” dotyczy tylko tego przejazdu.
+- Zaległość na mapie to panel, którego nie można zamknąć; ma pierwszeństwo przed ujemnym saldem, przy kilku zaległościach suma. Spłata z portfela tylko, gdy saldo pokrywa całość; ręczna spłata anuluje automatyczne ponowienie (tą samą kartą po 24 h). Odrzucona karta w makietach to karta testowa •••• 0002.
+
+## Panel operatora: płatności (iteracja 5)
+
+Plansze w nawigacji z `23-panel-strefy`; pozycja „Płatności” w grupie Operacje. „Cennik i zasady” zastępuje `13-panel/admin-cennik`.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Cennik: wersje | [PNG](ekrany/25-panel-platnosci/cennik-wersje.png) | [HTML](ekrany/25-panel-platnosci/cennik-wersje.html) | 1440×900 |
+| Cennik: nowa wersja | [PNG](ekrany/25-panel-platnosci/cennik-nowa-wersja.png) | [HTML](ekrany/25-panel-platnosci/cennik-nowa-wersja.html) | 1440×900 |
+| Płatności z panelem bocznym | [PNG](ekrany/25-panel-platnosci/platnosci-lista.png) | [HTML](ekrany/25-panel-platnosci/platnosci-lista.html) | 1440×900 |
+| Paragony | [PNG](ekrany/25-panel-platnosci/paragony-lista.png) | [HTML](ekrany/25-panel-platnosci/paragony-lista.html) | 1440×900 |
+| Klient: portfel i księga | [PNG](ekrany/25-panel-platnosci/klient-portfel.png) | [HTML](ekrany/25-panel-platnosci/klient-portfel.html) | 1440×900 |
+| Korekta salda | [PNG](ekrany/25-panel-platnosci/korekta-salda.png) | [HTML](ekrany/25-panel-platnosci/korekta-salda.html) | 1440×900 |
+| Zwrot za przejazd | [PNG](ekrany/25-panel-platnosci/przejazd-zwrot.png) | [HTML](ekrany/25-panel-platnosci/przejazd-zwrot.html) | 1440×900 |
+
+Ustalenia z plansz:
+
+- Stan wersji cennika (Obowiązuje, Zaplanowana, Archiwalna) wynika z `valid_from`; wersji się nie edytuje, nowa wersja ma „Od teraz” albo „Od daty”, porównanie z obowiązującą i wyróżnione zmienione pola. „Limit w strefie wolnej jazdy” wypadł (D6, odnośnik do Stref), opłata poza strefą opisana jako odholowanie, ceny brutto z [VAT]% VAT.
+- Płatność to tylko ruch u operatora (doładowanie albo przejazd kartą); przejazd z portfela to wpis `RIDE_CHARGE` w księdze. Zakładki: Płatności, Księga, Portfele, Paragony, Metody płatności, Webhooki; liczniki na szybkich filtrach (Udane, W toku, Nieudane, Zwrócone).
+- Panel boczny płatności ma oś „Zdarzenia operatora” (zlecenie, webhook, przetworzenie, pominięte powtórzenie).
+- Zwrot tylko ze szczegółów przejazdu (`rentals.manage`), cel wynika ze źródła płatności, bez wyboru. Korekta i zwrot mają kobaltowy przycisk (nie są destrukcyjne), nieodwracalność jest w podtytule; etykieta powodu widoczna dla klienta, notatka tylko w panelu.
+- Powody (propozycja do ADR 0054): korekta — Reklamacja, Błąd systemu, Gest dobrej woli, Inny powód; zwrot — Awaria hulajnogi, Błąd naliczenia, Reklamacja klienta, Inny powód.
+- Karta klienta ma liczbę zaległości, ostrzeżenie o saldzie poniżej minimum i metody płatności klienta. „Eksportuj XLSX” na liście płatności to iteracja 8.
 

@@ -61,7 +61,10 @@ Do zrobienia:
 - [x] Przed iteracją 4: ADR 0043–0048 (2026-11-17, zaakceptowane).
 - [x] Iteracja 4: implementacja według planu (2026-11-17).
 - [x] Wypchnąć iterację 4 i potwierdzić zielone CI (2026-11-17, commit `ca1f68e`).
-- [ ] Przed iteracją 5: plan iteracji 5 (płatności).
+- [x] Przed iteracją 5: plan iteracji 5 (2026-11-17, `docs/iteracje/iteracja-05-platnosci.md`).
+- [x] Przed iteracją 5: odpowiedzi autora na pytania 1–12 i decyzje D1–D8 (2026-11-17, wszystkie rekomendacje).
+- [x] Przed iteracją 5: makiety brakujących stanów (2026-11-17, `24-mobile-platnosci`, `25-panel-platnosci`, 18 plansz).
+- [ ] Przed iteracją 5: konto Stripe w trybie testowym z kluczami w `.env` (autor; do tego czasu atrapa operatora), ADR 0049–0054.
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.
@@ -79,4 +82,4 @@ Do zrobienia:
 - Każdy punkt API deklaruje dostęp: `@Public()`, `@CustomerAuth()`, `@StaffAuth()` albo `@RequirePermission('…')` (ADR 0035); punkt bez deklaracji kończy się `403 PERMISSION_NOT_DECLARED`. Kod SMS w środowisku deweloperskim jest w logu API. Testy panelu: pomocnik `staffToken` w `apps/api/test/helpers.ts`.
 
 ## Otwarte decyzje
-Nazwa marki ([nazwa]); wartości biznesowe (ceny, czas rezerwacji, minimalne saldo, próg baterii, limit w wolnej strefie, wiek, opłata za parkowanie poza strefą, zwrot salda; w seedzie są wartości deweloperskie); naliczanie czasu przy utracie łączności.
+Nazwa marki ([nazwa]); wartości biznesowe (ceny, czas rezerwacji, minimalne saldo, próg baterii, wiek, wysokość opłaty za odholowanie; w seedzie są wartości deweloperskie); stawka VAT (robocza 23%, do sprawdzenia przez autora); naliczanie czasu przy utracie łączności.

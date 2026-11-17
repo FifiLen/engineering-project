@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Panel – klient, portfel</title>
+<!-- Plansza: karta klienta (18-panel-dostep/dostep-klient) z nową zakładką Portfel: saldo, księga portfela klienta, metody płatności i „Korekta salda”. Plan iteracji 5: „Zakres → Panel” (karta klienta: saldo, księga klienta, korekta salda), D5, pytania 2, 4, 5, 9, 10 i 12; ADR 0049 (rozliczenie, saldo ujemne), ADR 0052 (paragony), ADR 0054 (zwroty i korekty); ADR 0014 (księga tylko do dopisywania).
+     Układ: nagłówek i liczby z dostep-klient („saldo portfela” z prawdziwą kwotą zamiast [SALDO], nowa liczba „zaległości” z przejazdów UNPAID); zakładki Profil (zgody, dane, sesje z dostep-klient), Portfel, Przejazdy, Płatności (lista płatności przefiltrowana do klienta), Historia zmian. „Korekta salda” w nagłówku i w karcie Portfel tylko z uprawnieniem wallet.adjust (Administrator, pytanie 10); otwiera okno korekta-salda.
+     Księga: wpisy klienta z wallet_ledger malejąco, kolumny Data, Typ (etykieta i kod ledger_entry_type: TOPUP, RIDE_CHARGE, REFUND, ADJUSTMENT), Szczegóły (przejazd z odnośnikiem, metoda i identyfikator płatności, operator korekty lub zwrotu, powód, numer paragonu), Kwota ze znakiem, Saldo po (balance_after). Filtry: typ i zakres dat; sortowanie po dacie. Przejazd opłacony kartą (R-51858) nie trafia do księgi, tylko do Płatności; mówi o tym stopka listy.
+     Portfel: saldo z v_wallet_balances, znacznik „zgodny z księgą” (out_of_sync = false), ostrzeżenie, gdy saldo jest poniżej minimalnego salda z obowiązującej wersji cennika (pytania 2 i 5). Metody płatności z payment_methods tylko do odczytu (D5): marka, cztery cyfry, data ważności, „Domyślna”, „Wygasa” przy karcie wygasającej w ciągu 30 dni; BLIK jako metoda bez zapisu.
+     Warianty bez osobnych plansz: saldo ujemne (pytanie 4), np. −3,40 zł, pokazane w kolorze błędu w liczbach i w karcie Portfel z paskiem błędu „Saldo ujemne: klient nie zarezerwuje ani nie wystartuje do doładowania”; przejazd UNPAID: liczba „zaległości” w kolorze błędu i pasek „Nieopłacony przejazd R-51841: [KOSZT] zł, ponowienie 18 lis, 14:31” z odnośnikiem; rozjazd salda z księgą (out_of_sync): znacznik bursztynowy „niezgodny z księgą” i „Napraw saldo” (sp_rebuild_wallet_balances, payments.read nie wystarcza, potrzebne wallet.adjust); brak metod płatności: „Klient nie dodał karty”; bez wallet.adjust brak przycisku „Korekta salda”; konto z saldem różnym od 0 nie da się usunąć w aplikacji (pytanie 9), zwrot salda robi operator korektą albo zwrotem.
+     Salda w księdze to przykładowe liczby niezależne od [KOSZT] (ceny to otwarta decyzja). Dane przykładowe. Etykiety pochodzą z plików tłumaczeń (ADR 0032); kody typów pod etykietami tylko w makiecie do obrony. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+.app{width:1440px;height:900px;display:flex;background:#F6F6F3;color:#16181D;overflow:hidden;font-family:Inter,system-ui,sans-serif;position:relative}
+nav.side{width:232px;flex-shrink:0;background:#FFFFFF;border-right:1px solid #E3E3DE;display:flex;flex-direction:column;padding:20px 14px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 16px}
+.brand-mark{width:32px;height:32px;border-radius:8px;background:#2B3FF5;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.brand-name{font-size:15px;font-weight:600} .brand-sub{font-size:12px;color:#6B6E75}
+.nav-group{font-size:11px;font-weight:600;color:#6B6E75;text-transform:uppercase;letter-spacing:.04em;padding:12px 12px 4px}
+.nav-item{display:flex;align-items:center;gap:12px;height:38px;padding:0 12px;border-radius:12px;text-decoration:none;font-size:14px;color:#16181D;font-weight:500}
+.nav-item.active{background:#EEF0FE;color:#2B3FF5;font-weight:600}
+.nav-badge{margin-left:auto;min-width:20px;height:20px;border-radius:10px;background:#C62F2F;color:#FFFFFF;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.me{display:flex;align-items:center;gap:10px;padding:12px 8px 0;border-top:1px solid #E3E3DE}
+.avatar{width:32px;height:32px;border-radius:16px;background:#16181D;color:#F6F6F3;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+main{flex-grow:1;min-width:0;display:flex;flex-direction:column;padding:28px 32px;gap:16px;position:relative;overflow:hidden}
+h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-0.025em}
+.sub{font-size:14px;color:#6B6E75}
+.btn{height:36px;padding:0 14px;border-radius:18px;background:#FFFFFF;color:#16181D;border:1px solid #E3E3DE;font-family:Inter,sans-serif;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.primary{background:#2B3FF5;color:#FFFFFF;border:none}
+.btn.dark{background:#16181D;color:#F6F6F3;border:none}
+.btn.danger{color:#C62F2F;border-color:#F0C4C4}
+.chip{height:36px;padding:0 12px;border-radius:17px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;white-space:nowrap}
+.chip.on{background:#16181D;color:#F6F6F3;border-color:#16181D}
+.chip .n{opacity:.6;font-weight:500}
+.search{width:280px;white-space:nowrap;height:36px;border-radius:18px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:8px;padding:0 14px;font-size:13px;color:#6B6E75}
+.tag{height:30px;padding:0 6px 0 12px;border-radius:15px;background:#EEF0FE;color:#2B3FF5;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500}
+.tag b{font-weight:600}
+.tag .x{width:20px;height:20px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center}
+.link{font-size:13px;font-weight:600;color:#2B3FF5;text-decoration:none}
+.card{background:#FFFFFF;border:1px solid #E3E3DE;border-radius:20px;padding:12px}
+.row{display:grid;gap:12px;align-items:center;height:50px;padding:0 16px;border-top:1px solid #E3E3DE;font-size:14px}
+.row > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row.head{height:auto;border-top:none;padding:0 16px 10px;font-size:12px;font-weight:600;color:#6B6E75}
+.row.selected{background:#EEF0FE}
+.th-sort{display:inline-flex;align-items:center;gap:4px;color:#16181D}
+.cb{width:18px;height:18px;border-radius:5px;border:1.5px solid #B9B9B2;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+.cb.on{background:#2B3FF5;border-color:#2B3FF5}
+.cb.mixed{background:#2B3FF5;border-color:#2B3FF5}
+.pill{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:12px;font-size:12px;font-weight:600;white-space:nowrap;background:#EDEDE9;color:#16181D}
+.pill.accent{background:#EEF0FE;color:#2B3FF5} .pill.muted{color:#6B6E75}
+.pill.warn{background:#FFF1DB;color:#8F5500} .pill.danger{background:#FBE3E3;color:#C62F2F}
+.overdue{color:#C62F2F;font-weight:500}
+.mono{font-weight:600}
+.muted{color:#6B6E75}
+.pager{display:flex;justify-content:space-between;align-items:center;padding:14px 16px 0;border-top:1px solid #E3E3DE;font-size:13px;color:#6B6E75}
+.page{width:36px;height:36px;border-radius:18px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#16181D}
+.page.on{background:#16181D;color:#F6F6F3}
+.select{height:36px;padding:0 12px 0 14px;border-radius:18px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#16181D}
+.bulk{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);height:56px;padding:0 10px 0 20px;border-radius:28px;background:#16181D;color:#F6F6F3;display:flex;align-items:center;gap:6px;box-shadow:0 12px 40px rgba(22,24,29,0.24);font-size:14px;white-space:nowrap}
+.bulk .count{font-weight:600;padding-right:12px;margin-right:4px;border-right:1px solid #3A3D45}
+.bulk .act{height:36px;padding:0 14px;border-radius:18px;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#F6F6F3}
+.bulk .act.danger{color:#FF7A70}
+.field{display:flex;flex-direction:column;gap:6px}
+.label{font-size:13px;font-weight:600}
+.label .opt{font-weight:400;color:#6B6E75}
+.input{height:46px;border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:15px;color:#16181D}
+.input.error{border:1.5px solid #C62F2F}
+.input .ph{color:#6B6E75}
+.hint{font-size:12px;color:#6B6E75}
+.err{font-size:12px;color:#C62F2F;font-weight:500;display:flex;align-items:center;gap:6px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.section-title{font-size:17px;font-weight:600}
+.tabs{display:flex;gap:4px;border-bottom:1px solid #E3E3DE}
+.tab{height:40px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:#6B6E75;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:#16181D;font-weight:600;border-bottom-color:#16181D}
+.tab .n{font-size:12px;font-weight:500;color:#6B6E75}
+.iconbtn{width:32px;height:32px;border-radius:16px;border:none;background:transparent;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}
+.av{width:30px;height:30px;border-radius:15px;background:#EDEDE9;color:#16181D;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.av.dark{background:#16181D;color:#F6F6F3}
+.stack{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stack > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.small{font-size:12px;color:#6B6E75}
+.num{font-weight:500}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;font-size:14px}
+.kv dt{color:#6B6E75;margin:0} .kv dd{margin:0;font-weight:500}
+.notice{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:14px;font-size:13px;line-height:1.45}
+.notice.info{background:#EEF0FE;color:#16181D} .notice.warn{background:#FFF1DB;color:#16181D} .notice.danger{background:#FBE3E3;color:#16181D}
+.notice .ic{width:28px;height:28px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.overlay{position:absolute;inset:0;background:rgba(22,24,29,0.32);display:flex;align-items:center;justify-content:center}
+.dialog{width:520px;background:#FFFFFF;border-radius:28px;padding:28px;box-shadow:0 24px 64px rgba(22,24,29,0.28);display:flex;flex-direction:column;gap:18px}
+.radio{width:20px;height:20px;border-radius:10px;border:1.5px solid #B9B9B2;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+.radio.on{border:6px solid #2B3FF5}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:440px;background:#FFFFFF;border-left:1px solid #E3E3DE;box-shadow:-12px 0 40px rgba(22,24,29,0.10);display:flex;flex-direction:column}
+.diff-old{background:#FBE3E3;color:#16181D;border-radius:6px;padding:1px 6px;text-decoration:line-through;text-decoration-color:#C62F2F}
+.diff-new{background:#E4EFE3;color:#16181D;border-radius:6px;padding:1px 6px}
+.code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6B6E75}
+.toggle{width:36px;height:22px;border-radius:11px;background:#E3E3DE;position:relative;flex-shrink:0}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:8px;background:#FFFFFF;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.toggle.on{background:#2B3FF5} .toggle.on::after{left:17px}
+
+
+.avatar{flex-shrink:0}
+.glass{background:rgba(255,255,255,0.84);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border-radius:16px;box-shadow:0 8px 24px rgba(22,24,29,0.10)}
+.stat{display:flex;flex-direction:column;gap:2px;padding:0 16px;border-left:1px solid #E3E3DE}
+.stat:first-child{border-left:none;padding-left:0}
+.stat .v{font-size:20px;font-weight:500;letter-spacing:-0.015em;white-space:nowrap}
+.stat .l{font-size:12px;color:#6B6E75;white-space:nowrap}
+.tl{display:flex;gap:12px}
+.tl .rail{display:flex;flex-direction:column;align-items:center;width:12px;flex-shrink:0}
+.tl .dot{width:10px;height:10px;border-radius:5px;margin-top:4px;flex-shrink:0;background:#16181D}
+.tl .line{width:2px;flex-grow:1;background:#E3E3DE;margin-top:3px}
+.tl .body{display:flex;flex-direction:column;gap:1px;padding-bottom:12px;min-width:0}
+.tl .t{font-size:13px;font-weight:500}
+.tl .d{font-size:12px;color:#6B6E75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .d .num{color:#16181D}
+.dot.accent{background:#2B3FF5;box-shadow:0 0 0 4px #EEF0FE} .dot.warn{background:#8F5500} .dot.danger{background:#C62F2F} .dot.muted{background:#B9B9B2}
+.state{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6B6E75;white-space:nowrap;flex-shrink:0}
+.line-item{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;border-top:1px solid #E3E3DE;font-size:13px}
+.line-item .num{white-space:nowrap}
+.live{display:inline-flex;align-items:center;gap:6px;color:#2B3FF5;font-weight:500}
+.live::before{content:'';width:8px;height:8px;border-radius:4px;background:#2B3FF5}
+.warnmark{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:12px;background:#FFF1DB;flex-shrink:0}
+.conseq{display:flex;gap:12px;align-items:flex-start;font-size:13px;line-height:1.45}
+.conseq .ci{width:28px;height:28px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.input{height:44px;border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;display:flex;align-items:center;gap:8px;padding:0 14px;font-size:15px;font-weight:500;color:#16181D;white-space:nowrap;overflow:hidden}
+.input .ph{color:#9A9CA1;font-weight:400}
+.input .suf{margin-left:auto;font-size:13px;font-weight:400;color:#6B6E75}
+.input.focus{border:1.5px solid #2B3FF5}
+.input.error{border:1.5px solid #C62F2F}
+.input.changed{border:1.5px solid #2B3FF5}
+.input.ro{background:#F6F6F3;color:#6B6E75}
+.seg{display:flex;background:#E3E3DE;border-radius:18px;padding:2px}
+.seg > span{flex-grow:1;flex-basis:0;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;padding:0 10px;white-space:nowrap}
+.seg > span.on{background:#16181D;color:#F6F6F3}
+.pill.sm{height:20px;padding:0 8px;font-size:11px;border-radius:10px}
+.right{text-align:right;justify-self:end}
+.tabs .tab .n{margin-left:2px}
+.lg{display:grid;grid-template-columns:92px 128px minmax(0,1fr) 92px 84px;gap:12px;align-items:center;height:52px;padding:0 4px;border-top:1px solid #E3E3DE;font-size:14px}
+.lg > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg.head{height:auto;border-top:none;padding:0 4px 10px;font-size:12px;font-weight:600;color:#6B6E75}
+.lg .stack > span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pm{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #E3E3DE}
+.cardmark{width:44px;height:30px;border-radius:6px;background:#16181D;color:#F6F6F3;font-size:10px;font-weight:600;display:flex;align-items:flex-end;justify-content:flex-start;padding:0 0 4px 6px;flex-shrink:0;letter-spacing:.02em}
+.cardmark.light{background:#E3E3DE;color:#16181D}
+.dialog .label{font-size:13px;font-weight:600}
+.prev{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:16px;background:#F6F6F3}
+.prev .r{display:flex;justify-content:space-between;align-items:baseline;font-size:13px}
+</style>
+</head>
+<body>
+<div class="app"><nav class="side" aria-label="Panel"><div class="brand"><div class="brand-mark"><svg width="25" height="25" viewBox="0 0 1024 1024" fill="none" stroke="#FFFFFF" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="314" cy="668" r="88"></circle><circle cx="710" cy="668" r="88"></circle><path d="M402 668 H622M710 668 L614 268M534 268 H684"></path></svg></div><div style="display:flex;flex-direction:column"><span class="brand-name">[nazwa]</span><span class="brand-sub">Panel operatora</span></div></div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"></rect><rect x="13" y="4" width="7" height="7" rx="2"></rect><rect x="4" y="13" width="7" height="7" rx="2"></rect><rect x="13" y="13" width="7" height="7" rx="2"></rect></svg>Pulpit</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"></path><path d="M9 4v14M15 6v14"></path></svg>Mapa floty</a><div class="nav-group">Operacje</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path></svg>Flota</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2"></circle><circle cx="18" cy="6" r="2"></circle><path d="M8 18h7a3 3 0 000-6H9a3 3 0 010-6h7"></path></svg>Przejazdy</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="M3 10h18M7 15h3"></path></svg>Płatności</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5a4 4 0 00-5 5L4 16l4 4 5.5-5.5a4 4 0 005-5l-2.5 2.5-2.5-.5-.5-2.5z"></path></svg>Zgłoszenia<span class="nav-badge">3</span></a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M3 12h18M10 12v2h4v-2"></path></svg>Serwis</a><div class="nav-group">Konfiguracja</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"></rect><path d="M10 16V8h3a2.5 2.5 0 010 5h-3"></path></svg>Strefy</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"></path><circle cx="7.5" cy="8.5" r="1.5"></circle></svg>Cennik i zasady</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"></path><path d="M14 3v5h5M10 13h6M10 17h6"></path></svg>Treści</a><div class="nav-group">Klienci i dostęp</div><a href="#" class="nav-item active" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B3FF5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5"></path><path d="M16 4.5a3.5 3.5 0 010 7M18 15c2 .6 3.2 2.2 3.8 5"></path></svg>Użytkownicy</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>Operatorzy i role</a><div class="nav-group">Analiza</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V12M12 20V5M19 20v-9"></path></svg>Raporty</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"></path><rect x="3" y="9" width="18" height="8" rx="2"></rect><path d="M7 14h10v7H7z"></path></svg>Wydruki</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"></path></svg>Symulator</a><div style="flex-grow:1"></div><div class="me"><span class="avatar">PM</span><div style="display:flex;flex-direction:column"><span style="font-size:13px;font-weight:500;white-space:nowrap">Piotr Mazur</span><span style="font-size:12px;color:#6B6E75">Administrator</span></div><div style="flex-grow:1"></div><button type="button" class="iconbtn" aria-label="Wyloguj się" title="Wyloguj się"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l-5-5 5-5M5 12h11"></path></svg></button></div></nav><main><div style="font-size:13px;color:#6B6E75;display:flex;gap:6px"><a href="#" class="link" style="font-weight:500">Użytkownicy</a><span>/</span><span>Anna Kowalczyk</span></div>
+<div style="margin-top:-8px"><div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px"><div style="display:flex;flex-direction:column;gap:4px"><h1>Anna Kowalczyk <span style="vertical-align:middle;margin-left:6px"><span class="pill accent">Aktywny</span></span></h1><span class="sub">+48 512 345 678 · anna@przyklad.pl · konto od 2 marca 2026 · wersja 4</span></div><div style="display:flex;align-items:center;gap:10px"><button type="button" class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V5.5A1.5 1.5 0 0017.5 4H6a2 2 0 000 4h13a1 1 0 011 1v10a1 1 0 01-1 1H6a2 2 0 01-2-2V6"></path><path d="M16 14h.01"></path></svg>Korekta salda</button><button type="button" class="btn danger"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C62F2F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 018 0v4"></path></svg>Zablokuj konto</button></div></div></div>
+<div class="card" style="padding:16px 24px;display:flex"><div style="display:flex;flex-direction:column;gap:4px;padding:0 20px;padding-left:0"><span style="font-size:24px;font-weight:500;letter-spacing:-0.015em">24</span><span class="small" style="font-size:13px">przejazdy</span></div><div style="display:flex;flex-direction:column;gap:4px;padding:0 20px;border-left:1px solid #E3E3DE"><span style="font-size:24px;font-weight:500;letter-spacing:-0.015em">4,20 zł</span><span class="small" style="font-size:13px">saldo portfela</span></div><div style="display:flex;flex-direction:column;gap:4px;padding:0 20px;border-left:1px solid #E3E3DE"><span style="font-size:24px;font-weight:500;letter-spacing:-0.015em">0,00 zł</span><span class="small" style="font-size:13px">zaległości</span></div><div style="display:flex;flex-direction:column;gap:4px;padding:0 20px;border-left:1px solid #E3E3DE"><span style="font-size:24px;font-weight:500;letter-spacing:-0.015em">1</span><span class="small" style="font-size:13px">zgłoszenie</span></div><div style="display:flex;flex-direction:column;gap:4px;padding:0 20px;border-left:1px solid #E3E3DE"><span style="font-size:24px;font-weight:500;letter-spacing:-0.015em">dziś, 14:52</span><span class="small" style="font-size:13px">ostatnia aktywność</span></div></div>
+<nav class="tabs" aria-label="Karta klienta" style="margin-top:-2px"><a href="#" class="tab">Profil</a><a href="#" class="tab on" aria-current="page">Portfel</a><a href="#" class="tab">Przejazdy<span class="n">24</span></a><a href="#" class="tab">Płatności<span class="n">7</span></a><a href="#" class="tab">Historia zmian</a></nav>
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;min-height:0;flex-grow:1">
+<section class="card" style="padding:18px 20px 12px;display:flex;flex-direction:column;min-width:0">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span class="stack" style="gap:2px"><span class="section-title">Księga portfela</span><span class="small">Każdy ruch środków to nowy wpis; wpisów się nie zmienia.</span></span>
+<span style="display:flex;gap:8px"><span class="select">Wszystkie typy<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="select"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M4 10h16M9 3v4M15 3v4"></path></svg>30 dni<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></span></div>
+<div class="lg head"><span><span class="th-sort" aria-sort="descending">Data <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"></path></svg></span></span><span>Typ</span><span>Szczegóły</span><span class="right">Kwota</span><span class="right">Saldo po</span></div>
+<div class="lg"><span class="num" style="font-size:13px">16 lis, 18:40</span><span class="stack"><span style="font-weight:500">Przejazd</span><span class="state" style="font-size:10px">RIDE_CHARGE</span></span><span class="stack"><span><a href="#" class="link" style="font-size:14px;font-weight:500">R-51790</a> · hulajnoga #0112</span><span class="small">z portfela · cennik w. 3 · PAR/2026/000097</span></span><span class="num right">−[KOSZT] zł</span><span class="num right">4,20 zł</span></div><div class="lg"><span class="num" style="font-size:13px">15 lis, 10:24</span><span class="stack"><span style="font-weight:500">Korekta</span><span class="state" style="font-size:10px">ADJUSTMENT</span></span><span class="stack"><span>Gest dobrej woli</span><span class="small">Piotr Mazur · „Długie odblokowanie”</span></span><span class="num right">+3,00 zł</span><span class="num right">23,80 zł</span></div><div class="lg"><span class="num" style="font-size:13px">14 lis, 19:12</span><span class="stack"><span style="font-weight:500">Zwrot</span><span class="state" style="font-size:10px">REFUND</span></span><span class="stack"><span><a href="#" class="link" style="font-size:14px;font-weight:500">R-51702</a> · Awaria hulajnogi</span><span class="small">Marta Wiśniewska · do portfela</span></span><span class="num right">+5,00 zł</span><span class="num right">20,80 zł</span></div><div class="lg"><span class="num" style="font-size:13px">14 lis, 18:31</span><span class="stack"><span style="font-weight:500">Przejazd</span><span class="state" style="font-size:10px">RIDE_CHARGE</span></span><span class="stack"><span><a href="#" class="link" style="font-size:14px;font-weight:500">R-51702</a> · hulajnoga #0044</span><span class="small">z portfela · cennik w. 3 · PAR/2026/000071</span></span><span class="num right">−[KOSZT] zł</span><span class="num right">15,80 zł</span></div><div class="lg"><span class="num" style="font-size:13px">13 lis, 16:05</span><span class="stack"><span style="font-weight:500">Doładowanie</span><span class="state" style="font-size:10px">TOPUP</span></span><span class="stack"><span>BLIK</span><span class="small"><span class="code">pi_3QwT2bL2kT0aBc9d</span></span></span><span class="num right">+20,00 zł</span><span class="num right">29,60 zł</span></div><div class="lg"><span class="num" style="font-size:13px">12 lis, 07:50</span><span class="stack"><span style="font-weight:500">Przejazd</span><span class="state" style="font-size:10px">RIDE_CHARGE</span></span><span class="stack"><span><a href="#" class="link" style="font-size:14px;font-weight:500">R-51668</a> · hulajnoga #0027</span><span class="small">z portfela · cennik w. 2 · PAR/2026/000052</span></span><span class="num right">−[KOSZT] zł</span><span class="num right">9,60 zł</span></div><div class="lg"><span class="num" style="font-size:13px">11 lis, 08:12</span><span class="stack"><span style="font-weight:500">Przejazd</span><span class="state" style="font-size:10px">RIDE_CHARGE</span></span><span class="stack"><span><a href="#" class="link" style="font-size:14px;font-weight:500">R-51655</a> · hulajnoga #0118</span><span class="small">z portfela · cennik w. 2 · PAR/2026/000049</span></span><span class="num right">−[KOSZT] zł</span><span class="num right">24,10 zł</span></div><div class="lg"><span class="num" style="font-size:13px">9 lis, 17:02</span><span class="stack"><span style="font-weight:500">Doładowanie</span><span class="state" style="font-size:10px">TOPUP</span></span><span class="stack"><span>Visa •••• 4242</span><span class="small"><span class="code">pi_3QvK7mL2kT0aBc9d</span></span></span><span class="num right">+50,00 zł</span><span class="num right">50,00 zł</span></div>
+<div class="pager" style="padding:12px 4px 0"><span>8 wpisów z 30 dni · przejazdy opłacone kartą są w zakładce Płatności</span><span></span></div>
+</section>
+<div style="display:flex;flex-direction:column;gap:16px"><section class="card" style="padding:18px 20px">
+<div style="display:flex;align-items:center;justify-content:space-between"><span class="section-title">Portfel</span><span class="small" style="display:inline-flex;align-items:center;gap:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>zgodny z księgą</span></div>
+<div style="display:flex;align-items:baseline;gap:10px;margin-top:12px"><span style="font-size:40px;font-weight:500;letter-spacing:-0.03em;line-height:1">4,20 zł</span></div>
+<span class="small" style="display:block;margin-top:6px">saldo · ostatnia zmiana 16 lis, 18:40</span>
+<div class="notice warn" style="margin-top:14px;padding:10px 12px"><span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8F5500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l9 16H3z"></path><path d="M12 10v4M12 17h.01"></path></svg></span><span style="padding-top:4px">Poniżej minimum do startu ([MINIMUM] zł). Klient pojedzie, płacąc kartą, albo po doładowaniu.</span></div>
+</section><section class="card" style="padding:18px 20px 8px">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span class="section-title">Metody płatności</span><span class="small">dodaje klient w aplikacji</span></div>
+<div style="margin-top:10px">
+<div class="pm"><span class="cardmark">VISA</span><span class="stack" style="flex-grow:1"><span style="font-size:14px;font-weight:500">Visa •••• 4242</span><span class="small">wygasa 08/2028</span></span><span class="pill accent">Domyślna</span></div>
+<div class="pm"><span class="cardmark light">MC</span><span class="stack" style="flex-grow:1"><span style="font-size:14px;font-weight:500">Mastercard •••• 5454</span><span class="small">wygasa 11/2026</span></span><span class="pill warn">Wygasa</span></div>
+<div class="pm"><span class="cardmark light" style="background:#F6F6F3;border:1px solid #E3E3DE">BLIK</span><span class="stack" style="flex-grow:1"><span style="font-size:14px;font-weight:500">BLIK</span><span class="small">kod przy każdej płatności, bez zapisu</span></span></div>
+</div></section></div>
+</div></main></div>
+</body>
+</html>

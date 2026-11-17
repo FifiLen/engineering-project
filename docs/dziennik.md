@@ -750,3 +750,64 @@ Plan: [iteracja 4](iteracje/iteracja-04-strefy.md), decyzje w [ADR 0043–0048](
 
 **Commit i CI**
 - Sześć commitów iteracji 4 (`ae75a3c`–`ca1f68e`); CI zielone za pierwszym razem (lint, typy, migracje na czystej bazie, testy, build).
+
+## Plan iteracji 5: płatności (17 listopada 2026)
+
+Plan: [iteracja 5](iteracje/iteracja-05-platnosci.md). Etap planowania, bez kodu i bez makiet.
+
+**Co powstało**
+- Plan iteracji 5. Cel:
+  - karta i doładowanie portfela kartą albo BLIK-iem przez Stripe w trybie testowym;
+  - rozliczenie przejazdu z portfela albo kartą, `UNPAID` ze spłatą, paragony;
+  - wersje cennika, płatności, korekty salda i zwroty w panelu.
+
+  Do tego granice z iteracjami 6–8, zakres z migracją 0007, kolejność kroków i scenariusz demo w 9 krokach.
+- Stan wyjściowy spisany ze schematu: tabele płatności, księgi, paragonów i webhooków są od migracji 0001 i 0002, a stan `UNPAID` jest w typie i na diagramie, ale nie w maszynie stanów.
+- Lista 10 brakujących makiet: 6 aplikacji (doładowanie w toku i wynik, metody płatności, paragon, podsumowanie po rozliczeniu, zaległość na mapie, wybór karty przed startem) i 4 panelu (cennik z wersjami, płatności i księga, korekta salda, zwrot).
+- ADR-y do napisania: 0049 rozliczenie przejazdu, 0050 integracja ze Stripe, 0051 płatności w aplikacji, 0052 paragony, 0053 wersje cennika w panelu, 0054 zwroty i korekty salda.
+- 12 pytań o wartości biznesowe:
+  - ceny i minimalne saldo;
+  - kwoty doładowań;
+  - ujemne saldo;
+  - płatność kartą za przejazd i `UNPAID`;
+  - opłata poza strefą;
+  - VAT i paragony;
+  - saldo przy usunięciu konta;
+  - korekty i zwroty;
+  - przejazdy z iteracji 3 i 4 bez obciążenia.
+
+  Do tego 8 decyzji zakresu z rekomendacją (D1–D8).
+
+**Wnioski z przeglądu schematu, kodu i makiet**
+- Makieta `admin-cennik` ma pole „Limit w strefie wolnej jazdy”, a od iteracji 4 limit należy do strefy. Rekomendacja D6: pole wypada z cennika.
+- Opłata „poza strefą” jest w makietach opisana jako doliczana przy odholowaniu, a w planie iteracji 3 jako zakończenie poza strefą za opłatą (pytanie 7).
+- Konto Stripe i klucze testowe zakłada autor; plan przewiduje atrapę operatora (D1), więc testy, CI i demo bez sieci nie zależą od Stripe.
+- Dostępność BLIK w trybie testowym Stripe trzeba sprawdzić przy ADR 0050 (ryzyko z arc42 §11).
+- Płatności w aplikacji wymagają tego samego podziału co mapa: Stripe.js w wersji web i natywny SDK w development build (ADR 0051).
+
+**Do zrobienia przed implementacją**
+- Odpowiedzi autora na pytania i decyzje z planu; konto Stripe w trybie testowym; makiety brakujących stanów; ADR-y 0049–0054.
+
+**Odpowiedzi autora (17 listopada 2026)**
+- Wszystkie rekomendacje D1–D8 i domyślne odpowiedzi na pytania 1–3, 5, 6 i 8–12.
+- Ujemne saldo po przejeździe jest dozwolone i blokuje kolejną rezerwację i start do doładowania.
+- Opłata „poza strefą” dotyczy odholowania przez serwis w iteracji 6, a zakończenie poza strefą parkowania zostaje zablokowane.
+- Stawka VAT 23% jest wartością roboczą do sprawdzenia przez autora (dopisane do otwartych decyzji w `CLAUDE.md`).
+
+**Makiety (17 listopada 2026)**
+- 18 plansz w [`24-mobile-platnosci` i `25-panel-platnosci`](projekt/README.md#aplikacja-płatności-iteracja-5):
+  - 11 aplikacji: kwota własna, oczekiwanie, sukces i odmowa doładowania, metody płatności, paragon, podsumowanie z portfela i kartą, start z kartą, zaległość na mapie i jej spłata;
+  - 7 panelu: wersje cennika, nowa wersja, płatności, paragony, portfel klienta z księgą, korekta salda, zwrot.
+
+  Spis ekranów: 120. Plansze przygotowało dwóch agentów równolegle, a PNG wyrenderował Chrome headless. Wszystkie PNG obejrzane.
+- Poprawka po przeglądzie: odrzucona karta na planszach zaległości to karta testowa •••• 0002, a nie •••• 4242. Ta ostatnia w trybie testowym Stripe zawsze przechodzi, a scenariusz demo używa karty z odmową.
+- **Luki w schemacie wykryte przy projektowaniu, dopisane do zakresu migracji 0007:**
+  - zwroty częściowe i wielokrotne (brak kwoty zwróconej i tabeli zwrotów);
+  - powód korekty w księdze;
+  - powiązanie webhooka z płatnością i licznik powtórzeń;
+  - rodzaj dokumentu i korekta paragonu;
+  - stawka VAT poza `receipt_items`.
+- **Sprzeczności do rozstrzygnięcia:**
+  - macierz operacji pozwala usuwać metody płatności w panelu, a D5 mówi „tylko do odczytu”;
+  - plansza `20-mobile-wypozyczenie/profil-dane` obiecuje potwierdzenia płatności na e-mail, a D7 wyklucza e-mail. Do poprawy przy implementacji.
+
