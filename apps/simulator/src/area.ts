@@ -1,12 +1,15 @@
 import { readFileSync } from 'node:fs';
-import { distanceM, mulberry32, project, type Point } from './geo.js';
+import { mulberry32, project, type Point } from './geo.js';
 
 interface PlacesFile {
   serviceArea: { centerPlace: string; radiusM: number };
   places: Array<{ code: string; type: string; radiusM: number; lat?: number; lon?: number }>;
 }
 
-/** Obszar, po którym jeżdżą wirtualne hulajnogi: środek, promień i punkty postoju (strefy parkowania). */
+/**
+ * Obszar z pliku miejsc: pozycje startowe floty i cele przejazdów pokazowych. Cele jazdy klienta wybiera
+ * wirtualny klient ze stref z API (`zones.ts`, ADR 0046).
+ */
 export interface Area {
   center: Point;
   radiusM: number;
@@ -49,14 +52,4 @@ export function randomDestination(area: Area, random: () => number): Point {
     return project(hub, random() * hub.radiusM * 0.8, random() * 2 * Math.PI);
   }
   return project(area.center, Math.sqrt(random()) * area.radiusM * 0.8, random() * 2 * Math.PI);
-}
-
-/**
- * Cel jazdy po odblokowaniu komendą (ADR 0039): środek losowej strefy parkowania, innej niż ta, w której
- * hulajnoga stoi, żeby jazda była widoczna na mapie, a próba zakończenia w drodze trafiała poza strefę.
- */
-export function rideDestinationHub(area: Area, from: Point, random: () => number): Area['hubs'][number] {
-  const elsewhere = area.hubs.filter((h) => distanceM(h, from) > h.radiusM);
-  const hubs = elsewhere.length ? elsewhere : area.hubs;
-  return hubs[Math.floor(random() * hubs.length)]!;
 }

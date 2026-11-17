@@ -1,16 +1,18 @@
 /**
  * Symulator floty (ADR 0002). Każda wirtualna hulajnoga ma własne połączenie MQTT i zachowuje się jak
  * urządzenie z kontraktu AsyncAPI: telemetria, status z Last Will, komendy z potwierdzeniami.
- * Po odblokowaniu komendą hulajnoga jedzie do strefy parkowania (ADR 0039); przejazdy pokazowe są
- * domyślnie wyłączone, a awarie do demo ustawia plik sterujący (`pnpm --filter @hulajnogi/simulator control`).
+ * Po odblokowaniu komendą wirtualny klient jedzie do strefy parkowania ze stref z API, a po `stop_gradually`
+ * prowadzi hulajnogę pieszo poza strefę zakazu (ADR 0039, ADR 0046). Przejazdy pokazowe są domyślnie
+ * wyłączone, a awarie i cele do demo ustawia plik sterujący (`pnpm --filter @hulajnogi/simulator control`).
  */
 import mqtt from 'mqtt';
 import { loadArea } from './area.js';
 import { loadConfig, loadRootEnv } from './config.js';
 import { ScooterConnection, type ConnectionStats } from './connection.js';
-import { watchControl } from './control.js';
+import { takeGoto, watchControl } from './control.js';
 import { CommandRides, DemoTraffic, readState, restoreFleet, runFleet, writeState } from './fleet.js';
 import { RoutePlanner } from './osrm.js';
+import { loadPlaceZones, ZONES_REFRESH_MS, ZoneSource } from './zones.js';
 
 const STATUS_TOPIC = 'simulator/status';
 const STATS_INTERVAL_MS = 10_000;
@@ -23,8 +25,16 @@ const scooters = restoreFleet(config.SIM_FLEET_SIZE, area, readState(config.SIM_
 const stats: ConnectionStats = { sent: 0 };
 const connections = scooters.map((s) => new ScooterConnection(s, config.MQTT_URL, config.SIM_FIRMWARE, stats));
 const planner = new RoutePlanner(config.OSRM_URL);
+// Wirtualny klient widzi strefy tak jak aplikacja; plik miejsc jest zapasem, gdy API nie działa (ADR 0046).
+const zones = new ZoneSource({ apiUrl: config.SIM_API_URL, fallback: loadPlaceZones(config.SIM_PLACES_FILE) });
+await zones.refresh();
+const stopZones = zones.watch(ZONES_REFRESH_MS);
 const rides = {
-  commands: new CommandRides(scooters, { area, planner }),
+  commands: new CommandRides(scooters, {
+    planner,
+    zones,
+    takeTarget: (number) => takeGoto(config.SIM_CONTROL_FILE, number),
+  }),
   demo: new DemoTraffic(scooters, { area, planner, ridesPerHour: config.SIM_RIDES_PER_HOUR }),
 };
 const stopFleet = runFleet(scooters, connections, rides, config.SIM_TELEMETRY_INTERVAL_MS);
@@ -34,10 +44,14 @@ const stopControl = watchControl(config.SIM_CONTROL_FILE, (state) => {
     connection.setOffline(state.offline.includes(connection.number));
     connection.silent = state.silent.includes(connection.number);
   }
+  const targets = Object.entries(state.goto).map(([n, target]) => `${n} → ${target}`);
   // Pusty stan przy starcie nie jest zmianą; każda późniejsza zmiana trafia do logu.
-  if (!controlChanged && !state.offline.length && !state.silent.length) return;
+  if (!controlChanged && !state.offline.length && !state.silent.length && !targets.length) return;
   controlChanged = true;
-  console.log(`Sterowanie: offline [${state.offline.join(', ')}], bez potwierdzeń [${state.silent.join(', ')}].`);
+  console.log(
+    `Sterowanie: offline [${state.offline.join(', ')}], bez potwierdzeń [${state.silent.join(', ')}], ` +
+      `cele [${targets.join(', ')}].`,
+  );
 });
 const since = new Date().toISOString();
 
@@ -64,7 +78,8 @@ control.on('connect', () => {
   publishStats();
   console.log(
     `Symulator: ${scooters.length} hulajnóg, telemetria co ${config.SIM_TELEMETRY_INTERVAL_MS / 1000} s, ` +
-      `${config.SIM_RIDES_PER_HOUR} przejazdów pokazowych na godzinę, broker ${config.MQTT_URL}.`,
+      `${config.SIM_RIDES_PER_HOUR} przejazdów pokazowych na godzinę, broker ${config.MQTT_URL}, ` +
+      `strefy ${zones.fromApi ? `z API ${config.SIM_API_URL}` : 'z pliku miejsc'}.`,
   );
 });
 control.on('error', (error) => console.error('Błąd MQTT:', error.message));
@@ -79,6 +94,7 @@ const shutdown = async () => {
   if (stopping) return;
   stopping = true;
   stopFleet();
+  stopZones();
   stopControl();
   timers.forEach((t) => clearInterval(t));
   writeState(config.SIM_STATE_FILE, scooters);

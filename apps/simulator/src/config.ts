@@ -6,6 +6,8 @@ const repoRoot = join(import.meta.dirname, '..', '..', '..');
 const envSchema = z.object({
   MQTT_URL: z.string().default('mqtt://localhost:1883'),
   OSRM_URL: z.url().default('http://localhost:5000'),
+  /** API dla wirtualnego klienta: strefy z `GET /zones` (ADR 0046); część hulajnogi zna tylko MQTT. */
+  SIM_API_URL: z.url().default('http://localhost:3001'),
   SIM_FLEET_SIZE: z.coerce.number().int().min(1).max(5000).default(40),
   SIM_TELEMETRY_INTERVAL_MS: z.coerce.number().int().min(500).default(5000),
   /**
@@ -13,11 +15,11 @@ const envSchema = z.object({
    * Pokazowa hulajnoga ma w bazie status AVAILABLE, więc włączamy je tylko do pokazu samej telemetrii.
    */
   SIM_RIDES_PER_HOUR: z.coerce.number().min(0).max(10_000).default(0),
-  /** Miejsca z danych startowych (sprawdzone współrzędne Rybnika): obszar działania i punkty postoju. */
+  /** Miejsca z danych startowych (sprawdzone współrzędne Rybnika): pozycje startowe floty i strefy zapasowe bez API. */
   SIM_PLACES_FILE: z.string().default(join(repoRoot, 'packages', 'db', 'seed', 'rybnik-places.json')),
   /** Stan hulajnóg (pozycja, bateria) zapisywany między uruchomieniami. */
   SIM_STATE_FILE: z.string().default(join(repoRoot, 'apps', 'simulator', '.state', 'fleet.json')),
-  /** Plik sterujący awariami do demo: hulajnogi offline i bez potwierdzeń (ADR 0039). */
+  /** Plik sterujący do demo: hulajnogi offline i bez potwierdzeń (ADR 0039), cele `goto` (ADR 0046). */
   SIM_CONTROL_FILE: z.string().default(join(repoRoot, 'apps', 'simulator', '.state', 'control.json')),
   SIM_FIRMWARE: z.string().default('v2.4.1'),
 });

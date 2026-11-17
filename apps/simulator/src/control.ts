@@ -1,20 +1,49 @@
 /**
- * Plik sterujący awariami do demo (ADR 0039): `offline` rozłącza wybrane hulajnogi (broker publikuje
- * Last Will), `silent` zostawia je połączone, ale bez potwierdzeń komend. Symulator sprawdza plik co
- * sekundę; brak pliku albo błędna treść oznacza brak awarii. Ekran symulatora w panelu (iteracja 6)
- * zastąpi plik.
+ * Plik sterujący do demo (ADR 0039, ADR 0046): `offline` rozłącza wybrane hulajnogi (broker publikuje
+ * Last Will), `silent` zostawia je połączone, ale bez potwierdzeń komend, a `goto` to jednorazowy cel
+ * następnej trasy hulajnogi (kod strefy albo „lat,lon”). Symulator sprawdza plik co sekundę; brak pliku
+ * albo błędna treść oznacza brak awarii i celów. Ekran symulatora w panelu (iteracja 6) zastąpi plik.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import type { Point } from './geo.js';
 
 export interface ControlState {
   offline: number[];
   silent: number[];
+  /** Cel następnej trasy według numeru hulajnogi, w zapisie z polecenia (`S-01`, `50.1,18.5`). */
+  goto: Record<number, string>;
 }
+
+/** Cel z `control goto`: `anchor` strefy o kodzie albo punkt. */
+export type ControlTarget = { code: string } | { point: Point };
 
 export const CONTROL_POLL_MS = 1000;
 
-const emptyControl = (): ControlState => ({ offline: [], silent: [] });
+const emptyControl = (): ControlState => ({ offline: [], silent: [], goto: {} });
+
+/** Cel z polecenia: „lat,lon” w stopniach albo kod strefy (litery, cyfry, „-” i „_”). */
+export function parseTarget(text: string): ControlTarget | null {
+  const value = text.trim();
+  const point = /^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/.exec(value);
+  if (point) {
+    const lat = Number(point[1]);
+    const lon = Number(point[2]);
+    return Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { point: { lat, lon } } : null;
+  }
+  return /^[A-Za-z0-9][\w-]*$/.test(value) ? { code: value } : null;
+}
+
+/** Cele według numerów hulajnóg; pomija błędne numery i cele. */
+function targets(value: unknown): Record<number, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const result: Record<number, string> = {};
+  for (const [key, target] of Object.entries(value)) {
+    const number = /^\d+$/.test(key) ? Number(key) : NaN;
+    if (number > 0 && typeof target === 'string' && parseTarget(target)) result[number] = target.trim();
+  }
+  return result;
+}
 
 /** Numery hulajnóg z listy; przyjmuje liczby i napisy z zerami wiodącymi (np. "0142"), resztę pomija. */
 function numbers(value: unknown): number[] {
@@ -29,7 +58,7 @@ export function parseControl(text: string): ControlState {
   try {
     const raw = JSON.parse(text) as Record<string, unknown> | null;
     if (typeof raw !== 'object' || raw === null) return emptyControl();
-    return { offline: numbers(raw.offline), silent: numbers(raw.silent) };
+    return { offline: numbers(raw.offline), silent: numbers(raw.silent), goto: targets(raw.goto) };
   } catch {
     return emptyControl();
   }
@@ -45,7 +74,8 @@ export function readControl(path: string): ControlState {
 
 export function writeControl(path: string, state: ControlState): void {
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify({ offline: numbers(state.offline), silent: numbers(state.silent) }) + '\n');
+  const content = { offline: numbers(state.offline), silent: numbers(state.silent), goto: targets(state.goto) };
+  writeFileSync(path, JSON.stringify(content) + '\n');
 }
 
 /** Zmiana stanu poleceniem `control`: `offline` i `silent` dopisują numery, `online` usuwa je z obu list. */
@@ -55,8 +85,24 @@ export function applyControl(
   ids: number[],
 ): ControlState {
   const without = (list: number[]) => list.filter((n) => !ids.includes(n));
-  if (action === 'online') return { offline: without(state.offline), silent: without(state.silent) };
+  if (action === 'online') return { ...state, offline: without(state.offline), silent: without(state.silent) };
   return { ...state, [action]: numbers([...state[action], ...ids]) };
+}
+
+/** `control goto`: cel następnej trasy hulajnogi; zastępuje poprzedni, jeszcze niewykorzystany. */
+export function applyGoto(state: ControlState, number: number, target: string): ControlState {
+  return { ...state, goto: { ...state.goto, [number]: target.trim() } };
+}
+
+/** Odczyt jednorazowego celu przez symulator: zwraca go i usuwa z pliku. */
+export function takeGoto(path: string, number: number): ControlTarget | null {
+  const state = readControl(path);
+  const target = state.goto[number];
+  if (target === undefined) return null;
+  const rest = { ...state.goto };
+  delete rest[number];
+  writeControl(path, { ...state, goto: rest });
+  return parseTarget(target);
 }
 
 /** Obserwacja pliku przez odpytywanie (działa też, gdy plik powstaje albo znika); wywołuje `onChange` przy zmianie. */

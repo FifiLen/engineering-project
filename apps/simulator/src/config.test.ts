@@ -6,6 +6,7 @@ describe('konfiguracja symulatora', () => {
     expect(loadConfig({})).toMatchObject({
       MQTT_URL: 'mqtt://localhost:1883',
       OSRM_URL: 'http://localhost:5000',
+      SIM_API_URL: 'http://localhost:3001',
       SIM_FLEET_SIZE: 40,
       SIM_TELEMETRY_INTERVAL_MS: 5000,
       SIM_RIDES_PER_HOUR: 0,
