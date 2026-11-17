@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { useTheme } from '../components/ui';
 import { LocationProvider } from '../lib/location';
+import { MapIntentProvider } from '../lib/map-intent';
 import { PreferencesProvider } from '../lib/preferences';
 import { isRiding, RentalProvider, useRental } from '../lib/rental';
 import { SessionProvider } from '../lib/session';
@@ -41,7 +42,9 @@ export default function RootLayout() {
       <SessionProvider>
         <LocationProvider>
           <RentalProvider>
-            <Shell />
+            <MapIntentProvider>
+              <Shell />
+            </MapIntentProvider>
           </RentalProvider>
         </LocationProvider>
       </SessionProvider>

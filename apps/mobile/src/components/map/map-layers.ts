@@ -19,10 +19,17 @@ export interface MapScooter extends MapPoint {
 }
 
 export type ZoneType = 'SERVICE_AREA' | 'PARKING' | 'SLOW' | 'NO_RIDE';
-export type ZoneCollection = FeatureCollection<
-  MultiPolygon,
-  { code: string; name: string; type: ZoneType; speedLimitKmh: number | null }
->;
+/** Właściwości strefy z `GET /zones` (ADR 0046); `anchor` to punkt na etykietę i przybliżenie mapy. */
+export interface ZoneProperties {
+  code: string;
+  name: string;
+  type: ZoneType;
+  speedLimitKmh: number | null;
+  capacity: number | null;
+  visibleInApp: boolean;
+  anchor: LngLat;
+}
+export type ZoneCollection = FeatureCollection<MultiPolygon, ZoneProperties>;
 
 /** Polecenie ustawienia widoku; zmiana `key` przesuwa mapę, inne zmiany właściwości jej nie ruszają. */
 export interface MapFocus {
@@ -52,8 +59,12 @@ export interface MapViewProps {
   /** Trasa przejazdu i jej początek. */
   route?: LngLat[];
   routeMuted?: boolean;
-  /** Linia przerywana: dojście do hulajnogi albo dojazd do strefy parkowania. */
+  /** Linia przerywana: trasa piesza do hulajnogi, podgląd dojazdu do strefy albo linia prosta bez OSRM. */
   guide?: LngLat[];
+  /** Linia pełna: prowadzenie do strefy parkowania (makieta przejazd-prowadz-do-strefy). */
+  drive?: LngLat[];
+  /** Cel z wyszukiwania (grafitowa pinezka, makieta szukaj-wynik). */
+  destination?: MapPoint | null;
   padding?: MapPadding;
   onScooterPress?: (id: string) => void;
   onPress?: () => void;
@@ -77,10 +88,16 @@ const point = (p: MapPoint, properties: Record<string, unknown>): Feature => ({
 
 const line = (coordinates: LngLat[]): FeatureCollection =>
   coordinates.length >= 2
-    ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates }, properties: {} }] }
+    ? {
+        type: 'FeatureCollection',
+        features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates }, properties: {} }],
+      }
     : EMPTY;
 
-export type MapSourceId = 'zones' | 'route' | 'guide' | 'scooters' | 'points';
+export type MapSourceId = 'zones' | 'route' | 'drive' | 'guide' | 'scooters' | 'points' | 'destination';
+
+/** Źródła w kolejności rysowania (obie implementacje mapy). */
+export const MAP_SOURCES: MapSourceId[] = ['zones', 'route', 'drive', 'guide', 'scooters', 'points', 'destination'];
 
 /** Dane źródeł GeoJSON z właściwości komponentu. */
 export function mapData(props: MapViewProps): Record<MapSourceId, FeatureCollection> {
@@ -92,12 +109,14 @@ export function mapData(props: MapViewProps): Record<MapSourceId, FeatureCollect
   return {
     zones: props.zones ?? EMPTY,
     route: line(props.route ?? []),
+    drive: line(props.drive ?? []),
     guide: line(props.guide ?? []),
     scooters: {
       type: 'FeatureCollection',
       features: (props.scooters ?? []).map((s) => point(s, { id: s.id, selected: s.id === props.selectedId })),
     },
     points: { type: 'FeatureCollection', features: points },
+    destination: { type: 'FeatureCollection', features: props.destination ? [point(props.destination, {})] : [] },
   };
 }
 
@@ -105,14 +124,27 @@ type SourceLayer = Exclude<LayerSpecification, { type: 'background' | 'sky' }> &
 
 /** Warstwy od dołu do góry; identyfikator warstwy hulajnóg obsługuje dotknięcie. */
 export function mapLayers(theme: Theme): SourceLayer[] {
-  const zoneColor = ['match', ['get', 'type'], 'PARKING', theme.accentMap, 'SLOW', theme.warning, 'NO_RIDE', theme.danger, theme.muted];
+  const zoneColor = [
+    'match',
+    ['get', 'type'],
+    'PARKING',
+    theme.accentMap,
+    'SLOW',
+    theme.warning,
+    'NO_RIDE',
+    theme.danger,
+    theme.muted,
+  ];
   return [
     {
       id: 'zones-fill',
       type: 'fill',
       source: 'zones',
       filter: ['!=', ['get', 'type'], 'SERVICE_AREA'],
-      paint: { 'fill-color': zoneColor as never, 'fill-opacity': ['match', ['get', 'type'], 'PARKING', 0.16, 0.12] as never },
+      paint: {
+        'fill-color': zoneColor as never,
+        'fill-opacity': ['match', ['get', 'type'], 'PARKING', 0.16, 0.12] as never,
+      },
     },
     {
       id: 'zones-line',
@@ -143,6 +175,13 @@ export function mapLayers(theme: Theme): SourceLayer[] {
       source: 'route',
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: { 'line-color': theme.accentMap, 'line-width': 5, 'line-opacity': 1 },
+    },
+    {
+      id: 'drive',
+      type: 'line',
+      source: 'drive',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': theme.accentMap, 'line-width': 5 },
     },
     {
       id: 'guide',
@@ -179,10 +218,56 @@ export function mapLayers(theme: Theme): SourceLayer[] {
       source: 'points',
       paint: {
         'circle-radius': ['match', ['get', 'kind'], 'user', 10, 'parked', 10, 'ring', 6, 6] as never,
-        'circle-color': ['match', ['get', 'kind'], 'user', theme.accentMap, 'parked', theme.ink, theme.surface] as never,
-        'circle-stroke-color': ['match', ['get', 'kind'], 'start', theme.ink, 'ring', theme.accentMap, theme.surface] as never,
+        'circle-color': [
+          'match',
+          ['get', 'kind'],
+          'user',
+          theme.accentMap,
+          'parked',
+          theme.ink,
+          theme.surface,
+        ] as never,
+        'circle-stroke-color': [
+          'match',
+          ['get', 'kind'],
+          'start',
+          theme.ink,
+          'ring',
+          theme.accentMap,
+          theme.surface,
+        ] as never,
         'circle-stroke-width': ['match', ['get', 'kind'], 'start', 2.5, 3] as never,
       },
+    },
+    // Pinezka celu z kół (główka z jasnym środkiem nad ostrzem), bez obrazów: tak samo na webie i natywnie.
+    {
+      id: 'destination-tip',
+      type: 'circle',
+      source: 'destination',
+      paint: {
+        'circle-radius': 3,
+        'circle-color': theme.ink,
+        'circle-stroke-color': theme.map,
+        'circle-stroke-width': 1.5,
+      },
+    },
+    {
+      id: 'destination-head',
+      type: 'circle',
+      source: 'destination',
+      paint: {
+        'circle-radius': 13,
+        'circle-color': theme.ink,
+        'circle-stroke-color': theme.surface,
+        'circle-stroke-width': 2.5,
+        'circle-translate': [0, -19],
+      },
+    },
+    {
+      id: 'destination-dot',
+      type: 'circle',
+      source: 'destination',
+      paint: { 'circle-radius': 4.5, 'circle-color': theme.surface, 'circle-translate': [0, -19] },
     },
   ];
 }
@@ -216,4 +301,33 @@ export function metersBetween(a: MapPoint, b: MapPoint): number {
   const dLon = (b.lon - a.lon) * rad;
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Postęp na trasie (ADR 0048): odległość punktu od linii i długość pozostałej części od najbliższego
+ * punktu linii, w metrach (rzut lokalny, wystarczający na odcinkach miejskich). Służy do odliczania
+ * odległości między zapytaniami i do decyzji o nowej trasie po zejściu z niej.
+ */
+export function routeProgress(p: MapPoint, line: LngLat[]): { offRouteM: number; remainingM: number; totalM: number } {
+  if (line.length < 2) return { offRouteM: 0, remainingM: 0, totalM: 0 };
+  const rad = Math.PI / 180;
+  const kx = 111320 * Math.cos(p.lat * rad);
+  const ky = 110540;
+  const xy = ([lon, lat]: LngLat): [number, number] => [(lon - p.lon) * kx, (lat - p.lat) * ky];
+  const pts = line.map(xy);
+  const lengths = pts.slice(1).map((b, i) => Math.hypot(b[0] - pts[i]![0], b[1] - pts[i]![1]));
+  const totalM = lengths.reduce((a, b) => a + b, 0);
+  let best = { d: Infinity, rest: 0 };
+  let after = totalM;
+  for (let i = 0; i < lengths.length; i++) {
+    const [ax, ay] = pts[i]!;
+    const [bx, by] = pts[i + 1]!;
+    const len = lengths[i]!;
+    after -= len;
+    // Punkt `p` jest początkiem układu, więc rzut liczymy dla wektora (-a).
+    const tt = len ? Math.min(1, Math.max(0, (-ax * (bx - ax) - ay * (by - ay)) / (len * len))) : 0;
+    const d = Math.hypot(ax + tt * (bx - ax), ay + tt * (by - ay));
+    if (d < best.d) best = { d, rest: (1 - tt) * len + after };
+  }
+  return { offRouteM: best.d, remainingM: best.rest, totalM };
 }

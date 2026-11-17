@@ -13,6 +13,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { io, type Socket } from 'socket.io-client';
 import { api, API_URL, getAccessToken, refreshTokens } from './api';
 import { useSession } from './session';
+import { notifyZonesChanged } from './zones';
 
 /** Widok z chwilą otrzymania (zegar urządzenia), od której aplikacja dolicza upływ czasu. */
 export interface TrackedRental {
@@ -59,7 +60,11 @@ export const isRiding = (view: RentalView | undefined | null): boolean =>
  * dystansu, prędkości i trasy z telemetrii przejazdu między zdarzeniami).
  */
 const pollInterval = (view: RentalView): number =>
-  view.state === 'UNLOCKING' || view.state === 'ENDING' || view.pendingCommand ? 2000 : view.state === 'RESERVED' ? 10000 : 5000;
+  view.state === 'UNLOCKING' || view.state === 'ENDING' || view.pendingCommand
+    ? 2000
+    : view.state === 'RESERVED'
+      ? 10000
+      : 5000;
 
 /**
  * Stan przejazdu należy do zalogowanego klienta: zmiana klienta (wylogowanie, inne konto) tworzy stan
@@ -138,8 +143,15 @@ function RentalState({ enabled, children }: { enabled: boolean; children: ReactN
       transports: ['websocket'],
       auth: (cb) => cb({ token: getAccessToken() }),
     });
-    socket.on('connect', () => void refresh().catch(() => undefined));
+    let reconnect = false;
+    socket.on('connect', () => {
+      void refresh().catch(() => undefined);
+      // Po przerwie w połączeniu zmiany stref mogły przepaść: mapa pobiera je ponownie.
+      if (reconnect) notifyZonesChanged();
+      reconnect = true;
+    });
     socket.on('rental.updated', apply);
+    socket.on('zones.changed', notifyZonesChanged);
     socket.on('disconnect', (reason) => {
       // Serwer rozłącza po wygaśnięciu tokenu: nowy token i ponowne połączenie.
       if (reason === 'io server disconnect') void refreshTokens().then((ok) => ok && socket.connect());
@@ -214,7 +226,9 @@ export function liveTotal(tracked: TrackedRental, now: number): number {
   if (!view.startedAt) return 0;
   const { rideSeconds, pauseSeconds } = liveCounters(tracked, now);
   const { unlockFee, minuteRate, pauseMinuteRate } = view.tariff;
-  return unlockFee + Math.max(1, Math.ceil(rideSeconds / 60)) * minuteRate + Math.ceil(pauseSeconds / 60) * pauseMinuteRate;
+  return (
+    unlockFee + Math.max(1, Math.ceil(rideSeconds / 60)) * minuteRate + Math.ceil(pauseSeconds / 60) * pauseMinuteRate
+  );
 }
 
 /** Sekundy do wygaśnięcia rezerwacji, liczone od widoku (odporne na różnicę zegarów urządzenia i serwera). */

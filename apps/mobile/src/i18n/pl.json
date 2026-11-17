@@ -131,7 +131,8 @@
     "USER_HAS_OPEN_RENTAL": "Najpierw zakończ przejazd albo anuluj rezerwację.",
     "WALLET_BALANCE_NOT_ZERO": "Saldo portfela musi wynosić 0 zł.",
     "NOT_FOUND": "Nie znaleźliśmy tego, czego szukasz.",
-    "TARIFF_MISSING": "Wypożyczenie jest chwilowo niedostępne. Spróbuj później."
+    "TARIFF_MISSING": "Wypożyczenie jest chwilowo niedostępne. Spróbuj później.",
+    "PLACES_UNAVAILABLE": "Wyszukiwanie chwilowo nie działa. Spróbuj ponownie za chwilę."
   },
   "units": {
     "m": "{value} m",
@@ -186,7 +187,8 @@
       "price": "{price} zł/min",
       "freeReservation": "Rezerwacja jest bezpłatna przez {minutes} min.",
       "reserve": "Zarezerwuj",
-      "scan": "Skanuj i jedź"
+      "scan": "Skanuj i jedź",
+      "walkLoading": "Szukam trasy pieszej…"
     },
     "reservation": {
       "label": "Zarezerwowana",
@@ -195,7 +197,8 @@
       "lead": "Rezerwacja jest bezpłatna przez {minutes} min. Potem zwolnimy hulajnogę dla innych.",
       "cancel": "Anuluj",
       "scan": "Skanuj i jedź",
-      "countdown": "Do końca rezerwacji: {time}"
+      "countdown": "Do końca rezerwacji: {time}",
+      "walkHint": "Trasa piesza do hulajnogi"
     },
     "cancel": {
       "title": "Anulować rezerwację?",
@@ -231,6 +234,51 @@
       "title": "Brak połączenia z internetem",
       "lead": "Mapa i hulajnogi pojawią się, gdy połączenie wróci. Trwający przejazd nalicza się normalnie i zakończysz go po odzyskaniu sieci.",
       "retry": "Spróbuj ponownie"
+    },
+    "search": {
+      "placeholder": "Dokąd jedziesz?",
+      "open": "Szukaj celu przejazdu"
+    },
+    "zonesChip": "Strefy",
+    "zonesLabel": "Pokaż legendę stref",
+    "legend": {
+      "title": "Co oznaczają kolory",
+      "back": "Wróć do mapy",
+      "parkingMark": "P",
+      "PARKING": {
+        "title": "Strefa parkowania",
+        "lead": "Tu możesz zakończyć jazdę."
+      },
+      "SLOW": {
+        "title": "Wolna jazda",
+        "lead": "Prędkość ograniczona do {limit} km/h.",
+        "leadRange": "Prędkość ograniczona do {min}–{max} km/h, zależnie od strefy."
+      },
+      "NO_RIDE": {
+        "title": "Zakaz jazdy i parkowania",
+        "lead": "Hulajnoga zwolni i zatrzyma się na granicy."
+      },
+      "empty": "Na mapie nie ma teraz stref do pokazania."
+    },
+    "destination": {
+      "back": "Wróć do mapy",
+      "clear": "Wyczyść cel",
+      "away": "{distance} stąd",
+      "awayWithDescription": "{description}, {distance} stąd",
+      "minutes": "≈ {minutes} min",
+      "byScooter": "hulajnogą",
+      "straight": "{distance} w linii prostej",
+      "parkingFromTarget": "{distance} od celu",
+      "scooter": "Hulajnoga #{number}",
+      "scooterAway": "{distance} stąd",
+      "noScooter": "Brak wolnych hulajnóg w pobliżu",
+      "noParking": "Brak strefy parkowania przy celu",
+      "note": "Czas przejazdu hulajnogą jest szacunkowy.",
+      "noteSlow": "Przy celu obowiązuje wolna jazda do {limit} km/h. Czas przejazdu hulajnogą jest szacunkowy.",
+      "noteOutside": "Cel leży poza obszarem działania, więc tam nie zakończysz przejazdu.",
+      "reserve": "Zarezerwuj",
+      "scan": "Skanuj i jedź",
+      "loading": "Liczę czas przejazdu…"
     }
   },
   "scan": {
@@ -285,9 +333,12 @@
         "IN_USE": "Ktoś właśnie nią jedzie. Nie pobraliśmy żadnej opłaty.",
         "OFFLINE": "Hulajnoga nie ma teraz połączenia z siecią, więc nie odblokujemy jej. Nie pobraliśmy żadnej opłaty.",
         "MAINTENANCE": "Hulajnoga czeka na serwis. Nie pobraliśmy żadnej opłaty.",
-        "RETIRED": "Ta hulajnoga nie jeździ już w naszej flocie. Nie pobraliśmy żadnej opłaty."
+        "RETIRED": "Ta hulajnoga nie jeździ już w naszej flocie. Nie pobraliśmy żadnej opłaty.",
+        "OUT_OF_AREA": "Hulajnoga stoi w strefie zakazu jazdy albo poza obszarem działania, więc nie możemy jej odblokować. Zabierze ją serwis. Nie pobraliśmy żadnej opłaty."
       }
-    }
+    },
+    "route": "Trasa",
+    "routeLabel": "Pokaż trasę pieszą do hulajnogi"
   },
   "ride": {
     "time": "Czas przejazdu",
@@ -354,7 +405,45 @@
       "title": "Tu nie zakończysz jazdy",
       "subtitle": "Jesteś poza strefą parkowania.",
       "lead": "Najbliższa strefa, {zone}, jest {distance} stąd.",
-      "back": "Wróć do jazdy"
+      "back": "Wróć do jazdy",
+      "subtitleNoRide": "Jesteś w strefie zakazu jazdy.",
+      "subtitleOutsideArea": "Jesteś poza obszarem działania.",
+      "leadRoute": "Najbliższa strefa, {zone}, jest {distance} stąd, około {minutes} min jazdy.",
+      "guide": "Prowadź do strefy"
+    },
+    "timeShort": "czas",
+    "zone": {
+      "stopped": "Silnik zatrzymany",
+      "limit": "Limit {limit} km/h",
+      "NO_RIDE": {
+        "title": "Strefa zakazu jazdy",
+        "lead": "Hulajnoga się zatrzymała, a przejazd trwa. Wyprowadź ją pieszo poza strefę, wtedy silnik znów ruszy.",
+        "note": "W strefie zakazu nie zakończysz przejazdu."
+      },
+      "OUT_OF_AREA": {
+        "title": "Poza obszarem działania",
+        "lead": "Hulajnoga się zatrzymała, a przejazd trwa. Wróć z nią pieszo do obszaru, wtedy silnik znów ruszy.",
+        "note": "Poza obszarem nie zakończysz przejazdu."
+      },
+      "SLOW": {
+        "title": "Strefa wolnej jazdy",
+        "lead": "Prędkość ograniczona do {limit} km/h."
+      },
+      "slowEnded": {
+        "title": "Koniec strefy wolnej jazdy",
+        "lead": "Prędkość nie jest już ograniczona przez strefę."
+      },
+      "resumed": {
+        "title": "Silnik znów działa",
+        "lead": "Możesz jechać dalej."
+      },
+      "kmh": "km/h"
+    },
+    "guide": {
+      "title": "Do strefy {zone}",
+      "close": "Zakończ prowadzenie",
+      "arrived": "Jesteś w strefie {zone}",
+      "arrivedLead": "Możesz zakończyć przejazd."
     }
   },
   "summary": {
@@ -433,5 +522,30 @@
       "goToRide": "Przejdź do przejazdu",
       "back": "Wróć"
     }
+  },
+  "search": {
+    "label": "Dokąd jedziesz?",
+    "cancel": "Anuluj",
+    "clear": "Wyczyść",
+    "results": "Wyniki",
+    "recent": "Ostatnio wyszukiwane",
+    "recentClear": "Wyczyść",
+    "withDistance": "{description}, {distance}",
+    "loading": "Szukam miejsc…",
+    "empty": {
+      "title": "Nic nie znaleźliśmy",
+      "lead": "Szukamy tylko w obszarze działania, tam gdzie jeżdżą hulajnogi {brand}. Sprawdź pisownię albo wpisz ulicę, przystanek lub znane miejsce."
+    },
+    "error": {
+      "title": "Wyszukiwanie chwilowo nie działa",
+      "lead": "Nie możemy teraz znaleźć miejsc. Spróbuj ponownie za chwilę albo wybierz miejsce z ostatnich wyszukiwań.",
+      "retry": "Spróbuj ponownie"
+    }
+  },
+  "route": {
+    "walk": "{distance} · {minutes} min pieszo",
+    "walkEstimate": "około {minutes} min pieszo (szacunkowo)",
+    "straight": "{distance} w linii prostej",
+    "ride": "{distance} · około {minutes} min jazdy"
   }
 }

@@ -8,10 +8,18 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import { useTheme } from '../ui';
-import { DEFAULT_ZOOM, MAP_STYLE, mapData, mapLayers, routeOpacity, type MapSourceId, type MapViewProps } from './map-layers';
+import {
+  DEFAULT_ZOOM,
+  MAP_SOURCES,
+  MAP_STYLE,
+  mapData,
+  mapLayers,
+  routeOpacity,
+  type MapViewProps,
+} from './map-layers';
 
 const WORKER_URL = '/maplibre-gl-worker.mjs';
-const SOURCES: MapSourceId[] = ['zones', 'route', 'guide', 'scooters', 'points'];
+const SOURCES = MAP_SOURCES;
 
 export function MapView(props: MapViewProps) {
   const theme = useTheme();
@@ -104,7 +112,12 @@ export function MapView(props: MapViewProps) {
     if (!map) return;
     if (padding) map.setPadding(padding);
     if (focus.bounds) map.fitBounds(focus.bounds, { padding: 48, maxZoom: 16, duration: 600 });
-    else if (focus.center) map.easeTo({ center: focus.center, zoom: focus.zoom ?? Math.max(map.getZoom(), DEFAULT_ZOOM - 1), duration: 600 });
+    else if (focus.center)
+      map.easeTo({
+        center: focus.center,
+        zoom: focus.zoom ?? Math.max(map.getZoom(), DEFAULT_ZOOM - 1),
+        duration: 600,
+      });
     // Widok zmienia się tylko po nowym kluczu.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus.key]);

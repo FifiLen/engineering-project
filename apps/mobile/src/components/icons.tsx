@@ -133,6 +133,57 @@ const ICONS = {
     </>
   ),
   arrow: <Path d="M5 12h14M13 6l6 6-6 6" />,
+  // Iteracja 4 (plansze 22-mobile-strefy, 04-mobile-mapa, 05-mobile-przejazd).
+  search: (
+    <>
+      <Circle cx="11" cy="11" r="7" />
+      <Path d="M20 20l-4-4" />
+    </>
+  ),
+  searchEmpty: (
+    <>
+      <Circle cx="11" cy="11" r="7" />
+      <Path d="M20 20l-4-4M8.5 11h5" />
+    </>
+  ),
+  // Chmura z wykrzyknikiem: błąd usługi wyszukiwania (opis w komentarzu planszy szukaj-brak-wynikow).
+  cloudAlert: (
+    <>
+      <Path d="M7 19h10a4 4 0 00.5-7.97A6 6 0 006.2 9.6 4.75 4.75 0 007 19z" />
+      <Path d="M12 11v3.5M12 17h.01" />
+    </>
+  ),
+  walk: (
+    <>
+      <Circle cx="13" cy="4" r="2" />
+      <Path d="M12 8l-1.5 6-2.5 7M10.5 14l3 3 1.5 4M12 8l-3.5 2.5-1 3M12 8l2.5 3 2.5 1" />
+    </>
+  ),
+  map: (
+    <>
+      <Path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4z" />
+      <Path d="M9 4v13.5M15 6.5V20" />
+    </>
+  ),
+  noEntry: (
+    <>
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="M5.6 5.6l12.8 12.8" />
+    </>
+  ),
+  gauge: (
+    <>
+      <Path d="M4.5 17a8.5 8.5 0 1115 0" />
+      <Path d="M12 13l4-4" />
+    </>
+  ),
+  scooter: (
+    <>
+      <Circle cx="5.5" cy="18" r="2.5" />
+      <Circle cx="18.5" cy="18" r="2.5" />
+      <Path d="M8 18h8M16.5 16.5L14 4h3.5" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof ICONS;

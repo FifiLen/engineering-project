@@ -1,11 +1,12 @@
-import type { NearbyResponse, NearbyScooter } from '@hulajnogi/shared';
+import type { DestinationView, NearbyResponse, NearbyScooter, RouteView } from '@hulajnogi/shared';
 import * as Linking from 'expo-linking';
 import { Redirect, router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../components/icons';
 import {
+  boundsOf,
   metersBetween,
   serviceAreaCenter,
   type LngLat,
@@ -20,8 +21,11 @@ import {
   BottomSheet,
   ButtonRow,
   FloatingSheet,
+  IconBadge,
+  Pill,
   RoundButton,
   SheetText,
+  glass,
   sheetStyles,
   Toast,
 } from '../components/sheet';
@@ -30,20 +34,26 @@ import { t } from '../i18n';
 import { ApiError, api, errorMessage } from '../lib/api';
 import { clock, distance, money, scooterNo, walkMinutes } from '../lib/format';
 import { useLocation } from '../lib/location';
+import { useMapIntent, type Place } from '../lib/map-intent';
 import { usePreferences } from '../lib/preferences';
 import { reservationSecondsLeft, useNow, useRental, type TrackedRental } from '../lib/rental';
+import { loadWalk, routeMinutes, useLiveRoute, walkLabel } from '../lib/routes';
 import { homeFor, useSession } from '../lib/session';
+import { LEGEND_TYPES, slowLimits, useZones } from '../lib/zones';
 
 const NEARBY_REFRESH_MS = 15000;
 const TOAST_MS = 4000;
 
 /** Odświeżenie listy po przesunięciu mapy o więcej niż tyle metrów (wyszukiwanie bez lokalizacji). */
 const MOVE_THRESHOLD_M = 300;
+/** Klient stoi przy hulajnodze: trasa piesza znika (makieta hulajnoga-trasa). */
+const ARRIVED_M = 20;
 
 /**
  * Mapa: ekran główny po zalogowaniu (makiety produkt-mapa, mapa-karta-rezerwuj, mapa-rezerwacja,
- * stany z 08-mobile-stany i 20-mobile-wypozyczenie). Wolne hulajnogi z `GET /scooters/nearby` wokół
- * klienta albo, bez lokalizacji, wokół środka widoku; strefy z `GET /zones` (tylko odczyt).
+ * mapa-strefy, szukaj-wynik, hulajnoga-trasa i stany z 08-mobile-stany i 20-mobile-wypozyczenie). Wolne
+ * hulajnogi z `GET /scooters/nearby` wokół klienta albo, bez lokalizacji, wokół środka widoku; strefy
+ * z `GET /zones` (tylko widoczne w aplikacji, odświeżane po `zones.changed`).
  */
 export default function MapScreen() {
   const theme = useTheme();
@@ -52,14 +62,18 @@ export default function MapScreen() {
   const location = useLocation();
   const { showZones } = usePreferences();
   const { rental, outcome, reserve, cancelReservation, clearOutcome } = useRental();
-  const [zones, setZones] = useState<ZoneCollection | null>(null);
+  const { destination, setDestination, walkTo, setWalkTo } = useMapIntent();
+  const { zones, error: zonesError, reload: reloadZones } = useZones();
   const [nearby, setNearby] = useState<NearbyResponse | null>(null);
   const [offline, setOffline] = useState(false);
   const [manualCenter, setManualCenter] = useState<MapPoint | null>(null);
-  // `undefined`: karta najbliższej hulajnogi wybrana automatycznie (makieta produkt-mapa).
-  const [selection, setSelection] = useState<string | null | undefined>(undefined);
-  const [focusRequest, setFocusRequest] = useState<MapFocus | null>(null);
+  // Wybór klienta obowiązuje w kontekście (cel, „Trasa”), w którym go dokonał; bez wyboru karta najbliższej
+  // hulajnogi (makieta produkt-mapa), przy celu karta celu, po „Trasa” karta tej hulajnogi.
+  const [selection, setSelection] = useState<{ id: string | null; context: string } | null>(null);
+  // Widok ustawiony przez klienta (położenie, strefa z karty celu) do następnej zmiany widoku automatycznego.
+  const [focusRequest, setFocusRequest] = useState<{ focus: MapFocus; base: string | number | null } | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [legend, setLegend] = useState(false);
   const [noLocationDismissed, setNoLocationDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,16 +82,7 @@ export default function MapScreen() {
   const area = useMemo(() => serviceAreaCenter(zones), [zones]);
   const searchCenter = user ?? manualCenter ?? area;
   const reservation = rental?.view.state === 'RESERVED' ? rental : null;
-
-  const loadZones = useCallback(() => {
-    api<ZoneCollection>('/zones')
-      .then((z) => {
-        setZones(z);
-        setOffline(false);
-      })
-      .catch((e: unknown) => setOffline(e instanceof ApiError && e.code === 'NETWORK'));
-  }, []);
-  useEffect(loadZones, [loadZones]);
+  const zonesOffline = zonesError instanceof ApiError && zonesError.code === 'NETWORK';
 
   const loadNearby = useCallback(
     (center: MapPoint) =>
@@ -103,15 +108,75 @@ export default function MapScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [centerKey, loadNearby]);
 
-  // Pierwszy widok: klient, a bez lokalizacji środek obszaru działania; potem prośby z przycisku położenia.
+  const selectionContext = `${destination?.id ?? ''}|${walkTo ?? ''}`;
+  const selectedId =
+    selection && selection.context === selectionContext
+      ? selection.id
+      : (walkTo ?? (user && !destination ? (nearby?.scooters[0]?.id ?? null) : null));
+  const selected = nearby?.scooters.find((s) => s.id === selectedId) ?? null;
+
+  // Trasa piesza (ADR 0048): do zarezerwowanej hulajnogi albo do hulajnogi z „Trasa”, dopóki klient do niej nie dojdzie.
+  const walkScooter: { id: string; point: MapPoint } | null = reservation
+    ? reservation.view.scooter.lat !== null && reservation.view.scooter.lon !== null
+      ? {
+          id: reservation.view.scooter.id,
+          point: { lat: reservation.view.scooter.lat, lon: reservation.view.scooter.lon },
+        }
+      : null
+    : walkTo && selected?.id === walkTo
+      ? { id: selected.id, point: selected }
+      : null;
+  const atScooter = !!walkScooter && !!user && metersBetween(user, walkScooter.point) < ARRIVED_M;
+  const walkId = walkScooter && !atScooter ? walkScooter.id : null;
+  const walk = useLiveRoute<RouteView>(
+    walkId ? `walk:${walkId}` : null,
+    user,
+    (from) => loadWalk(walkId!, from),
+    (r) => r.line,
+  );
+
+  // Wynik wyszukiwania (decyzja D5): szacunek przejazdu i strefa parkowania przy celu.
+  const [destinationView, setDestinationView] = useState<{ key: string; view: DestinationView | null } | null>(null);
+  const origin = user ?? searchCenter;
+  const destinationKey = destination && origin ? `${destination.id}:${user ? 'user' : 'center'}` : null;
+  useEffect(() => {
+    if (!destination || !origin || !destinationKey) return;
+    let cancelled = false;
+    const q = `lat=${origin.lat.toFixed(6)}&lon=${origin.lon.toFixed(6)}&toLat=${destination.lat.toFixed(6)}&toLon=${destination.lon.toFixed(6)}`;
+    api<DestinationView>(`/places/destination?${q}`)
+      .then((view) => !cancelled && setDestinationView({ key: destinationKey, view }))
+      .catch(() => !cancelled && setDestinationView({ key: destinationKey, view: null }));
+    return () => {
+      cancelled = true;
+    };
+    // Szacunek liczymy raz dla celu (i ponownie, gdy pojawi się lokalizacja klienta).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [destinationKey]);
+  const destinationResult = destinationView && destinationView.key === destinationKey ? destinationView : null;
+
+  // Widok automatyczny: trasa piesza z klientem, cel ze strefą parkowania przy celu i klientem, a bez nich
+  // klient albo, bez lokalizacji, środek obszaru działania. Mapa przesuwa się tylko po zmianie klucza.
+  const walkBounds = walk.data && walkId ? boundsOf(walk.data.line) : null;
+  const destinationPoints: LngLat[] = destination ? [[destination.lon, destination.lat]] : [];
+  if (destination && user) destinationPoints.push([user.lon, user.lat]);
+  if (destinationResult?.view?.parking) destinationPoints.push(destinationResult.view.parking.anchor);
+  const destinationBounds = boundsOf(destinationPoints);
+  const autoFocus: MapFocus | null = walkBounds
+    ? { key: `walk:${walkId}`, bounds: walkBounds }
+    : destination && destinationBounds
+      ? {
+          key: `destination:${destination.id}:${destinationResult?.view?.parking?.code ?? ''}`,
+          bounds: destinationBounds,
+        }
+      : user
+        ? { key: 'user', center: [user.lon, user.lat] }
+        : area && (location.permission === 'denied' || location.skipped)
+          ? { key: 'area', center: [area.lon, area.lat], zoom: 14 }
+          : null;
   const focus: MapFocus | null =
-    focusRequest ??
-    (user
-      ? { key: 'user', center: [user.lon, user.lat] }
-      : area && (location.permission === 'denied' || location.skipped)
-        ? { key: 'area', center: [area.lon, area.lat], zoom: 14 }
-        : null);
-  const selectedId = selection === undefined ? (user ? (nearby?.scooters[0]?.id ?? null) : null) : selection;
+    focusRequest && focusRequest.base === (autoFocus?.key ?? null) ? focusRequest.focus : autoFocus;
+  const requestFocus = (next: Omit<MapFocus, 'key'>) =>
+    setFocusRequest({ focus: { ...next, key: Date.now() }, base: autoFocus?.key ?? null });
 
   // Komunikat o anulowaniu znika po chwili.
   useEffect(() => {
@@ -124,18 +189,17 @@ export default function MapScreen() {
   if (me.nextStep === 'BLOCKED' || me.nextStep === 'PROFILE') return <Redirect href={homeFor(me)} />;
   if (location.permission === 'undetermined' && !location.skipped) return <Redirect href="/lokalizacja" />;
 
-  if (offline && !nearby) {
+  if ((offline || zonesOffline) && !nearby) {
     return (
       <OfflineState
         onRetry={() => {
-          loadZones();
+          reloadZones();
           if (searchCenter) void loadNearby(searchCenter);
         }}
       />
     );
   }
 
-  const selected = nearby?.scooters.find((s) => s.id === selectedId) ?? null;
   const tariff = nearby?.tariff ?? null;
 
   async function run(action: () => Promise<unknown>) {
@@ -144,28 +208,46 @@ export default function MapScreen() {
     try {
       await action();
     } catch (e) {
-      if (e instanceof ApiError && (e.code === 'CONSENT_REQUIRED' || e.code === 'DOCUMENTS_NOT_ACCEPTED')) router.push('/zgody');
+      if (e instanceof ApiError && (e.code === 'CONSENT_REQUIRED' || e.code === 'DOCUMENTS_NOT_ACCEPTED'))
+        router.push('/zgody');
       else setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
   }
 
-  const reservedPoint: MapPoint | null =
-    reservation && reservation.view.scooter.lat !== null && reservation.view.scooter.lon !== null
-      ? { lat: reservation.view.scooter.lat, lon: reservation.view.scooter.lon }
-      : null;
+  const select = (id: string | null) => {
+    setError(null);
+    const keepWalk = !!walkTo && id === walkTo;
+    if (!keepWalk) setWalkTo(null);
+    setSelection({ id, context: `${destination?.id ?? ''}|${keepWalk ? walkTo : ''}` });
+  };
+
+  const reservedPoint: MapPoint | null = reservation && walkScooter ? walkScooter.point : null;
   const scooters = (nearby?.scooters ?? []).filter((s) => s.id !== reservation?.view.scooter.id);
   const mapScooters = reservedPoint ? [...scooters, { id: reservation!.view.scooter.id, ...reservedPoint }] : scooters;
-  const guide: LngLat[] = reservedPoint && user ? [[user.lon, user.lat], [reservedPoint.lon, reservedPoint.lat]] : [];
+  // Linia przerywana: trasa piesza, a do jej pobrania przy rezerwacji linia prosta jak w mapa-rezerwacja.
+  const guide: LngLat[] =
+    walk.data && walkId
+      ? walk.data.line
+      : reservedPoint && user && !atScooter
+        ? [
+            [user.lon, user.lat],
+            [reservedPoint.lon, reservedPoint.lat],
+          ]
+        : [];
   const noLocation = !user && (location.permission === 'denied' || location.skipped) && !noLocationDismissed;
+  const nearest = nearby?.scooters[0] ?? null;
 
   let sheet: ReactNode = null;
-  if (reservation) {
+  if (legend) {
+    sheet = <LegendSheet zones={zones} />;
+  } else if (reservation) {
     sheet = (
       <ReservationCard
         tracked={reservation}
         user={user}
+        walk={walkId ? walk.data : null}
         busy={busy}
         error={error}
         onCancel={() => setCancelOpen(true)}
@@ -176,7 +258,12 @@ export default function MapScreen() {
     const v = outcome.view;
     sheet = (
       <FloatingSheet>
-        <AlertHeader icon="clock" tone="neutral" title={t('map.expired.title')} subtitle={t('map.expired.subtitle', { number: scooterNo(v.scooter.number) })} />
+        <AlertHeader
+          icon="clock"
+          tone="neutral"
+          title={t('map.expired.title')}
+          subtitle={t('map.expired.subtitle', { number: scooterNo(v.scooter.number) })}
+        />
         <SheetText>{t('map.expired.lead', { minutes: v.tariff.freeReservationMinutes })}</SheetText>
         {error && <SheetText style={{ color: theme.danger }}>{error}</SheetText>}
         <View style={{ gap: 10 }}>
@@ -190,11 +277,27 @@ export default function MapScreen() {
       <ScooterCard
         scooter={selected}
         user={user}
+        walk={walkId === selected.id ? walk : null}
         minuteRate={tariff.minuteRate}
         freeMinutes={tariff.freeReservationMinutes}
         busy={busy}
         error={error}
         onReserve={() => void run(() => reserve(selected.id))}
+        onScan={() => router.push('/skan')}
+      />
+    );
+  } else if (destination) {
+    sheet = (
+      <DestinationCard
+        place={destination}
+        user={user}
+        result={destinationResult ? destinationResult.view : undefined}
+        nearest={nearest}
+        busy={busy}
+        error={error}
+        onParking={(anchor) => requestFocus({ center: anchor, zoom: 17 })}
+        onScooter={(id) => select(id)}
+        onReserve={(id) => void run(() => reserve(id))}
         onScan={() => router.push('/skan')}
       />
     );
@@ -216,7 +319,10 @@ export default function MapScreen() {
   } else if (nearby && !nearby.scooters.length) {
     sheet = (
       <FloatingSheet>
-        <Text accessibilityRole="header" style={{ fontSize: 22, fontWeight: '600', letterSpacing: -0.4, color: theme.ink }}>
+        <Text
+          accessibilityRole="header"
+          style={{ fontSize: 22, fontWeight: '600', letterSpacing: -0.4, color: theme.ink }}
+        >
           {t('map.empty.title')}
         </Text>
         <SheetText>{t('map.empty.lead', { radius: distance(nearby.radiusM) })}</SheetText>
@@ -226,49 +332,162 @@ export default function MapScreen() {
   }
 
   const initial = me.name?.trim()[0]?.toUpperCase();
+  const top = insets.top + 20;
+  const locate = (
+    <RoundButton
+      label={t('map.locate')}
+      kind="glass"
+      onPress={() => {
+        if (user) requestFocus({ center: [user.lon, user.lat] });
+        else setNoLocationDismissed(false);
+      }}
+    >
+      <Icon name="locate" color={theme.ink} />
+    </RoundButton>
+  );
+
+  let header: ReactNode;
+  if (legend) {
+    // Legenda (makieta mapa-strefy): wstecz i nazwa widoku.
+    header = (
+      <View
+        style={{ position: 'absolute', left: 16, right: 16, top, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+      >
+        <RoundButton label={t('map.legend.back')} kind="glass" onPress={() => setLegend(false)}>
+          <Icon name="back" color={theme.ink} />
+        </RoundButton>
+        <Pill>{t('map.zonesChip')}</Pill>
+      </View>
+    );
+  } else if (destination && !reservation) {
+    // Wybrany cel w pasku (makieta szukaj-wynik): strzałka wraca do mapy, krzyżyk otwiera wyszukiwanie.
+    header = (
+      <View
+        style={[
+          glass(theme),
+          {
+            position: 'absolute',
+            left: 16,
+            right: 16,
+            top,
+            height: 52,
+            borderRadius: 26,
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 6,
+            gap: 6,
+          },
+        ]}
+      >
+        <BarButton label={t('map.destination.back')} icon="back" onPress={() => setDestination(null)} />
+        <Text numberOfLines={1} style={{ flex: 1, fontSize: 16, fontWeight: '500', color: theme.ink }}>
+          {destination.name}
+        </Text>
+        <BarButton
+          label={t('map.destination.clear')}
+          icon="close"
+          onPress={() => {
+            setDestination(null);
+            router.push('/szukaj');
+          }}
+        />
+      </View>
+    );
+  } else {
+    // Pasek „Dokąd jedziesz?” z profilem (makieta produkt-mapa), pod nim legenda stref i położenie.
+    header = (
+      <View style={{ position: 'absolute', left: 16, right: 16, top, gap: 12 }}>
+        <View
+          style={[
+            glass(theme),
+            {
+              height: 52,
+              borderRadius: 26,
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingLeft: 18,
+              paddingRight: 6,
+              gap: 10,
+            },
+          ]}
+        >
+          <Icon name="search" color={theme.muted} />
+          <Pressable
+            accessibilityRole="search"
+            accessibilityLabel={t('map.search.open')}
+            onPress={() => router.push('/szukaj')}
+            style={{ flex: 1, height: 44, justifyContent: 'center' }}
+          >
+            <Text style={{ fontSize: 16, color: theme.muted }}>{t('map.search.placeholder')}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('map.profile')}
+            onPress={() => router.push('/profil')}
+            style={({ pressed }) => ({
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: theme.dark,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            {initial ? (
+              <Text style={{ fontSize: 14, fontWeight: '500', color: theme.onDark }}>{initial}</Text>
+            ) : (
+              <Icon name="person" color={theme.onDark} size={18} />
+            )}
+          </Pressable>
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('map.zonesLabel')}
+            onPress={() => setLegend(true)}
+          >
+            <Pill icon="map">{t('map.zonesChip')}</Pill>
+          </Pressable>
+          {locate}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.map }} accessibilityLabel={t('map.label')}>
       {focus && (
         <MapView
           focus={focus}
-          zones={showZones ? zones : null}
+          zones={showZones || legend || destination ? zones : null}
           scooters={mapScooters}
           selectedId={reservation?.view.scooter.id ?? selectedId}
           user={user}
+          userStyle={walkId ? 'ring' : 'dot'}
           guide={guide}
-          padding={{ top: insets.top + 80, bottom: 340, left: 24, right: 24 }}
+          destination={destination}
+          padding={{ top: top + (legend || destination ? 60 : 116), bottom: legend ? 300 : 360, left: 24, right: 24 }}
           onScooterPress={(id) => {
             if (reservation) return;
-            setError(null);
-            setSelection(id);
+            setLegend(false);
+            select(id);
             if (outcome?.cause === 'expired') clearOutcome();
           }}
-          onPress={() => !reservation && setSelection(null)}
+          onPress={() => {
+            if (reservation) return;
+            select(null);
+          }}
           onCenterChange={(center) => {
-            if (!user && (!manualCenter || metersBetween(manualCenter, center) > MOVE_THRESHOLD_M)) setManualCenter(center);
+            if (!user && (!manualCenter || metersBetween(manualCenter, center) > MOVE_THRESHOLD_M))
+              setManualCenter(center);
           }}
         />
       )}
-      <View style={{ position: 'absolute', left: 16, right: 16, top: insets.top + 20, flexDirection: 'row', justifyContent: 'space-between' }}>
-        <RoundButton label={t('map.profile')} kind="dark" onPress={() => router.push('/profil')}>
-          {initial ? (
-            <Text style={{ fontSize: 15, fontWeight: '600', color: theme.onDark }}>{initial}</Text>
-          ) : (
-            <Icon name="person" color={theme.onDark} />
-          )}
-        </RoundButton>
-        <RoundButton
-          label={t('map.locate')}
-          kind="glass"
-          onPress={() => {
-            if (user) setFocusRequest({ key: Date.now(), center: [user.lon, user.lat] });
-            else setNoLocationDismissed(false);
-          }}
-        >
-          <Icon name="locate" color={theme.ink} />
-        </RoundButton>
-      </View>
-      {outcome?.cause === 'cancelled' && <Toast title={t('map.cancelled.title')} subtitle={t('map.cancelled.subtitle')} />}
+      {header}
+      {outcome?.cause === 'cancelled' && (
+        <Toast title={t('map.cancelled.title')} subtitle={t('map.cancelled.subtitle')} />
+      )}
       {sheet}
       {reservation && (
         <CancelSheet
@@ -288,10 +507,257 @@ export default function MapScreen() {
   );
 }
 
-/** Karta wybranej hulajnogi z rezerwacją i skanem (makieta mapa-karta-rezerwuj). */
+/** Przycisk 40 px bez tła w szklanym pasku celu. */
+function BarButton({ label, icon, onPress }: { label: string; icon: 'back' | 'close'; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={4}
+      style={({ pressed }) => ({
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: pressed ? 0.6 : 1,
+      })}
+    >
+      <Icon name={icon} color={icon === 'close' ? theme.muted : theme.ink} size={20} strokeWidth={2} />
+    </Pressable>
+  );
+}
+
+/** Znak strefy parkowania z legendy i karty celu: „P” w kobaltowej ramce. */
+function ParkingMark({ width = 36, height = 26 }: { width?: number; height?: number }) {
+  const theme = useTheme();
+  return (
+    <View
+      style={{
+        width,
+        height,
+        borderRadius: 7,
+        borderWidth: 1.5,
+        borderColor: theme.accentMap,
+        backgroundColor: theme.accentTint,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text style={{ fontSize: width > 32 ? 13 : 12, fontWeight: '600', color: theme.accentMap }}>
+        {t('map.legend.parkingMark')}
+      </Text>
+    </View>
+  );
+}
+
+/** Legenda stref (makieta mapa-strefy): tylko rodzaje stref widocznych w aplikacji. */
+function LegendSheet({ zones }: { zones: ZoneCollection | null }) {
+  const theme = useTheme();
+  const present = new Set((zones?.features ?? []).map((f) => f.properties.type));
+  const types = LEGEND_TYPES.filter((type) => present.has(type));
+  const limits = slowLimits(zones);
+  const slowLead =
+    limits.length > 1
+      ? t('map.legend.SLOW.leadRange', { min: limits[0], max: limits[limits.length - 1] })
+      : t('map.legend.SLOW.lead', { limit: limits[0] ?? '' });
+  return (
+    <FloatingSheet style={{ gap: 14 }}>
+      <Text accessibilityRole="header" style={{ fontSize: 17, fontWeight: '600', color: theme.ink }}>
+        {t('map.legend.title')}
+      </Text>
+      {types.length === 0 && <SheetText>{t('map.legend.empty')}</SheetText>}
+      {types.map((type) => (
+        <View key={type} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          {type === 'PARKING' ? (
+            <ParkingMark />
+          ) : (
+            <View
+              style={{
+                width: 36,
+                height: 26,
+                borderRadius: 7,
+                borderWidth: 1.5,
+                borderStyle: type === 'SLOW' ? 'dashed' : 'solid',
+                borderColor: type === 'SLOW' ? theme.warning : theme.danger,
+                backgroundColor: type === 'SLOW' ? theme.warningTint : theme.dangerTint,
+              }}
+            />
+          )}
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: theme.ink }}>
+              {t.dynamic(`map.legend.${type}.title`)}
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.muted }}>
+              {type === 'SLOW' ? slowLead : t.dynamic(`map.legend.${type}.lead`)}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </FloatingSheet>
+  );
+}
+
+/** Karta celu z wyszukiwania (makieta szukaj-wynik, decyzja D5). `result` nieustalony: szacunek w drodze. */
+function DestinationCard({
+  place,
+  user,
+  result,
+  nearest,
+  busy,
+  error,
+  onParking,
+  onScooter,
+  onReserve,
+  onScan,
+}: {
+  place: Place;
+  user: MapPoint | null;
+  result: DestinationView | null | undefined;
+  nearest: NearbyScooter | null;
+  busy: boolean;
+  error: string | null;
+  onParking: (anchor: LngLat) => void;
+  onScooter: (id: string) => void;
+  onReserve: (id: string) => void;
+  onScan: () => void;
+}) {
+  const theme = useTheme();
+  const away = user ? metersBetween(user, place) : null;
+  const subtitle =
+    away !== null
+      ? place.description
+        ? t('map.destination.awayWithDescription', { description: place.description, distance: distance(away) })
+        : t('map.destination.away', { distance: distance(away) })
+      : (place.description ?? '');
+  const route = result?.route;
+  const minutes = route && !route.approximate && route.durationSec !== null ? routeMinutes(route.durationSec) : null;
+  const note = result?.speedLimitKmh
+    ? t('map.destination.noteSlow', { limit: result.speedLimitKmh })
+    : t('map.destination.note');
+  const rowStyle = {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    minHeight: 54,
+    paddingHorizontal: 16,
+  };
+  return (
+    <FloatingSheet>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+        <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
+          <Text
+            accessibilityRole="header"
+            numberOfLines={2}
+            style={{ fontSize: 22, fontWeight: '600', letterSpacing: -0.4, color: theme.ink }}
+          >
+            {place.name}
+          </Text>
+          {subtitle ? <Text style={{ fontSize: 14, color: theme.muted }}>{subtitle}</Text> : null}
+        </View>
+        {result === undefined ? (
+          <ActivityIndicator
+            accessibilityLabel={t('map.destination.loading')}
+            color={theme.accent}
+            style={{ marginTop: 6 }}
+          />
+        ) : minutes !== null ? (
+          <View style={{ alignItems: 'flex-end', gap: 2 }}>
+            <Text style={{ fontSize: 27, fontWeight: '500', letterSpacing: -0.5, lineHeight: 30, color: theme.ink }}>
+              {t('map.destination.minutes', { minutes })}
+            </Text>
+            <Text style={{ fontSize: 13, color: theme.muted }}>{t('map.destination.byScooter')}</Text>
+          </View>
+        ) : route ? (
+          <Text style={{ fontSize: 14, color: theme.muted, marginTop: 4 }}>
+            {t('map.destination.straight', { distance: distance(route.distanceM) })}
+          </Text>
+        ) : null}
+      </View>
+      <View
+        style={{
+          backgroundColor: theme.surface,
+          borderRadius: 20,
+          borderWidth: 1,
+          borderColor: theme.line,
+          overflow: 'hidden',
+        }}
+      >
+        {result !== undefined && (
+          <Pressable
+            accessibilityRole="button"
+            disabled={!result?.parking}
+            onPress={() => result?.parking && onParking(result.parking.anchor)}
+            style={rowStyle}
+          >
+            <ParkingMark width={30} height={22} />
+            {result?.parking ? (
+              <>
+                <Text numberOfLines={1} style={{ flex: 1, fontSize: 15, fontWeight: '500', color: theme.ink }}>
+                  {`${result.parking.code} ${result.parking.name}`}
+                </Text>
+                <Text style={{ fontSize: 14, color: theme.muted }}>
+                  {t('map.destination.parkingFromTarget', { distance: distance(result.parking.distanceM) })}
+                </Text>
+              </>
+            ) : (
+              <Text style={{ flex: 1, fontSize: 15, color: theme.muted }}>{t('map.destination.noParking')}</Text>
+            )}
+          </Pressable>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          disabled={!nearest}
+          onPress={() => nearest && onScooter(nearest.id)}
+          style={[rowStyle, result !== undefined ? { borderTopWidth: 1, borderColor: theme.line } : null]}
+        >
+          <View style={{ width: 30, alignItems: 'center' }}>
+            <Icon name="scooter" color={theme.ink} size={22} />
+          </View>
+          {nearest ? (
+            <>
+              <Text numberOfLines={1} style={{ flex: 1, fontSize: 15, fontWeight: '500', color: theme.ink }}>
+                {t('map.destination.scooter', { number: scooterNo(nearest.number) })}
+              </Text>
+              {user && (
+                <Text style={{ fontSize: 14, color: theme.muted }}>
+                  {t('map.destination.scooterAway', { distance: distance(nearest.distanceM) })}
+                </Text>
+              )}
+            </>
+          ) : (
+            <Text style={{ flex: 1, fontSize: 15, color: theme.muted }}>{t('map.destination.noScooter')}</Text>
+          )}
+        </Pressable>
+      </View>
+      <Text style={{ fontSize: 13, lineHeight: 19, color: theme.muted, marginTop: -4 }}>
+        {result && !result.insideServiceArea ? `${t('map.destination.noteOutside')} ${note}` : note}
+      </Text>
+      {error && <SheetText style={{ color: theme.danger, fontSize: 14 }}>{error}</SheetText>}
+      {nearest ? (
+        <ButtonRow split>
+          <Button
+            label={t('map.destination.reserve')}
+            kind="secondary"
+            busy={busy}
+            onPress={() => onReserve(nearest.id)}
+          />
+          <Button label={t('map.destination.scan')} onPress={onScan} />
+        </ButtonRow>
+      ) : (
+        <Button label={t('map.destination.scan')} onPress={onScan} />
+      )}
+    </FloatingSheet>
+  );
+}
+
+/** Karta wybranej hulajnogi z rezerwacją i skanem (makieta mapa-karta-rezerwuj); po „Trasa” z trasą pieszą. */
 function ScooterCard({
   scooter,
   user,
+  walk,
   minuteRate,
   freeMinutes,
   busy,
@@ -301,6 +767,7 @@ function ScooterCard({
 }: {
   scooter: NearbyScooter;
   user: MapPoint | null;
+  walk: { data: RouteView | null; failed: boolean } | null;
   minuteRate: number;
   freeMinutes: number;
   busy: boolean;
@@ -309,13 +776,24 @@ function ScooterCard({
   onScan: () => void;
 }) {
   const theme = useTheme();
+  const walkText = walk?.data
+    ? walkLabel(walk.data, user)
+    : user
+      ? t('map.card.walk', { distance: distance(scooter.distanceM), minutes: walkMinutes(scooter.distanceM) })
+      : '';
   return (
     <FloatingSheet>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <View style={{ gap: 2 }}>
-          <Text style={[sheetStyles.caption, { color: theme.muted }]}>{t('map.card.scooter', { number: scooterNo(scooter.number) })}</Text>
-          <Text style={[sheetStyles.bigNumber, { color: theme.ink }]}>{t('units.percent', { value: scooter.batteryPct })}</Text>
-          {scooter.rangeKm !== null && <Text style={{ fontSize: 14, color: theme.muted }}>{t('map.card.range', { km: scooter.rangeKm })}</Text>}
+          <Text style={[sheetStyles.caption, { color: theme.muted }]}>
+            {t('map.card.scooter', { number: scooterNo(scooter.number) })}
+          </Text>
+          <Text style={[sheetStyles.bigNumber, { color: theme.ink }]}>
+            {t('units.percent', { value: scooter.batteryPct })}
+          </Text>
+          {scooter.rangeKm !== null && (
+            <Text style={{ fontSize: 14, color: theme.muted }}>{t('map.card.range', { km: scooter.rangeKm })}</Text>
+          )}
         </View>
         <ScooterRender
           variant={scooter.variant}
@@ -324,13 +802,30 @@ function ScooterCard({
           label={t('variants.render', { variant: t(`variants.${scooter.variant}`) })}
         />
       </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 16, borderTopWidth: 1, borderColor: theme.line }}>
-        <Text style={{ fontSize: 14, color: theme.ink }}>
-          {user ? t('map.card.walk', { distance: distance(scooter.distanceM), minutes: walkMinutes(scooter.distanceM) }) : ''}
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 8,
+          paddingTop: 16,
+          borderTopWidth: 1,
+          borderColor: theme.line,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+          {walk && <Icon name="walk" color={theme.accentMap} size={18} strokeWidth={2} />}
+          <Text style={{ fontSize: 14, color: theme.ink, flexShrink: 1 }}>
+            {walk && !walk.data && !walk.failed ? t('map.card.walkLoading') : walkText}
+          </Text>
+        </View>
+        <Text style={{ fontSize: 14, fontWeight: '500', color: theme.ink }}>
+          {t('map.card.price', { price: money(minuteRate) })}
         </Text>
-        <Text style={{ fontSize: 14, fontWeight: '500', color: theme.ink }}>{t('map.card.price', { price: money(minuteRate) })}</Text>
       </View>
-      <SheetText style={{ fontSize: 14, marginTop: -4 }}>{t('map.card.freeReservation', { minutes: freeMinutes })}</SheetText>
+      <SheetText style={{ fontSize: 14, marginTop: -4 }}>
+        {t('map.card.freeReservation', { minutes: freeMinutes })}
+      </SheetText>
       {error && <SheetText style={{ color: theme.danger, fontSize: 14 }}>{error}</SheetText>}
       <ButtonRow split>
         <Button label={t('map.card.reserve')} kind="secondary" busy={busy} onPress={onReserve} />
@@ -340,10 +835,11 @@ function ScooterCard({
   );
 }
 
-/** Rezerwacja z odliczaniem (makieta mapa-rezerwacja). */
+/** Rezerwacja z odliczaniem (makiety mapa-rezerwacja, hulajnoga-trasa z trasą pieszą). */
 function ReservationCard({
   tracked,
   user,
+  walk,
   busy,
   error,
   onCancel,
@@ -351,6 +847,7 @@ function ReservationCard({
 }: {
   tracked: TrackedRental;
   user: MapPoint | null;
+  walk: RouteView | null;
   busy: boolean;
   error: string | null;
   onCancel: () => void;
@@ -361,12 +858,14 @@ function ReservationCard({
   const v = tracked.view;
   const left = reservationSecondsLeft(tracked, now);
   const away =
-    user && v.scooter.lat !== null && v.scooter.lon !== null ? metersBetween(user, { lat: v.scooter.lat, lon: v.scooter.lon }) : null;
+    user && v.scooter.lat !== null && v.scooter.lon !== null
+      ? metersBetween(user, { lat: v.scooter.lat, lon: v.scooter.lon })
+      : null;
   return (
     <FloatingSheet>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <View style={{ gap: 2, flex: 1 }}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: theme.accentMap }}>{t('map.reservation.label')}</Text>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: theme.accentMap }}>{t('map.reservation.label')}</Text>
           <Text
             accessibilityLabel={t('map.reservation.countdown', { time: clock(left) })}
             style={[sheetStyles.bigNumber, { color: theme.ink }]}
@@ -374,14 +873,45 @@ function ReservationCard({
             {clock(left)}
           </Text>
           <Text style={{ fontSize: 14, lineHeight: 20, color: theme.muted }}>
-            {away !== null
-              ? t('map.reservation.waiting', { number: scooterNo(v.scooter.number), distance: distance(away) })
-              : t('map.reservation.waitingHere', { number: scooterNo(v.scooter.number) })}
+            {walk
+              ? t('map.card.scooter', { number: scooterNo(v.scooter.number) })
+              : away !== null && away >= ARRIVED_M
+                ? t('map.reservation.waiting', { number: scooterNo(v.scooter.number), distance: distance(away) })
+                : t('map.reservation.waitingHere', { number: scooterNo(v.scooter.number) })}
           </Text>
         </View>
-        <ScooterRender variant={v.scooter.variant} side style={{ width: 120, height: 100 }} label={t('variants.render', { variant: t(`variants.${v.scooter.variant}`) })} />
+        <ScooterRender
+          variant={v.scooter.variant}
+          side
+          style={{ width: 120, height: 100 }}
+          label={t('variants.render', { variant: t(`variants.${v.scooter.variant}`) })}
+        />
       </View>
-      <SheetText style={{ fontSize: 14, paddingTop: 16, borderTopWidth: 1, borderColor: theme.line }}>
+      {walk ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            paddingTop: 16,
+            borderTopWidth: 1,
+            borderColor: theme.line,
+          }}
+        >
+          <IconBadge icon="walk" tone="accent" size={40} iconSize={20} />
+          <View style={{ flex: 1, gap: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: '500', color: theme.ink }}>{walkLabel(walk, user)}</Text>
+            <Text style={{ fontSize: 13, color: theme.muted }}>{t('map.reservation.walkHint')}</Text>
+          </View>
+        </View>
+      ) : null}
+      <SheetText
+        style={
+          walk
+            ? { fontSize: 14, marginTop: -2 }
+            : { fontSize: 14, paddingTop: 16, borderTopWidth: 1, borderColor: theme.line }
+        }
+      >
         {t('map.reservation.lead', { minutes: v.tariff.freeReservationMinutes })}
       </SheetText>
       {error && <SheetText style={{ color: theme.danger, fontSize: 14 }}>{error}</SheetText>}
@@ -411,7 +941,10 @@ function CancelSheet({
   const now = useNow(visible);
   return (
     <BottomSheet visible={visible} onClose={onKeep}>
-      <Text accessibilityRole="header" style={{ fontSize: 22, fontWeight: '600', letterSpacing: -0.4, color: theme.ink }}>
+      <Text
+        accessibilityRole="header"
+        style={{ fontSize: 22, fontWeight: '600', letterSpacing: -0.4, color: theme.ink }}
+      >
         {t('map.cancel.title')}
       </Text>
       <Text style={{ fontSize: 16, lineHeight: 24, color: theme.muted, marginTop: 10 }}>
@@ -432,7 +965,9 @@ function CancelSheet({
         }}
       >
         <Text style={{ fontSize: 16, color: theme.muted }}>{t('map.cancel.expiresIn')}</Text>
-        <Text style={{ fontSize: 16, fontWeight: '500', color: theme.ink }}>{clock(reservationSecondsLeft(tracked, now))}</Text>
+        <Text style={{ fontSize: 16, fontWeight: '500', color: theme.ink }}>
+          {clock(reservationSecondsLeft(tracked, now))}
+        </Text>
       </View>
       <View style={{ gap: 10, marginTop: 24 }}>
         <Button label={t('map.cancel.confirm')} kind="dark" busy={busy} onPress={onConfirm} />
@@ -447,16 +982,45 @@ function OfflineState({ onRetry }: { onRetry: () => void }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View style={{ flex: 1, backgroundColor: theme.bg, paddingHorizontal: 24, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 16 }}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: theme.bg,
+        paddingHorizontal: 24,
+        paddingTop: insets.top + 20,
+        paddingBottom: insets.bottom + 16,
+      }}
+    >
       <View style={{ flex: 1 }} />
       <View style={{ alignItems: 'center' }}>
-        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: theme.line, alignItems: 'center', justifyContent: 'center' }}>
+        <View
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: 36,
+            backgroundColor: theme.line,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           <Icon name="wifiOff" color={theme.ink} size={32} strokeWidth={2} />
         </View>
-        <Text accessibilityRole="header" style={{ marginTop: 24, fontSize: 26, fontWeight: '600', letterSpacing: -0.8, color: theme.ink, textAlign: 'center' }}>
+        <Text
+          accessibilityRole="header"
+          style={{
+            marginTop: 24,
+            fontSize: 26,
+            fontWeight: '600',
+            letterSpacing: -0.8,
+            color: theme.ink,
+            textAlign: 'center',
+          }}
+        >
           {t('map.offline.title')}
         </Text>
-        <Text style={{ marginTop: 10, fontSize: 16, lineHeight: 24, color: theme.muted, textAlign: 'center' }}>{t('map.offline.lead')}</Text>
+        <Text style={{ marginTop: 10, fontSize: 16, lineHeight: 24, color: theme.muted, textAlign: 'center' }}>
+          {t('map.offline.lead')}
+        </Text>
       </View>
       <View style={{ flex: 1 }} />
       <Button label={t('map.offline.retry')} kind="dark" onPress={onRetry} />
