@@ -1,9 +1,10 @@
 import { commandSchema, telemetrySchema, type Command } from '@hulajnogi/shared';
 import { describe, expect, it } from 'vitest';
-import { initialState, loadArea, randomDestination } from './area.js';
+import { initialState, loadArea, randomDestination, rideDestinationHub } from './area.js';
 import { loadConfig } from './config.js';
-import { DemoTraffic, restoreFleet } from './fleet.js';
-import { distanceM, mulberry32, Route } from './geo.js';
+import { applyControl, parseControl } from './control.js';
+import { CommandRides, DemoTraffic, restoreFleet } from './fleet.js';
+import { distanceM, mulberry32, Route, type Point } from './geo.js';
 import { RoutePlanner } from './osrm.js';
 import { METERS_PER_BATTERY_PCT, VirtualScooter } from './virtual-scooter.js';
 
@@ -11,8 +12,28 @@ const area = loadArea(loadConfig({}).SIM_PLACES_FILE);
 const now = new Date('2026-11-16T12:00:00Z');
 const rynek = { lat: 50.095541, lon: 18.542034 };
 const dworzec = { lat: 50.089104, lon: 18.547972 };
-const command = (cmd: Command['cmd'], params?: Command['params']): Command =>
-  commandSchema.parse({ commandId: crypto.randomUUID(), cmd, issuedAt: now.toISOString(), params });
+const command = (cmd: Command['cmd'], params?: Command['params'], expiresAt?: Date): Command =>
+  commandSchema.parse({
+    commandId: crypto.randomUUID(),
+    cmd,
+    issuedAt: now.toISOString(),
+    expiresAt: expiresAt?.toISOString(),
+    params,
+  });
+/** Planista bez OSRM: trasa w linii prostej, z zapisem celów. */
+const straightPlanner = () => {
+  const targets: Point[] = [];
+  const planner = {
+    route: async (from: Point, to: Point) => {
+      targets.push(to);
+      return new Route([from, to]);
+    },
+  } as unknown as RoutePlanner;
+  return { planner, targets };
+};
+const rideUntilStopped = (scooter: VirtualScooter) => {
+  for (let i = 0; i < 3600 && scooter.riding; i++) scooter.tick(1);
+};
 
 describe('obszar i pozycje startowe', () => {
   it('czyta sprawdzone współrzędne Rybnika ze stref parkowania', () => {
@@ -92,10 +113,10 @@ describe('wirtualna hulajnoga', () => {
     });
   });
 
-  it('jedzie po trasie, zużywa baterię, na końcu staje i blokuje się', () => {
+  it('przejazd pokazowy: jedzie po trasie, zużywa baterię, na końcu staje i blokuje się', () => {
     const scooter = new VirtualScooter(1, { position: rynek, batteryPct: 80 });
     const route = new Route([rynek, dworzec]);
-    scooter.startRide(route);
+    scooter.startDemoRide(route);
     expect(scooter.locked).toBe(false);
     scooter.tick(10);
     expect(scooter.speedKmh).toBeGreaterThan(14);
@@ -111,7 +132,7 @@ describe('wirtualna hulajnoga', () => {
   it('przestrzega limitu prędkości z komendy', () => {
     const scooter = new VirtualScooter(1, { position: rynek, batteryPct: 80 });
     expect(scooter.handle(command('speed_limit', { kmh: 10 }), now).ok).toBe(true);
-    scooter.startRide(new Route([rynek, dworzec]));
+    scooter.startDemoRide(new Route([rynek, dworzec]));
     scooter.tick(1);
     expect(scooter.speedKmh).toBeLessThanOrEqual(10);
   });
@@ -134,14 +155,142 @@ describe('wirtualna hulajnoga', () => {
     expect(scooter.locked).toBe(true);
   });
 
+  it('komenda po expiresAt nie jest wykonywana i dostaje EXPIRED (ADR 0038)', () => {
+    const scooter = new VirtualScooter(1, { position: rynek, batteryPct: 50 });
+    const late = command('unlock', undefined, new Date(now.getTime() + 10_000));
+    // Komenda dostarczona przez broker po powrocie online, minutę po wysłaniu.
+    expect(scooter.handle(late, new Date(now.getTime() + 60_000))).toMatchObject({ ok: false, reason: 'EXPIRED' });
+    expect(scooter.locked).toBe(true);
+    expect(scooter.awaitingRoute).toBe(false);
+    // W terminie komenda działa; bez expiresAt nie wygasa (kontrakt 1.0.0).
+    const onTime = command('unlock', undefined, new Date(now.getTime() + 10_000));
+    expect(scooter.handle(onTime, new Date(now.getTime() + 9_000)).ok).toBe(true);
+    expect(scooter.handle(command('lock'), new Date(now.getTime() + 3_600_000)).ok).toBe(true);
+  });
+
   it('blokada w trakcie jazdy zatrzymuje hulajnogę', () => {
     const scooter = new VirtualScooter(1, { position: rynek, batteryPct: 50 });
-    scooter.startRide(new Route([rynek, dworzec]));
+    scooter.startDemoRide(new Route([rynek, dworzec]));
     scooter.tick(5);
     expect(scooter.handle(command('lock'), now).ok).toBe(true);
     expect(scooter.riding).toBe(false);
     scooter.tick(5);
     expect(scooter.speedKmh).toBe(0);
+  });
+});
+
+describe('jazda po odblokowaniu komendą (ADR 0039)', () => {
+  const start = (): VirtualScooter => {
+    const scooter = new VirtualScooter(1, { position: rynek, batteryPct: 80 });
+    expect(scooter.handle(command('unlock'), now).ok).toBe(true);
+    return scooter;
+  };
+
+  it('cel to środek innej strefy parkowania niż ta, w której hulajnoga stoi', () => {
+    const random = mulberry32(3);
+    const here = area.hubs[0]!;
+    for (let i = 0; i < 50; i++) {
+      const hub = rideDestinationHub(area, here, random);
+      expect(hub.code).not.toBe(here.code);
+      expect(area.hubs).toContain(hub);
+    }
+  });
+
+  it('jedzie trasą do strefy parkowania i staje tam odblokowana, bez samoczynnej blokady', async () => {
+    const scooter = start();
+    expect(scooter.awaitingRoute).toBe(true);
+    const { planner, targets } = straightPlanner();
+    const rides = new CommandRides([scooter], { area, planner, random: mulberry32(5) });
+    expect(await rides.tick()).toBe(1);
+    expect(scooter.awaitingRoute).toBe(false);
+    const hub = targets[0]!;
+    expect(area.hubs.some((h) => h.lat === hub.lat && h.lon === hub.lon)).toBe(true);
+    scooter.tick(1);
+    expect(scooter.riding).toBe(true);
+    expect(scooter.speedKmh).toBeGreaterThan(14);
+    rideUntilStopped(scooter);
+    expect(scooter.position).toEqual(hub);
+    // Na końcu trasy czeka na blokadę: stoi, jest odblokowana i nie planuje nowej trasy.
+    for (let i = 0; i < 60; i++) scooter.tick(1);
+    expect(scooter.telemetry(now)).toMatchObject({ v: 0, locked: false });
+    expect(await rides.tick()).toBe(0);
+    expect(scooter.handle(command('lock'), now).ok).toBe(true);
+    expect(scooter.idle).toBe(true);
+  });
+
+  it('blokada w drodze zatrzymuje jazdę, a wznowienie jedzie dalej tą samą trasą', async () => {
+    const scooter = start();
+    const { planner, targets } = straightPlanner();
+    const rides = new CommandRides([scooter], { area, planner });
+    await rides.tick();
+    for (let i = 0; i < 20; i++) scooter.tick(1);
+    expect(scooter.handle(command('lock'), now).ok).toBe(true);
+    const paused = scooter.position;
+    for (let i = 0; i < 20; i++) scooter.tick(1);
+    expect(scooter.position).toEqual(paused);
+    expect(scooter.telemetry(now)).toMatchObject({ v: 0, locked: true });
+    // Wstrzymana jazda nie jest wolną hulajnogą dla przejazdów pokazowych.
+    expect(scooter.idle).toBe(false);
+
+    expect(scooter.handle(command('unlock'), now).ok).toBe(true);
+    expect(await rides.tick()).toBe(0);
+    scooter.tick(1);
+    expect(distanceM(paused, scooter.position)).toBeGreaterThan(3);
+    rideUntilStopped(scooter);
+    expect(targets).toHaveLength(1);
+    expect(scooter.position).toEqual(targets[0]);
+    expect(scooter.locked).toBe(false);
+  });
+
+  it('blokada przed wyznaczeniem trasy wstrzymuje jazdę, trasa czeka na wznowienie', async () => {
+    const scooter = start();
+    const { planner } = straightPlanner();
+    const rides = new CommandRides([scooter], { area, planner });
+    const planning = rides.tick();
+    scooter.handle(command('lock'), now);
+    await planning;
+    scooter.tick(5);
+    expect(scooter.position).toEqual(rynek);
+    scooter.handle(command('unlock'), now);
+    scooter.tick(5);
+    expect(scooter.riding).toBe(true);
+  });
+
+  it('po zakończeniu jazdy w strefie kolejne odblokowanie wyznacza nową trasę', async () => {
+    const scooter = start();
+    const { planner, targets } = straightPlanner();
+    const rides = new CommandRides([scooter], { area, planner, random: mulberry32(11) });
+    await rides.tick();
+    scooter.tick(1);
+    rideUntilStopped(scooter);
+    scooter.handle(command('lock'), now);
+    scooter.handle(command('unlock'), now);
+    expect(scooter.awaitingRoute).toBe(true);
+    expect(await rides.tick()).toBe(1);
+    expect(targets[1]).not.toEqual(targets[0]);
+  });
+});
+
+describe('plik sterujący awariami', () => {
+  it('czyta numery hulajnóg, także z zerami wiodącymi', () => {
+    expect(parseControl('{ "offline": [142, "0007", 142], "silent": [27] }')).toEqual({
+      offline: [7, 142],
+      silent: [27],
+    });
+  });
+
+  it('błędna treść albo brak list oznacza brak awarii', () => {
+    expect(parseControl('')).toEqual({ offline: [], silent: [] });
+    expect(parseControl('{ "offline": "142" ')).toEqual({ offline: [], silent: [] });
+    expect(parseControl('null')).toEqual({ offline: [], silent: [] });
+    expect(parseControl('{ "offline": [-1, 1.5, "x"], "silent": {} }')).toEqual({ offline: [], silent: [] });
+  });
+
+  it('polecenie control dopisuje numery, a online usuwa je z obu list', () => {
+    let state = applyControl({ offline: [], silent: [] }, 'offline', [142]);
+    state = applyControl(state, 'silent', [27, 142]);
+    expect(state).toEqual({ offline: [142], silent: [27, 142] });
+    expect(applyControl(state, 'online', [142])).toEqual({ offline: [], silent: [27] });
   });
 });
 
@@ -163,10 +312,14 @@ describe('przejazdy pokazowe', () => {
       new VirtualScooter(1, { position: rynek, batteryPct: 10 }),
       new VirtualScooter(2, { position: rynek, batteryPct: 90 }),
       new VirtualScooter(3, { position: rynek, batteryPct: 90, locked: false }),
+      new VirtualScooter(4, { position: rynek, batteryPct: 90 }),
     ];
+    // Hulajnoga 4 ma wstrzymaną jazdę klienta: jest zablokowana, ale nie jest wolna.
+    fleet[3]!.handle(command('unlock'), now);
+    fleet[3]!.handle(command('lock'), now);
     const traffic = new DemoTraffic(fleet, { area, planner, ridesPerHour: 3600, random: mulberry32(7) });
     expect(await traffic.tick(1)).toBe(1);
-    expect(fleet.map((s) => s.riding)).toEqual([false, true, false]);
+    expect(fleet.map((s) => s.riding)).toEqual([false, true, false, false]);
   });
 
   it('bez przejazdów na godzinę flota stoi', async () => {

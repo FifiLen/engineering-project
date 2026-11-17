@@ -1,41 +1,44 @@
 /**
  * Symulator floty (ADR 0002). Każda wirtualna hulajnoga ma własne połączenie MQTT i zachowuje się jak
  * urządzenie z kontraktu AsyncAPI: telemetria, status z Last Will, komendy z potwierdzeniami.
- * Przejazdy pokazowe zastępują wypożyczenia do iteracji 3.
+ * Po odblokowaniu komendą hulajnoga jedzie do strefy parkowania (ADR 0039); przejazdy pokazowe są
+ * domyślnie wyłączone, a awarie do demo ustawia plik sterujący (`pnpm --filter @hulajnogi/simulator control`).
  */
-import { join } from 'node:path';
 import mqtt from 'mqtt';
 import { loadArea } from './area.js';
-import { loadConfig } from './config.js';
+import { loadConfig, loadRootEnv } from './config.js';
 import { ScooterConnection, type ConnectionStats } from './connection.js';
-import { DemoTraffic, readState, restoreFleet, runFleet, writeState } from './fleet.js';
+import { watchControl } from './control.js';
+import { CommandRides, DemoTraffic, readState, restoreFleet, runFleet, writeState } from './fleet.js';
 import { RoutePlanner } from './osrm.js';
 
 const STATUS_TOPIC = 'simulator/status';
 const STATS_INTERVAL_MS = 10_000;
 const SAVE_INTERVAL_MS = 30_000;
 
-/** Wczytuje .env z katalogu głównego repozytorium; zmienne ustawione w powłoce mają pierwszeństwo. */
-function loadRootEnv(path: string) {
-  try {
-    process.loadEnvFile(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
-}
-
-loadRootEnv(join(import.meta.dirname, '..', '..', '..', '.env'));
+loadRootEnv();
 const config = loadConfig();
 const area = loadArea(config.SIM_PLACES_FILE);
 const scooters = restoreFleet(config.SIM_FLEET_SIZE, area, readState(config.SIM_STATE_FILE));
 const stats: ConnectionStats = { sent: 0 };
 const connections = scooters.map((s) => new ScooterConnection(s, config.MQTT_URL, config.SIM_FIRMWARE, stats));
-const traffic = new DemoTraffic(scooters, {
-  area,
-  planner: new RoutePlanner(config.OSRM_URL),
-  ridesPerHour: config.SIM_RIDES_PER_HOUR,
+const planner = new RoutePlanner(config.OSRM_URL);
+const rides = {
+  commands: new CommandRides(scooters, { area, planner }),
+  demo: new DemoTraffic(scooters, { area, planner, ridesPerHour: config.SIM_RIDES_PER_HOUR }),
+};
+const stopFleet = runFleet(scooters, connections, rides, config.SIM_TELEMETRY_INTERVAL_MS);
+let controlChanged = false;
+const stopControl = watchControl(config.SIM_CONTROL_FILE, (state) => {
+  for (const connection of connections) {
+    connection.setOffline(state.offline.includes(connection.number));
+    connection.silent = state.silent.includes(connection.number);
+  }
+  // Pusty stan przy starcie nie jest zmianą; każda późniejsza zmiana trafia do logu.
+  if (!controlChanged && !state.offline.length && !state.silent.length) return;
+  controlChanged = true;
+  console.log(`Sterowanie: offline [${state.offline.join(', ')}], bez potwierdzeń [${state.silent.join(', ')}].`);
 });
-const stopFleet = runFleet(scooters, connections, traffic, config.SIM_TELEMETRY_INTERVAL_MS);
 const since = new Date().toISOString();
 
 // Połączenie samego symulatora: stan i liczniki dla ekranu symulatora w panelu (iteracja 6).
@@ -76,6 +79,7 @@ const shutdown = async () => {
   if (stopping) return;
   stopping = true;
   stopFleet();
+  stopControl();
   timers.forEach((t) => clearInterval(t));
   writeState(config.SIM_STATE_FILE, scooters);
   await Promise.all(connections.map((c) => c.close()));

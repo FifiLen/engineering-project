@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Komunikacja z hulajnogami (MQTT)
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Kontrakt między hulajnogą (lub symulatorem) a backendem systemu wypożyczania.
     Operacje są opisane z perspektywy hulajnogi: hulajnoga wysyła telemetrię,
@@ -16,6 +16,15 @@ info:
       ponownie, tylko ponownie potwierdzana.
     * Po odzyskaniu łączności hulajnoga dosyła zbuforowaną telemetrię
       z oryginalnymi znacznikami czasu.
+    * Komenda z polem expiresAt po tym czasie nie jest wykonywana; hulajnoga
+      odpowiada ok = false z powodem EXPIRED. Dotyczy też komendy, którą broker
+      dostarczył z sesji trwałej po powrocie hulajnogi online (ADR 0038).
+
+    Zmiany:
+    * 1.1.0 (2026-11-16): opcjonalne pole expiresAt w komendzie i powód
+      odrzucenia EXPIRED (ADR 0038). Zgodne wstecz: komenda bez expiresAt
+      nie wygasa, a urządzenie z kontraktem 1.0.0 pole pomija.
+    * 1.0.0 (2026-11-09): pierwsza wersja.
 
 servers:
   lokalny:
@@ -123,11 +132,13 @@ components:
             commandId: 6f1c2d0e-3b1a-4b8e-9b55-0a1f4c2e7d10
             cmd: unlock
             issuedAt: '2026-11-09T14:19:02.000Z'
+            expiresAt: '2026-11-09T14:19:12.000Z'
         - name: limitPredkosci
           payload:
             commandId: 0b7e4a35-91d2-4f3c-8a64-2c5d1e9f7a21
             cmd: speed_limit
             issuedAt: '2026-11-09T14:24:10.000Z'
+            expiresAt: '2026-11-09T14:24:20.000Z'
             params:
               kmh: 10
     Ack:
@@ -135,6 +146,13 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/Ack'
+      examples:
+        - name: przeterminowana
+          payload:
+            commandId: 6f1c2d0e-3b1a-4b8e-9b55-0a1f4c2e7d10
+            ok: false
+            reason: EXPIRED
+            ts: '2026-11-09T14:20:31.512Z'
   schemas:
     Telemetry:
       type: object
@@ -192,6 +210,14 @@ components:
         issuedAt:
           type: string
           format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: |
+            Termin ważności komendy (od 1.1.0, opcjonalny). Backend ustawia go
+            zawsze na issuedAt + 10 s, czyli na limit oczekiwania na potwierdzenie.
+            Hulajnoga po tym czasie nie wykonuje komendy i odpowiada ok = false
+            z powodem EXPIRED. Komenda bez tego pola nie wygasa.
         params:
           type: object
           properties:
@@ -213,8 +239,8 @@ components:
           type: boolean
         reason:
           type: string
-          enum: [LOW_BATTERY, ALREADY_IN_STATE, HARDWARE_ERROR, UNKNOWN_COMMAND]
-          description: Powód odrzucenia, gdy ok = false
+          enum: [LOW_BATTERY, ALREADY_IN_STATE, HARDWARE_ERROR, UNKNOWN_COMMAND, EXPIRED]
+          description: Powód odrzucenia, gdy ok = false (EXPIRED od 1.1.0, komenda po expiresAt)
         ts:
           type: string
           format: date-time

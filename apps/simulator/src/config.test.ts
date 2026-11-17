@@ -8,9 +8,14 @@ describe('konfiguracja symulatora', () => {
       OSRM_URL: 'http://localhost:5000',
       SIM_FLEET_SIZE: 40,
       SIM_TELEMETRY_INTERVAL_MS: 5000,
-      SIM_RIDES_PER_HOUR: 30,
+      SIM_RIDES_PER_HOUR: 0,
     });
     expect(loadConfig({}).SIM_PLACES_FILE).toMatch(/packages\/db\/seed\/rybnik-places\.json$/);
+    expect(loadConfig({}).SIM_CONTROL_FILE).toMatch(/apps\/simulator\/\.state\/control\.json$/);
+  });
+
+  it('przejazdy pokazowe można włączyć zmienną (ADR 0039)', () => {
+    expect(loadConfig({ SIM_RIDES_PER_HOUR: '30' }).SIM_RIDES_PER_HOUR).toBe(30);
   });
 
   it('odrzuca zbyt krótki odstęp telemetrii', () => {
