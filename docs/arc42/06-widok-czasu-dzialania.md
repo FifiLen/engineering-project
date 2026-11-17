@@ -59,27 +59,41 @@ sequenceDiagram
 
 ## 6.3. Telemetria i strefy w trakcie jazdy
 
-Odczyty są zbierane w oknie (domyślnie 1 s), oceniane regułami z `packages/core` i zapisywane jedną transakcją ([ADR 0033](../adr/0033-telemetria-i-status-floty.md)). Wykrywanie stref i komenda limitu prędkości powstają w iteracji 4.
+Odczyty są zbierane w oknie (domyślnie 1 s), oceniane regułami z `packages/core` i zapisywane jedną transakcją ([ADR 0033](../adr/0033-telemetria-i-status-floty.md)). Od iteracji 4 Telemetria po zapisie partii przekazuje odczyty hulajnóg w przejeździe (`ACTIVE`, `PAUSED`, `ENDING`) modułowi Strefy ([ADR 0043](../adr/0043-wykrywanie-zmian-stref.md)):
+- **Wykrywanie (moduł Strefy):** liczy przejścia regułą `detectZoneChanges` z core: wjazd od pierwszego odczytu w strefie; wyjazd po dwóch odczytach poza strefą albo poza promieniem 10 m. Pierwszy odczyt przejazdu ustawia stan bez zdarzeń.
+- **Skutki (moduł Wypożyczenie):** zapisuje `ZONE_ENTERED` i `ZONE_EXITED` na osi czasu i uzgadnia stan hulajnogi ze strefami ([ADR 0044](../adr/0044-komendy-stref-dla-hulajnogi.md)). Komenda idzie tylko przy różnicy albo po nieudanej poprzedniej:
+  - limit wolnej jazdy: `speed_limit`, a bez `kmh` zdjęcie limitu;
+  - zakaz i wyjazd poza obszar: `stop_gradually`, a po powrocie `release_stop`.
+- **Punkty z bufora** dają zdarzenia, ale nie komendy.
+- **Pauza i wznowienie:** `lock` kasuje limit i zatrzymanie w hulajnodze, więc wznowienie od razu uzgadnia stan.
+- **Zmiana strefy w panelu** działa w trwających przejazdach od razu: ponowna ocena z ostatniej pozycji (pytanie 7 w planie iteracji 4).
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant H as Hulajnoga
     participant MQ as Broker MQTT
-    participant API as Backend API
+    participant T as Telemetria
+    participant S as Strefy
+    participant W as Wypożyczenie
     participant DB as PostGIS
-    participant P as Panel
     participant A as Aplikacja
     H->>MQ: telemetry (lat, lon, bat, v) co 5 s
-    MQ->>API: scooters/+/telemetry
-    Note over API: okno 1 s, evaluateTelemetry (core)
-    API->>DB: punkty trasy (ON CONFLICT DO NOTHING), stan bieżący, przebieg
-    API-->>P: fleet.updates (paczka zmian, pokój fleet)
-    API->>DB: ST_Contains(zone.geom, punkt)
-    DB-->>API: strefa SLOW
-    API->>MQ: cmd speed_limit
+    MQ->>T: scooters/+/telemetry
+    Note over T: okno 1 s, evaluateTelemetry (core)
+    T->>DB: punkty trasy, stan bieżący, przebieg
+    T->>S: odczyty przejazdów (po zapisie partii)
+    S->>DB: fn_zones_near_point (10 m), stan scooter_zone_presence
+    Note over S: detectZoneChanges (core): wjazd, wyjazd z histerezą
+    S->>W: przejścia stref
+    W->>DB: rental_events ZONE_ENTERED / ZONE_EXITED
+    Note over W: desiredZoneControl i zoneControlCommands (core)
+    W->>DB: scooter_commands (rental_id, expiresAt), scooter_zone_control
+    W->>MQ: cmd speed_limit {kmh} / stop_gradually / release_stop
     MQ->>H: komenda
-    API-->>A: zone_entered SLOW, czas, dystans, koszt
+    W-->>A: rental.updated (zones, zoneControl)
+    H->>MQ: ack
+    MQ->>W: wynik komendy strefy (błąd: ponowienie przy następnym odczycie)
 ```
 
 ## 6.4. Zakończenie i rozliczenie

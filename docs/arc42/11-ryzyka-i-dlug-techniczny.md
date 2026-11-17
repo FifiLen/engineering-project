@@ -14,6 +14,9 @@
 | Natywna mapa w aplikacji niesprawdzona (brak Xcode i Android SDK na komputerze autora) | Średni | Mapa w dwóch implementacjach ze wspólnym interfejsem; wersja web sprawdzana w każdej iteracji, development build do zbudowania po instalacji Xcode ([ADR 0040](../adr/0040-mapa-lokalizacja-aparat-w-aplikacji.md)) |
 | Zegar urządzenia a termin `expiresAt` komendy | Niski | W projekcie zegar symulatora i backendu jest wspólny; dla prawdziwego sprzętu tolerancja albo czas względny ([ADR 0038](../adr/0038-wygasanie-komend-mqtt.md)) |
 | Limit potwierdzenia zależy od odpytywania kolejki pg-boss | Niski | `UNLOCK_FAILED` po 10–11 s zamiast dokładnie 10 s; odpytywanie co 1 s ([ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)) |
+| Dokładność GPS na granicy strefy | Niski | Histereza wyjazdu (2 odczyty albo 10 m) i komunikat z opóźnieniem do jednego odczytu (5 s); prawdziwy sprzęt miałby geofencing w urządzeniu ([ADR 0043](../adr/0043-wykrywanie-zmian-stref.md)) |
+| Publiczny Photon w demo wyszukiwania | Niski | Pamięć podręczna 24 h, limit 30 zapytań na minutę na klienta, wariant błędu w aplikacji; własny kontener to zmiana `PHOTON_URL` ([ADR 0045](../adr/0045-wyszukiwanie-miejsc-photon.md)) |
+| Dwa procesy OSRM (rower i pieszo) | Niski | Około 1 GB pamięci i 1,6 GB danych na komputerze dewelopera; bez OSRM linia prosta ([ADR 0048](../adr/0048-trasy-dla-klienta-z-osrm.md)) |
 | Przejazdy z iteracji 3 bez obciążenia portfela | Niski | Iteracja 5 zdecyduje, czy rozliczyć je wstecz, czy zostawić jako deweloperskie ([ADR 0042](../adr/0042-wycena-przejazdu.md)) |
 
 Dług techniczny jest dopisywany w dzienniku w chwili, gdy świadomie go zaciągamy.

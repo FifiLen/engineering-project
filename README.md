@@ -13,13 +13,13 @@ Projekt inżynierski: aplikacja mobilna, panel operatora, backend i symulator fl
 | `packages/core` | Logika biznesowa bez frameworka: maszyna stanów przejazdu, reguły stref, uprawnienia, porty repozytoriów ([ADR 0025](docs/adr/0025-logika-biznesowa-packages-core.md)) |
 | `packages/shared` | Schematy Zod kontraktu MQTT, formatowanie kwot |
 | `packages/db` | Migracje SQL, schemat Drizzle, repozytoria (implementacje portów z core), dane startowe dla Rybnika |
-| `infra/` | Docker Compose: PostGIS, Mosquitto, SeaweedFS (S3), OSRM |
+| `infra/` | Docker Compose: PostGIS, Mosquitto, SeaweedFS (S3), OSRM (profil rowerowy i pieszy) |
 
 ## Wymagania
 
 - Node 24 (`.nvmrc`; z nvm: `nvm install && nvm use`)
 - pnpm 10 (`corepack enable` albo instalacja pnpm; wersję wskazuje `packageManager` w `package.json`)
-- Docker Desktop, około 3 GB miejsca na dane tras OSRM
+- Docker Desktop, około 4 GB miejsca na dane tras OSRM (profil rowerowy i pieszy)
 
 ## Pierwsze uruchomienie
 
@@ -42,6 +42,7 @@ Plik `.env` czytają skrypty infrastruktury, API, symulator i polecenia bazy. Zm
 |---|---|---|
 | PostgreSQL | 5432 | `POSTGRES_PORT` i port w `DATABASE_URL` |
 | OSRM | 5000 | `OSRM_PORT` i `OSRM_URL` (na macOS port 5000 zajmuje Odbiornik AirPlay) |
+| OSRM pieszo | 5002 | `OSRM_FOOT_PORT` i `OSRM_FOOT_URL` (trasa do hulajnogi, [ADR 0048](docs/adr/0048-trasy-dla-klienta-z-osrm.md)) |
 | Mosquitto | 1883, 9001 (WebSocket) | |
 | SeaweedFS (S3) | 8333 | `S3_ENDPOINT` |
 | Next.js (web) | 3000 | zmienna powłoki `WEB_PORT`, np. `WEB_PORT=3002 pnpm dev` |
@@ -63,7 +64,7 @@ Panel operatora: `http://localhost:3000/admin` (mapa floty na żywo, flota, mode
 
 ### Symulator floty
 
-Każda wirtualna hulajnoga ma własne połączenie MQTT i jeździ trasami rowerowymi z OSRM ([ADR 0034](docs/adr/0034-symulator-floty.md)). Ustawienia w `.env`: `SIM_FLEET_SIZE` (domyślnie 40, numery jak w danych startowych), `SIM_TELEMETRY_INTERVAL_MS` (5000), `SIM_RIDES_PER_HOUR` (przejazdy pokazowe, domyślnie 0). Od iteracji 3 hulajnoga odblokowana przez klienta sama jedzie trasą z OSRM do losowej strefy parkowania i tam czeka na blokadę ([ADR 0039](docs/adr/0039-symulator-w-trakcie-przejazdu.md)). Komendy po terminie `expiresAt` są odrzucane ([ADR 0038](docs/adr/0038-wygasanie-komend-mqtt.md)). Stan hulajnóg zapisuje się w `apps/simulator/.state/fleet.json`; usunięcie pliku przywraca pozycje z danych startowych.
+Każda wirtualna hulajnoga ma własne połączenie MQTT i jeździ trasami rowerowymi z OSRM ([ADR 0034](docs/adr/0034-symulator-floty.md)). Ustawienia w `.env`: `SIM_FLEET_SIZE` (domyślnie 40, numery jak w danych startowych), `SIM_TELEMETRY_INTERVAL_MS` (5000), `SIM_RIDES_PER_HOUR` (przejazdy pokazowe, domyślnie 0). Od iteracji 3 hulajnoga odblokowana przez klienta sama jedzie trasą z OSRM do losowej strefy parkowania i tam czeka na blokadę ([ADR 0039](docs/adr/0039-symulator-w-trakcie-przejazdu.md)). Komendy po terminie `expiresAt` są odrzucane ([ADR 0038](docs/adr/0038-wygasanie-komend-mqtt.md)). Od iteracji 4 wirtualny klient czyta strefy z `GET /zones` (`SIM_API_URL`), jedzie do punktu wewnątrz losowej strefy parkowania, po zatrzymaniu w strefie zakazu prowadzi hulajnogę pieszo z powrotem i czeka na `release_stop`; `pnpm --filter @hulajnogi/simulator control goto <numer> <kod strefy | lat,lon>` wyznacza cel następnej trasy do demo ([ADR 0046](docs/adr/0046-symulator-a-strefy.md)). Stan hulajnóg zapisuje się w `apps/simulator/.state/fleet.json`; usunięcie pliku przywraca pozycje z danych startowych.
 
 Awarie do demo: `pnpm --filter @hulajnogi/simulator control offline 0142` rozłącza hulajnogę (broker publikuje Last Will), `control silent 27` zostawia ją połączoną, ale bez potwierdzeń komend, `control online 0142 27` przywraca obie, a `control` bez argumentów wypisuje stan (plik `apps/simulator/.state/control.json`).
 

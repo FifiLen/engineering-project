@@ -1,6 +1,6 @@
 # Iteracja 4: strefy
 
-**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; ADR 0043–0048 przyjęte 17 listopada 2026; gotowa do implementacji
+**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; ADR 0043–0048 przyjęte 17 listopada 2026; zrealizowana 17 listopada 2026 (bez commitu i CI)
 
 ## Cel
 Operator rysuje i zmienia strefy w panelu: obszar działania, strefy parkowania, wolnej jazdy i zakazu. Zmiana działa od razu w aplikacji, w symulatorze i w trwających przejazdach. W trakcie jazdy API wykrywa z telemetrii wjazd i wyjazd ze strefy i zapisuje je na osi czasu przejazdu. Wysyła też hulajnodze komendę limitu prędkości albo stopniowego zatrzymania, a klientowi komunikat na ekranie jazdy, jak w makiecie `przejazd-strefa`. Aplikacja dostaje legendę stref, prowadzenie do najbliższej strefy parkowania, trasę do hulajnogi i wyszukiwanie celu „Dokąd jedziesz?”, czyli rzeczy odłożone w iteracji 3.
@@ -76,7 +76,7 @@ Stany, które nie wymagają nowych plansz:
 - **Warstwa stref nieaktywnych na mapie floty:** ukryta.
 
 ## Zakres
-- [ ] **Migracja 0006** (`0006_zones.sql`, testy w `packages/db/src/db.test.ts`):
+- [x] **Migracja 0006** (`0006_zones.sql`, testy w `packages/db/src/db.test.ts`):
   - **reguły geometrii pilnowane przez bazę** (według D3):
     - jeden aktywny obszar działania (indeks częściowy);
     - aktywna strefa inna niż obszar działania leży w obszarze działania (wyzwalacz z kodem błędu `ZONE_OUTSIDE_SERVICE_AREA`);
@@ -91,7 +91,7 @@ Stany, które nie wymagają nowych plansz:
     - strefy, których dotyczy zmiana geometrii: hulajnogi i przejazdy w starej i nowej geometrii;
   - **procedura** dezaktywacji albo usunięcia strefy: usunięcie tylko wtedy, gdy strefa nie ma przejazdów ani zdarzeń (`rentals.end_zone_id`, `rental_events.zone_id`);
   - po migracji `pnpm db:pull` i aktualizacja liczb w teście bazy oraz w [modelu danych](../model-danych/README.md).
-- [ ] **`packages/core`** (`zones`, porty repozytoriów):
+- [x] **`packages/core`** (`zones`, porty repozytoriów):
   - walidacja strefy:
     - typ, limit prędkości w zakresie z pytania 1;
     - pojemność tylko dla parkowania;
@@ -106,56 +106,56 @@ Stany, które nie wymagają nowych plansz:
   - **reguły startu i rezerwacji:** hulajnoga w strefie zakazu albo poza obszarem jest niedostępna według pytania 4, z nową przyczyną `OUT_OF_AREA` w `UNAVAILABLE_REASONS`;
   - **zakończenie:** bez zmian, czyli `canPark`; pełna strefa parkowania według pytania 5;
   - zmiana strefy w trakcie przejazdów działa od następnego odczytu telemetrii (pytanie 7).
-- [ ] **`packages/db`:**
+- [x] **`packages/db`:**
   - repozytorium stref: lista według wzorca (`ListSource` dla `zones` z filtrami typu, aktywności i widoczności), odczyt jednej strefy z geometrią, zapis z wersją rekordu (konflikt `CONFLICT`), dezaktywacja, przywrócenie, usunięcie i bieżące strefy hulajnóg;
   - **dane startowe:**
     - strefa zakazu w Parku imienia świętego Jana Sarkandra (pytanie 8, `way/209433745`), ze współrzędnymi z `pnpm db:places`, a nie zgadniętymi;
     - przykładowe przejazdy ze zdarzeniami stref.
-- [ ] **`packages/shared`:**
+- [x] **`packages/shared`:**
   - definicja zasobu `zones` (filtry: typ, aktywna, widoczna w aplikacji, wyszukiwanie po kodzie i nazwie; sortowanie po kodzie, nazwie, typie i dacie zmiany);
   - schemat zapisu strefy z geometrią;
   - widok przejazdu z bieżącą strefą i limitem (`RentalView.zone`) oraz zdarzeniem stref w `notice`;
   - zdarzenia Socket.IO zmiany stref.
-- [ ] **Kontrakty:**
-  - [ ] [AsyncAPI MQTT](../kontrakty/asyncapi-mqtt.yaml): wznowienie po `stop_gradually` i zdjęcie limitu, jeśli ADR 0044 zmieni kontrakt (wersja 1.2.0);
-  - [ ] [AsyncAPI Socket.IO](../kontrakty/asyncapi-realtime.yaml): `zones.changed` dla panelu, aplikacji i symulatora; strefa i limit w `rental.updated`;
-  - [ ] [OpenAPI](../kontrakty/openapi.json): `pnpm api:openapi`.
-- [ ] **Symulator** (ADR 0046):
+- [x] **Kontrakty:**
+  - [x] [AsyncAPI MQTT](../kontrakty/asyncapi-mqtt.yaml): wznowienie po `stop_gradually` i zdjęcie limitu, jeśli ADR 0044 zmieni kontrakt (wersja 1.2.0);
+  - [x] [AsyncAPI Socket.IO](../kontrakty/asyncapi-realtime.yaml): `zones.changed` dla panelu, aplikacji i symulatora; strefa i limit w `rental.updated`;
+  - [x] [OpenAPI](../kontrakty/openapi.json): `pnpm api:openapi`.
+- [x] **Symulator** (ADR 0046):
   - strefy z bazy przez API zamiast z pliku miejsc, odświeżane po `zones.changed`;
   - cel przejazdu w aktualnej strefie parkowania;
   - zachowanie po `stop_gradually` według pytania 2, na przykład prowadzenie hulajnogi pieszo do granicy strefy;
   - jeden przejazd pokazowy, który przecina strefę wolnej jazdy i strefę zakazu, do demo.
-- [ ] **API:**
-  - [ ] **panel** (`@RequirePermission('zones.read' | 'zones.write')`):
+- [x] **API:**
+  - [x] **panel** (`@RequirePermission('zones.read' | 'zones.write')`):
     - `GET /admin/zones` (lista według wzorca);
     - `GET /admin/zones/{id}` z geometrią i skutkami zmiany;
     - `POST /admin/zones`, `PATCH /admin/zones/{id}` z wersją;
     - `POST /admin/zones/{id}/deactivate`, `POST /admin/zones/{id}/restore` i `DELETE /admin/zones/{id}`;
     - każdy zapis z wpisem `zone.created`, `zone.updated` albo `zone.deactivated` w `audit_log` w tej samej transakcji, z historią rekordu jak w iteracji 2;
-  - [ ] **strefy w trakcie jazdy:**
+  - [x] **strefy w trakcie jazdy:**
     - telemetria przejazdu przechodzi przez wykrywanie zmian;
     - zdarzenia `ZONE_ENTERED` i `ZONE_EXITED` na osi czasu;
     - komendy `speed_limit` i `stop_gradually` z `expiresAt` i ponowieniem po braku potwierdzenia (ADR 0044);
     - `rental.updated` do klienta;
     - po zmianie stref ponowna ocena hulajnóg w trwających przejazdach;
-  - [ ] **klient:**
+  - [x] **klient:**
     - `GET /zones` z polem `visible_in_app`;
     - prowadzenie do najbliższej strefy parkowania (`GET /zones/nearest-parking?lat&lon` z trasą z OSRM);
     - trasa do hulajnogi według D6;
     - wyszukiwanie celu przez adapter Photon (`GET /places/search?q`, ADR 0045);
-  - [ ] błędy w formacie `{ code, message, details }`: `ZONE_INVALID_GEOMETRY`, `ZONE_OUTSIDE_SERVICE_AREA`, `ZONE_OVERLAP` (według D3), `ZONE_IN_USE`, `SERVICE_AREA_REQUIRED`, `CONFLICT`, `SCOOTER_UNAVAILABLE` z przyczyną `OUT_OF_AREA`.
-- [ ] **Panel:**
-  - [ ] „Strefy” w nawigacji: edytor według `admin-strefy` i nowych makiet. Lista po lewej korzysta z kontraktu list (filtry, sortowanie, wyszukiwanie) według D2. Mapa z rysowaniem, edycją i usuwaniem punktów (ADR 0047). Formularz z wersją rekordu i konfliktem wersji. Dezaktywacja, przywrócenie i usunięcie;
-  - [ ] zmiany stref na żywo: mapa floty i edytor u innego operatora;
-  - [ ] oś czasu przejazdu ze zdarzeniami stref; strefa na karcie hulajnogi (już jest jako strefa parkowania) i na mapie floty.
-- [ ] **Aplikacja:**
-  - [ ] legenda stref (`mapa-strefy`), tylko strefy z `visible_in_app`;
-  - [ ] komunikat strefy na ekranie jazdy i pigułka limitu (`przejazd-strefa`); strefa zakazu i wyjazd poza obszar (nowe makiety);
-  - [ ] „Prowadź do strefy” z `przejazd-poza-strefa`;
-  - [ ] „Trasa” na karcie hulajnogi i rezerwacji według D6;
-  - [ ] pasek „Dokąd jedziesz?” i wyszukiwanie (`mapa-szukaj`) z wynikiem na mapie; zapisane miejsca według D4;
-  - [ ] hulajnoga niedostępna z przyczyną `OUT_OF_AREA`.
-- [ ] **Dokumentacja:**
+  - [x] błędy w formacie `{ code, message, details }`: `ZONE_INVALID_GEOMETRY`, `ZONE_OUTSIDE_SERVICE_AREA`, `ZONE_OVERLAP` (według D3), `ZONE_IN_USE`, `SERVICE_AREA_REQUIRED`, `CONFLICT`, `SCOOTER_UNAVAILABLE` z przyczyną `OUT_OF_AREA`.
+- [x] **Panel:**
+  - [x] „Strefy” w nawigacji: edytor według `admin-strefy` i nowych makiet. Lista po lewej korzysta z kontraktu list (filtry, sortowanie, wyszukiwanie) według D2. Mapa z rysowaniem, edycją i usuwaniem punktów (ADR 0047). Formularz z wersją rekordu i konfliktem wersji. Dezaktywacja, przywrócenie i usunięcie;
+  - [x] zmiany stref na żywo: mapa floty i edytor u innego operatora;
+  - [x] oś czasu przejazdu ze zdarzeniami stref; strefa na karcie hulajnogi (już jest jako strefa parkowania) i na mapie floty.
+- [x] **Aplikacja:**
+  - [x] legenda stref (`mapa-strefy`), tylko strefy z `visible_in_app`;
+  - [x] komunikat strefy na ekranie jazdy i pigułka limitu (`przejazd-strefa`); strefa zakazu i wyjazd poza obszar (nowe makiety);
+  - [x] „Prowadź do strefy” z `przejazd-poza-strefa`;
+  - [x] „Trasa” na karcie hulajnogi i rezerwacji według D6;
+  - [x] pasek „Dokąd jedziesz?” i wyszukiwanie (`mapa-szukaj`) z wynikiem na mapie; zapisane miejsca według D4;
+  - [x] hulajnoga niedostępna z przyczyną `OUT_OF_AREA`.
+- [x] **Dokumentacja:**
   - arc42: §6.3 (strefy w trakcie jazdy według ADR 0043 i 0044, diagram bez zmian albo poprawiony), §5.2 (moduły Strefy i Telemetria: kto wykrywa zmiany), §8 (geometria i walidacja), §11 (ryzyka: GPS na granicy, publiczny Photon);
   - [model danych](../model-danych/README.md);
   - tabela zgodności w [wymaganiach uczelni](../wymagania-uczelni.md);
@@ -291,3 +291,6 @@ Wymaga infrastruktury z OSRM i danych startowych (`pnpm infra:up && pnpm db:migr
 8. „Zakończ” poza strefą parkowania → „Prowadź do strefy” → trasa do najbliższej strefy na mapie. Po dojechaniu zakończenie przechodzi, a podsumowanie i panel pokazują strefę końcową.
 9. Dezaktywacja strefy użytej w przejazdach: strefa znika z aplikacji i z mapy floty. Zakończone przejazdy dalej pokazują ją jako strefę końcową. Usunięcie nowej, nieużytej strefy z kroku 3 przechodzi.
 10. Dyspozytor (rola z `zones.read` bez `zones.write`, według pytania 10) widzi strefy bez edycji, a API zwraca 403 na zapis.
+
+## Wynik
+Zakres zrealizowany 17 listopada 2026; przebieg, odstępstwa i weryfikacja w [dzienniku](../dziennik.md#iteracja-4-strefy-17-listopada-2026). Otwarte: natywna mapa aplikacji (tylko typy i lint, jak w iteracji 3), okno ostrzeżenia o przejazdach w trakcie w panelu sprawdzone na podstawionej odpowiedzi API (logika API ma test), pełny scenariusz demo z symulatorem przez strefę zakazu sprawdzony testami API i symulatora oraz w aplikacji z hulajnogą sterowaną ręcznie przez MQTT, zielone CI.

@@ -640,3 +640,111 @@ Plan: [iteracja 4](iteracje/iteracja-04-strefy.md). Etap planowania, bez kodu i 
   - trasy przez API;
   - przy awarii OSRM linia prosta z `approximate: true`.
 
+## Iteracja 4: strefy (17 listopada 2026)
+
+Plan: [iteracja 4](iteracje/iteracja-04-strefy.md), decyzje w [ADR 0043–0048](adr/README.md). Backend napisałem sam. Symulator, panel i aplikację zrobili równolegle trzej agenci, każdy w swoim katalogu. Ich raporty przejrzałem, a zgłoszone braki API poprawiłem.
+
+**Baza (migracja 0006)**
+- Reguły geometrii pilnuje wyzwalacz `zones_rules`:
+  - strefa leży w jedynym aktywnym obszarze działania;
+  - strefy parkowania nie mają części wspólnej;
+  - typ strefy się nie zmienia;
+  - obszaru działania nie można wyłączyć ani zmniejszyć tak, by odsłonił inne strefy.
+- Wyzwalacz rozpoznaje „inną strefę” także po kodzie. `INSERT … ON CONFLICT (code)` w danych startowych odpala `BEFORE INSERT` z nowym `id` i bez tego warunku zgłaszał nakładanie strefy na samą siebie.
+- Nowe tabele `scooter_zone_presence` i `scooter_zone_control`, komenda `RELEASE_STOP`, indeks jednej oczekującej komendy przejazdu tylko dla `LOCK` i `UNLOCK` (także w `v_rental_details`).
+- Funkcje `fn_zones_near_point`, `fn_nearest_parking`, `fn_zone_change_impact` i `fn_scooter_can_ride`; ta ostatnia wyklucza hulajnogi w strefie zakazu z `fn_nearest_scooters`.
+- Widoki `v_zone_list` i `v_parking_occupancy`, procedura `sp_delete_zone`.
+- Okręgi w danych startowych mają 16 punktów zamiast 64 (ADR 0047). Strefa zakazu Z-01 w Parku im. św. Jana Sarkandra ma współrzędne z `pnpm db:places`: 50.099171, 18.543995, zgodne z `way/209433745`.
+- Stan bazy: 50 tabel, 23 widoki, 15 funkcji, 10 procedur.
+
+**Core i API**
+- **Core:**
+  - `validateZoneInput`: limit 5–15 km/h, co najmniej 3 punkty, samoprzecięcia, najmniej 100 m²;
+  - `detectZoneChanges`: histereza, pierwszy odczyt bez zdarzeń;
+  - `desiredZoneControl` i `zoneControlCommands`: uzgadnianie stanu docelowego hulajnogi;
+  - przyczyna `OUT_OF_AREA`.
+- **Moduł Strefy:**
+  - `ZoneTracker` wołany przez Telemetrię po zapisie partii;
+  - edytor w panelu z wersją rekordu i dziennikiem audytu, z geometrią przed i po zmianie;
+  - `GET /zones` z `ETag` i punktem `anchor`, `zones.changed` przez Socket.IO;
+  - po zapisie ponowna ocena hulajnóg w trwających przejazdach.
+- **Moduł Wypożyczenie:** zdarzenia `ZONE_ENTERED` i `ZONE_EXITED` z czasem odczytu, komendy stref z `rental_id`. Pauza zeruje stan zastosowany, a powrót do `ACTIVE` od razu uzgadnia limit. `RentalView` dostał `zones` i `zoneControl`.
+- **Moduł Geo:**
+  - `RoutePlanner`: OSRM rower i pieszo, przy awarii linia prosta;
+  - `PlaceSearch`: Photon z pamięcią podręczną 24 h i limitem 30 zapytań na minutę;
+  - punkty `GET /zones/nearest-parking`, `GET /scooters/:id/walk`, `GET /places/search` i `GET /places/destination`.
+- `infra/` dostała usługi `osrm-foot-prepare` i `osrm-foot` (port 5002; odstępstwo od ADR 0048, który podaje 5001, ale na macOS 5001 jest zastępczym portem profilu rowerowego) ze skryptem `prepare-foot.sh`. Dane z dowiązania do tego samego wycinka trafiają do `infra/osrm/foot/`.
+- Kontrakty: MQTT 1.2.0, Socket.IO 1.2.0, OpenAPI 0.4.0.
+
+**Poprawki po raportach agentów**
+- **Pętla ponowień:** `ALREADY_IN_STATE` jest sukcesem także dla `STOP_GRADUALLY` i `RELEASE_STOP` (nie tylko dla `LOCK` i `UNLOCK`). Inaczej zgubione potwierdzenie `release_stop` dawałoby ponowienie przy każdym odczycie, bo symulator odpowiada „już w stanie”. Zasadę zapisałem w kontrakcie MQTT.
+- **Najbliższa strefa parkowania:** `fn_nearest_parking` i `nearestParking` z iteracji 3 sortowały po `<->` na geometrii, czyli w stopniach. Ze strefy Z-01 wskazywały P-01 (382 m) zamiast P-03 (265 m). Teraz sortują po odległości na geografii.
+- **Zdublowany kod strefy:** daje `409 ALREADY_EXISTS` z polem `code` zamiast 500.
+- **Okno dezaktywacji:** `ZoneDetails.endedRentals` podaje liczbę przejazdów zakończonych w strefie, którą okno pokazuje jak w makiecie.
+- Plik 0006 i sumę kontrolną w bazie deweloperskiej poprawiłem dwa razy (wyzwalacz, sortowanie). Migracja nie była jeszcze w commicie.
+
+**Symulator (ADR 0046)**
+- Komendy:
+  - `release_stop`;
+  - `stop_gradually` hamuje do 0 w około 3 s;
+  - `lock` kasuje limit i zatrzymanie, także na zablokowanej hulajnodze.
+- Strefy z `GET /zones` z `ETag`, odpytywane co 60 s. Przed pierwszą udaną odpowiedzią strefy są z pliku miejsc; po niej, gdy API przestanie odpowiadać, zostają ostatnie strefy z API.
+- Wirtualny klient prowadzi hulajnogę pieszo wstecz po trasie (stany `walking`, `waiting` i `stuck`) i czeka na `release_stop`.
+- Polecenie `control goto`. Przejazdy pokazowe dalej losują cel z pliku miejsc.
+
+**Panel**
+- Ekran „Strefy” (`/admin/strefy`):
+  - lista na kontrakcie list;
+  - mapa z edytorem Terra Draw 1.39.0 i adapterem 1.5.0 (sprawdzone daty publikacji): rysowanie, edycja i usuwanie punktów, przyciąganie, Cofnij i Ctrl+Z;
+  - karta z błędami geometrii przy polu „Granica” i paskiem konfliktu wersji;
+  - okna dezaktywacji, usunięcia i ostrzeżenia o przejazdach w trakcie;
+  - odświeżanie po `zones.changed`, widok tylko do odczytu bez `zones.write`.
+- Oś czasu przejazdu i dziennik komend mają etykiety stref i komend stref.
+- Odstępstwa od makiet:
+  - typ zablokowany w edycji (ADR 0047);
+  - stronicowanie 10/25/50/100 z kontraktu;
+  - uchwyty punktów są kółkami;
+  - przy rysowaniu brak dymka „Zamknij tutaj” i etykiety przy kursorze;
+  - błąd „poza obszarem” to czerwone obwódki punktów zamiast kreskowania;
+  - brak kolumny „Skutek” w ostrzeżeniu o zmianie granicy (API jej nie daje);
+  - podpowiedź „Wybierz strefę” bez zaznaczenia.
+- **Dług:** kolory parkowania i wolnej jazdy w `map-layers.ts` mapy floty są odwrotne niż w makietach stref i w edytorze. Do ujednolicenia.
+- **Build:** raz zakończył się komunikatem Next.js o znanej podatności z zaleceniem aktualizacji; drugi przebieg przeszedł. Aktualizacja Next.js czeka na decyzję autora.
+
+**Aplikacja**
+- Mapa:
+  - pasek „Dokąd jedziesz?”, chip „Strefy” z legendą;
+  - wyszukiwanie z ostatnimi miejscami na urządzeniu;
+  - wynik na mapie z `/places/destination`;
+  - trasa piesza po rezerwacji i po „Trasa”, z nowym pobraniem po zejściu z trasy.
+- Ekran jazdy:
+  - komunikaty wolnej jazdy, zakazu, „poza obszarem” i „Silnik znów działa”;
+  - „Tu nie zakończysz jazdy” z podtytułem zależnym od przyczyny;
+  - prowadzenie do strefy, które kończy się samo po wjeździe.
+- Przyczyna `OUT_OF_AREA`.
+- Odstępstwa:
+  - lista wyników bez czasu dojazdu (ADR 0045 daje na liście tylko odległość);
+  - pinezka celu z kół;
+  - pod paskiem wyszukiwania chip „Strefy” i przycisk położenia;
+  - przy rezerwacji zostaje pasek wyszukiwania;
+  - dodatkowe teksty „Silnik znów działa” i „Koniec strefy wolnej jazdy”;
+  - kolejność komunikatów na ekranie jazdy opisana w raporcie.
+
+**Weryfikacja**
+- Testy: core 105, shared 18, db 55, api 75 (w tym `zones.e2e.test.ts`: edytor, przejazd przez S-01, Z-01 i P-02 z komendami, pauzą, ponowieniem, punktami z bufora i zmianą limitu w trakcie), simulator 41.
+- `pnpm turbo run lint typecheck test build` przechodzi dla wszystkich pakietów oprócz aplikacji mobilnej; ta przechodzi `lint` i `typecheck`.
+- **Panel (1440×900):** lista, edycja z cofaniem, nowa strefa, błędy nakładania i wyjścia poza obszar, konflikt wersji w dwóch kartach, dezaktywacja i przywrócenie, usunięcie, widok Dyspozytora. Ostrzeżenie o przejazdach w trakcie i oś czasu sprawdzone na odpowiedziach podstawionych w przeglądarce.
+- **Aplikacja (web, 375×812):** wszystkie plansze `22-mobile-strefy` na API 3001. Jazdę dawała tymczasowa hulajnoga #0041 sterowana skryptem MQTT, usunięta po teście. Photon na żywo (zapytanie „Rynek”), OSRM pieszy na żywo.
+
+**Niesprawdzone**
+- Natywna mapa.
+- Pełny scenariusz demo z symulatorem przez strefę zakazu (symulator sprawdzony testami, aplikacja hulajnogą sterowaną ręcznie).
+- Ostrzeżenie o przejazdach w trakcie w panelu na prawdziwym przejeździe.
+- `429 RATE_LIMITED` w aplikacji, tryb ciemny nowych ekranów.
+
+**Dane testowe w bazie deweloperskiej**
+- Operator `strefy-test@example.test` (Administrator). Hasło i TOTP są tylko w scratchpadzie sesji.
+- Wpisy audytu dla testowej strefy T-99 oraz dezaktywacji i przywrócenia P-05 (wersja 3).
+- Klientka z danych startowych Karolina Mazur z uzupełnionym profilem i jedną anulowaną rezerwacją #0006.
+- Port 3001 zajmuje API w trybie watch z wcześniejszej sesji. Pracuje na nowym kodzie i z działającym symulatorem.
+
