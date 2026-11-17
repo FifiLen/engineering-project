@@ -847,3 +847,146 @@ Plan: [iteracja 5](iteracje/iteracja-05-platnosci.md). Etap planowania, bez kodu
   - zwrot salda na kartę jako nowy typ księgi `PAYOUT`;
   - uprawnienia: zwrot `rentals.manage`, korekta i zwrot salda `wallet.adjust`.
 
+
+## Iteracja 5: płatności (17 listopada 2026)
+
+Plan: [iteracja 5](iteracje/iteracja-05-platnosci.md), decyzje w [ADR 0049–0054](adr/README.md). Backend napisałem sam. Panel i aplikację zrobili równolegle dwaj agenci, każdy w swoim katalogu, a trzeci zrobił niezależny przegląd backendu. Raporty przejrzałem, znaleziska przeglądu poprawiłem, a przepływy aplikacji i panelu sprawdziłem w przeglądarce na osobnej bazie podglądu.
+
+**Baza (migracja 0007)**
+- Nowe tabele `payment_customers` i `refunds`. Typ wpisu `PAYOUT`, powód korekty `ledger_reason`, rodzaj paragonu `receipt_kind`.
+- Księga:
+  - każdy ruch środków przez `sp_wallet_post` z blokadą portfela;
+  - wyzwalacz `wallet_ledger_rules` odrzuca zmianę i usunięcie wpisu oraz wpis z saldem po operacji innym niż poprzednie plus kwota;
+  - jedno uznanie za doładowanie i jeden wpis na zwrot salda (z odwróceniem).
+- Zwroty: `sp_record_refund` z blokadą przejazdu albo płatności pilnuje, żeby suma zwrotów nie przekroczyła zapłaty (`REFUND_EXCEEDS_PAYMENT` z kwotą, która została).
+- Paragony: `sp_issue_receipt` z pozycjami w `jsonb`, nabywcą z chwili wystawienia i korektą, która nie schodzi poniżej zera. Jeden paragon sprzedaży na przejazd. `fn_vat_from_gross` liczy VAT tą samą regułą co core.
+- Cennik: `vat_rate`, zakresy w `CHECK`. Wyzwalacz `tariffs_rules` odrzuca edycję wersji i każdą nową wersję, dopóki jest zaplanowana. `sp_delete_scheduled_tariff` usuwa tylko zaplanowaną i nieużytą.
+- Rozliczenie: `fn_rental_settlement` i `fn_rental_paid_amount`, karta przejazdu w `rentals.payment_method_id`, jedna płatność za przejazd w toku (`payments_one_pending_per_rental`).
+- Widoki:
+  - nowe: `v_payment_list`, `v_wallet_ledger`, `v_receipt_list`, `v_tariff_versions`, `v_payment_methods`, `v_payment_webhook_events`, `v_refund_list` i `v_unpaid_rentals`;
+  - zmienione, z rozliczeniem albo z `UNPAID`: `v_rental_details`, `v_user_activity`, `v_daily_revenue`, `v_fleet_status` i `v_zone_usage`.
+- Dane startowe: przykładowi klienci dostają doładowanie atrapą, a przykładowe przejazdy są rozliczone z portfela z paragonem. Przejazdy już istniejące w bazie deweloperskiej zostają nierozliczone (pytanie 12).
+- Stan bazy: 52 tabele, 31 widoków, 18 funkcji, 14 procedur.
+- Plik 0007 i sumę kontrolną w bazie deweloperskiej poprawiłem trzy razy przed commitem (karta w rozliczeniu, karta na paragonie z portfela, widoki z `UNPAID`).
+
+**Core i API**
+- **Core (`packages/core/src/payments`):**
+  - reguła startu i rezerwacji `ensureCanPay`: zaległość, ujemne saldo, minimalne saldo przy portfelu, ważna karta przy karcie;
+  - rozliczenie i spłata;
+  - statusy płatności tylko do przodu;
+  - doładowanie 10–500 zł w pełnych złotych;
+  - stan karty („Wygasa” według miesiąca w Polsce);
+  - VAT „w stu” na liczbach całkowitych z zaokrągleniem połowy w górę;
+  - pozycje paragonu i korekty;
+  - zwroty, korekty i plan zwrotu salda;
+  - walidacja wersji cennika z listą pól i różnica do dziennika audytu.
+
+  Maszyna stanów: `DECLINE_PAYMENT` to `ENDED → UNPAID` (ADR 0049).
+- **Moduł Płatności:**
+  - port `PaymentProvider`: atrapa w procesie (karty testowe Stripe, BLIK `000000` i `999999`, podpis w schemacie `Stripe-Signature`) i Stripe 23.1.0 z API `2026-10-28.endive`;
+  - ta wersja API zmieniła nazwę `payment_method_types` na `allowed_payment_method_types` (CHANGELOG biblioteki);
+  - webhook z `rawBody`: zapis zdarzenia, odpowiedź od razu, przetwarzanie w zadaniu `payments.webhook`;
+  - zadania `payment.charge-ride` (obciążenie po `ENDED`), `payment.retry-ride` (jedno ponowienie po 24 h) i `payments.reconcile` (co minutę dla płatności i zwrotów starszych niż 2 min);
+  - zdarzenie `wallet.updated`;
+  - konfiguracja odrzuca klucze `live`, niepełną konfigurację Stripe i atrapę w produkcji.
+- **Moduł Wypożyczenie:**
+  - reguła płatności przy rezerwacji i starcie pod blokadą portfela; start z rezerwacji zachowuje jej źródło;
+  - rozliczenie w transakcji `ENDED`;
+  - przejścia `DECLINE_PAYMENT` i `SETTLE_DEBT` z wyniku płatności przez zarejestrowaną obsługę, więc moduł Płatności nie zna maszyny stanów;
+  - `RentalView.settlement`;
+  - usunięcie konta zablokowane przy zaległości i przy pieniądzach w toku.
+- **Panel w API:**
+  - listy płatności, księgi, portfeli, paragonów, kart, webhooków i zwrotów;
+  - szczegóły płatności i paragonu, portfel klienta;
+  - korekta i zwrot salda (`wallet.adjust`), zwrot za przejazd (`rentals.manage`);
+  - wersje cennika (`tariffs.read`, `tariffs.write`).
+
+  Każda operacja ma wpis w dzienniku audytu w tej samej transakcji.
+- Kontrakty: OpenAPI, Socket.IO 1.3.0 (`wallet.updated`, rozliczenie w `rental.updated`).
+
+**Poprawki po przeglądzie backendu**
+- **Podwójna zapłata przy równoległej spłacie kartą i z portfela.** Płatność kartą powstaje teraz w tej samej transakcji z blokadą przejazdu, a odmowa nie cofa do `UNPAID` przejazdu opłaconego z portfela.
+- **Sukces po odmowie albo porzuceniu.** W Stripe PaymentIntent po odmowie da się potwierdzić ponownie. Odmowę i porzucenie zapisujemy więc dopiero po anulowaniu PaymentIntent u operatora (`cancelPayment`); jeśli zdążył przejść, zapisujemy sukces. Atrapa nie pozwala potwierdzić anulowanej płatności.
+- **Trwałe błędy operatora.** Odrzucone żądanie Stripe (np. zwrot po terminie) to `PAYMENT_FAILED`, a nie niedostępność. Zwrot salda dostaje wtedy wpis odwracający. Sprawdzanie statusu bierze rekordy od najdawniej sprawdzanych, więc zawieszony rekord nie blokuje kolejki.
+- **Nieudane przetworzenie webhooka** zostaje do ponowienia (pg-boss albo kolejne dostarczenie od operatora), zamiast zapisu jako przetworzone.
+- **Usunięcie konta** jest zablokowane przy płatnościach i zwrotach w toku.
+- **Drobniejsze:**
+  - kolejność blokad przy usuwaniu karty;
+  - przejazd opłacony z portfela nie pokazuje odrzuconej karty;
+  - `UNPAID` liczy się w statystykach floty i stref;
+  - zapytania na kliencie transakcji idą po kolei.
+- **Niestabilny test cennika:** wersja „od teraz” brała czas z zegara API, a widok liczy stan zegarem bazy. Teraz walidacja i zapis korzystają z czasu bazy.
+
+**Panel**
+- „Płatności” w grupie Operacje z zakładkami Płatności, Księga, Portfele, Paragony, Metody płatności, Webhooki i Zwroty: wzorzec listy, tylko do odczytu, panel boczny płatności ze zdarzeniami operatora, strona paragonu.
+- „Cennik i zasady” w grupie Konfiguracja: lista wersji z podglądem, nowa wersja z porównaniem i walidacją przy polu, usunięcie zaplanowanej.
+- Karta klienta z zakładką Portfel (saldo, zgodność z księgą, zaległości, karty, księga, korekta i zwrot salda tylko z `wallet.adjust`). Szczegóły przejazdu z kartą „Rozliczenie” i oknem zwrotu. Lista przejazdów z filtrem „Nieopłacone”.
+- Odstępstwa od makiet:
+  - pole „Stawka VAT” w nowej wersji;
+  - zakładki „Przejazdy” i „Płatności” karty klienta to odnośniki do list z filtrem;
+  - bez eksportu XLSX (iteracja 8);
+  - nagłówek „Kwota” wyrównany do lewej;
+  - „Historia zmian” cennika to dziennik audytu z filtrem;
+  - zdarzenia operatora z płatności, webhooków i zwrotów, bez wiersza „Przetworzono”;
+  - nowe okno „Zwrot salda na kartę”;
+  - imię klienta w tytułach okien bez odmiany.
+- **Build:** jak w iteracji 4, co drugi `next build` kończy się komunikatem o znanej podatności Next.js 16.4.4, a kolejny przechodzi. Aktualizacja czeka na decyzję autora.
+
+**Aplikacja**
+- Moduł `src/lib/payments` (ADR 0051):
+  - Stripe.js w wersji web (`@stripe/stripe-js/pure`, więc przy atrapie przeglądarka nie łączy się ze Stripe);
+  - `CardField` natywnie;
+  - formularz atrapy z oknem 3-D Secure.
+- Pakiety z datami publikacji: `@stripe/stripe-react-native` 0.81.0 (6 października 2026, `expo install`), `@stripe/stripe-js` 10.3.0 (12 listopada), `@stripe/react-stripe-js` 7.1.0 (13 listopada).
+- Wtyczka w `app.json` z `disableSPM: true`; bez tego SDK 0.81 na iOS wymaga `expo-build-properties`. Do potwierdzenia przy development build.
+- Ekrany:
+  - portfel z historią, doładowanie kwotą własną, kartą albo BLIK-iem;
+  - oczekiwanie, sukces i odmowa;
+  - dodanie karty, metody płatności w profilu, cennik;
+  - „Za mało środków” i „Płatność kartą” przy starcie i rezerwacji;
+  - zaległość na mapie (także ujemne saldo) i spłata;
+  - podsumowanie po rozliczeniu, paragon;
+  - oznaczenie „Nieopłacony” w historii.
+
+  Do tego `wallet.updated` przez Socket.IO.
+- Poprawki po sprawdzeniu w przeglądarce: tekst „Płatność kartą Karta •••• 4242” na mapie i ucięta pigułka „Inna kwota” w portfelu.
+- Odstępstwa od makiet:
+  - przy Stripe podgląd karty pokazuje kropki;
+  - ekran oczekiwania ma „Wróć do portfela” zamiast „Anuluj” i licznik BLIK 60 s;
+  - odnośnik „Cennik” w portfelu i w profilu;
+  - wpis przejazdu w historii portfela bez dystansu;
+  - „Wróć do mapy” na ekranie nieudanej płatności;
+  - podsumowanie bez wiersza „Razem”;
+  - BLIK ukryty w development build przy Stripe (SDK 0.81 go nie obsługuje).
+- Braki API zgłoszone przez agentów (do rozważenia później):
+  - `RentalSettlementView.card` bez identyfikatora karty;
+  - `ReceiptView` bez hulajnogi i godzin, więc paragon dociąga przejazd;
+  - saldo po przejeździe nie jest w `RentalView`;
+  - brak anulowania płatności w toku przez klienta.
+
+**Weryfikacja**
+- Testy: core 120, shared 18, db 60, api 96 (w tym `payments.e2e.test.ts`, 21 testów). Scenariusze testu płatności:
+  - karta i 3-D Secure, doładowanie i powtórzony webhook, BLIK z odmową i ponownym potwierdzeniem;
+  - brak webhooka i sprawdzenie statusu;
+  - przejazd z portfela z paragonem i VAT;
+  - odmowa karty, `UNPAID`, blokada startu, równoległa spłata i spłata kartą;
+  - przejazd kartą;
+  - zwroty z portfela i na kartę z korektą;
+  - korekta salda i uprawnienia ról;
+  - zwrot salda i blokada usunięcia konta;
+  - wersje cennika;
+  - konfiguracja kluczy.
+- `pnpm turbo run lint typecheck test build`: 25 z 25 zadań.
+- **Przeglądarka, osobna baza podglądu** (API 3006 z własną kolejką pg-boss, bo atrapa trzyma stan w pamięci procesu; baza usunięta po teście):
+  - **Aplikacja (375×812):** rejestracja, pusty portfel, dodanie karty 4242 po webhooku, doładowanie 50 zł, odmowa BLIK, zaległość na mapie, spłata kartą, paragon z VAT 2,36 zł od 12,60 zł, podsumowanie po spłacie.
+  - **Panel (1440×900):** lista płatności z licznikami, panel boczny ze zdarzeniami operatora, szczegóły przejazdu z rozliczeniem i osią czasu `ENDED → UNPAID → ENDED`, zwrot części 5 zł na kartę zakończony po webhooku.
+
+**Niesprawdzone**
+- Stripe w trybie testowym (brak kluczy w `.env`; ścieżka Stripe ma tylko typy i atrapę w tym samym formacie zdarzeń).
+- Natywne płatności (development build).
+- Przejazd w przeglądarce z symulatorem (podgląd był bez MQTT; przejazd z rozliczeniem sprawdzają testy API).
+- Panel w rolach Dyspozytor i Serwisant (sprawdzone testami API), tryb ciemny nowych ekranów.
+
+**Dane testowe**
+- W bazie deweloperskiej nie dodałem danych płatności. Agent panelu nie zapisywał nic w panelu.
+- Serwer `next dev` na 3002 z innej sesji wpadał w pętlę przeładowań, gdy agent panelu budował panel w tym samym katalogu. Nie ruszałem go.

@@ -4,7 +4,7 @@ Najważniejsze scenariusze. Pełne wersje graficzne znajdują się na kanwie pro
 
 ## 6.1. Maszyna stanów przejazdu
 
-Przejścia decyduje maszyna stanów w `packages/core`; każde przejście to jedna transakcja z blokadą wiersza hulajnogi i przejazdu ([ADR 0036](../adr/0036-proces-wypozyczenia-w-api.md)). Pauza i wznowienie nie mają stanu przejściowego: stan zmienia się dopiero po potwierdzeniu komendy, a na czas oczekiwania przejazd ma komendę w toku (najwyżej jedną, indeks `scooter_commands_one_pending_per_rental`). Stan `UNPAID` i obciążenie portfela wchodzą w iteracji 5.
+Przejścia decyduje maszyna stanów w `packages/core`; każde przejście to jedna transakcja z blokadą wiersza hulajnogi i przejazdu ([ADR 0036](../adr/0036-proces-wypozyczenia-w-api.md)). Pauza i wznowienie nie mają stanu przejściowego: stan zmienia się dopiero po potwierdzeniu komendy, a na czas oczekiwania przejazd ma komendę w toku (najwyżej jedną, indeks `scooter_commands_one_pending_per_rental`). Od iteracji 5 odmowa obciążenia karty po zakończeniu przenosi przejazd z `ENDED` do `UNPAID`, a spłata wraca do `ENDED` ([ADR 0049](../adr/0049-rozliczenie-przejazdu.md) zmienia przejście z [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md)). `UNPAID` nie jest stanem otwartym: hulajnoga jest wolna od chwili `ENDED`.
 
 ```mermaid
 stateDiagram-v2
@@ -24,8 +24,8 @@ stateDiagram-v2
     ACTIVE --> ENDED: zdalne zakończenie (operator)
     PAUSED --> ENDED: zdalne zakończenie (operator)
     ENDING --> ENDED: zdalne zakończenie (operator)
-    ENDING --> UNPAID: odmowa płatności (iteracja 5)
-    UNPAID --> ENDED: spłata zaległości (iteracja 5)
+    ENDED --> UNPAID: odmowa obciążenia karty (ADR 0049)
+    UNPAID --> ENDED: spłata kartą albo z portfela, ponowienie po 24 h
     ENDED --> [*]
     EXPIRED --> [*]
     UNLOCK_FAILED --> [*]
@@ -98,7 +98,11 @@ sequenceDiagram
 
 ## 6.4. Zakończenie i rozliczenie
 
-Od iteracji 3 zakończenie liczy kwotę z wersji cennika przejazdu (każda rozpoczęta minuta jazdy i pauzy, koniec naliczania przy żądaniu zakończenia, [ADR 0042](../adr/0042-wycena-przejazdu.md)), ale nie obciąża portfela: obciążenie, paragon i stan `UNPAID` dochodzą w iteracji 5. Zdjęcie parkowania przeszło do iteracji 6 (decyzja D2), więc w diagramie go nie ma.
+Zakończenie liczy kwotę z wersji cennika przejazdu (każda rozpoczęta minuta jazdy i pauzy, koniec naliczania przy żądaniu zakończenia, [ADR 0042](../adr/0042-wycena-przejazdu.md)). Od iteracji 5 ta sama transakcja `ENDED` rozlicza przejazd ([ADR 0049](../adr/0049-rozliczenie-przejazdu.md), decyzja D4):
+- **portfel:** wpis `RIDE_CHARGE` przez `sp_wallet_post` z blokadą portfela i paragon z pozycjami z wyceny ([ADR 0052](../adr/0052-paragony.md)); saldo może spaść poniżej zera, a ujemne saldo blokuje kolejny start;
+- **karta:** płatność `RIDE` w stanie `PENDING` i zadanie pg-boss `payment.charge-ride` po zatwierdzeniu; klient od razu widzi podsumowanie z „płatność w toku”.
+
+Zdjęcie parkowania przeszło do iteracji 6 (decyzja D2), więc w diagramie go nie ma.
 
 ```mermaid
 sequenceDiagram
@@ -107,6 +111,7 @@ sequenceDiagram
     participant API as Backend API
     participant DB as PostGIS
     participant MQ as Broker MQTT
+    participant S as Operator płatności
     A->>API: POST /rentals/current/end
     API->>DB: blokada hulajnogi i przejazdu, strefy w pozycji hulajnogi
     alt poza strefą
@@ -117,8 +122,21 @@ sequenceDiagram
         API->>MQ: cmd lock (expiresAt)
         alt ack lock
             MQ-->>API: ack
-            API->>DB: ENDED: liczniki z osi czasu, kwota, dystans i trasa z telemetrii
-            API-->>A: rental.updated ENDED (podsumowanie)
+            alt portfel
+                API->>DB: ENDED, liczniki i kwota, RIDE_CHARGE (sp_wallet_post), paragon, COMMIT
+                API-->>A: rental.updated (WALLET_PAID), wallet.updated
+            else karta
+                API->>DB: ENDED, liczniki i kwota, payment RIDE PENDING, zadanie payment.charge-ride, COMMIT
+                API-->>A: rental.updated (CARD_PENDING)
+                API->>S: obciążenie bez udziału klienta (off_session, klucz idempotencji)
+                alt sukces
+                    S->>API: webhook payment_intent.succeeded
+                    API->>DB: payment SUCCEEDED, paragon
+                else odmowa (402)
+                    API->>DB: payment FAILED, ENDED → UNPAID, zadanie ponowienia po 24 h
+                    API-->>A: rental.updated (UNPAID), wallet.updated (zaległość)
+                end
+            end
         else brak ack w 10 s
             API->>DB: LOCK_FAILED, powrót do ACTIVE albo PAUSED
             API-->>A: rental.updated z komunikatem, naliczanie trwa
@@ -126,9 +144,13 @@ sequenceDiagram
     end
 ```
 
-Zdalne zakończenie przez operatora z uprawnieniem `rentals.manage` (decyzja D7) nie sprawdza strefy i nie czeka na blokadę: przejazd od razu przechodzi do `ENDED`, naliczanie kończy się w tej chwili (albo przy wcześniejszym żądaniu klienta), komenda `lock` idzie do hulajnogi, a powód trafia na oś czasu i do dziennika audytu w tej samej transakcji.
+Zdalne zakończenie przez operatora z uprawnieniem `rentals.manage` (decyzja D7) nie sprawdza strefy i nie czeka na blokadę: przejazd od razu przechodzi do `ENDED` z tym samym rozliczeniem, naliczanie kończy się w tej chwili (albo przy wcześniejszym żądaniu klienta), komenda `lock` idzie do hulajnogi, a powód trafia na oś czasu i do dziennika audytu w tej samej transakcji.
+
+Zaległość (`UNPAID`) blokuje rezerwację i start (`PAYMENT_OVERDUE`). Spłata (`POST /rentals/{id}/pay`) z portfela to `RIDE_CHARGE` i `SETTLE_DEBT` w jednej transakcji, a kartą nowa płatność z udziałem klienta (może wymagać 3-D Secure) i `SETTLE_DEBT` po webhooku. Jedna płatność za przejazd w toku pilnuje indeks `payments_one_pending_per_rental`, więc spłata i ponowienie nie obciążą karty dwa razy.
 
 ## 6.5. Doładowanie portfela
+
+Według makiety `15-techniczne/tech-doladowanie` ([ADR 0050](../adr/0050-integracja-stripe.md), [ADR 0051](../adr/0051-platnosci-w-aplikacji.md)). Dane karty idą z aplikacji prosto do operatora; atrapa operatora (D1) przechodzi tę samą ścieżkę z podpisem HMAC.
 
 ```mermaid
 sequenceDiagram
@@ -136,15 +158,22 @@ sequenceDiagram
     participant A as Aplikacja
     participant API as Backend API
     participant DB as PostgreSQL
-    participant S as Stripe
-    A->>API: POST /wallet/topups (kwota, metoda)
-    API->>DB: payment PENDING
-    API->>S: utworzenie płatności (idempotencyKey)
-    API-->>A: 202 PENDING
-    S->>API: webhook payment.succeeded (podpisany)
-    API->>DB: payment SUCCEEDED, wpis w księdze
+    participant S as Operator płatności
+    A->>API: POST /me/wallet/topups (kwota, karta albo BLIK)
+    API->>DB: payment TOPUP PENDING (idempotency_key = id)
+    API->>S: PaymentIntent (klucz idempotencji, metadata.paymentId)
+    API-->>A: 202 paymentId, clientSecret
+    A->>S: potwierdzenie (karta z 3-D Secure albo kod BLIK)
+    S->>API: webhook payment_intent.succeeded (Stripe-Signature, surowa treść)
+    API->>DB: zapis zdarzenia (provider_event_id unikalny), zadanie payments.webhook, COMMIT
+    API-->>S: 200
+    API->>S: pobranie PaymentIntent (stan od operatora)
+    API->>DB: payment SUCCEEDED, TOPUP w księdze (sp_wallet_post)
     API-->>A: wallet.updated
+    Note over API,S: bez webhooka: payments.reconcile co minutę pobiera status płatności PENDING starszych niż 2 min
 ```
+
+Powtórzony webhook zwiększa tylko licznik dostarczeń, a zmiany statusu płatności są monotoniczne (`PENDING → SUCCEEDED|FAILED`, `SUCCEEDED → REFUNDED`), więc kolejność zdarzeń nie ma znaczenia. Płatność z udziałem klienta bez wyniku po 30 min (porzucony BLIK, niedokończone 3-D Secure) dostaje status `FAILED` z kodem `expired`.
 
 ## 6.6. Utrata łączności z hulajnogą
 

@@ -1,6 +1,6 @@
 # Iteracja 5: płatności
 
-**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; ADR 0049–0054 przyjęte 17 listopada 2026; konto Stripe (autor) opcjonalne dzięki atrapie
+**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; ADR 0049–0054 przyjęte 17 listopada 2026; zrealizowana 17 listopada 2026 na atrapie operatora (Stripe po wpisaniu kluczy przez autora), czeka na commit i CI
 
 ## Cel
 Klient dodaje kartę, doładowuje portfel kartą albo BLIK-iem i płaci za przejazd z portfela albo kartą. Pieniądze trafiają do portfela dopiero po zweryfikowanym webhooku operatora płatności ([ADR 0018](../adr/0018-platnosci-stripe.md)), a każdy ruch środków to wpis w księdze ([ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md)). Zakończony przejazd jest obciążany kwotą wyliczoną w iteracji 3 ([ADR 0042](../adr/0042-wycena-przejazdu.md)), a klient dostaje paragon. Nieudana płatność kartą zostawia przejazd w stanie `UNPAID`, co blokuje kolejną jazdę do spłaty. Operator w panelu tworzy nowe wersje cennika ([ADR 0015](../adr/0015-wersjonowany-cennik.md)), przegląda płatności, księgę i paragony, koryguje saldo i zwraca pieniądze za przejazd.
@@ -75,7 +75,7 @@ Stany, które nie wymagają nowych plansz:
 - **Webhooki w panelu:** tabela techniczna na wzorcu listy.
 
 ## Zakres
-- [ ] **Migracja 0007** (`0007_payments.sql`, testy w `packages/db/src/db.test.ts`):
+- [x] **Migracja 0007** (`0007_payments.sql`, testy w `packages/db/src/db.test.ts`):
   - **rozliczenie przejazdu:**
     - `rentals.payment_id` albo powiązanie przez `payments.rental_id`;
     - stan rozliczenia przejazdu (z portfela, kartą w toku, opłacony, nieudany) w widoku;
@@ -104,7 +104,7 @@ Stany, które nie wymagają nowych plansz:
     - sprzeczność w macierzy: `payment_methods` z usunięciem w panelu a D5 (tylko do odczytu) — zostaje D5, macierz do poprawy;
   - **dane startowe:** portfele przykładowych klientów z doładowaniem i przejazdami rozliczonymi z portfela, według pytania 12;
   - po migracji `pnpm db:pull` i aktualizacja liczb w teście bazy oraz w [modelu danych](../model-danych/README.md).
-- [ ] **`packages/core`** (`payments`, porty repozytoriów):
+- [x] **`packages/core`** (`payments`, porty repozytoriów):
   - reguła startu: minimalne saldo z wersji cennika (`INSUFFICIENT_BALANCE` ze szczegółami: saldo, minimum) albo płatność kartą, gdy klient ma kartę i wybrał ją (pytanie 5); zaległość `UNPAID` blokuje start i rezerwację (`PAYMENT_OVERDUE`);
   - rozliczenie przy zakończeniu: obciążenie portfela kwotą z wyceny, saldo niewystarczające według pytania 4, płatność kartą według pytania 6; przejazd zerowy (zdalne zakończenie przed pierwszą minutą) bez obciążenia według ADR 0049;
   - doładowanie: kwoty dozwolone (pytanie 3), przejścia statusu płatności (`PENDING → SUCCEEDED|FAILED`, `SUCCEEDED → REFUNDED`), idempotencja po `provider_event_id` i `idempotency_key`;
@@ -112,51 +112,51 @@ Stany, które nie wymagają nowych plansz:
   - paragon: pozycje z wyceny (odblokowanie, minuty jazdy, minuty pauzy), stawka VAT i kwota netto według pytania 8, zaokrąglenia w groszach;
   - cennik: walidacja nowej wersji (kwoty nieujemne, data obowiązywania nie w przeszłości, minimalne saldo, próg baterii 0–100);
   - usunięcie konta: saldo dodatnie według pytania 9.
-- [ ] **`packages/db`:**
+- [x] **`packages/db`:**
   - repozytorium płatności: portfel, księga, płatności, metody płatności, webhooki, paragony;
   - repozytorium cennika: wersje, nowa wersja, obowiązująca na chwilę;
   - `ListSource` dla `tariffs`, `payments`, `wallet_ledger`, `receipts`, `payment_methods`, `payment_webhook_events`.
-- [ ] **`packages/shared`:**
+- [x] **`packages/shared`:**
   - definicje zasobów panelu dla tabel z wymagania 12;
   - schematy doładowania, metody płatności, zwrotu, korekty i nowej wersji cennika;
   - widok portfela i paragonu dla aplikacji;
   - `RentalView.settlement` z prawdziwym stanem i metodą;
   - zdarzenia Socket.IO portfela (`wallet.updated` w pokoju `user:{id}`).
-- [ ] **Kontrakty:**
-  - [ ] [OpenAPI](../kontrakty/openapi.json): `pnpm api:openapi`;
-  - [ ] [AsyncAPI Socket.IO](../kontrakty/asyncapi-realtime.yaml): `wallet.updated`, stan rozliczenia w `rental.updated`.
-- [ ] **API:**
-  - [ ] **operator płatności (ADR 0050):**
+- [x] **Kontrakty:**
+  - [x] [OpenAPI](../kontrakty/openapi.json): `pnpm api:openapi`;
+  - [x] [AsyncAPI Socket.IO](../kontrakty/asyncapi-realtime.yaml) 1.3.0: `wallet.updated`, stan rozliczenia w `rental.updated`.
+- [x] **API:**
+  - [x] **operator płatności (ADR 0050):**
     - port `PaymentProvider` z implementacją Stripe i atrapą (D1);
     - zapisanie karty (SetupIntent), doładowanie (PaymentIntent kartą albo BLIK-iem), obciążenie zapisanej karty bez klienta przy aplikacji (off-session), zwrot;
     - webhook `POST /payments/webhooks/stripe` z weryfikacją podpisu na surowej treści żądania i zapisem w `payment_webhook_events` przed przetworzeniem;
     - zadanie pg-boss sprawdzające status płatności bez webhooka po 2 min (`tech-doladowanie`);
-  - [ ] **klient (`@CustomerAuth`):**
+  - [x] **klient (`@CustomerAuth`):**
     - portfel (saldo, historia), doładowanie, metody płatności (lista, dodanie, domyślna, usunięcie);
     - cennik (`GET /tariff`);
     - paragony (lista, szczegóły);
     - spłata zaległości (`POST /rentals/{id}/pay`);
     - źródło płatności przy starcie (`paymentSource` w `POST /rentals`);
-  - [ ] **przejazd:**
+  - [x] **przejazd:**
     - rozliczenie w transakcji `ENDED` (portfel) albo zadanie obciążenia karty po `ENDED` (ADR 0049);
     - paragon po udanej płatności;
     - `wallet.updated` i `rental.updated` do klienta;
-  - [ ] **panel:**
+  - [x] **panel:**
     - cennik: lista wersji, szczegóły, nowa wersja z `tariffs.write` i wpisem w dzienniku audytu;
     - listy płatności, księgi, paragonów, metod płatności i webhooków (`payments.read`);
     - korekta salda (`wallet.adjust`, `POST /admin/users/{id}/wallet/adjustments`);
     - zwrot (`rentals.manage`, `POST /admin/rentals/{id}/refund`);
     - każda operacja z wpisem w `audit_log` w tej samej transakcji;
-  - [ ] **błędy** w formacie `{ code, message, details }`: `INSUFFICIENT_BALANCE`, `PAYMENT_OVERDUE`, `PAYMENT_METHOD_REQUIRED`, `PAYMENT_FAILED` (z powodem od operatora), `PAYMENT_PROVIDER_UNAVAILABLE`, `TOPUP_AMOUNT_INVALID`, `REFUND_EXCEEDS_PAYMENT`, `TARIFF_INVALID`, `WEBHOOK_SIGNATURE_INVALID`.
-- [ ] **Panel:**
-  - [ ] „Cennik i zasady”: lista wersji i nowa wersja według nowych makiet, podgląd jak w aplikacji, „Historia zmian” z dziennika;
-  - [ ] „Płatności”: płatności, księga, paragony, webhooki na wzorcu listy, szczegóły płatności i paragonu;
-  - [ ] karta klienta: saldo, księga klienta, korekta salda; szczegóły przejazdu: rozliczenie, paragon, zwrot; lista przejazdów: filtr „Nieopłacone” (`UNPAID`).
-- [ ] **Aplikacja** (ADR 0051):
-  - [ ] portfel (`flow-portfel`, pusty portfel), doładowanie kartą i BLIK-iem z oczekiwaniem i wynikiem, dodanie karty, metody płatności w profilu (odkrycie ukrytej pozycji z iteracji 3);
-  - [ ] cennik (`platnosci-cennik`), brak środków na start, wybór karty za przejazd, zaległość na mapie i spłata, nieudana płatność;
-  - [ ] podsumowanie przejazdu z rozliczeniem i paragon; historia portfela.
-- [ ] **Dokumentacja:**
+  - [x] **błędy** w formacie `{ code, message, details }`: `INSUFFICIENT_BALANCE`, `PAYMENT_OVERDUE`, `PAYMENT_METHOD_REQUIRED`, `PAYMENT_FAILED` (z powodem od operatora), `PAYMENT_PROVIDER_UNAVAILABLE`, `TOPUP_AMOUNT_INVALID`, `REFUND_EXCEEDS_PAYMENT`, `TARIFF_INVALID`, `WEBHOOK_SIGNATURE_INVALID`.
+- [x] **Panel:**
+  - [x] „Cennik i zasady”: lista wersji i nowa wersja według nowych makiet, podgląd jak w aplikacji, „Historia zmian” z dziennika;
+  - [x] „Płatności”: płatności, księga, paragony, webhooki na wzorcu listy, szczegóły płatności i paragonu;
+  - [x] karta klienta: saldo, księga klienta, korekta salda; szczegóły przejazdu: rozliczenie, paragon, zwrot; lista przejazdów: filtr „Nieopłacone” (`UNPAID`).
+- [x] **Aplikacja** (ADR 0051):
+  - [x] portfel (`flow-portfel`, pusty portfel), doładowanie kartą i BLIK-iem z oczekiwaniem i wynikiem, dodanie karty, metody płatności w profilu (odkrycie ukrytej pozycji z iteracji 3);
+  - [x] cennik (`platnosci-cennik`), brak środków na start, wybór karty za przejazd, zaległość na mapie i spłata, nieudana płatność;
+  - [x] podsumowanie przejazdu z rozliczeniem i paragon; historia portfela.
+- [x] **Dokumentacja:**
   - arc42: §6.4 (rozliczenie przy zakończeniu, karta, `UNPAID`), nowy przebieg doładowania (według `tech-doladowanie`), §5.2 (moduł Płatności), §8.4 (pieniądze, paragony, VAT), §11 (ryzyka: zależność od Stripe, webhooki lokalnie);
   - [model danych](../model-danych/README.md);
   - tabela zgodności w [wymaganiach uczelni](../wymagania-uczelni.md);

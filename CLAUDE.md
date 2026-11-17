@@ -46,12 +46,13 @@ Styl produktowy (Apple/Tesla). Paleta: #F6F6F3, #16181D, kobalt #2B3FF5 (jedyny 
 - `docs/projekt/ekrany/00-eksploracja/` to archiwum odrzuconych kierunków, nie implementować.
 - Kanwa w claude.ai jest archiwum; źródłem prawdy jest repozytorium. Nowe makiety można tworzyć jako HTML w `docs/projekt/ekrany/` według design systemu.
 
-## Stan: iteracja 4 zakończona (2026-11-17)
+## Stan: iteracja 5 zrealizowana (2026-11-17), czeka na commit i CI
 Iteracja 0: monorepo, Docker Compose, migracje 0001–0002, `packages/core`, dane startowe Rybnika, CI, ADR 0001–0031 (repozytorium github.com/FifiLen/engineering-project, gałąź `main`).
 Iteracja 1 (`docs/iteracje/iteracja-01-symulator-telemetria.md`): symulator z własnym połączeniem MQTT na hulajnogę i przejazdami pokazowymi (ADR 0034), telemetria partiami i status floty w core i w bazie (ADR 0033, migracja 0003), Socket.IO pokój `fleet`, wspólny mechanizm list i definicje zasobów (`scooters`, `scooter-models`), panel: mapa floty, lista i formularz floty i modeli, etykiety w plikach tłumaczeń z regułą lintera (ADR 0032).
 Iteracja 2 (`docs/iteracje/iteracja-02-konta-dostep.md`): migracja 0004 (sesje i zaproszenia operatorów, blokada klienta, strażnik ostatniego `roles.manage` w bazie), reguły kont w core, repozytoria kont, logowanie klientów kodem SMS i operatorów z TOTP (ADR 0035), strażnik dostępu na każdym punkcie, dziennik audytu w transakcji z historią rekordu, panel: logowanie, operatorzy, role z macierzą, użytkownicy, dziennik, dokumenty prawne; aplikacja: rejestracja, zgody, blokada; OpenAPI w `docs/kontrakty/openapi.json`.
 Iteracja 3 (`docs/iteracje/iteracja-03-wypozyczenie.md`, ADR 0036–0042): decyzje autora D1–D8 i odpowiedzi 1–10 w planie, makiety `20-mobile-wypozyczenie` i `21-panel-przejazdy`, migracja 0005, reguły przejazdu i wycena w core, moduł Wypożyczenia w API (rezerwacja, przejazd z komendami MQTT z `expiresAt`, zdalne zakończenie, profil, usunięcie konta), pg-boss (schemat `pgboss`), symulator jadący do strefy po odblokowaniu (`control offline|silent|online`), panel: przejazdy, aplikacja: mapa, wypożyczenie, profil.
 Iteracja 4 (`docs/iteracje/iteracja-04-strefy.md`, ADR 0043–0048): makiety `22-mobile-strefy` i `23-panel-strefy`, migracja 0006 (reguły geometrii stref w bazie, `scooter_zone_presence`, `scooter_zone_control`, `RELEASE_STOP`), walidacja stref, wykrywanie zmian z histerezą i sterowanie hulajnogą w core, moduł Strefy w API (edytor w panelu, śledzenie stref w przejeździe, komendy stref uzgadniane ze stanem), moduł Geo (trasy z OSRM rower i pieszo, Photon), kontrakt MQTT 1.2.0, symulator ze strefami z API (`control goto`), panel: edytor stref (Terra Draw), aplikacja: legenda, wyszukiwanie, trasy, komunikaty stref, prowadzenie do strefy.
+Iteracja 5 (`docs/iteracje/iteracja-05-platnosci.md`, ADR 0049–0054): makiety `24-mobile-platnosci` i `25-panel-platnosci`, migracja 0007 (księga przez `sp_wallet_post`, `refunds`, `payment_customers`, paragony z korektą, wersje cennika z VAT, stan rozliczenia), reguły płatności w core, moduł Płatności w API (atrapa i Stripe za portem `PaymentProvider`, webhook z kolejką, sprawdzanie statusu, obciążenie karty po `ENDED`, `UNPAID` i spłata, zwroty, korekty, zwrot salda, `wallet.updated`), panel: płatności, cennik, portfel klienta, zwrot; aplikacja: portfel, karty, doładowanie, zaległość, paragon.
 Do zrobienia:
 - [x] Wypchnąć iterację 3 i potwierdzić zielone CI (2026-11-17, commit `f010476`).
 - [ ] Development build aplikacji z natywną mapą i aparatem (Xcode jest już zainstalowany) i sprawdzenie ekranów awarii w aplikacji (`control silent`).
@@ -65,7 +66,9 @@ Do zrobienia:
 - [x] Przed iteracją 5: odpowiedzi autora na pytania 1–12 i decyzje D1–D8 (2026-11-17, wszystkie rekomendacje).
 - [x] Przed iteracją 5: makiety brakujących stanów (2026-11-17, `24-mobile-platnosci`, `25-panel-platnosci`, 18 plansz).
 - [x] Przed iteracją 5: ADR 0049–0054 (2026-11-17, zaakceptowane).
-- [ ] Iteracja 5: implementacja według planu.
+- [x] Iteracja 5: implementacja według planu (2026-11-17, na atrapie operatora).
+- [ ] Commit iteracji 5 i zielone CI.
+- [ ] Przed iteracją 6: plan iteracji 6 (zgłoszenia, serwis, powiadomienia).
 - [ ] Konto Stripe w trybie testowym z kluczami w `.env` i Stripe CLI (autor; bez nich działa atrapa operatora).
 
 ## Uwagi środowiskowe
@@ -81,6 +84,7 @@ Do zrobienia:
 - Aplikacja: `EXPO_PUBLIC_API_URL` (domyślnie http://localhost:3001); token odświeżający w `expo-secure-store`, w wersji web w `localStorage`. Typy tras Expo Router (`.expo/types`) odświeża `expo start`, nie `expo export`. Podgląd w przeglądarce: konfiguracje `api-preview` (API na 3005 bez MQTT, kod SMS w logu) i `mobile-web` (8082) w `.claude/launch.json`.
 - Strefy (ADR 0043, 0044): Telemetria po zapisie partii woła `ZoneTracker`, przejścia zapisuje i komendy stref uzgadnia `RentalsService`; komendy stref mają `rental_id`, ale nie blokują pauzy (indeks tylko dla `LOCK`/`UNLOCK`). Testy API ustawiają `OSRM_URL` na nieużywany port, żeby trasy były linią prostą niezależnie od lokalnego OSRM.
 - Zadania w tle: pg-boss w API (`JOBS_ENABLED`, testy API wyłączają kolejkę i wołają `JobsService.run`); zadanie planowane w transakcji przez `sendInTransaction` (ADR 0037).
+- Płatności (ADR 0050): `PAYMENT_PROVIDER=fake` (domyślnie, atrapa w procesie wysyła webhooki do `/payments/webhooks/stripe` tego samego API) albo `stripe` z kluczami `sk_test_`, `pk_test_`, `whsec_` w `.env` (klucze `live` zatrzymują start) i `stripe listen --forward-to localhost:3001/payments/webhooks/stripe`. Testy API: `FAKE_WEBHOOK_DELIVERY=manual` (webhooki z `takeOutbox()` wysyła test), saldo klienta przez `fundWallet` z `apps/api/test/helpers.ts` (minimalne saldo blokuje start). Ruch środków tylko przez `sp_wallet_post` (wyzwalacz księgi odrzuca ręczny wpis z błędnym saldem). Moduł Płatności zmienia stan przejazdu przez obsługę zarejestrowaną przez `RentalsService` (`attachRentalHandler`). Stripe 23.1.0 ma API `2026-10-28.endive`: pole `allowed_payment_method_types` zamiast `payment_method_types`.
 - Każdy punkt API deklaruje dostęp: `@Public()`, `@CustomerAuth()`, `@StaffAuth()` albo `@RequirePermission('…')` (ADR 0035); punkt bez deklaracji kończy się `403 PERMISSION_NOT_DECLARED`. Kod SMS w środowisku deweloperskim jest w logu API. Testy panelu: pomocnik `staffToken` w `apps/api/test/helpers.ts`.
 
 ## Otwarte decyzje

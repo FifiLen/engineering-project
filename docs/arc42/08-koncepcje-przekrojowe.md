@@ -10,7 +10,14 @@ Każde działanie, które może zostać powtórzone, ma unikalny klucz: `command
 Reguły biznesowe, które muszą być zawsze prawdziwe, są pilnowane przez bazę: indeksy częściowe (jeden otwarty przejazd na hulajnogę i użytkownika, jedno obciążenie za przejazd), klucze obce i ograniczenia `CHECK`. Logika aplikacji ich nie zastępuje, tylko uzupełnia.
 
 ## 8.4. Pieniądze
-Kwoty to liczby całkowite w groszach. Ruch środków to wpis w księdze portfela ([ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md)). Przejazd pamięta wersję cennika z chwili startu ([ADR 0015](../adr/0015-wersjonowany-cennik.md)).
+Kwoty to liczby całkowite w groszach. Ruch środków to wpis w księdze portfela ([ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md)). Przejazd pamięta wersję cennika z chwili startu ([ADR 0015](../adr/0015-wersjonowany-cennik.md)); wersji nie edytuje się, zmiana cen to nowa wersja od teraz albo od daty ([ADR 0053](../adr/0053-wersje-cennika-w-panelu.md)).
+
+Od iteracji 5:
+- **Księga:** każdy wpis przechodzi przez `sp_wallet_post` z blokadą wiersza portfela; wyzwalacz `trg_wallet_ledger_rules` sprawdza, że saldo po operacji to poprzednie saldo z księgi plus kwota, i nie pozwala zmienić ani usunąć wpisu. Typy wpisów: `TOPUP`, `RIDE_CHARGE`, `REFUND`, `ADJUSTMENT` (z powodem z listy), `PAYOUT` (zwrot salda na kartę).
+- **Operator płatności:** środki trafiają do portfela tylko po wyniku od operatora (webhook albo sprawdzenie statusu); klucz idempotencji u operatora to identyfikator płatności w bazie ([ADR 0050](../adr/0050-integracja-stripe.md)). Konfiguracja odrzuca klucze `live`, bo projekt nie obsługuje prawdziwych pieniędzy.
+- **Paragony:** dokument niefiskalny (potwierdzenie sprzedaży) za rozliczony przejazd, z pozycjami z wyceny i VAT liczonym od sumy brutto metodą „w stu” z zaokrągleniem połowy w górę (`vatFromGross` w core i `fn_vat_from_gross` w bazie). Stawka VAT jest polem wersji cennika (robocza 23%). Zwrot nie zmienia paragonu, tylko dodaje dokument korygujący ([ADR 0052](../adr/0052-paragony.md)).
+- **Paragon fiskalny w produkcji:** prawdziwy system musiałby ewidencjonować sprzedaż usług osobom fizycznym zgodnie z przepisami, np. przez kasę fiskalną online (usługę integrowaną przez API), a dokument w aplikacji byłby wtedy potwierdzeniem albo kopią. Wymóg i stawkę VAT sprawdza autor; projekt tego nie rozstrzyga.
+- **Zwroty:** suma zwrotów przejazdu albo doładowania nie przekracza zapłaconej kwoty (`sp_record_refund` z blokadą); zwrot z portfela działa od razu, na kartę po wyniku od operatora ([ADR 0054](../adr/0054-zwroty-i-korekty-salda.md)).
 
 ## 8.5. Czas
 Czas zapisujemy w UTC (`timestamptz`), prezentujemy w strefie Europe/Warsaw. Czas przejazdu liczymy od potwierdzenia odblokowania przez hulajnogę do żądania zakończenia, z osi czasu przejazdu ([ADR 0042](../adr/0042-wycena-przejazdu.md)). Czas zdarzeń i komend pochodzi z zegara bazy (`now()` transakcji), żeby kolejność na osi czasu była jednoznaczna.

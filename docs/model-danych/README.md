@@ -10,7 +10,9 @@ PostgreSQL 16 z PostGIS. Źródłem prawdy o schemacie są migracje w [`packages
 
 - `0006_zones.sql` (iteracja 4): reguły geometrii stref pilnowane wyzwalaczem `zones_rules` (strefa w jedynym aktywnym obszarze działania, strefy parkowania bez części wspólnej, typ niezmienny, obszaru działania nie można wyłączyć), limit tylko w strefie wolnej jazdy, bieżące strefy i stan sterowania hulajnogą w przejeździe (`scooter_zone_presence`, `scooter_zone_control`), komenda `RELEASE_STOP`, jedna oczekująca komenda przejazdu tylko dla `LOCK` i `UNLOCK`, hulajnogi w strefie zakazu i poza obszarem poza mapą klienta, widoki edytora stref i zajętości parkowania, funkcje stref w promieniu, najbliższego parkowania i skutków zmiany strefy, usunięcie tylko nieużytej strefy ([ADR 0043](../adr/0043-wykrywanie-zmian-stref.md), [0044](../adr/0044-komendy-stref-dla-hulajnogi.md), [0047](../adr/0047-edytor-geometrii-w-panelu.md)).
 
-Po migracji 0006 baza ma **50 tabel** (bez partycji telemetrii i bez schematu `pgboss` kolejki zadań, [ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)), **23 widoki**, **15 funkcji** i **10 procedur**; liczby sprawdza test w `packages/db/src/db.test.ts`. Kluczowe zasady opisują też [ADR 0010](../adr/0010-postgresql-postgis-drizzle.md), [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md), [ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md) i [ADR 0015](../adr/0015-wersjonowany-cennik.md).
+- `0007_payments.sql` (iteracja 5): klient u operatora płatności (`payment_customers`), zwroty (`refunds`), typ wpisu `PAYOUT` i powód korekty w księdze, zapis do księgi z blokadą portfela (`sp_wallet_post`) i wyzwalacz salda po operacji, karta przejazdu, jedna płatność za przejazd w toku, webhooki z wynikiem i liczbą dostarczeń, paragony z rodzajem, korektą, sposobem zapłaty i sprzedawcą, stawka VAT w wersji cennika, wersje cennika nieedytowalne z najwyżej jedną zaplanowaną, stan rozliczenia przejazdu w widoku, listy płatności w panelu i historia portfela ([ADR 0049](../adr/0049-rozliczenie-przejazdu.md)–[0054](../adr/0054-zwroty-i-korekty-salda.md)).
+
+Po migracji 0007 baza ma **52 tabele** (bez partycji telemetrii i bez schematu `pgboss` kolejki zadań, [ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)), **31 widoków**, **18 funkcji** i **14 procedur**; liczby sprawdza test w `packages/db/src/db.test.ts`. Kluczowe zasady opisują też [ADR 0010](../adr/0010-postgresql-postgis-drizzle.md), [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md), [ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md) i [ADR 0015](../adr/0015-wersjonowany-cennik.md).
 
 ## Obszary
 
@@ -37,6 +39,8 @@ erDiagram
     users ||--o{ payments : "płaci"
     users ||--o{ payment_methods : "zapisuje"
     users ||--o{ receipts : "otrzymuje"
+    users ||--o{ payment_customers : "klient u operatora"
+    users ||--o{ refunds : "otrzymuje zwrot"
     scooter_models ||--o{ scooters : "model"
     scooters ||--o{ rentals : "jest wypożyczana"
     scooters ||--o{ telemetry : "raportuje"
@@ -49,9 +53,17 @@ erDiagram
     tariffs ||--o{ rentals : "wycenia"
     rentals ||--o{ rental_events : "ma oś czasu"
     rentals ||--o{ payments : "opłacany"
+    payment_methods |o--o{ rentals : "karta przejazdu"
+    payment_methods |o--o{ payments : "obciążana"
     payments |o--o| receipts : "paragon"
+    payments ||--o{ payment_webhook_events : "zdarzenia operatora"
+    rentals |o--o{ refunds : "zwrot za przejazd"
+    payments |o--o{ refunds : "zwrot u operatora"
+    refunds |o--o| receipts : "korekta"
+    receipts |o--o{ receipts : "korygowany przez"
     receipts ||--o{ receipt_items : "pozycje"
     wallets ||--o{ wallet_ledger : "księga"
+    refunds |o--o{ wallet_ledger : "zwrot i zwrot salda"
     zones |o--o{ rentals : "strefa zakończenia"
 ```
 
@@ -98,6 +110,12 @@ erDiagram
 - Strefy (0006): każda aktywna strefa leży w jedynym aktywnym obszarze działania (`zones_one_active_service_area`, wyzwalacz `zones_rules`), aktywne strefy parkowania nie mają części wspólnej, typ strefy się nie zmienia, limit prędkości ma tylko strefa wolnej jazdy (`zones_speed_limit_only_slow`), a strefę użytą w przejazdach można tylko dezaktywować (`sp_delete_zone`).
 - Komenda w toku blokująca kolejną komendę przejazdu to tylko `LOCK` albo `UNLOCK` (`scooter_commands_one_pending_per_rental` od 0006); komendy stref (`SPEED_LIMIT`, `STOP_GRADUALLY`, `RELEASE_STOP`) mają `rental_id`, ale nie blokują pauzy ani zakończenia.
 - Plik ma najwyżej jednego autora: klienta albo operatora (`files_one_uploader`).
+- Płatności (0007):
+  - księga tylko do dopisywania, a saldo po operacji to poprzednie saldo z księgi plus kwota (wyzwalacz `wallet_ledger_rules`: `LEDGER_APPEND_ONLY`, `LEDGER_BALANCE_MISMATCH`); jedno uznanie za doładowanie (`wallet_ledger_one_topup_per_payment`) i jeden wpis zwrotu salda z odwróceniem na zwrot (`wallet_ledger_one_entry_per_refund`);
+  - jedna płatność za przejazd w toku (`payments_one_pending_per_rental`); przejazd kartą ma kartę (`rentals_card_source_method`);
+  - suma zwrotów nie większa niż zapłacona kwota przejazdu albo doładowania (`sp_record_refund` z blokadą: `REFUND_EXCEEDS_PAYMENT`); zwrot z powodem „inny” ma notatkę, zwrot salda nie ma przejazdu;
+  - jeden paragon sprzedaży za przejazd (`receipts_one_sale_per_rental`); korekta ma kwotę ujemną i paragon korygowany, a suma paragonu i korekt nie jest ujemna (`sp_issue_receipt`: `RECEIPT_CORRECTION_EXCEEDS`);
+  - wersji cennika nie zmienia się, a zaplanowana może być najwyżej jedna i dopóki jest, nie powstaje nowa (wyzwalacz `tariffs_rules`: `TARIFF_IMMUTABLE`, `TARIFF_ALREADY_SCHEDULED`); zakresy rezerwacji, wieku, salda i VAT w `CHECK`.
 
 ## Widoki, funkcje i procedury
 
@@ -128,6 +146,14 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `v_audit_log` | dziennik audytu z nazwą i e-mailem operatora |
 | `v_zone_list` | lista stref w edytorze panelu: powierzchnia, liczba punktów, hulajnogi i przejazdy w strefie, użycie w przejazdach, autor zmiany (0006) |
 | `v_parking_occupancy` | zajętość aktywnych stref parkowania względem pojemności (0006) |
+| `v_payment_list` | płatności u operatora w panelu: klient, cel, metoda i karta, przejazd, suma zwrotów, paragon, liczba webhooków (0007) |
+| `v_wallet_ledger` | księga w panelu i historia portfela w aplikacji: przejazd, płatność, karta, powód, operator korekty, paragon (0007) |
+| `v_receipt_list` | paragony i korekty z VAT i netto (`fn_vat_from_gross`), przejazdem, kartą i dokumentem korygowanym (0007) |
+| `v_tariff_versions` | wersje cennika ze stanem z `valid_from` (obowiązuje, zaplanowana, archiwalna), końcem obowiązywania, autorem i liczbą przejazdów (0007) |
+| `v_payment_methods` | karty klientów ze stanem ważności (aktywna, wygasa, wygasła, usunięta) (0007) |
+| `v_payment_webhook_events` | webhooki operatora z wynikiem przetworzenia, liczbą dostarczeń i płatnością (0007) |
+| `v_refund_list` | zwroty za przejazdy i zwroty salda z operatorem, stanem u operatora i korektą paragonu (0007) |
+| `v_unpaid_rentals` | zaległości klientów: przejazdy `UNPAID` z kwotą, kartą, ostatnią odmową i liczbą prób (0007) |
 
 | Funkcja | Wynik |
 |---|---|
@@ -146,6 +172,9 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `fn_nearest_parking(lon, lat)` | najbliższa aktywna strefa parkowania: odległość do granicy, punkt na granicy (cel prowadzenia) i punkt wewnątrz (0006) |
 | `fn_zone_change_impact(zone_id, geom)` | przejazdy w trakcie w strefie albo w proponowanej geometrii (ostrzeżenie przed zapisem w panelu, 0006) |
 | `fn_scooter_can_ride(position)` | pozycja w obszarze działania i poza strefą zakazu; ta sama reguła co `canRide` w core (0006) |
+| `fn_rental_paid_amount(rental_id)` | zapłacona kwota przejazdu: obciążenie portfela albo udana płatność kartą (0007) |
+| `fn_rental_settlement(rental_id)` | stan rozliczenia: `NONE`, `WALLET_PAID`, `CARD_PENDING`, `CARD_PAID`, `FAILED` (0007, ADR 0049) |
+| `fn_vat_from_gross(gross, rate)` | VAT „w stu” od brutto z zaokrągleniem połowy w górę; ta sama reguła co `vatFromGross` w core (0007, ADR 0052) |
 
 | Procedura | Działanie | Uruchamia |
 |---|---|---|
@@ -159,8 +188,12 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `sp_revoke_user_sessions(user_id, OUT revoked_count)` | wylogowanie klienta ze wszystkich urządzeń | blokada konta, panel |
 | `sp_revoke_staff_sessions(staff_id, OUT revoked_count)` | wylogowanie operatora ze wszystkich urządzeń | dezaktywacja, zmiana e-maila, reset TOTP |
 | `sp_delete_zone(zone_id)` | usunięcie strefy bez przejazdów, zdarzeń i hulajnóg w przejeździe; inaczej `ZONE_IN_USE` (0006) | edytor stref w panelu |
+| `sp_wallet_post(user_id, type, amount, rental_id, payment_id, refund_id, staff_id, reason, note, OUT entry_id, OUT balance_after)` | wpis w księdze z blokadą portfela, saldo po operacji z księgi, pamięć podręczna salda (0007) | rozliczenie przejazdu, doładowanie po webhooku, spłata, zwrot, korekta, zwrot salda |
+| `sp_record_refund(user_id, rental_id, payment_id, source, amount, reason, note, staff_id, status, OUT refund_id)` | zwrot z blokadą przejazdu albo płatności; suma zwrotów nie większa niż zapłata (0007) | zwrot za przejazd i zwrot salda w panelu |
+| `sp_issue_receipt(user_id, kind, rental_id, payment_id, refund_id, corrects_receipt_id, payment_source, seller, items, OUT receipt_id, OUT receipt_number)` | paragon albo korekta z pozycjami, nabywca z chwili wystawienia, numer z sekwencji (0007) | rozliczenie przejazdu, spłata, udany zwrot |
+| `sp_delete_scheduled_tariff(tariff_id)` | usunięcie zaplanowanej wersji cennika przed jej datą, gdy żaden przejazd jej nie wskazuje (0007) | „Cennik i zasady” w panelu |
 
-Wyzwalacz `trg_zone_rules` (0006) pilnuje reguł geometrii stref przy każdym zapisie. Wyzwalacz `trg_content_revision` zwiększa licznik `content_revision_seq` przy każdej zmianie w tabelach treści. Wyzwalacz `trg_user_wallet` (0005) zakłada portfel z saldem 0 przy każdym nowym kliencie.
+Wyzwalacz `trg_zone_rules` (0006) pilnuje reguł geometrii stref przy każdym zapisie. Wyzwalacz `trg_content_revision` zwiększa licznik `content_revision_seq` przy każdej zmianie w tabelach treści. Wyzwalacz `trg_user_wallet` (0005) zakłada portfel z saldem 0 przy każdym nowym kliencie. Wyzwalacze `trg_wallet_ledger_rules` i `trg_tariff_rules` (0007) pilnują księgi i wersji cennika.
 
 ## Operacje w panelu dla każdej tabeli
 
@@ -181,7 +214,7 @@ Realizacja wymagania 12 według [ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-p
 | `roles` | słownik | `roles` | tak | tak | tak, jeśli nieprzypisana i nie systemowa | `roles.manage` |
 | `role_permissions` | słownik | macierz w edycji roli | tak | — | tak | `roles.manage` |
 | `staff_roles` | encja | edycja operatora | tak | — | tak | `staff.manage` |
-| `tariffs` | wersjonowana | `tariffs` | nowa wersja | nowa wersja | nie | `tariffs.read`, `tariffs.write` |
+| `tariffs` | wersjonowana | `v_tariff_versions` (od iteracji 5) | nowa wersja od teraz albo od daty | nie (nowa wersja) | tylko zaplanowana i nieużyta (`sp_delete_scheduled_tariff`) | `tariffs.read`, `tariffs.write` |
 | `rentals` | proces | `v_rental_details` | przez proces wypożyczenia | polecenia: zakończenie zdalne, zwrot | nie | `rentals.read`, `rentals.manage` |
 | `rental_events` | tylko do dopisywania | `rental_events` | system | nie | nie | `rentals.read` |
 | `scooters` | encja | `v_fleet_list` (od iteracji 1) | tak | tak, komendy przez `scooter_commands` | wycofanie (`RETIRED`) | `scooters.read`, `scooters.write` |
@@ -192,11 +225,13 @@ Realizacja wymagania 12 według [ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-p
 | `scooter_zone_presence` | techniczna | przejazdy w strefie w szczegółach strefy | system (wykrywanie stref) | nie | z końcem przejazdu | `zones.read` |
 | `scooter_zone_control` | techniczna | komendy stref na osi czasu przejazdu | system (uzgadnianie komend) | nie | z końcem przejazdu | `rentals.read` |
 | `wallets` | encja | `v_wallet_balances` | z kontem klienta | tylko przez księgę; naprawa `sp_rebuild_wallet_balances` | nie | `payments.read` |
-| `wallet_ledger` | tylko do dopisywania | `wallet_ledger` | korekta jako nowy wpis | nie | nie | `payments.read`, `wallet.adjust` |
-| `payments` | proces | `payments` | przez proces płatności | polecenie: zwrot | nie | `payments.read`, `rentals.manage` |
-| `payment_methods` | encja klienta | `payment_methods` | w aplikacji | nie | usunięcie (`removed_at`) | `users.manage` |
-| `payment_webhook_events` | tylko do dopisywania | `payment_webhook_events` | system | nie | nie | `payments.read` |
-| `receipts` | tylko do dopisywania | `receipts` | system przy płatności | nie | nie | `payments.read` |
+| `wallet_ledger` | tylko do dopisywania | `v_wallet_ledger` (od iteracji 5) | polecenia: korekta salda, zwrot salda (`sp_wallet_post`) | nie | nie | `payments.read`, `wallet.adjust` |
+| `payments` | proces | `v_payment_list` (od iteracji 5) | przez proces płatności | polecenie: zwrot za przejazd | nie | `payments.read`, `rentals.manage` |
+| `payment_customers` | techniczna | szczegóły płatności | system przy pierwszej karcie albo płatności | nie | nie | `payments.read` |
+| `payment_methods` | encja klienta | `v_payment_methods` (tylko do odczytu, D5) | w aplikacji (SetupIntent) | domyślna w aplikacji | w aplikacji (`removed_at`) | `payments.read` |
+| `payment_webhook_events` | tylko do dopisywania | `v_payment_webhook_events` | system | nie | nie | `payments.read` |
+| `refunds` | proces | `v_refund_list` | polecenia: zwrot za przejazd, zwrot salda (`sp_record_refund`) | stan u operatora (system) | nie | `payments.read`, `rentals.manage`, `wallet.adjust` |
+| `receipts` | tylko do dopisywania | `v_receipt_list` | system przy rozliczeniu i zwrocie (`sp_issue_receipt`) | nie | nie | `payments.read` |
 | `receipt_items` | tylko do dopisywania | szczegóły paragonu | system | nie | nie | `payments.read` |
 | `tickets` | encja | `v_ticket_queue`, `tickets` | tak (źródło `STAFF`) | status, wykonawca, pilność | zamknięcie (`RESOLVED`) | `tickets.read`, `tickets.manage` |
 | `ticket_photos` | encja | szczegóły zgłoszenia | tak | — | tak | `tickets.manage` |
