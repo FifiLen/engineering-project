@@ -39,3 +39,10 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0033 | [Przyjmowanie telemetrii partiami i status floty liczony w core i w bazie](0033-telemetria-i-status-floty.md) | zaakceptowana |
 | 0034 | [Budowa symulatora floty i przejazdy pokazowe do czasu wypożyczeń](0034-symulator-floty.md) | zaakceptowana |
 | 0035 | [Sesje, tokeny i strażnik uprawnień w API](0035-sesje-tokeny-i-straznik-uprawnien.md) | zaakceptowana |
+| 0036 | [Proces wypożyczenia w API](0036-proces-wypozyczenia-w-api.md) | zaakceptowana |
+| 0037 | [Zadania w tle w pg-boss: konfiguracja i zadania](0037-pg-boss-konfiguracja-i-zadania.md) | zaakceptowana |
+| 0038 | [Wygasanie komend MQTT](0038-wygasanie-komend-mqtt.md) | zaakceptowana |
+| 0039 | [Symulator w trakcie przejazdu klienta](0039-symulator-w-trakcie-przejazdu.md) | zaakceptowana |
+| 0040 | [Mapa, lokalizacja i aparat w aplikacji](0040-mapa-lokalizacja-aparat-w-aplikacji.md) | zaakceptowana |
+| 0041 | [Kod QR hulajnogi](0041-kod-qr-hulajnogi.md) | zaakceptowana |
+| 0042 | [Wycena przejazdu](0042-wycena-przejazdu.md) | zaakceptowana |

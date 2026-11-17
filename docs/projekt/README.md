@@ -15,7 +15,7 @@ Uwagi do eksportu:
 - Plansze z katalogu `00-eksploracja` używały krojów Space Grotesk, JetBrains Mono, Bricolage Grotesque i DM Sans; na zrzutach zastąpiono je krojem systemowym. Obecny kierunek używa tylko Intera.
 - Liczby w makietach (np. 87%, 2,4 km, nazwiska w panelu) są przykładowe.
 
-Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **72**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
+Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **88**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
 
 ## Eksploracja kierunku (archiwum)
 
@@ -257,3 +257,50 @@ Wersje Mermaid są w docs/arc42/06-widok-czasu-dzialania.md.
 |---|---|---|---|
 | Model danych | [PNG](ekrany/16-model-danych/dane-model.png) | [HTML](ekrany/16-model-danych/dane-model.html) | 2480×1940 |
 | Kluczowe decyzje modelu | [PNG](ekrany/16-model-danych/dane-decyzje.png) | [HTML](ekrany/16-model-danych/dane-decyzje.html) | 1440×1020 |
+
+## Aplikacja: wypożyczenie (iteracja 3)
+
+Brakujące stany z [planu iteracji 3](../iteracje/iteracja-03-wypozyczenie.md) według decyzji autora i ADR 0036–0042. Powstały w repozytorium (16 listopada 2026) na stylach plansz `01-kierunek-produktowy`, `04`–`08` i `19-mobile-dostep`.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Mapa – karta hulajnogi z rezerwacją | [PNG](ekrany/20-mobile-wypozyczenie/mapa-karta-rezerwuj.png) | [HTML](ekrany/20-mobile-wypozyczenie/mapa-karta-rezerwuj.html) | 390×844 |
+| Anulowanie rezerwacji – potwierdzenie | [PNG](ekrany/20-mobile-wypozyczenie/rezerwacja-anuluj.png) | [HTML](ekrany/20-mobile-wypozyczenie/rezerwacja-anuluj.html) | 390×844 |
+| Rezerwacja anulowana | [PNG](ekrany/20-mobile-wypozyczenie/rezerwacja-anulowana.png) | [HTML](ekrany/20-mobile-wypozyczenie/rezerwacja-anulowana.html) | 390×844 |
+| Rezerwacja wygasła | [PNG](ekrany/20-mobile-wypozyczenie/rezerwacja-wygasla.png) | [HTML](ekrany/20-mobile-wypozyczenie/rezerwacja-wygasla.html) | 390×844 |
+| Wpisanie numeru hulajnogi | [PNG](ekrany/20-mobile-wypozyczenie/skan-numer.png) | [HTML](ekrany/20-mobile-wypozyczenie/skan-numer.html) | 390×844 |
+| Brak dostępu do aparatu | [PNG](ekrany/20-mobile-wypozyczenie/skan-brak-aparatu.png) | [HTML](ekrany/20-mobile-wypozyczenie/skan-brak-aparatu.html) | 390×844 |
+| Odblokowanie nieudane | [PNG](ekrany/20-mobile-wypozyczenie/odblokowanie-nieudane.png) | [HTML](ekrany/20-mobile-wypozyczenie/odblokowanie-nieudane.html) | 390×844 |
+| Wznawianie jazdy po pauzie | [PNG](ekrany/20-mobile-wypozyczenie/przejazd-wznawianie.png) | [HTML](ekrany/20-mobile-wypozyczenie/przejazd-wznawianie.html) | 390×844 |
+| Kończenie przejazdu – oczekiwanie na blokadę | [PNG](ekrany/20-mobile-wypozyczenie/przejazd-konczenie.png) | [HTML](ekrany/20-mobile-wypozyczenie/przejazd-konczenie.html) | 390×844 |
+| Blokada niepotwierdzona | [PNG](ekrany/20-mobile-wypozyczenie/przejazd-blokada-nieudana.png) | [HTML](ekrany/20-mobile-wypozyczenie/przejazd-blokada-nieudana.html) | 390×844 |
+| Podsumowanie przejazdu bez obciążenia (D1) | [PNG](ekrany/20-mobile-wypozyczenie/podsumowanie-bez-platnosci.png) | [HTML](ekrany/20-mobile-wypozyczenie/podsumowanie-bez-platnosci.html) | 390×844 |
+| Profil – dane osobowe | [PNG](ekrany/20-mobile-wypozyczenie/profil-dane.png) | [HTML](ekrany/20-mobile-wypozyczenie/profil-dane.html) | 390×844 |
+| Usunięcie konta niemożliwe | [PNG](ekrany/20-mobile-wypozyczenie/profil-usun-niemozliwe.png) | [HTML](ekrany/20-mobile-wypozyczenie/profil-usun-niemozliwe.html) | 390×844 |
+
+Ustalenia z plansz:
+
+- Numer hulajnogi zawsze w czterech cyfrach (`#0027`), jak w panelu, MQTT i ADR 0041.
+- Pasek górny mapy bez wyszukiwarki „Dokąd jedziesz?” (iteracja 4); pigułka strefy na ekranie jazdy ukryta do iteracji 4.
+- Anulowanie rezerwacji to przycisk grafitowy, nie czerwony (operacja nieszkodliwa); wygaśnięcie ma odznakę neutralną.
+- Kończenie przejazdu nie ma przycisku zamknięcia; po nieudanej blokadzie „Zakończ” zmienia się w „Spróbuj ponownie”, a zakończenie bez blokady zostaje dla operatora (D7).
+- Nieudane wznowienie wraca do `przejazd-pauza` z komunikatem, bez osobnej planszy.
+- Zmiana numeru telefonu jest ukryta i odsyła do pomocy (otwarta decyzja na później).
+- Usunięcie konta pokazuje listę warunków (otwarty przejazd, saldo), zamiast osobnej planszy dla każdej przyczyny.
+
+## Panel operatora: przejazdy (iteracja 3)
+
+Plansze w nawigacji i wzorcu z `17-panel-wzorce` i `18-panel-dostep`; lista zastępuje `13-panel/admin-przejazdy`.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Przejazdy – lista z panelem bocznym | [PNG](ekrany/21-panel-przejazdy/przejazdy-lista.png) | [HTML](ekrany/21-panel-przejazdy/przejazdy-lista.html) | 1440×900 |
+| Przejazd – szczegóły | [PNG](ekrany/21-panel-przejazdy/przejazd-szczegoly.png) | [HTML](ekrany/21-panel-przejazdy/przejazd-szczegoly.html) | 1440×900 |
+| Przejazd – zdalne zakończenie | [PNG](ekrany/21-panel-przejazdy/przejazd-zakoncz-zdalnie.png) | [HTML](ekrany/21-panel-przejazdy/przejazd-zakoncz-zdalnie.html) | 1440×900 |
+
+Ustalenia z plansz:
+
+- Szybkie filtry: W trakcie (`UNLOCKING`, `ACTIVE`, `PAUSED`, `ENDING`), Rezerwacje (`RESERVED`), Zakończone (`ENDED`), Problemy (flaga z widoku: nieudane odblokowanie, nieudana blokada, utrata łączności w otwartym przejeździe); `EXPIRED` tylko w „Wszystkie”.
+- Lista bez zaznaczania wierszy i operacji grupowych: przejazdy są tylko do odczytu poza zdalnym zakończeniem.
+- Powody zdalnego zakończenia: Hulajnoga nie odpowiada, Prośba klienta, Naruszenie regulaminu, Inny powód (z notatką). Zdalne zakończenie nie czeka na potwierdzenie blokady (ADR 0036).
+- Oś czasu bez zdarzeń stref (iteracja 4); eksport XLSX zamiast CSV, bez stanu `UNPAID` do iteracji 5.
