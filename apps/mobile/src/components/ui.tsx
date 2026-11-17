@@ -17,10 +17,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { t } from '../i18n';
+import { usePreferences } from '../lib/preferences';
 import { colors, radius, type Theme } from '../theme/tokens';
 
+const THEMES: Record<'light' | 'dark', Theme> = {
+  light: { ...colors.light, scheme: 'light' },
+  dark: { ...colors.dark, scheme: 'dark' },
+};
+
+/** Motyw z ustawień (systemowy, jasny, ciemny; decyzja D6). */
 export function useTheme(): Theme {
-  return colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
+  const system = useColorScheme();
+  const { themeMode } = usePreferences();
+  return THEMES[themeMode === 'system' ? (system === 'dark' ? 'dark' : 'light') : themeMode];
 }
 
 /** Ekran z marginesami makiety (24 px) i przewijaniem, gdy klawiatura zabiera miejsce. */
@@ -104,16 +113,26 @@ export function Button({
   kind = 'primary',
   disabled,
   busy,
+  style,
 }: {
   label: string;
   onPress: () => void;
-  kind?: 'primary' | 'secondary' | 'plain';
+  kind?: 'primary' | 'secondary' | 'plain' | 'dark' | 'danger' | 'light';
   disabled?: boolean;
   busy?: boolean;
+  style?: object;
 }) {
   const theme = useTheme();
-  const background = kind === 'primary' ? theme.accent : kind === 'secondary' ? theme.line : 'transparent';
-  const color = kind === 'primary' ? theme.onAccent : theme.ink;
+  // Grafitowy: akcje kończące (Zakończ, Gotowe); jasny: na tle aparatu (makieta flow-skan).
+  const background = {
+    primary: theme.accent,
+    secondary: theme.line,
+    plain: 'transparent',
+    dark: theme.dark,
+    danger: theme.danger,
+    light: '#F6F6F3',
+  }[kind];
+  const color = { primary: theme.onAccent, secondary: theme.ink, plain: theme.ink, dark: theme.onDark, danger: '#FFFFFF', light: '#16181D' }[kind];
   return (
     <Pressable
       accessibilityRole="button"
@@ -124,6 +143,7 @@ export function Button({
         styles.button,
         kind === 'plain' && styles.plainButton,
         { backgroundColor: background, opacity: disabled ? 0.35 : pressed ? 0.85 : 1 },
+        style,
       ]}
     >
       {busy ? <ActivityIndicator color={color} /> : <Text style={[styles.buttonText, { color }]}>{label}</Text>}

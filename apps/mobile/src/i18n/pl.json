@@ -11,7 +11,10 @@
     "step": "Krok {current} z {total}",
     "checkMark": "✓",
     "alertMark": "!",
-    "chevron": "›"
+    "chevron": "›",
+    "close": "Zamknij",
+    "retry": "Spróbuj ponownie",
+    "scrim": "Zamknij okno"
   },
   "phone": {
     "registerTitle": "Podaj numer telefonu",
@@ -87,10 +90,17 @@
     "signOut": "Wyloguj się"
   },
   "account": {
-    "hello": "Cześć, {name}",
-    "lead": "Konto jest gotowe. Mapa z hulajnogami pojawi się w kolejnej wersji aplikacji.",
+    "title": "Profil",
+    "rides": "przejazdy",
+    "distance": "dystans",
+    "time": "w drodze",
+    "wallet": "Portfel",
+    "history": "Historia przejazdów",
+    "settings": "Ustawienia",
+    "terms": "Regulamin",
+    "privacy": "Polityka prywatności",
     "signOut": "Wyloguj się",
-    "pendingConsents": "Zaakceptuj nową wersję dokumentu"
+    "avatar": "Profil: {name}"
   },
   "document": {
     "version": "Wersja {version}"
@@ -110,6 +120,318 @@
     "ALREADY_EXISTS": "Ten adres e-mail jest już używany.",
     "UNAUTHENTICATED": "Sesja wygasła. Zaloguj się ponownie.",
     "INTERNAL_ERROR": "Coś poszło nie tak. Spróbuj ponownie.",
-    "unknown": "Operacja się nie powiodła ({code})."
+    "unknown": "Operacja się nie powiodła ({code}).",
+    "SCOOTER_UNAVAILABLE": "Tej hulajnogi nie można teraz wypożyczyć.",
+    "RENTAL_ALREADY_OPEN": "Masz już otwartą rezerwację albo przejazd.",
+    "RESERVATION_EXPIRED": "Rezerwacja wygasła.",
+    "RENTAL_COMMAND_PENDING": "Hulajnoga odpowiada jeszcze na poprzednie polecenie. Spróbuj za chwilę.",
+    "RING_NOT_ALLOWED": "Dzwonek działa przy Twojej rezerwacji albo przy wolnej hulajnodze.",
+    "INVALID_RENTAL_TRANSITION": "Tej operacji nie można teraz wykonać.",
+    "OUTSIDE_PARKING": "Jesteś poza strefą parkowania.",
+    "USER_HAS_OPEN_RENTAL": "Najpierw zakończ przejazd albo anuluj rezerwację.",
+    "WALLET_BALANCE_NOT_ZERO": "Saldo portfela musi wynosić 0 zł.",
+    "NOT_FOUND": "Nie znaleźliśmy tego, czego szukasz.",
+    "TARIFF_MISSING": "Wypożyczenie jest chwilowo niedostępne. Spróbuj później."
+  },
+  "units": {
+    "m": "{value} m",
+    "km": "{value} km",
+    "kmh": "{value} km/h",
+    "minutes": "{m} min",
+    "hoursMinutes": "{h} h {m} min",
+    "percent": "{value}%",
+    "zl": "zł",
+    "amount": "{amount} zł"
+  },
+  "dates": {
+    "today": "Dziś, {time}",
+    "yesterday": "Wczoraj, {time}",
+    "dayTime": "{day}, {time}",
+    "months": {
+      "0": "Styczeń",
+      "1": "Luty",
+      "2": "Marzec",
+      "3": "Kwiecień",
+      "4": "Maj",
+      "5": "Czerwiec",
+      "6": "Lipiec",
+      "7": "Sierpień",
+      "8": "Wrzesień",
+      "9": "Październik",
+      "10": "Listopad",
+      "11": "Grudzień"
+    }
+  },
+  "variants": {
+    "GRAFIT": "Grafit",
+    "BETON": "Beton",
+    "KOBALT": "Kobalt",
+    "render": "Hulajnoga w wariancie {variant}"
+  },
+  "location": {
+    "title": "Pokaż hulajnogi w pobliżu",
+    "lead": "Lokalizacja jest potrzebna, żeby znaleźć najbliższe hulajnogi i sprawdzić, czy parkujesz w dozwolonej strefie. Używamy jej tylko wtedy, gdy aplikacja jest otwarta.",
+    "allow": "Udostępnij lokalizację",
+    "later": "Nie teraz",
+    "illustration": "Mapa okolicy z hulajnogami w pobliżu"
+  },
+  "map": {
+    "label": "Mapa z wolnymi hulajnogami i strefami parkowania",
+    "profile": "Profil",
+    "locate": "Pokaż moje położenie",
+    "card": {
+      "scooter": "Hulajnoga #{number}",
+      "range": "≈ {km} km zasięgu",
+      "walk": "{distance} · {minutes} min pieszo",
+      "price": "{price} zł/min",
+      "freeReservation": "Rezerwacja jest bezpłatna przez {minutes} min.",
+      "reserve": "Zarezerwuj",
+      "scan": "Skanuj i jedź"
+    },
+    "reservation": {
+      "label": "Zarezerwowana",
+      "waiting": "Hulajnoga #{number} czeka {distance} stąd.",
+      "waitingHere": "Hulajnoga #{number} czeka na Ciebie.",
+      "lead": "Rezerwacja jest bezpłatna przez {minutes} min. Potem zwolnimy hulajnogę dla innych.",
+      "cancel": "Anuluj",
+      "scan": "Skanuj i jedź",
+      "countdown": "Do końca rezerwacji: {time}"
+    },
+    "cancel": {
+      "title": "Anulować rezerwację?",
+      "lead": "Hulajnoga #{number} wróci na mapę i każdy będzie mógł ją wypożyczyć. Rezerwacja jest bezpłatna, więc nic nie zapłacisz.",
+      "expiresIn": "Rezerwacja wygaśnie za",
+      "confirm": "Anuluj rezerwację",
+      "keep": "Zostaw rezerwację"
+    },
+    "cancelled": {
+      "title": "Rezerwacja anulowana",
+      "subtitle": "Nic nie płacisz."
+    },
+    "expired": {
+      "title": "Rezerwacja wygasła",
+      "subtitle": "Hulajnoga #{number}",
+      "lead": "Minęło {minutes} min bezpłatnej rezerwacji, więc zwolniliśmy hulajnogę dla innych. Nie pobraliśmy żadnej opłaty.",
+      "again": "Zarezerwuj ponownie",
+      "close": "Zamknij"
+    },
+    "noLocation": {
+      "title": "Nie widzimy, gdzie jesteś",
+      "lead": "Bez lokalizacji nie pokażemy najbliższych hulajnóg ani nie sprawdzimy, czy parkujesz w strefie.",
+      "settings": "Otwórz ustawienia telefonu",
+      "allow": "Udostępnij lokalizację",
+      "manual": "Szukaj na mapie ręcznie"
+    },
+    "empty": {
+      "title": "W pobliżu nie ma wolnych hulajnóg",
+      "lead": "W promieniu {radius} nie ma teraz wolnej hulajnogi. Przesuń mapę albo sprawdź ponownie za chwilę.",
+      "retry": "Szukaj ponownie"
+    },
+    "offline": {
+      "title": "Brak połączenia z internetem",
+      "lead": "Mapa i hulajnogi pojawią się, gdy połączenie wróci. Trwający przejazd nalicza się normalnie i zakończysz go po odzyskaniu sieci.",
+      "retry": "Spróbuj ponownie"
+    }
+  },
+  "scan": {
+    "title": "Zeskanuj kod QR",
+    "lead": "Znajdziesz go na kierownicy hulajnogi.",
+    "damaged": "Kod jest zniszczony albo nieczytelny?",
+    "enterNumber": "Wpisz numer hulajnogi",
+    "close": "Zamknij skaner",
+    "torch": "Latarka",
+    "notOurs": "To nie jest kod naszej hulajnogi.",
+    "noCamera": {
+      "title": "Nie mamy dostępu do aparatu",
+      "lead": "Bez aparatu nie zeskanujesz kodu QR. Włącz dostęp w ustawieniach telefonu albo wpisz numer z kierownicy.",
+      "settings": "Otwórz ustawienia telefonu",
+      "allow": "Zezwól na dostęp do aparatu"
+    }
+  },
+  "number": {
+    "title": "Wpisz numer hulajnogi",
+    "lead": "Numer jest na kierownicy, pod kodem QR.",
+    "label": "Numer hulajnogi",
+    "hash": "#",
+    "preview": "Hulajnoga #{number}",
+    "details": "Bateria {battery}% · {distance} stąd",
+    "battery": "Bateria {battery}%",
+    "notFound": "Nie ma hulajnogi o numerze #{number}.",
+    "next": "Dalej",
+    "scan": "Skanuj kod QR"
+  },
+  "scooter": {
+    "ready": "Gotowa do jazdy",
+    "reserved": "Twoja rezerwacja",
+    "away": "{distance} stąd · {minutes} min pieszo",
+    "battery": "bateria",
+    "range": "zasięg",
+    "price": "zł / min",
+    "ring": "Dzwonek",
+    "ringLabel": "Zadzwoń dzwonkiem hulajnogi",
+    "rung": "Hulajnoga dzwoni. Rozejrzyj się.",
+    "unlock": "Przesuń, aby odblokować",
+    "back": "Wróć do mapy",
+    "noValue": "–",
+    "unavailable": {
+      "title": "Tej hulajnogi nie wypożyczysz",
+      "subtitle": "#{number}, bateria {battery}%",
+      "subtitleShort": "#{number}",
+      "nearest": "Pokaż najbliższą wolną",
+      "scanOther": "Skanuj inną",
+      "reasons": {
+        "LOW_BATTERY": "Poziom baterii jest za niski na bezpieczną jazdę. Nie pobraliśmy żadnej opłaty.",
+        "RESERVED": "Ktoś właśnie ją zarezerwował. Nie pobraliśmy żadnej opłaty.",
+        "IN_USE": "Ktoś właśnie nią jedzie. Nie pobraliśmy żadnej opłaty.",
+        "OFFLINE": "Hulajnoga nie ma teraz połączenia z siecią, więc nie odblokujemy jej. Nie pobraliśmy żadnej opłaty.",
+        "MAINTENANCE": "Hulajnoga czeka na serwis. Nie pobraliśmy żadnej opłaty.",
+        "RETIRED": "Ta hulajnoga nie jeździ już w naszej flocie. Nie pobraliśmy żadnej opłaty."
+      }
+    }
+  },
+  "ride": {
+    "time": "Czas przejazdu",
+    "distance": "dystans",
+    "speed": "prędkość",
+    "cost": "zł",
+    "pause": "Pauza",
+    "end": "Zakończ",
+    "retry": "Spróbuj ponownie",
+    "help": "Nadal nie działa? Zadzwoń: {phone}",
+    "map": "Mapa z trasą trwającego przejazdu",
+    "battery": "Bateria hulajnogi: {value}%",
+    "unlocking": {
+      "title": "Odblokowuję hulajnogę…",
+      "lead": "To potrwa kilka sekund. Zostań przy hulajnodze.",
+      "connected": "Połączono z hulajnogą #{number}",
+      "releasing": "Zwalniam blokadę",
+      "lights": "Włączam światła i wyświetlacz",
+      "note": "Opłata za przejazd zacznie się naliczać dopiero po odblokowaniu."
+    },
+    "unlockFailed": {
+      "title": "Nie udało się odblokować",
+      "lead": "Hulajnoga nie odpowiedziała w ciągu 10 sekund. Nie pobraliśmy żadnej opłaty.",
+      "step": "Hulajnoga nie zwolniła blokady",
+      "retry": "Spróbuj ponownie",
+      "other": "Wybierz inną"
+    },
+    "resuming": {
+      "title": "Wznawiam jazdę…",
+      "lead": "Hulajnoga zwalnia blokadę. To potrwa kilka sekund.",
+      "pauseTimer": "Pauza {time}",
+      "note": "Jeśli hulajnoga nie odpowie, przejazd zostanie w pauzie i spróbujesz ponownie."
+    },
+    "ending": {
+      "title": "Kończę przejazd…",
+      "lead": "Czekam, aż hulajnoga potwierdzi blokadę. Zostań przy niej jeszcze chwilę.",
+      "inZone": "Hulajnoga stoi w strefie {zone}",
+      "inParking": "Hulajnoga stoi w strefie parkowania",
+      "locking": "Blokuję hulajnogę",
+      "summary": "Przygotowuję podsumowanie",
+      "note": "Czas przejazdu liczymy do chwili naciśnięcia „Zakończ”.",
+      "header": "Hulajnoga #{number}"
+    },
+    "paused": {
+      "label": "Pauza",
+      "locked": "Hulajnoga zablokowana",
+      "rideTimer": "Przejazd {time}",
+      "lead": "Hulajnoga czeka na Ciebie i nikt inny jej nie wypożyczy. Pauza kosztuje {price} zł za minutę.",
+      "resume": "Wznów jazdę"
+    },
+    "lockFailed": {
+      "title": "Nie udało się zablokować",
+      "lead": "Hulajnoga #{number} nie potwierdziła blokady, więc przejazd trwa i czas dalej się nalicza. Postaw ją na nóżce i spróbuj ponownie."
+    },
+    "pauseFailed": {
+      "title": "Nie udało się włączyć pauzy",
+      "lead": "Hulajnoga #{number} nie potwierdziła blokady, więc jazda trwa. Spróbuj ponownie."
+    },
+    "resumeFailed": {
+      "title": "Nie udało się wznowić jazdy",
+      "lead": "Hulajnoga #{number} nie zwolniła blokady, więc przejazd jest dalej w pauzie. Spróbuj ponownie."
+    },
+    "outside": {
+      "title": "Tu nie zakończysz jazdy",
+      "subtitle": "Jesteś poza strefą parkowania.",
+      "lead": "Najbliższa strefa, {zone}, jest {distance} stąd.",
+      "back": "Wróć do jazdy"
+    }
+  },
+  "summary": {
+    "title": "Przejazd zakończony",
+    "subtitle": "{date} · {zone}",
+    "time": "czas",
+    "distance": "dystans",
+    "avg": "średnio",
+    "unlock": "Odblokowanie",
+    "ride": "Jazda, {minutes} min",
+    "pause": "Pauza, {minutes} min",
+    "total": "Razem",
+    "note": "Kwota według cennika z chwili startu. Nie pobraliśmy jej jeszcze, rozliczenie przejazdów pojawi się w kolejnej wersji aplikacji.",
+    "remote": "Przejazd zakończył operator. Płacisz za czas do chwili zakończenia, bez opłaty za parkowanie.",
+    "done": "Gotowe",
+    "map": "Mapa z trasą zakończonego przejazdu"
+  },
+  "history": {
+    "title": "Historia przejazdów",
+    "line": "{distance}, {minutes} min",
+    "thumbnail": "Miniatura mapy przejazdu",
+    "empty": {
+      "title": "Nie masz jeszcze przejazdów",
+      "lead": "Twoje trasy i paragony pojawią się tutaj po pierwszej jeździe.",
+      "find": "Znajdź hulajnogę"
+    }
+  },
+  "settings": {
+    "title": "Ustawienia",
+    "notifications": "Powiadomienia",
+    "reservationEnd": "Koniec rezerwacji",
+    "receipts": "Paragony po przejeździe",
+    "promotions": "Promocje",
+    "appearance": "Wygląd i mapa",
+    "theme": "Motyw",
+    "themes": {
+      "system": "Systemowy",
+      "light": "Jasny",
+      "dark": "Ciemny"
+    },
+    "zones": "Pokazuj strefy na mapie",
+    "language": "Język",
+    "languageValue": "Polski",
+    "account": "Konto",
+    "personal": "Dane osobowe",
+    "delete": "Usuń konto"
+  },
+  "personal": {
+    "title": "Dane osobowe",
+    "name": "Imię",
+    "email": "E-mail (opcjonalnie)",
+    "emailHint": "Na e-mail wyślemy potwierdzenia płatności.",
+    "phone": "Numer telefonu",
+    "phoneHint": "Numerem telefonu logujesz się kodem SMS, więc nie zmienisz go tutaj. Jeśli masz nowy numer, napisz do pomocy: {email}.",
+    "save": "Zapisz zmiany",
+    "saved": "Zapisaliśmy zmiany."
+  },
+  "deleteAccount": {
+    "title": "Usunąć konto?",
+    "lead": "Usuniemy Twoje dane osobowe, a przejazdy przestaną być z Tobą powiązane. Tej operacji nie da się cofnąć.",
+    "balance": "Saldo portfela",
+    "balanceRule": "Konto usuniesz, gdy saldo wynosi 0 zł.",
+    "legal": "Dane wymagane przez przepisy, na przykład dokumenty księgowe, przechowujemy przez okres wskazany w Polityce prywatności.",
+    "confirm": "Usuń konto",
+    "cancel": "Anuluj",
+    "blocked": {
+      "title": "Nie usuniesz teraz konta",
+      "leadRental": "Najpierw zakończ przejazd albo anuluj rezerwację. Potem wróć tutaj.",
+      "leadBalance": "Saldo portfela musi wynosić 0 zł. Zasady zwrotu środków pojawią się razem z portfelem.",
+      "noRental": "Bez rezerwacji i przejazdu",
+      "reservationActive": "Rezerwacja hulajnogi #{number} trwa",
+      "rideActive": "Przejazd hulajnogą #{number} trwa",
+      "noneOpen": "Nie masz otwartej rezerwacji ani przejazdu",
+      "zeroBalance": "Saldo portfela równe zero",
+      "goToReservation": "Przejdź do rezerwacji",
+      "goToRide": "Przejdź do przejazdu",
+      "back": "Wróć"
+    }
   }
 }

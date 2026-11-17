@@ -80,7 +80,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 }
 
 /** Ekran, na który aplikacja kieruje klienta po zalogowaniu albo uruchomieniu (`nextStep` z API). */
-export function homeFor(me: MeResponse | null): '/witaj' | '/dane' | '/zgody' | '/zablokowane' | '/konto' {
+export function homeFor(me: MeResponse | null): '/witaj' | '/dane' | '/zgody' | '/zablokowane' | '/mapa' {
   if (!me) return '/witaj';
   switch (me.nextStep) {
     case 'PROFILE':
@@ -90,6 +90,6 @@ export function homeFor(me: MeResponse | null): '/witaj' | '/dane' | '/zgody' | 
     case 'BLOCKED':
       return '/zablokowane';
     default:
-      return '/konto';
+      return '/mapa';
   }
 }

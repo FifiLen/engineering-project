@@ -23,6 +23,9 @@ export class ApiError extends Error {
 let accessToken: string | null = null;
 let refreshing: Promise<boolean> | null = null;
 
+/** Token dostępowy dla Socket.IO (`auth.token`, ADR 0036). */
+export const getAccessToken = (): string | null => accessToken;
+
 export async function storeTokens(tokens: CustomerTokens | null): Promise<void> {
   accessToken = tokens?.accessToken ?? null;
   await saveRefreshToken(tokens?.refreshToken ?? null);
@@ -76,12 +79,12 @@ async function request<T>(path: string, { method = 'GET', json }: { method?: str
   return body as T;
 }
 
-/** Tekst błędu dla klienta; szczegóły (np. liczba prób, minuty) wstawiane do komunikatu. */
 /** „+48 512 345 678”; numery spoza Polski bez zmian. */
 export function formatPhone(phone: string): string {
   return phone.replace(/^\+48(\d{3})(\d{3})(\d{3})$/, '+48 $1 $2 $3');
 }
 
+/** Tekst błędu dla klienta; szczegóły (np. liczba prób, minuty) wstawiane do komunikatu. */
 export function errorMessage(error: unknown): string {
   const code = error instanceof ApiError ? error.code : 'INTERNAL_ERROR';
   const values: Record<string, string | number> = {};

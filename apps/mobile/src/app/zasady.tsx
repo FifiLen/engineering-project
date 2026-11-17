@@ -17,7 +17,7 @@ export default function RulesScreen() {
       .then(setDoc)
       .catch(() => setFailed(true));
   }, []);
-  const done = () => router.replace('/konto');
+  const done = () => router.replace('/mapa');
 
   return (
     <Screen footer={<Button label={t('rules.understood')} onPress={done} />}>

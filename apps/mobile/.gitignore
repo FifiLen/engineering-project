@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# Wątek roboczy MapLibre kopiowany przez scripts/maplibre-worker.mjs
+public/maplibre-gl-worker.mjs

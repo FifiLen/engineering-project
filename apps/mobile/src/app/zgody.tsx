@@ -38,7 +38,7 @@ export default function ConsentsScreen() {
       footer={
         <>
           <Button label={t('consents.accept')} onPress={() => void accept()} busy={busy} disabled={!checked} />
-          <Button label={t('consents.later')} kind="plain" onPress={() => router.replace('/konto')} />
+          <Button label={t('consents.later')} kind="plain" onPress={() => router.replace('/mapa')} />
           <Text style={{ textAlign: 'center', fontSize: 13, lineHeight: 19, color: theme.muted }}>{t('consents.laterHint')}</Text>
         </>
       }
