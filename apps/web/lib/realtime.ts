@@ -1,10 +1,17 @@
 'use client';
 
 /**
- * Połączenie Socket.IO panelu (ADR 0012, ADR 0036): pokoje `rentals` i `fleet` według potrzeb ekranu.
+ * Połączenie Socket.IO panelu (ADR 0012, ADR 0036): pokoje `rentals` i `fleet` według potrzeb ekranu,
+ * a zmiany stref (`zones.changed`) przychodzą do wszystkich połączonych bez dołączania do pokoju.
  * Zdarzenia tylko przyspieszają odświeżenie; po ponownym połączeniu ekran pobiera stan z REST.
  */
-import type { ClientToServerEvents, FleetMapScooter, RentalListItem, ServerToClientEvents } from '@hulajnogi/shared';
+import type {
+  ClientToServerEvents,
+  FleetMapScooter,
+  RentalListItem,
+  ServerToClientEvents,
+  ZonesChanged,
+} from '@hulajnogi/shared';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { API_URL, getAccessToken, refreshSession } from './api';
@@ -14,6 +21,8 @@ interface StaffFeed {
   rentals?: (rental: RentalListItem) => void;
   /** Pozycje i statusy floty (pokój `fleet`, uprawnienie `scooters.read`). */
   fleet?: (updates: FleetMapScooter[]) => void;
+  /** Zmiana stref u innego operatora albo w tej karcie (ADR 0047). */
+  zones?: (event: ZonesChanged) => void;
   /** Ponowne połączenie po przerwie: zdarzenia z przerwy przepadły, stan trzeba pobrać od nowa. */
   reconnected?: () => void;
 }
@@ -25,9 +34,10 @@ export function useStaffFeed(feed: StaffFeed): boolean {
   const [live, setLive] = useState(false);
   const wantsRentals = Boolean(feed.rentals);
   const wantsFleet = Boolean(feed.fleet);
+  const wantsZones = Boolean(feed.zones);
 
   useEffect(() => {
-    if (!wantsRentals && !wantsFleet) return;
+    if (!wantsRentals && !wantsFleet && !wantsZones) return;
     // Token dostępowy przy każdym połączeniu (także ponownym); serwer rozłącza klienta bez tokenu (ADR 0035).
     const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(API_URL, {
       transports: ['websocket'],
@@ -49,10 +59,11 @@ export function useStaffFeed(feed: StaffFeed): boolean {
     });
     socket.on('rentals.changed', (rental) => handlers.current.rentals?.(rental));
     socket.on('fleet.updates', (updates) => handlers.current.fleet?.(updates));
+    socket.on('zones.changed', (event) => handlers.current.zones?.(event));
     return () => {
       socket.disconnect();
     };
-  }, [wantsRentals, wantsFleet]);
+  }, [wantsRentals, wantsFleet, wantsZones]);
 
   return live;
 }

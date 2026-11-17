@@ -23,7 +23,8 @@
       "access": "Klienci i dostęp",
       "users": "Użytkownicy",
       "staff": "Operatorzy i role",
-      "content": "Treści"
+      "content": "Treści",
+      "zones": "Strefy"
     },
     "auth": {
       "sideTitle": "Panel operatora floty",
@@ -195,7 +196,15 @@
     "VALIDATION_FAILED": "Uzupełnij wymagane pola",
     "INVALID_RENTAL_TRANSITION": "Przejazd jest już w innym stanie. Odśwież widok.",
     "RENTAL_COMMAND_PENDING": "Hulajnoga nie odpowiedziała jeszcze na poprzednią komendę",
-    "RENTAL_NOTE_REQUIRED": "Opisz powód w notatce"
+    "RENTAL_NOTE_REQUIRED": "Opisz powód w notatce",
+    "ZONE_INVALID_GEOMETRY": "Nieprawidłowa granica strefy",
+    "ZONE_OUTSIDE_SERVICE_AREA": "Strefa wychodzi poza obszar działania",
+    "ZONE_OVERLAP": "Strefa nachodzi na strefę parkowania {zoneCode}",
+    "ZONE_TYPE_IMMUTABLE": "Typu strefy nie można zmienić po utworzeniu",
+    "ZONE_IN_USE": "Strefa była używana w przejazdach; można ją tylko dezaktywować",
+    "ZONE_ALREADY_INACTIVE": "Strefa jest już nieaktywna",
+    "SERVICE_AREA_REQUIRED": "Obszar działania jest wymagany i musi być dokładnie jeden aktywny",
+    "ZONE_NOT_FOUND": "Nie znaleziono strefy"
   },
   "fleetStatus": {
     "AVAILABLE": "Dostępna",
@@ -221,7 +230,8 @@
     "RING": "Dzwonek",
     "LIGHTS": "Światła",
     "SPEED_LIMIT": "Limit prędkości",
-    "STOP_GRADUALLY": "Zatrzymanie",
+    "STOP_GRADUALLY": "Stopniowe zatrzymanie",
+    "RELEASE_STOP": "Zwolnienie zatrzymania",
     "status": {
       "SENT": "wysłano",
       "ACKED": "potwierdzono",
@@ -558,7 +568,56 @@
           "staff": "Operator",
           "role": "Rola",
           "user": "Klient",
-          "legal_document": "Dokument"
+          "legal_document": "Dokument",
+          "zone": "Strefa"
+        }
+      }
+    },
+    "zones": {
+      "title": "Strefy",
+      "summary": "{count, plural, one {# strefa} few {# strefy} other {# stref}}",
+      "searchPlaceholder": "Szukaj po kodzie lub nazwie",
+      "new": "Nowa strefa",
+      "newTitle": "Nowa strefa",
+      "emptyTitle": "Brak stref",
+      "emptyBody": "Narysuj pierwszą strefę na mapie: obszar działania, parkowanie, wolną jazdę albo zakaz.",
+      "bulkRemove": "Dezaktywuj",
+      "removeTitle": "Dezaktywacja strefy",
+      "removeBody": "Strefa zniknie z aplikacji i z mapy floty; zakończone przejazdy ją zachowują.",
+      "removeAction": "Dezaktywuj",
+      "fields": {
+        "id": "Identyfikator",
+        "code": "Kod",
+        "name": "Nazwa",
+        "type": "Typ",
+        "active": "Aktywna",
+        "visibleInApp": "Widoczna w aplikacji",
+        "speedLimitKmh": "Limit prędkości",
+        "capacity": "Pojemność",
+        "areaM2": "Powierzchnia",
+        "points": "Punkty",
+        "scootersInside": "Hulajnogi w strefie",
+        "ridesInside": "Przejazdy w trakcie",
+        "used": "Użyta w przejazdach",
+        "version": "Wersja",
+        "updatedAt": "Ostatnia zmiana",
+        "updatedByName": "Autor zmiany",
+        "geometry": "Granica"
+      },
+      "values": {
+        "type": {
+          "SERVICE_AREA": "Obszar działania",
+          "PARKING": "Parkowanie",
+          "SLOW": "Wolna jazda",
+          "NO_RIDE": "Zakaz"
+        },
+        "active": {
+          "true": "Aktywna",
+          "false": "Nieaktywna"
+        },
+        "visibleInApp": {
+          "true": "Widoczna",
+          "false": "Ukryta"
         }
       }
     }
@@ -613,6 +672,13 @@
         "draft_updated": "Edycja wersji roboczej",
         "published": "Publikacja dokumentu",
         "draft_deleted": "Usunięcie wersji roboczej"
+      },
+      "zone": {
+        "created": "Dodanie strefy",
+        "updated": "Zmiana strefy",
+        "deactivated": "Dezaktywacja strefy",
+        "restored": "Przywrócenie strefy",
+        "deleted": "Usunięcie strefy"
       }
     },
     "entityTypes": {
@@ -621,7 +687,8 @@
       "staff": "Operator",
       "role": "Rola",
       "user": "Klient",
-      "legal_document": "Dokument"
+      "legal_document": "Dokument",
+      "zone": "Strefa"
     },
     "detailsTitle": "Wpis {id}",
     "changed": "Zmienione pola",
@@ -888,8 +955,11 @@
         "end": "zakończenie · klient",
         "remoteEnd": "zdalne zakończenie · operator",
         "compensate": "blokada po spóźnionym odblokowaniu",
-        "other": "przejazd"
-      }
+        "other": "przejazd",
+        "zone": "reguła strefy · system"
+      },
+      "speedLimit": "Limit prędkości {kmh} km/h",
+      "speedLimitOff": "Zdjęcie limitu prędkości"
     },
     "people": {
       "title": "Klient i hulajnoga",
@@ -952,7 +1022,14 @@
         "ENDING": "Kończenie"
       },
       "liveDetail": "aktualizacja na żywo",
-      "waiting": "czeka na potwierdzenie: {command}"
+      "waiting": "czeka na potwierdzenie: {command}",
+      "zone": "{code} · {type}",
+      "zoneTypes": {
+        "SERVICE_AREA": "obszar działania",
+        "PARKING": "parkowanie",
+        "SLOW": "wolna jazda",
+        "NO_RIDE": "zakaz"
+      }
     },
     "ackReason": {
       "timeout": "brak odpowiedzi w 10 s",
@@ -1006,5 +1083,203 @@
       "submit": "Zakończ przejazd"
     },
     "ringSent": "Hulajnoga {scooter} dostała komendę Dzwonek."
+  },
+  "zones": {
+    "list": {
+      "label": "Lista stref",
+      "typeGroup": "Typ strefy",
+      "activityGroup": "Aktywność",
+      "active": "Aktywne",
+      "inactive": "Nieaktywne",
+      "sort": "Sortowanie",
+      "sorts": {
+        "code": "Kod rosnąco",
+        "desc_code": "Kod malejąco",
+        "name": "Nazwa A–Z",
+        "desc_name": "Nazwa Z–A",
+        "type": "Typ",
+        "desc_updatedAt": "Ostatnio zmienione"
+      },
+      "typeShort": {
+        "PARKING": "Parkowanie",
+        "SLOW": "Wolna jazda",
+        "NO_RIDE": "Zakaz",
+        "SERVICE_AREA": "Obszar"
+      },
+      "summaryActive": "{count, plural, one {# aktywna strefa} few {# aktywne strefy} other {# aktywnych stref}}",
+      "summaryInactive": "{count, plural, one {# nieaktywna strefa} few {# nieaktywne strefy} other {# nieaktywnych stref}}",
+      "capacity": "{count} z {capacity} hulajnóg",
+      "capacityFull": "{count} z {capacity}, pełna",
+      "scooters": "{count, plural, one {# hulajnoga} few {# hulajnogi} other {# hulajnóg}}",
+      "noRide": "Zakaz jazdy i parkowania",
+      "hectares": "{value} ha",
+      "hiddenInApp": "Ukryta w aplikacji",
+      "draft": "Szkic · {count, plural, one {# punkt} few {# punkty} other {# punktów}}",
+      "noInactive": "Nie ma nieaktywnych stref. Dezaktywowana strefa trafia tutaj i można ją przywrócić.",
+      "page": "{page} z {pages}"
+    },
+    "map": {
+      "label": "Mapa stref",
+      "toolbar": "Edytor granicy",
+      "draw": "Rysuj wielokąt",
+      "edit": "Edytuj punkty",
+      "deletePoint": "Usuń punkt",
+      "undo": "Cofnij (Ctrl+Z)",
+      "drawHint": "Kliknij, aby dodać punkt. Kliknij pierwszy punkt, aby zamknąć.",
+      "esc": "Esc",
+      "drawHintCancel": "anuluje.",
+      "zoom": "Powiększenie",
+      "zoomIn": "Przybliż",
+      "zoomOut": "Oddal",
+      "legend": {
+        "PARKING": "Parkowanie",
+        "SLOW": "Wolna jazda",
+        "NO_RIDE": "Zakaz",
+        "SERVICE_AREA": "Obszar działania",
+        "scooter": "Hulajnoga",
+        "riding": "W przejeździe"
+      }
+    },
+    "card": {
+      "label": "Edycja strefy",
+      "newTitle": "Nowa strefa",
+      "draft": "Szkic",
+      "unsaved": "jeszcze niezapisana",
+      "active": "Aktywna",
+      "inactive": "Nieaktywna",
+      "typeOf": {
+        "PARKING": "strefa parkowania",
+        "SLOW": "strefa wolnej jazdy",
+        "NO_RIDE": "strefa zakazu",
+        "SERVICE_AREA": "obszar działania"
+      },
+      "codePlaceholder": "np. P-06",
+      "namePlaceholder": "np. Galeria Rybnik",
+      "typeChoose": "Wybierz typ, aby zobaczyć jego ustawienia.",
+      "typeChosen": "Typ ustala się przy tworzeniu; później go nie zmienisz.",
+      "typeLocked": "Typ ustala się przy tworzeniu strefy. Aby zmienić typ, utwórz nową strefę i dezaktywuj tę.",
+      "oneAreaTitle": "Obszar działania jest tylko jeden.",
+      "oneAreaBody": "Aby zmienić granicę usługi, edytuj strefę {code}.",
+      "noRideTitle": "Zakaz jazdy i parkowania.",
+      "noRideBody": "Hulajnoga zwalnia i staje na granicy, a klient nie zakończy tu przejazdu. Hulajnoga, która tu stoi, jest niedostępna dla klientów do czasu serwisu.",
+      "kmhUnit": "km/h",
+      "limitHint": "Od 5 do 15 km/h. Gdy strefy się nakładają, obowiązuje najniższy limit.",
+      "limitWas": "Było {kmh} km/h.",
+      "limitRange": "Od 5 do 15 km/h.",
+      "boundaryLabel": "Granica",
+      "boundary": "{count, plural, one {# punkt} few {# punkty} other {# punktów}} · {ha} ha",
+      "boundaryOpen": "{count, plural, one {# punkt} few {# punkty} other {# punktów}} · wielokąt otwarty",
+      "boundaryEmpty": "Narysuj granicę na mapie",
+      "boundaryParts": "{parts, plural, one {# część} few {# części} other {# części}} · {ha} ha",
+      "show": "Pokaż",
+      "hintDraw": "Rysuj na mapie. Potrzebne co najmniej 3 punkty i zamknięty wielokąt.",
+      "hintEdit": "Przeciągaj punkty na mapie; kliknij środek krawędzi, aby dodać punkt.",
+      "hintDelete": "Kliknij punkt na mapie, aby go usunąć. Granica zachowuje co najmniej 3 punkty.",
+      "hintRedraw": "Narysuj nową granicę; po zamknięciu wielokąta zastąpi obecną. „Cofnij” przywróci poprzednią.",
+      "multipart": "Strefa ma kilka części, więc jej granica jest tylko do odczytu w edytorze.",
+      "overlapLead": "Nakłada się na",
+      "overlapBody": "To dozwolone: w części wspólnej obowiązuje limit, a parkowanie zostaje możliwe.",
+      "scootersUnit": "hulajnóg",
+      "capacityHint": "Informacja dla operatorów i aplikacji. Nie blokuje zakończenia przejazdu.",
+      "visible": "Klienci widzą strefę na mapie i w legendzie.",
+      "visibleNoRide": "Klienci widzą strefę na mapie i w legendzie jako zakaz.",
+      "visibleNew": "Domyślnie włączona. Klienci zobaczą strefę po zapisie.",
+      "nowInside": "Teraz w strefie",
+      "ofCapacity": "z {capacity}",
+      "scootersLabel": "{count, plural, one {hulajnoga} few {hulajnogi} other {hulajnóg}}",
+      "ridesLabel": "{count, plural, one {przejazd w trakcie} few {przejazdy w trakcie} other {przejazdów w trakcie}}",
+      "versionLead": "Wersja",
+      "lastChange": "ostatnia zmiana",
+      "systemSeed": "System, dane startowe",
+      "history": "Historia zmian",
+      "newFoot": "Zamknij wielokąt i wybierz typ, aby zapisać. Strefa zadziała od razu po zapisie.",
+      "create": "Zapisz strefę",
+      "save": "Zapisz zmiany",
+      "deactivate": "Dezaktywuj",
+      "delete": "Usuń strefę",
+      "restore": "Przywróć strefę",
+      "resetBoundary": "Przywróć granicę",
+      "areaRequired": "Obszar działania jest wymagany",
+      "readOnly": "Podgląd: zmiana stref wymaga uprawnienia do zapisu stref.",
+      "selectHint": "Wybierz strefę z listy albo na mapie.",
+      "discardConfirm": "Masz niezapisane zmiany strefy. Odrzucić je?",
+      "notSavedTitle": "Nie zapisano zmian.",
+      "notSavedBody": "Popraw granicę i zapisz ponownie; pozostałe pola są zachowane.",
+      "conflictTitle": "Strefa zmieniła się w międzyczasie",
+      "remoteChanged": "Ktoś właśnie zmienił tę strefę. Zapis Twoich zmian zakończy się konfliktem wersji.",
+      "diffName": "Kod i nazwa: aktualnie {value}",
+      "diffLimit": "Limit prędkości: aktualnie {value} km/h",
+      "diffCapacity": "Pojemność: aktualnie {value}",
+      "diffVisible": "Widoczność w aplikacji jest inna",
+      "diffGeometry": "Granica jest inna",
+      "diffActive": "Zmieniła się aktywność strefy",
+      "saved": "Zapisano zmiany (wersja {version}). Działają od następnego odczytu telemetrii.",
+      "created": "Utworzono strefę {code}. Działa od razu.",
+      "deactivated": "Strefa jest nieaktywna. Przywrócisz ją z listy „Nieaktywne”.",
+      "restored": "Przywrócono strefę."
+    },
+    "errors": {
+      "code": "Kod: wielkie litery, cyfry i myślniki, do 20 znaków.",
+      "codeTaken": "Strefa o tym kodzie już istnieje.",
+      "name": "Podaj nazwę strefy.",
+      "type": "Wybierz typ strefy.",
+      "speed": "Limit od {min} do {max} km/h.",
+      "capacity": "Pojemność to liczba całkowita większa od zera.",
+      "outside": "Strefa wychodzi poza obszar działania. Przesuń zaznaczone punkty ({count}) do środka obszaru {area}.",
+      "outsideEdges": "Strefa wychodzi poza obszar działania. Przesuń granicę do środka obszaru {area}.",
+      "areaExcludes": "Po tej zmianie strefa {zone} wyszłaby poza obszar działania. Zmień granicę obszaru albo najpierw strefę {zone}.",
+      "overlap": "Strefa nachodzi na strefę parkowania {zone}. Strefy parkowania nie mogą się nakładać.",
+      "invalid": {
+        "TOO_FEW_POINTS": "Granica potrzebuje co najmniej 3 różnych punktów i zamkniętego wielokąta.",
+        "SELF_INTERSECTION": "Granica przecina sama siebie. Przesuń punkty tak, aby krawędzie się nie krzyżowały.",
+        "TOO_SMALL": "Strefa jest za mała: najmniejsza powierzchnia to 100 m²."
+      },
+      "client": {
+        "SELF_INTERSECTION": "Tej zmiany nie zastosowano: krawędzie granicy nie mogą się przecinać.",
+        "TOO_FEW_POINTS": "Granica musi mieć co najmniej 3 punkty. Narysuj wielokąt i zamknij go pierwszym punktem."
+      }
+    },
+    "remove": {
+      "deactivateTitle": "Dezaktywować strefę {zone}?",
+      "deactivateBody": "Strefy nie można usunąć, bo była używana w przejazdach. Dezaktywacja zachowuje ją w historii.",
+      "deactivateBodyRides": "Strefy nie można usunąć, bo {count, plural, one {kończył się w niej # przejazd} few {kończyły się w niej # przejazdy} other {kończyło się w niej # przejazdów}}. Dezaktywacja zachowuje ją w historii.",
+      "deleteTitle": "Usunąć strefę {zone}?",
+      "deleteBody": "W strefie nie było przejazdów ani zdarzeń, więc można ją usunąć. Usunięcia nie można cofnąć.",
+      "consequences": "Co się stanie",
+      "effect": {
+        "PARKING": "Strefa zniknie z aplikacji i z mapy floty. Klienci nie zakończą w niej przejazdu.",
+        "SLOW": "Strefa zniknie z aplikacji i z mapy floty. Limit prędkości przestanie obowiązywać od następnego odczytu telemetrii.",
+        "NO_RIDE": "Strefa zniknie z aplikacji i z mapy floty. Hulajnogi przestaną się w niej zatrzymywać.",
+        "SERVICE_AREA": "Obszar działania jest wymagany i nie może zniknąć."
+      },
+      "scootersParking": "{count, plural, one {# hulajnoga stoi} few {# hulajnogi stoją} other {# hulajnóg stoi}} teraz w strefie. Zostaną dostępne dla klientów, ale poza strefą parkowania.",
+      "scooters": "{count, plural, one {# hulajnoga jest} few {# hulajnogi są} other {# hulajnóg jest}} teraz w strefie.",
+      "rides": "{count, plural, one {# przejazd w trakcie jest} few {# przejazdy w trakcie są} other {# przejazdów w trakcie jest}} teraz w strefie. Zasady strefy przestaną je obowiązywać od następnego odczytu telemetrii.",
+      "history": "Zakończone przejazdy zachowają {zone} jako strefę końcową.",
+      "restore": "Strefę przywrócisz z listy po wybraniu filtra „Nieaktywne”.",
+      "permanent": "Strefa zniknie na stałe; w dzienniku audytu zostanie wpis o usunięciu.",
+      "audit": "Zmiana trafi do dziennika audytu. Usunąć można tylko strefę, w której nie było przejazdów ani zdarzeń.",
+      "deactivateAction": "Dezaktywuj strefę",
+      "deleteAction": "Usuń strefę"
+    },
+    "impact": {
+      "title": "Zmiana dotyczy {count, plural, one {# przejazdu} other {# przejazdów}} w trakcie",
+      "leadLimit": "{zone}: limit prędkości {from} → {to} km/h. Hulajnogi w strefie dostaną nowy limit w trakcie jazdy.",
+      "leadGeometry": "{zone}: nowa granica. Hulajnogi, które znajdą się w strefie albo poza nią, dostaną nowe zasady w trakcie jazdy.",
+      "leadShown": "{zone}: strefa będzie widoczna w aplikacji. Klienci w strefie zobaczą ją na mapie.",
+      "leadHidden": "{zone}: strefa zniknie z mapy w aplikacji. Zasady strefy działają dalej.",
+      "leadNew": "Nowa strefa {zone}: hulajnogi w jej granicy dostaną zasady strefy w trakcie jazdy.",
+      "rental": "Przejazd",
+      "scooter": "Hulajnoga",
+      "customer": "Klient",
+      "since": "W strefie od",
+      "speed": "Prędkość",
+      "nextReadingLimit": "Nowy limit działa od następnego odczytu telemetrii, zwykle po kilku sekundach. Hulajnogi dostaną komendę limitu, a klienci komunikat na ekranie jazdy.",
+      "nextReading": "Zmiana działa od następnego odczytu telemetrii, zwykle po kilku sekundach. Hulajnogi dostaną komendy strefy, a klienci komunikat na ekranie jazdy.",
+      "later": "Hulajnogi, które wjadą do strefy później, od razu dostaną {kmh} km/h. Poza strefą limit się nie zmienia.",
+      "audit": "Zmiana trafi do dziennika audytu jako wersja {version} strefy.",
+      "auditNew": "Utworzenie strefy trafi do dziennika audytu.",
+      "confirm": "Zapisz i zastosuj"
+    }
   }
 }

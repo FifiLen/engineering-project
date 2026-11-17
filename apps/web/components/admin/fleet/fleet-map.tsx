@@ -25,7 +25,14 @@ import { useSession } from '../../../lib/session';
 import { formatKm, formatRelative, formatTime, t } from '../../../lib/i18n';
 import { BellIcon, CloseIcon, LockIcon, WrenchIcon } from '../icons';
 import { valueLabel } from '../labels';
-import { addZoneLayers, boundsOf, MAP_STYLE, MAP_WORKER_URL, serviceAreaBounds, type ZoneCollection } from '../map-layers';
+import {
+  addZoneLayers,
+  boundsOf,
+  MAP_STYLE,
+  MAP_WORKER_URL,
+  serviceAreaBounds,
+  type ZoneCollection,
+} from '../map-layers';
 import { Battery, RentalLink, scooterNumber, STATUS_COLOR, StatusPill } from './fleet-format';
 
 const QUICK: FleetStatus[] = ['AVAILABLE', 'IN_USE', 'LOW_BATTERY', 'MAINTENANCE', 'OFFLINE'];
@@ -57,7 +64,9 @@ function toGeoJson(scooters: FleetMapScooter[], selected: string | null): Featur
  * wpisanych na sztywno współrzędnych miasta.
  */
 function bounds(zones: ZoneCollection, scooters: FleetMapScooter[]): [[number, number], [number, number]] {
-  const located = scooters.filter((s) => s.lat !== null && s.lon !== null).map((s): [number, number] => [s.lon!, s.lat!]);
+  const located = scooters
+    .filter((s) => s.lat !== null && s.lon !== null)
+    .map((s): [number, number] => [s.lon!, s.lat!]);
   if (located.length >= 2) return boundsOf(located);
   return serviceAreaBounds(zones) ?? boundsOf(located.length ? located : [[0, 0]]);
 }
@@ -84,9 +93,11 @@ export function FleetMap() {
       api<FleetMapScooter[]>('/admin/fleet/map')
         .then((list) => setScooters(new Map(list.map((s) => [s.id, s]))))
         .catch((e: unknown) => setError(errorMessage(e)));
-    api<ZoneCollection>('/zones')
-      .then(setZones)
-      .catch((e: unknown) => setError(errorMessage(e)));
+    const loadZones = () =>
+      api<ZoneCollection>('/zones')
+        .then(setZones)
+        .catch((e: unknown) => setError(errorMessage(e)));
+    void loadZones();
     // Token dostępowy przy każdym połączeniu (także ponownym); serwer rozłącza klienta bez tokenu (ADR 0035).
     const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(API_URL, {
       transports: ['websocket'],
@@ -121,6 +132,8 @@ export function FleetMap() {
       }),
     );
     socket.on('fleet.command', setLastCommand);
+    // Zmiana stref w edytorze (ADR 0047): warstwa stref od razu u wszystkich operatorów.
+    socket.on('zones.changed', () => void loadZones());
     void loadSnapshot();
     return () => {
       socket.disconnect();

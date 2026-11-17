@@ -199,3 +199,101 @@ export const WarningIcon = (p: P) => (
     <path d="M12 10v4M12 17h.01" />
   </Icon>
 );
+
+// Edytor stref (makiety 23-panel-strefy)
+export const SlowZoneIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <path d="M4.5 17a8.5 8.5 0 1115 0" />
+    <path d="M12 13l4-4" />
+  </Icon>
+);
+
+export const NoRideIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M6 6l12 12" />
+  </Icon>
+);
+
+export const PolygonIcon = (p: P) => (
+  <Icon size={16} strokeWidth={2} {...p}>
+    <path d="M5 9l7-5 7 4-2 10H7z" />
+    <circle cx="5" cy="9" r="1.2" />
+    <circle cx="12" cy="4" r="1.2" />
+    <circle cx="19" cy="8" r="1.2" />
+    <circle cx="17" cy="18" r="1.2" />
+    <circle cx="7" cy="18" r="1.2" />
+  </Icon>
+);
+
+export const TargetIcon = (p: P) => (
+  <Icon size={14} strokeWidth={2} {...p}>
+    <circle cx="12" cy="12" r="7" />
+    <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+  </Icon>
+);
+
+export const FlagIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <path d="M5 21V4h11l-2 4 2 4H5" />
+  </Icon>
+);
+
+export const PencilIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <path d="M4 20h4L19 9l-4-4L4 16z" />
+  </Icon>
+);
+
+export const TrashIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+  </Icon>
+);
+
+export const UndoIcon = (p: P) => (
+  <Icon size={16} strokeWidth={2} {...p}>
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10.5a5.5 5.5 0 010 11H11" />
+  </Icon>
+);
+
+export const RestoreIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <path d="M4 12a8 8 0 108-8 8 8 0 00-6 2.7" />
+    <path d="M4 4v4h4" />
+  </Icon>
+);
+
+export const EyeOffIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <path d="M3 3l18 18" />
+    <path d="M10.6 6.1A9.8 9.8 0 0112 6c5 0 8.5 4.5 9.5 6-.5.8-1.6 2.2-3.1 3.5M6.5 7.6C4.6 8.9 3.2 10.8 2.5 12c1 1.5 4.5 6 9.5 6 1.6 0 3-.4 4.3-1.1" />
+  </Icon>
+);
+
+export const SortIcon = (p: P) => (
+  <Icon size={14} strokeWidth={2} {...p}>
+    <path d="M8 5v14M4 9l4-4 4 4" />
+    <path d="M14 9h6M14 13h4M14 17h2" />
+  </Icon>
+);
+
+export const ChevronDownIcon = (p: P) => (
+  <Icon size={14} strokeWidth={2} {...p}>
+    <path d="M6 9l6 6 6-6" />
+  </Icon>
+);
+
+export const InfoIcon = (p: P) => (
+  <Icon size={15} strokeWidth={2} {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 11v5M12 8h.01" />
+  </Icon>
+);
+
+export const MinusIcon = (p: P) => (
+  <Icon size={16} strokeWidth={2} {...p}>
+    <path d="M5 12h14" />
+  </Icon>
+);

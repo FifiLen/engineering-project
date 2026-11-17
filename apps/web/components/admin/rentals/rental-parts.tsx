@@ -98,7 +98,10 @@ export function liveCounters(r: RentalAdminDetails, receivedAt: number, now: num
 // Problem przejazdu (ta sama reguła co flaga `has_problem` w widoku `v_rental_details`)
 // ---------------------------------------------------------------------------------------------
 
-export type RentalProblem = { kind: 'LOCK_FAILED' | 'PAUSE_FAILED' | 'RESUME_FAILED' | 'UNLOCK_FAILED' | 'OFFLINE'; at: string };
+export type RentalProblem = {
+  kind: 'LOCK_FAILED' | 'PAUSE_FAILED' | 'RESUME_FAILED' | 'UNLOCK_FAILED' | 'OFFLINE';
+  at: string;
+};
 
 const FAILURE_EVENTS = ['LOCK_FAILED', 'PAUSE_FAILED', 'RESUME_FAILED'] as const;
 
@@ -163,13 +166,20 @@ export function buildTimeline(r: RentalAdminDetails): TimelineItem[] {
       remoteEnd = e;
       continue;
     }
-    if (e.type === 'LOCK_FAILED' && events.some((x) => x.at === e.at && isAction(x, ['ABORT_END', 'ABORT_END_PAUSED']))) {
+    if (
+      e.type === 'LOCK_FAILED' &&
+      events.some((x) => x.at === e.at && isAction(x, ['ABORT_END', 'ABORT_END_PAUSED']))
+    ) {
       lockFailure = e;
       continue;
     }
     if (e.type === 'STATE_CHANGED') {
       const action =
-        typeof e.data.action === 'string' ? e.data.action : e.fromState === null && e.toState === 'RESERVED' ? 'RESERVE' : 'START';
+        typeof e.data.action === 'string'
+          ? e.data.action
+          : e.fromState === null && e.toState === 'RESERVED'
+            ? 'RESERVE'
+            : 'START';
       let detail: string | null = t.has(`rentals.timeline.details.${action}`)
         ? t.dynamic(`rentals.timeline.details.${action}`)
         : null;
@@ -214,6 +224,21 @@ export function buildTimeline(r: RentalAdminDetails): TimelineItem[] {
       detail = t('rentals.timeline.restoredAfter', {
         seconds: Math.round((Date.parse(e.at) - Date.parse(lostAt)) / 1000),
       });
+    if (e.type === 'ZONE_ENTERED' || e.type === 'ZONE_EXITED') {
+      // Zdarzenia stref (ADR 0043): kod strefy z widoku osi czasu albo z danych zdarzenia, do tego typ strefy.
+      const code = e.zoneCode ?? (typeof e.data.code === 'string' ? e.data.code : null);
+      const zoneType = typeof e.data.zoneType === 'string' ? e.data.zoneType : null;
+      if (code)
+        detail = zoneType
+          ? t('rentals.timeline.zone', { code, type: t.dynamic(`rentals.timeline.zoneTypes.${zoneType}`) })
+          : code;
+      // Wjazd do zakazu albo wyjazd poza obszar działania zatrzymuje hulajnogę (pytania 2 i 3).
+      if (
+        (e.type === 'ZONE_ENTERED' && zoneType === 'NO_RIDE') ||
+        (e.type === 'ZONE_EXITED' && zoneType === 'SERVICE_AREA')
+      )
+        tone = 'warn';
+    }
     if (e.zoneCode && !detail) detail = e.zoneCode;
     items.push({
       key: `${e.at}-${items.length}`,
@@ -274,6 +299,18 @@ export function Timeline({ items, showState }: { items: TimelineItem[]; showStat
 // Komendy przejazdu
 // ---------------------------------------------------------------------------------------------
 
+/** Komendy wysyłane tylko przez system według stref (D7, ADR 0044). */
+const ZONE_COMMANDS = ['SPEED_LIMIT', 'STOP_GRADUALLY', 'RELEASE_STOP'] as const;
+
+/** Nazwa komendy; limit prędkości z wartością z ładunku komendy albo jako zdjęcie limitu (`{}`). */
+export function commandLabel(entry: Pick<RentalTimelineEntry, 'type' | 'data'>): string {
+  if (entry.type === 'SPEED_LIMIT') {
+    const kmh = entry.data.kmh;
+    return typeof kmh === 'number' ? t('rentals.commands.speedLimit', { kmh }) : t('rentals.commands.speedLimitOff');
+  }
+  return t.has(`command.${entry.type}`) ? t.dynamic(`command.${entry.type}`) : entry.type;
+}
+
 export interface CommandRow {
   entry: RentalTimelineEntry;
   /** Cel komendy wynikający ze stanu przejazdu w chwili wysłania. */
@@ -293,6 +330,7 @@ export function commandRows(r: RentalAdminDetails): CommandRow[] {
       continue;
     }
     let context = 'other';
+    if ((ZONE_COMMANDS as readonly string[]).includes(e.type)) context = 'zone';
     if (e.type === 'UNLOCK') context = state === 'UNLOCKING' ? 'start' : state === 'PAUSED' ? 'resume' : 'other';
     if (e.type === 'LOCK') {
       if (state === 'ACTIVE') context = 'pause';
@@ -305,7 +343,12 @@ export function commandRows(r: RentalAdminDetails): CommandRow[] {
   return rows;
 }
 
-const COMMAND_PILL: Record<string, string> = { SENT: 'pill accent', ACKED: 'pill', REJECTED: 'pill danger', TIMEOUT: 'pill danger' };
+const COMMAND_PILL: Record<string, string> = {
+  SENT: 'pill accent',
+  ACKED: 'pill',
+  REJECTED: 'pill danger',
+  TIMEOUT: 'pill danger',
+};
 
 export function CommandResult({ entry }: { entry: RentalTimelineEntry }) {
   const status = entry.commandStatus ?? 'SENT';

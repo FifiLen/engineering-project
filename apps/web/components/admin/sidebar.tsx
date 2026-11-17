@@ -5,7 +5,20 @@ import { usePathname } from 'next/navigation';
 import type { ComponentType } from 'react';
 import { t } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
-import { BrandMark, DocumentIcon, ListIcon, LogoutIcon, MapIcon, RouteIcon, ScooterIcon, ShieldIcon, UsersIcon } from './icons';
+import {
+  BrandMark,
+  DocumentIcon,
+  ListIcon,
+  LogoutIcon,
+  MapIcon,
+  ParkingIcon,
+  RouteIcon,
+  ScooterIcon,
+  ShieldIcon,
+  UsersIcon,
+} from './icons';
+
+const ZonesIcon = () => <ParkingIcon size={18} strokeWidth={1.9} />;
 
 interface NavItem {
   href: string;
@@ -30,6 +43,7 @@ const groups: Array<{ label?: string; items: NavItem[] }> = [
   {
     label: t('admin.nav.configuration'),
     items: [
+      { href: '/admin/strefy', label: t('admin.nav.zones'), Icon: ZonesIcon, permission: 'zones.read' },
       { href: '/admin/modele', label: t('admin.nav.models'), Icon: ScooterIcon, permission: 'scooters.read' },
       { href: '/admin/tresci', label: t('admin.nav.content'), Icon: DocumentIcon, permission: 'content.read' },
     ],
@@ -39,7 +53,13 @@ const groups: Array<{ label?: string; items: NavItem[] }> = [
     items: [
       { href: '/admin/klienci', label: t('admin.nav.users'), Icon: UsersIcon, permission: 'users.read' },
       // Operatorzy, role i dziennik audytu to jedna pozycja z zakładkami (makiety 18-panel-dostep).
-      { href: '/admin/operatorzy', label: t('admin.nav.staff'), Icon: ShieldIcon, permission: 'staff.read', also: ['/admin/role', '/admin/dziennik'] },
+      {
+        href: '/admin/operatorzy',
+        label: t('admin.nav.staff'),
+        Icon: ShieldIcon,
+        permission: 'staff.read',
+        also: ['/admin/role', '/admin/dziennik'],
+      },
     ],
   },
 ];

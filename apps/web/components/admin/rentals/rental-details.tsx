@@ -9,7 +9,15 @@ import { formatPln, scootersResource, topics, type FleetMapScooter, type Scooter
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, errorMessage } from '../../../lib/api';
-import { formatClock, formatDateTime, formatDuration, formatKm, formatRelative, formatTime, t } from '../../../lib/i18n';
+import {
+  formatClock,
+  formatDateTime,
+  formatDuration,
+  formatKm,
+  formatRelative,
+  formatTime,
+  t,
+} from '../../../lib/i18n';
 import { useStaffFeed } from '../../../lib/realtime';
 import { useSession } from '../../../lib/session';
 import { Banner, initials } from '../access/common';
@@ -21,6 +29,7 @@ import {
   buildTimeline,
   CommandResponse,
   CommandResult,
+  commandLabel,
   commandRows,
   customerName,
   liveCounters,
@@ -159,12 +168,7 @@ export function RentalDetailsPage({ id }: { id: string }) {
       <div className="rental-layout">
         <div className="col">
           <section className="card route-card">
-            <RouteMap
-              route={route}
-              position={position}
-              ended={!open}
-              label={t('rentals.map.label')}
-            />
+            <RouteMap route={route} position={position} ended={!open} label={t('rentals.map.label')} />
             <div className="glass map-chip">
               {open ? (
                 <span className={connected ? 'live' : 'live off'}>{t('rentals.map.live')}</span>
@@ -189,7 +193,9 @@ export function RentalDetailsPage({ id }: { id: string }) {
               <Stat value={formatKm(rental.distanceM)} label={t('rentals.stats.distance')} />
               {open && (
                 <Stat
-                  value={live?.speedKmh != null ? t('common.kmh', { value: Math.round(live.speedKmh) }) : t('common.none')}
+                  value={
+                    live?.speedKmh != null ? t('common.kmh', { value: Math.round(live.speedKmh) }) : t('common.none')
+                  }
                   label={t('rentals.stats.speed')}
                 />
               )}
@@ -205,7 +211,9 @@ export function RentalDetailsPage({ id }: { id: string }) {
               <div className="lines">
                 <Line label={t('rentals.price.tariff')}>
                   <span>
-                    <span className="strong">{t('rentals.price.tariffVersion', { version: rental.tariff.version })}</span>{' '}
+                    <span className="strong">
+                      {t('rentals.price.tariffVersion', { version: rental.tariff.version })}
+                    </span>{' '}
                     <small className="muted">
                       {rental.reservedAt ? t('rentals.price.fromReservation') : t('rentals.price.fromUnlock')}
                     </small>
@@ -216,7 +224,10 @@ export function RentalDetailsPage({ id }: { id: string }) {
                 </Line>
                 <Line label={t('rentals.price.ride', { minutes: rental.price.rideMinutes })}>
                   <span className="num">
-                    {t('rentals.price.times', { count: rental.price.rideMinutes, rate: formatPln(rental.tariff.minuteRate) })}
+                    {t('rentals.price.times', {
+                      count: rental.price.rideMinutes,
+                      rate: formatPln(rental.tariff.minuteRate),
+                    })}
                   </span>
                 </Line>
                 <Line label={t('rentals.price.pause', { minutes: rental.price.pauseMinutes })}>
@@ -254,7 +265,7 @@ export function RentalDetailsPage({ id }: { id: string }) {
                       {formatTime(entry.at)}
                     </span>
                     <span role="cell" className="stack">
-                      <span className="strong">{t.dynamic(`command.${entry.type}`)}</span>
+                      <span className="strong">{commandLabel(entry)}</span>
                       <small>{context}</small>
                     </span>
                     <span role="cell">
