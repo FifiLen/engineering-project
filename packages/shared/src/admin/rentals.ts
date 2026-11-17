@@ -2,9 +2,11 @@
  * Zasób panelu modułu Wypożyczenia: przejazdy tylko do odczytu i zdalne zakończenie (ADR 0031, ADR 0036).
  */
 import { z } from 'zod';
+import { RIDE_SETTLEMENTS, type RentalSettlementView, type RideSettlement } from '../payments.js';
 import type { RentalPriceView, RentalState, TariffView } from '../rentals.js';
 import { RENTAL_STATES } from '../rentals.js';
 import type { CommandStatus } from './fleet.js';
+import type { RefundListItem } from './payments.js';
 import type { ResourceDefinition } from './list.js';
 
 export const REMOTE_END_REASONS = ['SCOOTER_NOT_RESPONDING', 'CUSTOMER_REQUEST', 'TERMS_VIOLATION', 'OTHER'] as const;
@@ -37,6 +39,8 @@ export const rentalsResource = {
     tariffVersion: { type: 'integer', filters: ['eq'] },
     endZoneCode: { type: 'text', filters: ['eq'] },
     pendingCommand: { type: 'text' },
+    settlement: { type: 'enum', values: RIDE_SETTLEMENTS, filters: ['eq'], facet: true },
+    paidAmount: { type: 'integer', sortable: true },
   },
   search: ['number', 'scooterNumber', 'userName', 'userPhone'],
   defaultSort: ['-createdAt'],
@@ -63,6 +67,8 @@ export interface RentalListItem {
   tariffVersion: number;
   endZoneCode: string | null;
   pendingCommand: string | null;
+  settlement: RideSettlement;
+  paidAmount: number;
 }
 
 /** Wpis osi czasu: zdarzenie przejazdu albo komenda z jej wynikiem (`v_rental_timeline`). */
@@ -80,7 +86,7 @@ export interface RentalTimelineEntry {
   ackReason: string | null;
 }
 
-export interface RentalAdminDetails extends RentalListItem {
+export interface RentalAdminDetails extends Omit<RentalListItem, 'settlement'> {
   reservedAt: string | null;
   reservationExpiresAt: string | null;
   billedUntil: string | null;
@@ -97,6 +103,9 @@ export interface RentalAdminDetails extends RentalListItem {
   /** Trasa z telemetrii przejazdu: [lon, lat]. */
   route: Array<[number, number]>;
   timeline: RentalTimelineEntry[];
-  settlement: 'PENDING';
+  settlement: RentalSettlementView;
+  refunds: RefundListItem[];
+  /** Kwota, którą można jeszcze zwrócić (zapłata minus zwroty udane i w toku); 0, gdy przejazd nie jest rozliczony. */
+  refundable: number;
   asOf: string;
 }

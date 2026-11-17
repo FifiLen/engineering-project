@@ -4,6 +4,7 @@
  */
 import type { CommandView, FleetStatus } from './admin/fleet.js';
 import type { RentalListItem } from './admin/rentals.js';
+import type { WalletSummary } from './payments.js';
 import type { RentalView } from './rentals.js';
 
 /** Pokój panelu z pozycjami całej floty. */
@@ -38,6 +39,8 @@ export interface ServerToClientEvents {
   'zones.changed': (event: ZonesChanged) => void;
   /** Klient: pełny widok jego przejazdu po każdej zmianie (stan, komenda, komunikat, liczniki). */
   'rental.updated': (rental: RentalView) => void;
+  /** Klient: saldo i zaległości po każdym ruchu w portfelu i zmianie płatności (ADR 0050, D8). */
+  'wallet.updated': (wallet: WalletSummary) => void;
 }
 
 export interface ZonesChanged {

@@ -16,11 +16,7 @@ export type ConsentType = (typeof CONSENT_TYPES)[number];
 
 const version = z.number().int().min(1);
 const personName = z.string().trim().min(2).max(80);
-const workEmail = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .pipe(z.email().max(254));
+const workEmail = z.string().trim().toLowerCase().pipe(z.email().max(254));
 
 // ---------------------------------------------------------------------------------------------
 // Operatorzy
@@ -203,6 +199,7 @@ export const usersResource = {
     lastRideAt: { type: 'datetime', filters: ['gte', 'lte'], sortable: true },
     totalSpent: { type: 'integer', filters: ['gte', 'lte'], sortable: true },
     walletBalance: { type: 'integer', filters: ['gte', 'lte'], sortable: true },
+    unpaidRentals: { type: 'integer', filters: ['gte'], sortable: true },
     ticketsReported: { type: 'integer', sortable: true },
     activeSessions: { type: 'integer', sortable: true },
     lastSeenAt: { type: 'datetime', filters: ['gte', 'lte'], sortable: true },
@@ -229,6 +226,7 @@ export interface UserListItem {
   lastRideAt: string | null;
   totalSpent: number;
   walletBalance: number;
+  unpaidRentals: number;
   ticketsReported: number;
   activeSessions: number;
   lastSeenAt: string | null;
@@ -336,4 +334,3 @@ export const documentDraftUpdateSchema = z.object({
   changeSummary: z.string().trim().max(300).nullable().optional(),
 });
 export type DocumentDraftUpdate = z.infer<typeof documentDraftUpdateSchema>;
-

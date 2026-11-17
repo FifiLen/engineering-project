@@ -18,12 +18,14 @@ import {
   type NotificationPreferences,
   type RentalHistoryItem,
   type RentalListItem,
+  type RentalSettlementView,
   type RentalStats,
   type RentalTimelineEntry,
   type ScooterVariant,
 } from '@hulajnogi/shared';
 import { inArray, sql } from 'drizzle-orm';
 import { runListQuery, type ListSource } from '../admin/list-query.js';
+import { DrizzlePaymentRepository } from './payments.repository.js';
 import type { DbExecutor } from '../client.js';
 import { rentals, vRentalDetails } from '../schema/schema.js';
 
@@ -51,6 +53,8 @@ const listSource: ListSource<RentalField> = {
     tariffVersion: vRentalDetails.tariffVersion,
     endZoneCode: vRentalDetails.endZoneCode,
     pendingCommand: vRentalDetails.pendingCommand,
+    settlement: vRentalDetails.settlement,
+    paidAmount: vRentalDetails.paidAmount,
   },
 };
 
@@ -60,6 +64,8 @@ const OPEN_STATES = sql.raw(`('RESERVED', 'UNLOCKING', 'ACTIVE', 'PAUSED', 'ENDI
 export interface RentalRecord extends OpenRental {
   number: number;
   tariffId: string;
+  paymentSource: 'WALLET' | 'CARD';
+  paymentMethodId: string | null;
   reservedAt: Date | null;
   startedAt: Date | null;
   endedAt: Date | null;
@@ -96,6 +102,9 @@ export interface NewRental {
   state: RentalState;
   reservedAt: Date | null;
   reservationExpiresAt: Date | null;
+  /** Źródło płatności wybrane przy pierwszym stanie przejazdu (ADR 0049); karta przy `CARD`. */
+  paymentSource: 'WALLET' | 'CARD';
+  paymentMethodId: string | null;
 }
 
 export interface CustomerScooterRow extends RentableScooter {
@@ -150,7 +159,8 @@ const toScooter = (r: Row): CustomerScooterRow => ({
 });
 
 const rentalSql = sql`
-  SELECT r.id, r.number, r.user_id, r.scooter_id, r.tariff_id, r.state, r.reserved_at, r.reservation_expires_at,
+  SELECT r.id, r.number, r.user_id, r.scooter_id, r.tariff_id, r.state, r.payment_source, r.payment_method_id,
+         r.reserved_at, r.reservation_expires_at,
          r.started_at, r.ended_at, r.ride_seconds, r.pause_seconds, r.distance_m, r.total_amount, r.created_at,
          ez.code AS end_zone_code, ez.name AS end_zone_name,
          s.number AS scooter_number, s.variant AS scooter_variant, s.battery_pct AS scooter_battery_pct,
@@ -166,6 +176,8 @@ const toRental = (r: Row): RentalRecord => ({
   userId: r.user_id as string,
   scooterId: r.scooter_id as string,
   tariffId: r.tariff_id as string,
+  paymentSource: r.payment_source as RentalRecord['paymentSource'],
+  paymentMethodId: (r.payment_method_id as string | null) ?? null,
   state: r.state as RentalState,
   reservedAt: date(r.reserved_at),
   reservationExpiresAt: date(r.reservation_expires_at),
@@ -338,10 +350,17 @@ export class DrizzleRentalRepository {
 
   async insert(rental: NewRental): Promise<string> {
     const row = await this.one(sql`
-      INSERT INTO rentals (user_id, scooter_id, tariff_id, state, reserved_at, reservation_expires_at)
-      VALUES (${rental.userId}, ${rental.scooterId}, ${rental.tariffId}, ${rental.state}, ${rental.reservedAt}, ${rental.reservationExpiresAt})
+      INSERT INTO rentals (user_id, scooter_id, tariff_id, state, reserved_at, reservation_expires_at, payment_source, payment_method_id)
+      VALUES (${rental.userId}, ${rental.scooterId}, ${rental.tariffId}, ${rental.state}, ${rental.reservedAt},
+              ${rental.reservationExpiresAt}, ${rental.paymentSource}, ${rental.paymentMethodId})
       RETURNING id`);
     return row!.id as string;
+  }
+
+  /** Start z rezerwacji może zmienić źródło płatności (ADR 0049). */
+  async setPaymentSource(id: string, source: 'WALLET' | 'CARD', paymentMethodId: string | null): Promise<void> {
+    await this.db.execute(sql`
+      UPDATE rentals SET payment_source = ${source}, payment_method_id = ${paymentMethodId}, updated_at = now() WHERE id = ${id}`);
   }
 
   async setState(id: string, state: RentalState, extra: { startedAt?: Date } = {}): Promise<void> {
@@ -563,8 +582,10 @@ export class DrizzleRentalRepository {
 
   async history(userId: string, limit: number): Promise<RentalHistoryItem[]> {
     const rows = await this.rows(sql`
-      SELECT id, number, scooter_number, started_at, ended_at, ride_seconds, pause_seconds, distance_m, total_amount, end_zone_name
-      FROM v_user_rental_history WHERE user_id = ${userId} ORDER BY ended_at DESC NULLS LAST LIMIT ${limit}`);
+      SELECT h.id, h.number, h.scooter_number, h.started_at, h.ended_at, h.ride_seconds, h.pause_seconds, h.distance_m,
+             h.total_amount, h.end_zone_name, fn_rental_settlement(h.id) AS settlement,
+             (SELECT rc.id FROM receipts rc WHERE rc.rental_id = h.id AND rc.kind = 'SALE') AS receipt_id
+      FROM v_user_rental_history h WHERE h.user_id = ${userId} ORDER BY h.ended_at DESC NULLS LAST LIMIT ${limit}`);
     return rows.map((r) => ({
       id: r.id as string,
       number: Number(r.number),
@@ -576,6 +597,8 @@ export class DrizzleRentalRepository {
       distanceM: r.distance_m as number,
       totalAmount: num(r.total_amount),
       endZoneName: (r.end_zone_name as string | null) ?? null,
+      settlement: r.settlement as RentalHistoryItem['settlement'],
+      receiptId: (r.receipt_id as string | null) ?? null,
     }));
   }
 
@@ -588,6 +611,26 @@ export class DrizzleRentalRepository {
       distanceM: Number(row?.distance_m ?? 0),
       travelSeconds: Number(row?.travel_seconds ?? 0),
     };
+  }
+
+  async unpaidCount(userId: string): Promise<number> {
+    const row = await this.one(
+      sql`SELECT count(*)::int AS n FROM rentals WHERE user_id = ${userId} AND state = 'UNPAID'`,
+    );
+    return row!.n as number;
+  }
+
+  /** Płatności i zwroty klienta w toku (blokują usunięcie konta, pytanie 9). */
+  async pendingMoney(userId: string): Promise<number> {
+    const row = await this.one(sql`
+      SELECT (SELECT count(*) FROM payments WHERE user_id = ${userId} AND status = 'PENDING')
+           + (SELECT count(*) FROM refunds WHERE user_id = ${userId} AND status = 'PENDING') AS n`);
+    return Number(row!.n);
+  }
+
+  /** Rozliczenie przejazdu z widoku modułu Płatności (ADR 0049). */
+  settlement(rentalId: string): Promise<RentalSettlementView> {
+    return new DrizzlePaymentRepository(this.db).settlement(rentalId);
   }
 
   async balance(userId: string): Promise<number> {

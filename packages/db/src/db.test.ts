@@ -84,6 +84,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
       '0004_accounts_access.sql',
       '0005_rentals.sql',
       '0006_zones.sql',
+      '0007_payments.sql',
     ]);
     const second = await runMigrations(pool);
     expect(second.applied).toEqual([]);
@@ -166,7 +167,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
          (SELECT count(*)::int FROM pg_proc WHERE pronamespace = 'public'::regnamespace
            AND prokind = 'p' AND proname LIKE 'sp\\_%') AS procedures`,
     );
-    expect(rows[0]).toEqual({ tables: 50, views: 23, functions: 15, procedures: 10 });
+    expect(rows[0]).toEqual({ tables: 52, views: 31, functions: 18, procedures: 14 });
   });
 
   it('fn_zones_at_point zwraca strefy od najbardziej restrykcyjnej', async () => {
@@ -898,5 +899,224 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     await pool.query(`CALL sp_delete_zone($1)`, [zone.rows[0]!.id]);
     expect((await pool.query(`SELECT 1 FROM zones WHERE code = 'Z-93'`)).rowCount).toBe(0);
     await pool.query(`UPDATE rentals SET state = 'ENDED', ended_at = now() WHERE id = $1`, [rentalId]);
+  });
+
+  // --- 0007: płatności ---------------------------------------------------------------------------
+
+  it('dane startowe rozliczają przykładowe przejazdy z portfela z paragonem (0007)', async () => {
+    const rows = await pool.query<{ settlement: string; receipt: string | null; paid: string; total_amount: string }>(
+      `SELECT fn_rental_settlement(r.id) AS settlement, fn_rental_paid_amount(r.id) AS paid, r.total_amount,
+              (SELECT number FROM receipts WHERE rental_id = r.id AND kind = 'SALE') AS receipt
+       FROM rentals r JOIN users u ON u.id = r.user_id WHERE u.phone LIKE '+485000001%'`,
+    );
+    expect(rows.rows).toHaveLength(4);
+    for (const r of rows.rows) {
+      expect(r.settlement).toBe('WALLET_PAID');
+      expect(r.paid).toBe(r.total_amount);
+      expect(r.receipt).toMatch(/^PAR\/\d{4}\/\d{6}$/);
+    }
+    const sync = await pool.query(
+      `SELECT count(*)::int AS n FROM v_wallet_balances b JOIN users u ON u.id = b.user_id
+       WHERE u.phone LIKE '+485000001%' AND (b.out_of_sync OR b.ledger_balance <= 0)`,
+    );
+    expect(sync.rows[0]).toEqual({ n: 0 });
+    const receipt = await pool.query(
+      `SELECT l.total_amount, l.vat_amount, l.net_amount, l.vat_rate, (SELECT sum(amount) FROM receipt_items i WHERE i.receipt_id = l.id) AS items
+       FROM v_receipt_list l JOIN users u ON u.id = l.user_id WHERE u.phone LIKE '+485000001%' LIMIT 1`,
+    );
+    const r = receipt.rows[0]!;
+    expect(r.items).toBe(r.total_amount);
+    expect(Number(r.vat_amount)).toBe(Math.round((Number(r.total_amount) * 23) / 123));
+    expect(Number(r.net_amount) + Number(r.vat_amount)).toBe(Number(r.total_amount));
+  });
+
+  it('księga: zapis przez sp_wallet_post z saldem po operacji, tylko dopisywanie (0007)', async () => {
+    const user = await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000070') RETURNING id`);
+    const userId = user.rows[0]!.id;
+    const post = (type: string, amount: number) =>
+      pool.query<{ entry_id: string; balance_after: string }>(
+        `CALL sp_wallet_post($1, $2::ledger_entry_type, $3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)`,
+        [userId, type, amount],
+      );
+    expect((await post('TOPUP', 5000)).rows[0]!.balance_after).toBe('5000');
+    expect((await post('RIDE_CHARGE', -6200)).rows[0]!.balance_after).toBe('-1200');
+    const wallet = await pool.query(`SELECT balance FROM wallets WHERE user_id = $1`, [userId]);
+    expect(wallet.rows[0]).toEqual({ balance: '-1200' });
+    expect(
+      await domainCode(
+        pool.query(`INSERT INTO wallet_ledger (user_id, type, amount, balance_after) VALUES ($1, 'TOPUP', 100, 999)`, [
+          userId,
+        ]),
+      ),
+    ).toEqual({ code: 'LEDGER_BALANCE_MISMATCH', details: undefined });
+    expect(await domainCode(pool.query(`UPDATE wallet_ledger SET amount = 1 WHERE user_id = $1`, [userId]))).toEqual({
+      code: 'LEDGER_APPEND_ONLY',
+      details: undefined,
+    });
+    expect(await domainCode(pool.query(`DELETE FROM wallet_ledger WHERE user_id = $1`, [userId]))).toEqual({
+      code: 'LEDGER_APPEND_ONLY',
+      details: undefined,
+    });
+    // Nowy typ z 0007 działa po zatwierdzeniu migracji.
+    expect((await post('PAYOUT', 1200)).rows[0]!.balance_after).toBe('0');
+  });
+
+  it('przejazd: jedno obciążenie, jedna płatność w toku, zwroty do kwoty zapłaty, paragon i korekta (0007)', async () => {
+    const user = await pool.query<{ id: string }>(
+      `INSERT INTO users (phone, name) VALUES ('+48500000071', 'Ola') RETURNING id`,
+    );
+    const userId = user.rows[0]!.id;
+    const newRental = async (scooter: number) =>
+      (
+        await pool.query<{ id: string }>(
+          `INSERT INTO rentals (user_id, scooter_id, tariff_id, state, started_at, ended_at, total_amount)
+           SELECT $1, (SELECT id FROM scooters WHERE number = $2), (SELECT id FROM tariffs WHERE version = 1), 'ENDED',
+                  now() - interval '10 minutes', now(), 1260
+           RETURNING id`,
+          [userId, scooter],
+        )
+      ).rows[0]!.id;
+    const wallet = await newRental(8);
+    const settlement = async (id: string) =>
+      (await pool.query(`SELECT fn_rental_settlement($1) AS s`, [id])).rows[0]!.s as string;
+    expect(await settlement(wallet)).toBe('NONE');
+    const charge = () =>
+      pool.query(`CALL sp_wallet_post($1, 'RIDE_CHARGE', -1260, $2, NULL, NULL, NULL, NULL, NULL, NULL, NULL)`, [
+        userId,
+        wallet,
+      ]);
+    await charge();
+    expect(await domainCode(charge())).toEqual({ code: 'RENTAL_ALREADY_CHARGED', details: undefined });
+    expect(await settlement(wallet)).toBe('WALLET_PAID');
+
+    const items = JSON.stringify([
+      { description: 'UNLOCK', quantity: 1, unitPrice: 300, vatRate: 23, amount: 300 },
+      { description: 'RIDE_MINUTES', quantity: 12, unitPrice: 80, vatRate: 23, amount: 960 },
+    ]);
+    const sale = await pool.query<{ receipt_id: string; receipt_number: string }>(
+      `CALL sp_issue_receipt($1, 'SALE', $2, NULL, NULL, NULL, 'WALLET', '{}'::jsonb, $3::jsonb, NULL, NULL)`,
+      [userId, wallet, items],
+    );
+    const saleId = sale.rows[0]!.receipt_id;
+    const header = await pool.query(`SELECT total_amount, buyer_name, buyer_phone FROM receipts WHERE id = $1`, [
+      saleId,
+    ]);
+    expect(header.rows[0]).toEqual({ total_amount: '1260', buyer_name: 'Ola', buyer_phone: '+48500000071' });
+
+    const refund = (amount: number, status = 'SUCCEEDED') =>
+      pool.query<{ refund_id: string }>(
+        `CALL sp_record_refund($1, $2, NULL, 'WALLET', $3, 'SCOOTER_FAILURE', NULL, NULL, $4::refund_status, NULL)`,
+        [userId, wallet, amount, status],
+      );
+    const first = (await refund(500)).rows[0]!.refund_id;
+    expect(await domainCode(refund(761))).toEqual({ code: 'REFUND_EXCEEDS_PAYMENT', details: { remaining: 760 } });
+    const correction = (amount: number) =>
+      pool.query(
+        `CALL sp_issue_receipt($1, 'CORRECTION', $2, NULL, $3, $4, 'WALLET', '{}'::jsonb, $5::jsonb, NULL, NULL)`,
+        [
+          userId,
+          wallet,
+          first,
+          saleId,
+          JSON.stringify([{ description: 'REFUND', quantity: 1, unitPrice: -amount, vatRate: 23, amount: -amount }]),
+        ],
+      );
+    await correction(500);
+    const list = await pool.query(`SELECT corrections, vat_amount FROM v_receipt_list WHERE id = $1`, [saleId]);
+    expect(list.rows[0]).toEqual({ corrections: 1, vat_amount: '236' });
+    await expect(correction(761)).rejects.toThrow(/RECEIPT_CORRECTION_EXCEEDS|receipts_refund_id_key/);
+    const details = await pool.query(
+      `SELECT settlement, paid_amount, refunded_amount, receipt_number IS NOT NULL AS has_receipt FROM v_rental_details WHERE id = $1`,
+      [wallet],
+    );
+    expect(details.rows[0]).toEqual({
+      settlement: 'WALLET_PAID',
+      paid_amount: '1260',
+      refunded_amount: '500',
+      has_receipt: true,
+    });
+
+    // Karta: jedna płatność w toku, odmowa daje FAILED i przejazd UNPAID w widoku zaległości.
+    const card = await pool.query<{ id: string }>(
+      `INSERT INTO payment_methods (user_id, provider_ref, brand, last4, exp_month, exp_year, is_default)
+       VALUES ($1, 'pm_test_71', 'visa', '4242', 12, 2030, true) RETURNING id`,
+      [userId],
+    );
+    const ride = await newRental(9);
+    await pool.query(`UPDATE rentals SET payment_source = 'CARD', payment_method_id = $2 WHERE id = $1`, [
+      ride,
+      card.rows[0]!.id,
+    ]);
+    const pay = (status = 'PENDING') =>
+      pool.query(
+        `INSERT INTO payments (user_id, purpose, rental_id, method, payment_method_id, amount, status, idempotency_key)
+         VALUES ($1, 'RIDE', $2, 'CARD', $3, 1260, $4::payment_status, gen_random_uuid()::text)`,
+        [userId, ride, card.rows[0]!.id, status],
+      );
+    await pay();
+    expect(await settlement(ride)).toBe('CARD_PENDING');
+    expect(await domainCode(pay())).toEqual({ code: 'PAYMENT_IN_PROGRESS', details: undefined });
+    await pool.query(
+      `UPDATE payments SET status = 'FAILED', failure_code = 'card_declined' WHERE rental_id = $1 AND status = 'PENDING'`,
+      [ride],
+    );
+    await pool.query(`UPDATE rentals SET state = 'UNPAID' WHERE id = $1`, [ride]);
+    expect(await settlement(ride)).toBe('FAILED');
+    const unpaid = await pool.query(
+      `SELECT number IS NOT NULL AS ok, failure_code, failed_attempts, payment_pending, card_last4 FROM v_unpaid_rentals WHERE rental_id = $1`,
+      [ride],
+    );
+    expect(unpaid.rows[0]).toEqual({
+      ok: true,
+      failure_code: 'card_declined',
+      failed_attempts: 1,
+      payment_pending: false,
+      card_last4: '4242',
+    });
+    await pay('SUCCEEDED');
+    expect(await settlement(ride)).toBe('CARD_PAID');
+    const activity = await pool.query(`SELECT rides, unpaid_rentals FROM v_user_activity WHERE id = $1`, [userId]);
+    expect(activity.rows[0]).toEqual({ rides: '2', unpaid_rentals: '1' });
+  });
+
+  it('cennik: wersje nieedytowalne, jedna zaplanowana, usunięcie tylko nieużytej przed datą (0007)', async () => {
+    const insert = (validFrom: string) =>
+      pool.query<{ id: string }>(
+        `INSERT INTO tariffs (version, unlock_fee, minute_rate, pause_minute_rate, out_of_zone_fee, free_reservation_minutes,
+                              min_wallet_balance, min_battery_pct, min_user_age, valid_from)
+         SELECT max(version) + 1, 300, 90, 30, 2000, 10, 1000, 15, 18, ${validFrom} FROM tariffs RETURNING id`,
+      );
+    expect(await domainCode(pool.query(`UPDATE tariffs SET minute_rate = 1 WHERE version = 1`))).toEqual({
+      code: 'TARIFF_IMMUTABLE',
+      details: undefined,
+    });
+    const scheduled = (await insert(`now() + interval '1 day'`)).rows[0]!.id;
+    expect(await domainCode(insert(`now() + interval '2 days'`))).toEqual({
+      code: 'TARIFF_ALREADY_SCHEDULED',
+      details: undefined,
+    });
+    expect(await domainCode(insert('now()'))).toEqual({ code: 'TARIFF_ALREADY_SCHEDULED', details: undefined });
+    const states = await pool.query(
+      `SELECT version, state, valid_to IS NOT NULL AS ends FROM v_tariff_versions ORDER BY version`,
+    );
+    expect(states.rows.at(-1)).toMatchObject({ state: 'SCHEDULED', ends: false });
+    expect(states.rows.at(-2)).toMatchObject({ state: 'CURRENT', ends: true });
+    await pool.query(`CALL sp_delete_scheduled_tariff($1)`, [scheduled]);
+    const current = await pool.query<{ id: string }>(`SELECT id FROM tariffs WHERE version = 1`);
+    expect(await domainCode(pool.query(`CALL sp_delete_scheduled_tariff($1)`, [current.rows[0]!.id]))).toEqual({
+      code: 'TARIFF_NOT_SCHEDULED',
+      details: undefined,
+    });
+    expect(await domainCode(pool.query(`CALL sp_delete_scheduled_tariff($1)`, [randomUUID()]))).toEqual({
+      code: 'NOT_FOUND',
+      details: { entity: 'tariff' },
+    });
+  });
+
+  it('VAT „w stu” w bazie zgadza się z regułą w core (0007)', async () => {
+    const { rows } = await pool.query(
+      `SELECT fn_vat_from_gross(1000, 23) AS a, fn_vat_from_gross(3, 20) AS b, fn_vat_from_gross(-3, 20) AS c, fn_vat_from_gross(1080, 8) AS d`,
+    );
+    expect(rows[0]).toEqual({ a: '187', b: '1', c: '-1', d: '80' });
   });
 });

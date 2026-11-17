@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { ScooterVariant } from './admin/fleet.js';
 import type { ZoneType } from './admin/zones.js';
+import type { RentalSettlementView, RideSettlement } from './payments.js';
 
 export const RENTAL_STATES = [
   'RESERVED',
@@ -93,6 +94,16 @@ export interface CustomerScooterView {
 export const scooterRequestSchema = z.object({ scooterId: z.uuid() });
 export type ScooterRequest = z.infer<typeof scooterRequestSchema>;
 
+/**
+ * Rezerwacja i start (ADR 0049): źródło płatności wybrane przy pierwszym stanie przejazdu; bez niego
+ * portfel, a start z rezerwacji zachowuje źródło rezerwacji. Karta przy `CARD`, bez niej domyślna.
+ */
+export const rentalRequestSchema = scooterRequestSchema.extend({
+  paymentSource: z.enum(['WALLET', 'CARD']).optional(),
+  paymentMethodId: z.uuid().nullable().optional(),
+});
+export type RentalRequest = z.infer<typeof rentalRequestSchema>;
+
 /** Kwoty przejazdu w groszach (ADR 0042). */
 export interface RentalPriceView {
   unlockFee: number;
@@ -145,8 +156,8 @@ export interface RentalView {
    * limit w strefie wolnej jazdy. Aplikacja pokazuje z tego komunikat strefy na ekranie jazdy.
    */
   zoneControl: { stopped: boolean; speedLimitKmh: number | null };
-  /** Obciążenie portfela przychodzi w iteracji 5 (D1). */
-  settlement: 'PENDING';
+  /** Rozliczenie po zakończeniu (ADR 0049); przed zakończeniem stan `NONE` ze źródłem wybranym przy starcie. */
+  settlement: RentalSettlementView;
   asOf: string;
 }
 
@@ -161,6 +172,8 @@ export interface RentalHistoryItem {
   distanceM: number;
   totalAmount: number | null;
   endZoneName: string | null;
+  settlement: RideSettlement;
+  receiptId: string | null;
 }
 
 export interface RentalStats {

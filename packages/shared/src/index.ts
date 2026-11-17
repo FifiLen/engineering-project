@@ -7,5 +7,7 @@ export * from './admin/fleet.js';
 export * from './admin/access.js';
 export * from './admin/rentals.js';
 export * from './admin/zones.js';
+export * from './admin/payments.js';
 export * from './rentals.js';
+export * from './payments.js';
 export * from './auth.js';

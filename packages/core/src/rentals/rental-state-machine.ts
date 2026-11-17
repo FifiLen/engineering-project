@@ -70,7 +70,9 @@ const TRANSITIONS: Record<RentalAction, ReadonlyArray<readonly [From, RentalStat
     ['PAUSED', 'ENDED'],
     ['ENDING', 'ENDED'],
   ],
-  DECLINE_PAYMENT: [['ENDING', 'UNPAID']],
+  // Odmowa obciążenia karty po zakończeniu (ADR 0049 zmienia ADR 0013): przejazd kończy się od razu,
+  // a zaległość jest osobnym stanem do spłaty. `UNPAID` nie jest stanem otwartym.
+  DECLINE_PAYMENT: [['ENDED', 'UNPAID']],
   SETTLE_DEBT: [['UNPAID', 'ENDED']],
 };
 

@@ -23,6 +23,7 @@ const listSource: ListSource<UserField> = {
     lastRideAt: vUserActivity.lastRideAt,
     totalSpent: vUserActivity.totalSpent,
     walletBalance: vUserActivity.walletBalance,
+    unpaidRentals: vUserActivity.unpaidRentals,
     ticketsReported: vUserActivity.ticketsReported,
     activeSessions: vUserActivity.activeSessions,
     lastSeenAt: vUserActivity.lastSeenAt,
@@ -70,7 +71,11 @@ export class DrizzleCustomerRepository implements CustomerRepository {
     return { record: (await this.findByPhone(phone))!, created: false };
   }
 
-  async updateProfile(id: string, version: number, changes: { name?: string; email?: string | null }): Promise<boolean> {
+  async updateProfile(
+    id: string,
+    version: number,
+    changes: { name?: string; email?: string | null },
+  ): Promise<boolean> {
     const set = Object.fromEntries(Object.entries(changes).filter(([, v]) => v !== undefined));
     try {
       const rows = await this.db

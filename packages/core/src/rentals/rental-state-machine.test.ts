@@ -13,7 +13,7 @@ describe('maszyna stanów przejazdu', () => {
 
   it('pozwala zacząć bez rezerwacji i spłacić zaległość po odmowie płatności', () => {
     expect(RentalStateMachine.transition(null, 'START')).toBe('UNLOCKING');
-    expect(RentalStateMachine.transition('ENDING', 'DECLINE_PAYMENT')).toBe('UNPAID');
+    expect(RentalStateMachine.transition('ENDED', 'DECLINE_PAYMENT')).toBe('UNPAID');
     expect(RentalStateMachine.transition('UNPAID', 'SETTLE_DEBT')).toBe('ENDED');
   });
 
@@ -29,11 +29,13 @@ describe('maszyna stanów przejazdu', () => {
     expect(RentalStateMachine.next('RESERVED', 'REQUEST_END')).toBeUndefined();
   });
 
-  it('stany końcowe nie mają przejść wychodzących', () => {
-    for (const terminal of ['ENDED', 'EXPIRED', 'UNLOCK_FAILED'] as const) {
+  it('stany końcowe nie mają przejść wychodzących, a ENDED tylko odmowę płatności (ADR 0049)', () => {
+    for (const terminal of ['EXPIRED', 'UNLOCK_FAILED'] as const) {
       expect(RENTAL_STATES.some((to) => RentalStateMachine.isAllowed(terminal, to))).toBe(false);
       expect(RentalStateMachine.isOpen(terminal)).toBe(false);
     }
+    expect(RENTAL_STATES.filter((to) => RentalStateMachine.isAllowed('ENDED', to))).toEqual(['UNPAID']);
+    expect(RentalStateMachine.next('ENDING', 'DECLINE_PAYMENT')).toBeUndefined();
   });
 
   it('stany otwarte blokują hulajnogę, a zaległość w płatności już nie', () => {

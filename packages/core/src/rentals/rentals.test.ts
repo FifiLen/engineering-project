@@ -278,6 +278,12 @@ describe('dzwonek i usunięcie konta', () => {
 
   it('usunięcie konta wymaga braku otwartego przejazdu i salda 0', () => {
     expect(() => ensureCanDeleteAccount({ hasOpenRental: false, balance: 0 })).not.toThrow();
+    expect(code(() => ensureCanDeleteAccount({ hasOpenRental: false, balance: 0, unpaidRentals: 1 }))).toBe(
+      'PAYMENT_OVERDUE',
+    );
+    expect(code(() => ensureCanDeleteAccount({ hasOpenRental: false, balance: 0, pendingPayments: 1 }))).toBe(
+      'PAYMENT_IN_PROGRESS',
+    );
     expect(code(() => ensureCanDeleteAccount({ hasOpenRental: true, balance: 0 }))).toBe('USER_HAS_OPEN_RENTAL');
     expect(code(() => ensureCanDeleteAccount({ hasOpenRental: false, balance: -100 }))).toBe('WALLET_BALANCE_NOT_ZERO');
   });

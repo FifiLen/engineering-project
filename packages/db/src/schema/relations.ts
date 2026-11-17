@@ -13,12 +13,13 @@ import {
   scooters,
   zones,
   scooterModels,
+  paymentMethods,
+  payments,
   rentalEvents,
   wallets,
   files,
-  paymentMethods,
-  payments,
   walletLedger,
+  refunds,
   tickets,
   notifications,
   auditLog,
@@ -39,12 +40,14 @@ import {
   staffSessions,
   staffInvitations,
   scooterZoneControl,
+  paymentWebhookEvents,
   ticketPhotos,
   rolePermissions,
   roles,
   staffRoles,
   spareParts,
   serviceTaskParts,
+  paymentCustomers,
   scooterZonePresence,
   receiptItems,
 } from './schema.js';
@@ -61,15 +64,17 @@ export const usersRelations = relations(users, ({ many }) => ({
   savedPlaces: many(savedPlaces),
   consents: many(consents),
   sessions: many(sessions),
-  wallets: many(wallets),
-  rentals: many(rentals),
-  paymentMethods: many(paymentMethods),
   payments: many(payments),
+  wallets: many(wallets),
+  paymentMethods: many(paymentMethods),
+  rentals: many(rentals),
   tickets: many(tickets),
   notifications: many(notifications),
   files: many(files),
   generatedDocuments: many(generatedDocuments),
   receipts: many(receipts),
+  refunds: many(refunds),
+  paymentCustomers: many(paymentCustomers),
 }));
 
 export const savedPlacesRelations = relations(savedPlaces, ({ one }) => ({
@@ -152,6 +157,7 @@ export const staffRelations = relations(staff, ({ many }) => ({
   staffInvitations_staffId: many(staffInvitations, {
     relationName: 'staffInvitations_staffId_staff_id',
   }),
+  refunds: many(refunds),
   staffRoles_assignedBy: many(staffRoles, {
     relationName: 'staffRoles_assignedBy_staff_id',
   }),
@@ -198,10 +204,15 @@ export const scooterCommandsRelations = relations(scooterCommands, ({ one, many 
 
 export const rentalsRelations = relations(rentals, ({ one, many }) => ({
   scooterCommands: many(scooterCommands),
+  payments: many(payments),
   rentalEvents: many(rentalEvents),
   zone: one(zones, {
     fields: [rentals.endZoneId],
     references: [zones.id],
+  }),
+  paymentMethod: one(paymentMethods, {
+    fields: [rentals.paymentMethodId],
+    references: [paymentMethods.id],
   }),
   file: one(files, {
     fields: [rentals.parkingPhotoId],
@@ -219,11 +230,11 @@ export const rentalsRelations = relations(rentals, ({ one, many }) => ({
     fields: [rentals.userId],
     references: [users.id],
   }),
-  payments: many(payments),
   walletLedgers: many(walletLedger),
   tickets: many(tickets),
   receipts: many(receipts),
   scooterZoneControls: many(scooterZoneControl),
+  refunds: many(refunds),
   scooterZonePresences: many(scooterZonePresence),
 }));
 
@@ -256,6 +267,34 @@ export const scooterModelsRelations = relations(scooterModels, ({ one, many }) =
     fields: [scooterModels.photoMediaId],
     references: [mediaAssets.id],
   }),
+}));
+
+export const paymentsRelations = relations(payments, ({ one, many }) => ({
+  paymentMethod: one(paymentMethods, {
+    fields: [payments.paymentMethodId],
+    references: [paymentMethods.id],
+  }),
+  rental: one(rentals, {
+    fields: [payments.rentalId],
+    references: [rentals.id],
+  }),
+  user: one(users, {
+    fields: [payments.userId],
+    references: [users.id],
+  }),
+  walletLedgers: many(walletLedger),
+  receipts: many(receipts),
+  paymentWebhookEvents: many(paymentWebhookEvents),
+  refunds: many(refunds),
+}));
+
+export const paymentMethodsRelations = relations(paymentMethods, ({ one, many }) => ({
+  payments: many(payments),
+  user: one(users, {
+    fields: [paymentMethods.userId],
+    references: [users.id],
+  }),
+  rentals: many(rentals),
 }));
 
 export const rentalEventsRelations = relations(rentalEvents, ({ one }) => ({
@@ -299,35 +338,14 @@ export const filesRelations = relations(files, ({ one, many }) => ({
   ticketPhotos: many(ticketPhotos),
 }));
 
-export const paymentMethodsRelations = relations(paymentMethods, ({ one, many }) => ({
-  user: one(users, {
-    fields: [paymentMethods.userId],
-    references: [users.id],
-  }),
-  payments: many(payments),
-}));
-
-export const paymentsRelations = relations(payments, ({ one, many }) => ({
-  paymentMethod: one(paymentMethods, {
-    fields: [payments.paymentMethodId],
-    references: [paymentMethods.id],
-  }),
-  rental: one(rentals, {
-    fields: [payments.rentalId],
-    references: [rentals.id],
-  }),
-  user: one(users, {
-    fields: [payments.userId],
-    references: [users.id],
-  }),
-  walletLedgers: many(walletLedger),
-  receipts: many(receipts),
-}));
-
 export const walletLedgerRelations = relations(walletLedger, ({ one }) => ({
   payment: one(payments, {
     fields: [walletLedger.paymentId],
     references: [payments.id],
+  }),
+  refund: one(refunds, {
+    fields: [walletLedger.refundId],
+    references: [refunds.id],
   }),
   rental: one(rentals, {
     fields: [walletLedger.rentalId],
@@ -340,6 +358,27 @@ export const walletLedgerRelations = relations(walletLedger, ({ one }) => ({
   wallet: one(wallets, {
     fields: [walletLedger.userId],
     references: [wallets.userId],
+  }),
+}));
+
+export const refundsRelations = relations(refunds, ({ one, many }) => ({
+  walletLedgers: many(walletLedger),
+  receipts: many(receipts),
+  payment: one(payments, {
+    fields: [refunds.paymentId],
+    references: [payments.id],
+  }),
+  rental: one(rentals, {
+    fields: [refunds.rentalId],
+    references: [rentals.id],
+  }),
+  staff: one(staff, {
+    fields: [refunds.staffId],
+    references: [staff.id],
+  }),
+  user: one(users, {
+    fields: [refunds.userId],
+    references: [users.id],
   }),
 }));
 
@@ -548,9 +587,21 @@ export const serviceTasksRelations = relations(serviceTasks, ({ one, many }) => 
 }));
 
 export const receiptsRelations = relations(receipts, ({ one, many }) => ({
+  receipt: one(receipts, {
+    fields: [receipts.correctsReceiptId],
+    references: [receipts.id],
+    relationName: 'receipts_correctsReceiptId_receipts_id',
+  }),
+  receipts: many(receipts, {
+    relationName: 'receipts_correctsReceiptId_receipts_id',
+  }),
   payment: one(payments, {
     fields: [receipts.paymentId],
     references: [payments.id],
+  }),
+  refund: one(refunds, {
+    fields: [receipts.refundId],
+    references: [refunds.id],
   }),
   rental: one(rentals, {
     fields: [receipts.rentalId],
@@ -612,6 +663,13 @@ export const scooterZoneControlRelations = relations(scooterZoneControl, ({ one 
   }),
 }));
 
+export const paymentWebhookEventsRelations = relations(paymentWebhookEvents, ({ one }) => ({
+  payment: one(payments, {
+    fields: [paymentWebhookEvents.paymentId],
+    references: [payments.id],
+  }),
+}));
+
 export const ticketPhotosRelations = relations(ticketPhotos, ({ one }) => ({
   file: one(files, {
     fields: [ticketPhotos.fileId],
@@ -669,6 +727,13 @@ export const serviceTaskPartsRelations = relations(serviceTaskParts, ({ one }) =
 
 export const sparePartsRelations = relations(spareParts, ({ many }) => ({
   serviceTaskParts: many(serviceTaskParts),
+}));
+
+export const paymentCustomersRelations = relations(paymentCustomers, ({ one }) => ({
+  user: one(users, {
+    fields: [paymentCustomers.userId],
+    references: [users.id],
+  }),
 }));
 
 export const scooterZonePresenceRelations = relations(scooterZonePresence, ({ one }) => ({

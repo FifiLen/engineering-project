@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import { priceRental } from '@hulajnogi/core';
+import { priceRental, rideReceiptItems, type RentalPrice } from '@hulajnogi/core';
 import type { Place, PlacesFile } from './places.js';
 
 /**
@@ -16,7 +16,12 @@ export const DEV_TARIFF = {
   minWalletBalance: 1000,
   minBatteryPct: 15,
   minUserAge: 18,
+  /** Stawka robocza do sprawdzenia przez autora (pytanie 8, ADR 0052). */
+  vatRate: 23,
 } as const;
+
+/** Doładowanie przykładowego klienta przed pierwszym przejazdem (przejazdy z danych startowych są rozliczone z portfela). */
+const SAMPLE_TOPUP = 10_000;
 
 export interface SeedStaff {
   email: string;
@@ -105,9 +110,9 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
 
     await client.query(
       `INSERT INTO tariffs (version, unlock_fee, minute_rate, pause_minute_rate, out_of_zone_fee,
-         free_reservation_minutes, min_wallet_balance, min_battery_pct, min_user_age, valid_from)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
-       ON CONFLICT (version) DO NOTHING`,
+         free_reservation_minutes, min_wallet_balance, min_battery_pct, min_user_age, vat_rate, valid_from)
+       SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
+       WHERE NOT EXISTS (SELECT 1 FROM tariffs WHERE version = $1)`,
       [
         DEV_TARIFF.version,
         DEV_TARIFF.unlockFee,
@@ -118,6 +123,7 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
         DEV_TARIFF.minWalletBalance,
         DEV_TARIFF.minBatteryPct,
         DEV_TARIFF.minUserAge,
+        DEV_TARIFF.vatRate,
       ],
     );
 
@@ -227,13 +233,19 @@ const SAMPLE_CUSTOMERS = [
 /**
  * Zakończone przejazdy między strefami parkowania z pełną osią czasu i komendami. Liczniki i kwota
  * pochodzą z wyceny w packages/core (ADR 0042), więc zgadzają się z tym, co policzyłby proces wypożyczenia.
- * Idempotentne: klienci, którzy mają już przejazdy, nie dostają nowych.
+ * Każdy klient dostaje doładowanie, a przejazdy są rozliczone z portfela z paragonem (pytanie 12 w planie
+ * iteracji 5). Idempotentne: klienci, którzy mają już przejazdy, nie dostają nowych.
  */
 async function seedSampleRentals(client: PoolClient, parking: readonly Place[], count: number): Promise<void> {
-  const tariff = await client.query<{ id: string; unlock_fee: string; minute_rate: string; pause_minute_rate: string }>(
-    'SELECT id, unlock_fee, minute_rate, pause_minute_rate FROM tariffs WHERE version = $1',
-    [DEV_TARIFF.version],
-  );
+  const tariff = await client.query<{
+    id: string;
+    unlock_fee: string;
+    minute_rate: string;
+    pause_minute_rate: string;
+    vat_rate: string;
+  }>('SELECT id, unlock_fee, minute_rate, pause_minute_rate, vat_rate FROM tariffs WHERE version = $1', [
+    DEV_TARIFF.version,
+  ]);
   const rate = tariff.rows[0]!;
   const customers: string[] = [];
   for (const customer of SAMPLE_CUSTOMERS) {
@@ -251,6 +263,7 @@ async function seedSampleRentals(client: PoolClient, parking: readonly Place[], 
   const scooters = await client.query<{ id: string }>(
     `SELECT id FROM scooters WHERE status = 'AVAILABLE' ORDER BY number LIMIT 10`,
   );
+  const settled: Array<{ id: string; userId: string; price: RentalPrice; endedAt: Date }> = [];
   for (let i = 0; i < count; i++) {
     const from = requireCoords(parking[i % parking.length]!);
     const to = requireCoords(parking[(i + 1 + Math.floor(rand() * (parking.length - 1))) % parking.length]!);
@@ -291,6 +304,7 @@ async function seedSampleRentals(client: PoolClient, parking: readonly Place[], 
       ],
     );
     const id = rental.rows[0]!.id;
+    settled.push({ id, userId: customers[i % customers.length]!, price, endedAt: at(endRequestedAt, 1500) });
     const events: Array<[string, string | null, string | null, Date, object]> = [
       ['STATE_CHANGED', null, 'UNLOCKING', at(startedAt, -3000), { action: 'START' }],
       ['STATE_CHANGED', 'UNLOCKING', 'ACTIVE', startedAt, { action: 'CONFIRM_UNLOCK' }],
@@ -321,4 +335,60 @@ async function seedSampleRentals(client: PoolClient, parking: readonly Place[], 
       );
     }
   }
+  await settleSampleRentals(client, settled, {
+    unlockFee: Number(rate.unlock_fee),
+    minuteRate: Number(rate.minute_rate),
+    pauseMinuteRate: Number(rate.pause_minute_rate),
+    vatRate: Number(rate.vat_rate),
+  });
+}
+
+/**
+ * Doładowanie (płatność atrapy `SUCCEEDED` i wpis `TOPUP`) przed pierwszym przejazdem, potem obciążenia
+ * `RIDE_CHARGE` w kolejności zakończenia i paragony. Wpisy z datą przejazdu, więc dopisujemy je wprost
+ * (wyzwalacz księgi sprawdza saldo po operacji), a pamięć podręczną salda naprawia `sp_rebuild_wallet_balances`.
+ */
+async function settleSampleRentals(
+  client: PoolClient,
+  rentals: Array<{ id: string; userId: string; price: RentalPrice; endedAt: Date }>,
+  tariff: { unlockFee: number; minuteRate: number; pauseMinuteRate: number; vatRate: number },
+): Promise<void> {
+  const sorted = [...rentals].sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime());
+  const balances = new Map<string, number>();
+  for (const rental of sorted) {
+    if (!balances.has(rental.userId)) {
+      const topupAt = new Date(rental.endedAt.getTime() - 2 * 3600_000);
+      const payment = await client.query<{ id: string }>(
+        `INSERT INTO payments (user_id, purpose, method, amount, status, provider, provider_payment_id, idempotency_key, created_at, updated_at)
+         VALUES ($1::uuid, 'TOPUP', 'CARD', $2, 'SUCCEEDED', 'fake', 'pi_seed_' || md5($1::text), 'seed-topup-' || $1::text, $3, $3)
+         RETURNING id`,
+        [rental.userId, SAMPLE_TOPUP, topupAt],
+      );
+      await client.query(
+        `INSERT INTO wallet_ledger (user_id, type, amount, balance_after, payment_id, created_at) VALUES ($1, 'TOPUP', $2, $2, $3, $4)`,
+        [rental.userId, SAMPLE_TOPUP, payment.rows[0]!.id, topupAt],
+      );
+      balances.set(rental.userId, SAMPLE_TOPUP);
+    }
+    const balance = balances.get(rental.userId)! - rental.price.total;
+    balances.set(rental.userId, balance);
+    await client.query(
+      `INSERT INTO wallet_ledger (user_id, type, amount, balance_after, rental_id, created_at) VALUES ($1, 'RIDE_CHARGE', $2, $3, $4, $5)`,
+      [rental.userId, -rental.price.total, balance, rental.id, rental.endedAt],
+    );
+    const receipt = await client.query<{ receipt_id: string }>(
+      `CALL sp_issue_receipt($1, 'SALE', $2, NULL, NULL, NULL, 'WALLET', $3::jsonb, $4::jsonb, NULL, NULL)`,
+      [
+        rental.userId,
+        rental.id,
+        JSON.stringify({ name: '[dane sprzedawcy]', address: null, taxId: null }),
+        JSON.stringify(rideReceiptItems(rental.price, tariff, tariff.vatRate)),
+      ],
+    );
+    await client.query(`UPDATE receipts SET issued_at = $2 WHERE id = $1`, [
+      receipt.rows[0]!.receipt_id,
+      rental.endedAt,
+    ]);
+  }
+  await client.query(`CALL sp_rebuild_wallet_balances(NULL)`);
 }

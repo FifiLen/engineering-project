@@ -322,8 +322,19 @@ export function ensureCanRing(scooter: RentableScooter, userRental: OpenRental |
   if (scooter.status !== 'AVAILABLE') throw new DomainError('RING_NOT_ALLOWED');
 }
 
-/** Usunięcie konta (pytanie 7): bez otwartego przejazdu i z saldem 0; baza sprawdza to samo w `sp_anonymize_user`. */
-export function ensureCanDeleteAccount(input: { hasOpenRental: boolean; balance: number }): void {
+/**
+ * Usunięcie konta (pytanie 7): bez otwartego przejazdu, bez zaległości (ADR 0049), bez płatności i zwrotów
+ * w toku i z saldem 0 (zwrot salda robi operator, ADR 0054); baza sprawdza przejazd i saldo także
+ * w `sp_anonymize_user`.
+ */
+export function ensureCanDeleteAccount(input: {
+  hasOpenRental: boolean;
+  balance: number;
+  unpaidRentals?: number;
+  pendingPayments?: number;
+}): void {
   if (input.hasOpenRental) throw new DomainError('USER_HAS_OPEN_RENTAL');
+  if (input.unpaidRentals) throw new DomainError('PAYMENT_OVERDUE', { count: input.unpaidRentals });
+  if (input.pendingPayments) throw new DomainError('PAYMENT_IN_PROGRESS', { count: input.pendingPayments });
   if (input.balance !== 0) throw new DomainError('WALLET_BALANCE_NOT_ZERO', { balance: input.balance });
 }
