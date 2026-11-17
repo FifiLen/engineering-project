@@ -1,6 +1,6 @@
 # Iteracja 5: płatności
 
-**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; ADR 0049–0054 przyjęte 17 listopada 2026; zrealizowana 17 listopada 2026 na atrapie operatora (Stripe po wpisaniu kluczy przez autora), czeka na commit i CI
+**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; ADR 0049–0054 przyjęte 17 listopada 2026; zrealizowana 17 listopada 2026 na atrapie operatora (Stripe po wpisaniu kluczy przez autora), zielone CI (commit `c623ac1`)
 
 ## Cel
 Klient dodaje kartę, doładowuje portfel kartą albo BLIK-iem i płaci za przejazd z portfela albo kartą. Pieniądze trafiają do portfela dopiero po zweryfikowanym webhooku operatora płatności ([ADR 0018](../adr/0018-platnosci-stripe.md)), a każdy ruch środków to wpis w księdze ([ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md)). Zakończony przejazd jest obciążany kwotą wyliczoną w iteracji 3 ([ADR 0042](../adr/0042-wycena-przejazdu.md)), a klient dostaje paragon. Nieudana płatność kartą zostawia przejazd w stanie `UNPAID`, co blokuje kolejną jazdę do spłaty. Operator w panelu tworzy nowe wersje cennika ([ADR 0015](../adr/0015-wersjonowany-cennik.md)), przegląda płatności, księgę i paragony, koryguje saldo i zwraca pieniądze za przejazd.

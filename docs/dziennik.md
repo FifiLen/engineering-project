@@ -990,3 +990,6 @@ Plan: [iteracja 5](iteracje/iteracja-05-platnosci.md), decyzje w [ADR 0049–005
 **Dane testowe**
 - W bazie deweloperskiej nie dodałem danych płatności. Agent panelu nie zapisywał nic w panelu.
 - Serwer `next dev` na 3002 z innej sesji wpadał w pętlę przeładowań, gdy agent panelu budował panel w tym samym katalogu. Nie ruszałem go.
+
+**Commit i CI**
+- Pięć commitów iteracji 5 (`0660b55`–`c623ac1`); CI zielone za pierwszym razem (lint, typy, migracje na czystej bazie, testy, build).
