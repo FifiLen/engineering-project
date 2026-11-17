@@ -11,11 +11,12 @@ import { CONFIG, type AppConfig } from '../config.js';
 import { safeJson } from '../fleet/commands.service.js';
 import { FleetStatusService } from '../fleet/fleet-status.service.js';
 import { MqttService } from '../mqtt/mqtt.service.js';
+import { JOBS, JobsService } from '../jobs/jobs.service.js';
 import { FleetGateway } from '../realtime/fleet.gateway.js';
+import { RentalsService } from '../rentals/rentals.service.js';
 
 /** Partycje telemetrii zakładane z wyprzedzeniem; ponowne wywołanie niczego nie psuje. */
 const PARTITION_DAYS_AHEAD = 7;
-const PARTITION_CHECK_MS = 6 * 60 * 60 * 1000;
 /** Bufor ponad tę liczbę odczytów jest zapisywany od razu, bez czekania na koniec okna. */
 const MAX_BUFFER = 2000;
 
@@ -33,7 +34,7 @@ export class TelemetryService implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(TelemetryService.name);
   private buffer: Incoming[] = [];
   private flushing: Promise<void> = Promise.resolve();
-  private timers: NodeJS.Timeout[] = [];
+  private timer?: NodeJS.Timeout;
   private readonly unknown = new Set<number>();
 
   constructor(
@@ -42,6 +43,8 @@ export class TelemetryService implements OnModuleInit, OnApplicationShutdown {
     private readonly fleetStatus: FleetStatusService,
     private readonly mqtt: MqttService,
     private readonly gateway: FleetGateway,
+    private readonly jobs: JobsService,
+    private readonly rentals: RentalsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -52,15 +55,14 @@ export class TelemetryService implements OnModuleInit, OnApplicationShutdown {
       if (topic.endsWith('/telemetry')) this.accept(Number(id), safeJson(payload));
       else if (topic.endsWith('/status')) void this.handleStatus(Number(id), safeJson(payload));
     });
-    this.timers = [
-      setInterval(() => void this.flush(), this.config.TELEMETRY_FLUSH_MS),
-      setInterval(() => void this.ensurePartitions(), PARTITION_CHECK_MS),
-    ];
-    for (const timer of this.timers) timer.unref();
+    // Partycje na kolejne dni zakłada codzienne zadanie pg-boss (ADR 0037); okno zapisu zostaje licznikiem (ADR 0033).
+    this.jobs.handle(JOBS.telemetryPartitions, () => this.ensurePartitions());
+    this.timer = setInterval(() => void this.flush(), this.config.TELEMETRY_FLUSH_MS);
+    this.timer.unref();
   }
 
   async onApplicationShutdown(): Promise<void> {
-    for (const timer of this.timers) clearInterval(timer);
+    clearInterval(this.timer);
     await this.flush();
   }
 
@@ -153,7 +155,9 @@ export class TelemetryService implements OnModuleInit, OnApplicationShutdown {
     return this.enqueue(async () => {
       await this.flushBatch(before);
       const target = await this.repository.setConnection(number, parsed.data.online, parsed.data.firmware ?? null);
-      if (target) this.gateway.updates([await this.toMapUpdate(target)]);
+      if (!target) return;
+      this.gateway.updates([await this.toMapUpdate(target)]);
+      await this.rentals.onConnectionChange(target.id, target.online);
     });
   }
 

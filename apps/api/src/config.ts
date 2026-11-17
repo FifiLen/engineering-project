@@ -29,6 +29,13 @@ const envSchema = z.object({
   ),
   /** Adres panelu w linkach zaproszeń operatorów. */
   PANEL_URL: z.url().default('http://localhost:3000'),
+  /** Adres strony w kodach QR hulajnóg (ADR 0041); domena zależy od nazwy marki. */
+  PUBLIC_SITE_URL: z.url().default('http://localhost:3000'),
+  /**
+   * Zadania w tle pg-boss (ADR 0037). Testy API wyłączają kolejkę: zaplanowane zadania są tylko
+   * zapisywane, a test wywołuje ich obsługę bezpośrednio.
+   */
+  JOBS_ENABLED: booleanFlag.default(true),
 });
 
 /**

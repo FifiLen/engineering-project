@@ -33,6 +33,12 @@ const DOMAIN_STATUS: Record<string, HttpStatus> = {
   VALIDATION_FAILED: HttpStatus.BAD_REQUEST,
   AGE_NOT_CONFIRMED: HttpStatus.BAD_REQUEST,
   UNKNOWN_PERMISSION: HttpStatus.BAD_REQUEST,
+  // Wypożyczenie (ADR 0036): reguła strefy i warunki klienta to 422, konflikty stanu zostają przy 409.
+  OUTSIDE_PARKING: HttpStatus.UNPROCESSABLE_ENTITY,
+  CONSENT_REQUIRED: HttpStatus.FORBIDDEN,
+  ACCOUNT_BLOCKED: HttpStatus.FORBIDDEN,
+  RING_NOT_ALLOWED: HttpStatus.FORBIDDEN,
+  TARIFF_MISSING: HttpStatus.SERVICE_UNAVAILABLE,
 };
 
 @Catch()

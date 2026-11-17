@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/bootstrap.js';
 import { loadConfig } from '../src/config.js';
 import { CommandsService } from '../src/fleet/commands.service.js';
+import { JOBS, JobsService } from '../src/jobs/jobs.service.js';
 import { MqttService } from '../src/mqtt/mqtt.service.js';
 import { TelemetryService } from '../src/telemetry/telemetry.service.js';
 import { asStaff, staffToken } from './helpers.js';
@@ -73,6 +74,7 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
         NODE_ENV: 'test',
         DATABASE_URL: url.toString(),
         MQTT_ENABLED: 'false',
+        JOBS_ENABLED: 'false',
         TELEMETRY_FLUSH_MS: '10000',
       }),
       { logger: false },
@@ -239,10 +241,15 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
     expect(offline.json()).toMatchObject({ code: 'SCOOTER_OFFLINE' });
 
     const lock = await api({ method: 'POST', url: `/admin/scooters/${id}/commands`, payload: { type: 'LOCK' } });
-    await app.get(CommandsService).expirePending(new Date(Date.now() + 11_000));
-    const recent = (
-      await api({ method: 'GET', url: `/admin/scooters/${id}/commands` })
-    ).json() as shared.CommandView[];
+    // Limit potwierdzenia planuje pg-boss w transakcji komendy (ADR 0037); w teście wywołujemy obsługę zadania.
+    const jobs = app.get(JobsService);
+    expect(jobs.sent.filter((j) => j.name === JOBS.commandAckTimeout).map((j) => j.data.commandId)).toContain(
+      lock.json().id,
+    );
+    const lockMessage = mqtt().published.find((p) => (p.payload as shared.Command).commandId === lock.json().id);
+    expect(lockMessage?.payload).toMatchObject({ cmd: 'lock', expiresAt: expect.any(String) });
+    await jobs.run(JOBS.commandAckTimeout, { commandId: lock.json().id });
+    const recent = (await api({ method: 'GET', url: `/admin/scooters/${id}/commands` })).json() as shared.CommandView[];
     expect(recent.map((c) => [c.id, c.status])).toEqual([
       [lock.json().id, 'TIMEOUT'],
       [ring.json().id, 'ACKED'],

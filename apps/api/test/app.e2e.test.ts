@@ -35,7 +35,7 @@ describe.skipIf(!adminUrl)('API', () => {
     await seedDatabase(pool, { places, fleetSize: 3, admin: { email: 'a@test.local', name: 'A', passwordHash: 'x' } });
     await pool.end();
 
-    app = await createApp(loadConfig({ NODE_ENV: 'test', DATABASE_URL: url.toString(), MQTT_ENABLED: 'false' }), { logger: false });
+    app = await createApp(loadConfig({ NODE_ENV: 'test', DATABASE_URL: url.toString(), MQTT_ENABLED: 'false', JOBS_ENABLED: 'false' }), { logger: false });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
   });

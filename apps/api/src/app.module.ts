@@ -5,8 +5,10 @@ import { CONFIG, type AppConfig } from './config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { FleetModule } from './fleet/fleet.module.js';
 import { HealthController } from './health/health.controller.js';
+import { JobsModule } from './jobs/jobs.module.js';
 import { MqttModule } from './mqtt/mqtt.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
+import { RentalsModule } from './rentals/rentals.module.js';
 import { TelemetryModule } from './telemetry/telemetry.module.js';
 import { ZonesModule } from './zones/zones.module.js';
 
@@ -17,7 +19,18 @@ export class AppModule {
     return {
       module: AppModule,
       global: true,
-      imports: [DatabaseModule, AuthModule, AccessModule, MqttModule, RealtimeModule, ZonesModule, FleetModule, TelemetryModule],
+      imports: [
+        DatabaseModule,
+        JobsModule,
+        AuthModule,
+        AccessModule,
+        MqttModule,
+        RealtimeModule,
+        ZonesModule,
+        FleetModule,
+        RentalsModule,
+        TelemetryModule,
+      ],
       controllers: [HealthController],
       providers: [{ provide: CONFIG, useValue: config }],
       exports: [CONFIG],

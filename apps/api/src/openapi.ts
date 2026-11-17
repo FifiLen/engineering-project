@@ -12,7 +12,7 @@ export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
       'REST API dla aplikacji mobilnej i panelu operatora. Błędy: { code, message, details }. ' +
         'Uwierzytelnianie: token dostępowy w nagłówku Authorization (ADR 0035).',
     )
-    .setVersion('0.2.0')
+    .setVersion('0.3.0')
     .addBearerAuth()
     .build();
   return SwaggerModule.createDocument(app, config);

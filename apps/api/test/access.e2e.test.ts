@@ -66,7 +66,8 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
       ],
     });
     app = await createApp(
-      loadConfig({ NODE_ENV: 'test', DATABASE_URL: url.toString(), MQTT_ENABLED: 'false', PANEL_URL: 'http://panel.test' }),
+      loadConfig({ NODE_ENV: 'test', DATABASE_URL: url.toString(), MQTT_ENABLED: 'false',
+        JOBS_ENABLED: 'false', PANEL_URL: 'http://panel.test' }),
       { logger: false },
     );
     await app.init();

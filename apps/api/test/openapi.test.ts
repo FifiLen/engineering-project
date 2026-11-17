@@ -8,7 +8,7 @@ import { buildOpenApiDocument, serializeOpenApi } from '../src/openapi.js';
 
 describe('kontrakt OpenAPI', () => {
   it('docs/kontrakty/openapi.json odpowiada kontrolerom (po zmianie API: pnpm api:openapi)', async () => {
-    const app = await createApp(loadConfig({ NODE_ENV: 'test', MQTT_ENABLED: 'false' }), { logger: false });
+    const app = await createApp(loadConfig({ NODE_ENV: 'test', MQTT_ENABLED: 'false', JOBS_ENABLED: 'false' }), { logger: false });
     const generated = serializeOpenApi(buildOpenApiDocument(app));
     await app.close();
     const committed = readFileSync(join(import.meta.dirname, '..', '..', '..', 'docs', 'kontrakty', 'openapi.json'), 'utf8');

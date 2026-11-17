@@ -62,7 +62,7 @@ describe.skipIf(!adminUrl)('API: logowanie klientów i operatorów, strażnik up
         { slug: 'polityka-prywatnosci', name: 'Polityka', consentType: 'PRIVACY', title: 'Polityka', bodyMd: 'Treść' },
       ],
     });
-    app = await createApp(loadConfig({ NODE_ENV: 'test', DATABASE_URL: url.toString(), MQTT_ENABLED: 'false' }), {
+    app = await createApp(loadConfig({ NODE_ENV: 'test', DATABASE_URL: url.toString(), MQTT_ENABLED: 'false', JOBS_ENABLED: 'false' }), {
       logger: false,
     });
     await app.listen({ port: 0, host: '127.0.0.1' });

@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Zdarzenia na żywo (Socket.IO)
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Kontrakt zdarzeń Socket.IO między backendem a panelem operatora i aplikacją (ADR 0012).
     Operacje opisane z perspektywy backendu. Typy w kodzie: packages/shared/src/realtime.ts.
@@ -10,9 +10,16 @@ info:
     * Stan źródłowy zawsze można pobrać przez REST; zdarzenia tylko przyspieszają odświeżenie.
     * Po ponownym połączeniu klient pobiera stan od nowa (np. GET /admin/fleet/map).
     * Zdarzenia przychodzą w kolejności wysłania; klient stosuje je po kolei.
-    * Od iteracji 2 dołączenie do pokoju wymaga zalogowanego operatora z uprawnieniem scooters.read.
+    * Od iteracji 2 dołączenie do pokoju fleet wymaga zalogowanego operatora z uprawnieniem scooters.read.
+    * Połączenie wymaga tokenu dostępowego w `auth.token` (ADR 0035): operatora albo klienta.
+      Klient trafia do pokoju user:{id} od razu po połączeniu, bez osobnej subskrypcji.
 
-    Iteracja 1: pokój fleet (panel). Pokoje user:{id} i rental:{id} powstają w iteracji 3.
+    Historia:
+    * 1.0.0 (iteracja 1): pokój fleet (panel).
+    * 1.1.0 (iteracja 3, ADR 0036): pokój rentals (panel, uprawnienie rentals.read) ze zdarzeniem
+      rentals.changed oraz pokój user:{id} (aplikacja) ze zdarzeniem rental.updated. Osobny pokój
+      rental:{id} z ADR 0012 okazał się zbędny: właściciel dostaje zmiany w user:{id}, a panel
+      wszystkie przejazdy w rentals.
 
 servers:
   lokalny:
@@ -32,7 +39,46 @@ channels:
       command:
         $ref: '#/components/messages/FleetCommand'
 
+  rentals:
+    address: rentals
+    description: Pokój panelu ze zmianami przejazdów (lista, szczegóły, oś czasu)
+    messages:
+      subscribe:
+        $ref: '#/components/messages/RentalsSubscribe'
+      changed:
+        $ref: '#/components/messages/RentalsChanged'
+  user:
+    address: user:{userId}
+    description: Pokój klienta; zmiany jego przejazdów na wszystkich urządzeniach
+    parameters:
+      userId:
+        description: Identyfikator klienta z tokenu dostępowego
+    messages:
+      rentalUpdated:
+        $ref: '#/components/messages/RentalUpdated'
+
 operations:
+  receiveRentalsSubscribe:
+    action: receive
+    channel:
+      $ref: '#/channels/rentals'
+    summary: 'rentals.subscribe: operator dołącza do pokoju rentals (rentals.read); odpowiedź (ack) { ok: true }'
+    messages:
+      - $ref: '#/channels/rentals/messages/subscribe'
+  sendRentalsChanged:
+    action: send
+    channel:
+      $ref: '#/channels/rentals'
+    summary: 'rentals.changed: wiersz listy przejazdów po każdej zmianie stanu, komendy w toku albo problemu'
+    messages:
+      - $ref: '#/channels/rentals/messages/changed'
+  sendRentalUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/user'
+    summary: 'rental.updated: pełny widok przejazdu klienta (stan, komenda w toku, komunikat, liczniki na chwilę asOf)'
+    messages:
+      - $ref: '#/channels/user/messages/rentalUpdated'
   receiveSubscribe:
     action: receive
     channel:
@@ -84,7 +130,46 @@ components:
       name: fleet.command
       payload:
         $ref: '#/components/schemas/CommandView'
+    RentalsSubscribe:
+      name: rentals.subscribe
+      payload:
+        type: 'null'
+    RentalsChanged:
+      name: rentals.changed
+      payload:
+        description: RentalListItem z packages/shared/src/admin/rentals.ts (te same pola co GET /admin/rentals)
+        type: object
+        required: [id, number, state, hasProblem, scooterNumber, pendingCommand]
+        properties:
+          id: { type: string, format: uuid }
+          number: { type: integer }
+          state: { $ref: '#/components/schemas/RentalState' }
+          hasProblem: { type: boolean }
+          scooterNumber: { type: integer }
+          pendingCommand: { type: [string, 'null'], enum: [LOCK, UNLOCK, RING, null] }
+    RentalUpdated:
+      name: rental.updated
+      payload:
+        description: RentalView z packages/shared/src/rentals.ts (te same pola co GET /rentals/current)
+        type: object
+        required: [id, number, state, pendingCommand, notice, rideSeconds, pauseSeconds, price, asOf]
+        properties:
+          id: { type: string, format: uuid }
+          number: { type: integer }
+          state: { $ref: '#/components/schemas/RentalState' }
+          pendingCommand: { type: [string, 'null'], enum: [LOCK, UNLOCK, null] }
+          notice: { type: [string, 'null'], enum: [PAUSE_FAILED, RESUME_FAILED, LOCK_FAILED, ENDED_REMOTELY, null] }
+          rideSeconds: { type: integer, description: Liczone na chwilę asOf; aplikacja dolicza upływ czasu lokalnie }
+          pauseSeconds: { type: integer }
+          price:
+            type: object
+            description: Kwoty w groszach (ADR 0042)
+          asOf: { type: string, format: date-time }
   schemas:
+    RentalState:
+      type: string
+      description: Stan przejazdu (ADR 0013, maszyna stanów w core)
+      enum: [RESERVED, UNLOCKING, ACTIVE, PAUSED, ENDING, ENDED, EXPIRED, UNLOCK_FAILED, UNPAID]
     FleetStatus:
       type: string
       description: Status floty dla operatora (fn_fleet_status w bazie, deriveFleetStatus w core, ADR 0033)

@@ -13,7 +13,7 @@
     "contact": {},
     "description": "REST API dla aplikacji mobilnej i panelu operatora. Błędy: { code, message, details }. Uwierzytelnianie: token dostępowy w nagłówku Authorization (ADR 0035).",
     "title": "System wypożyczania hulajnóg: API",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -376,6 +376,68 @@
         "summary": "Katalog uprawnień z modułami i opisami",
         "tags": [
           "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/rentals": {
+      "get": {
+        "operationId": "AdminRentalsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Lista przejazdów z filtrami, sortowaniem, stronicowaniem i licznikami (kontrakt list)",
+        "tags": [
+          "panel: przejazdy"
+        ]
+      }
+    },
+    "/admin/rentals/{id}": {
+      "get": {
+        "operationId": "AdminRentalsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Szczegóły przejazdu: liczniki, kwota, oś czasu z komendami, trasa"
+          }
+        },
+        "tags": [
+          "panel: przejazdy"
+        ]
+      }
+    },
+    "/admin/rentals/{id}/end": {
+      "post": {
+        "operationId": "AdminRentalsController_end",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Zdalne zakończenie (D7): niezależnie od strefy, z powodem, komendą lock i wpisem w dzienniku audytu",
+        "tags": [
+          "panel: przejazdy"
         ]
       }
     },
@@ -1210,6 +1272,19 @@
       }
     },
     "/me": {
+      "delete": {
+        "operationId": "CustomerAccountController_remove",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie konta: bez otwartego przejazdu i z saldem 0; dane osobowe są anonimizowane",
+        "tags": [
+          "aplikacja: konto"
+        ]
+      },
       "get": {
         "operationId": "CustomerAuthController_me",
         "parameters": [],
@@ -1251,6 +1326,34 @@
         ]
       }
     },
+    "/me/notifications": {
+      "patch": {
+        "operationId": "CustomerAccountController_notifications",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "aplikacja: konto"
+        ]
+      }
+    },
+    "/me/profile": {
+      "get": {
+        "operationId": "CustomerAccountController_profile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Statystyki przejazdów, saldo portfela i preferencje powiadomień"
+          }
+        },
+        "tags": [
+          "aplikacja: konto"
+        ]
+      }
+    },
     "/me/registration": {
       "post": {
         "operationId": "CustomerAuthController_register",
@@ -1263,6 +1366,208 @@
         "summary": "Zakończenie rejestracji: imię, wiek i zgody na obowiązujące wersje dokumentów",
         "tags": [
           "aplikacja: konto"
+        ]
+      }
+    },
+    "/rentals": {
+      "get": {
+        "operationId": "RentalsController_history",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Historia zakończonych przejazdów, od najnowszego"
+          }
+        },
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      },
+      "post": {
+        "operationId": "RentalsController_start",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Start przejazdu z rezerwacji albo po skanie (202, odblokowanie czeka na potwierdzenie); ponowione żądanie zwraca otwarty przejazd (200)",
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/rentals/{id}": {
+      "get": {
+        "operationId": "RentalsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Przejazd klienta z licznikami i kwotą (podsumowanie)"
+          }
+        },
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/rentals/current": {
+      "get": {
+        "operationId": "RentalsController_current",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Otwarty przejazd albo rezerwacja klienta; `rental: null`, gdy nie ma"
+          }
+        },
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/rentals/current/end": {
+      "post": {
+        "operationId": "RentalsController_end",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Zakończenie w strefie parkowania: ENDING, ENDED po potwierdzeniu blokady; poza strefą 422 OUTSIDE_PARKING",
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/rentals/current/pause": {
+      "post": {
+        "operationId": "RentalsController_pause",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Pauza: komenda lock, stan PAUSED po potwierdzeniu",
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/rentals/current/resume": {
+      "post": {
+        "operationId": "RentalsController_resume",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Wznowienie: komenda unlock, stan ACTIVE po potwierdzeniu",
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/reservations": {
+      "post": {
+        "operationId": "RentalsController_reserve",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Rezerwacja (201); powtórzona rezerwacja tej samej hulajnogi zwraca istniejącą (200)",
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/reservations/current": {
+      "delete": {
+        "operationId": "RentalsController_cancel",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Anulowanie własnej rezerwacji (RESERVED → EXPIRED z powodem)",
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/scooters/{id}/ring": {
+      "post": {
+        "operationId": "RentalsController_ring",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Dzwonek: przy własnej rezerwacji albo przy wolnej hulajnodze",
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/scooters/by-number/{number}": {
+      "get": {
+        "operationId": "RentalsController_byNumber",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Hulajnoga po numerze z kodu QR albo wpisanym ręcznie, z przyczyną niedostępności",
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
+    "/scooters/nearby": {
+      "get": {
+        "operationId": "RentalsController_nearby",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Wolne hulajnogi w promieniu 2 km (najwyżej 50) z progiem baterii z cennika",
+        "tags": [
+          "aplikacja: wypożyczenie"
         ]
       }
     },
