@@ -14,6 +14,7 @@ import { MqttService } from '../mqtt/mqtt.service.js';
 import { JOBS, JobsService } from '../jobs/jobs.service.js';
 import { FleetGateway } from '../realtime/fleet.gateway.js';
 import { RentalsService } from '../rentals/rentals.service.js';
+import { ZoneTracker } from '../zones/zone-tracker.service.js';
 
 /** Partycje telemetrii zakładane z wyprzedzeniem; ponowne wywołanie niczego nie psuje. */
 const PARTITION_DAYS_AHEAD = 7;
@@ -45,6 +46,7 @@ export class TelemetryService implements OnModuleInit, OnApplicationShutdown {
     private readonly gateway: FleetGateway,
     private readonly jobs: JobsService,
     private readonly rentals: RentalsService,
+    private readonly zones: ZoneTracker,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -144,6 +146,17 @@ export class TelemetryService implements OnModuleInit, OnApplicationShutdown {
       [...current.values()].map(({ scooterId, reading }) => this.toMapUpdate(byId.get(scooterId)!, reading)),
     );
     this.gateway.updates(updates);
+    // Strefy hulajnóg w przejeździe po zapisie partii (ADR 0043); błąd stref nie wstrzymuje telemetrii.
+    await this.zones
+      .track(
+        history.map(({ scooterId, reading }) => ({
+          scooterId,
+          position: reading.position,
+          recordedAt: reading.recordedAt,
+          buffered: reading.buffered,
+        })),
+      )
+      .catch((e: Error) => this.logger.error(`Strefy: ${e.message}`));
   }
 
   /** Status (retained, Last Will przy zerwaniu): najpierw zapis telemetrii sprzed zmiany, potem łączność. */

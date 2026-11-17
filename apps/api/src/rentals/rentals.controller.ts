@@ -12,6 +12,7 @@ import type { FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { CurrentCustomer, CustomerAuth, type CustomerPrincipal } from '../auth/decorators.js';
 import { ZodPipe } from '../common/zod-query.js';
+import { GeoRateLimiter } from '../geo/geo.module.js';
 import { RentalsService } from './rentals.service.js';
 
 const idParam = new ZodPipe(z.uuid());
@@ -23,7 +24,10 @@ const historyQuery = new ZodPipe(z.object({ limit: z.coerce.number().int().min(1
 @CustomerAuth()
 @Controller()
 export class RentalsController {
-  constructor(private readonly rentals: RentalsService) {}
+  constructor(
+    private readonly rentals: RentalsService,
+    private readonly limiter: GeoRateLimiter,
+  ) {}
 
   @Get('scooters/nearby')
   @ApiOperation({ summary: 'Wolne hulajnogi w promieniu 2 km (najwyżej 50) z progiem baterii z cennika' })
@@ -35,6 +39,17 @@ export class RentalsController {
   @ApiOperation({ summary: 'Hulajnoga po numerze z kodu QR albo wpisanym ręcznie, z przyczyną niedostępności' })
   byNumber(@CurrentCustomer() customer: CustomerPrincipal, @Param('number', numberParam) number: number) {
     return this.rentals.scooterByNumber(customer.userId, number);
+  }
+
+  @Get('scooters/:id/walk')
+  @ApiOperation({ summary: 'Trasa piesza do wolnej hulajnogi w pobliżu albo do własnej rezerwacji (ADR 0048)' })
+  walk(
+    @CurrentCustomer() customer: CustomerPrincipal,
+    @Param('id', idParam) id: string,
+    @Query(new ZodPipe(nearbyQuerySchema)) query: NearbyQuery,
+  ) {
+    this.limiter.take(customer.userId);
+    return this.rentals.walkRoute(customer.userId, id, query);
   }
 
   @Post('scooters/:id/ring')

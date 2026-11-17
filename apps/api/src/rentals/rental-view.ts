@@ -1,4 +1,4 @@
-import { priceRental, rentalCounters, type RentalTariff } from '@hulajnogi/core';
+import { desiredZoneControl, priceRental, rentalCounters, type RentalTariff } from '@hulajnogi/core';
 import type { DrizzleRentalRepository, RentalRecord } from '@hulajnogi/db';
 import type { RentalNotice, RentalView, TariffView } from '@hulajnogi/shared';
 
@@ -31,11 +31,14 @@ export async function buildRentalView(
   const counters = rentalCounters(events, at);
   const ended = rental.state === 'ENDED' || rental.state === 'UNPAID';
   const riding = !ended && rental.startedAt !== null;
-  const [distanceM, speedKmh, route] = await Promise.all([
+  const [distanceM, speedKmh, route, zones] = await Promise.all([
     riding ? repo.liveDistance(rental.id) : rental.distanceM,
     riding ? repo.lastSpeed(rental.id) : null,
     rental.startedAt ? repo.route(rental.id) : [],
+    riding ? repo.currentZones(rental.id) : null,
   ]);
+  // Przed pierwszym odczytem stref nie ma czego wymagać od hulajnogi (brak stanu to nie „poza obszarem”).
+  const zoneControl = zones ? desiredZoneControl(zones) : { stopped: false, speedLimitKmh: null };
   return {
     id: rental.id,
     number: rental.number,
@@ -64,6 +67,8 @@ export async function buildRentalView(
       rental.pendingCommand === 'LOCK' || rental.pendingCommand === 'UNLOCK' ? rental.pendingCommand : null,
     notice: (notice?.type as RentalNotice | undefined) ?? null,
     endZone: rental.endZone,
+    zones: (zones ?? []).map(({ code, name, type, speedLimitKmh }) => ({ code, name, type, speedLimitKmh })),
+    zoneControl,
     settlement: 'PENDING',
     asOf: at.toISOString(),
   };

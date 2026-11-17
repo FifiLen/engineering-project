@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Zdarzenia na żywo (Socket.IO)
-  version: 1.1.0
+  version: 1.2.0
   description: |
     Kontrakt zdarzeń Socket.IO między backendem a panelem operatora i aplikacją (ADR 0012).
     Operacje opisane z perspektywy backendu. Typy w kodzie: packages/shared/src/realtime.ts.
@@ -20,6 +20,8 @@ info:
       rentals.changed oraz pokój user:{id} (aplikacja) ze zdarzeniem rental.updated. Osobny pokój
       rental:{id} z ADR 0012 okazał się zbędny: właściciel dostaje zmiany w user:{id}, a panel
       wszystkie przejazdy w rentals.
+    * 1.2.0 (iteracja 4, ADR 0043 i 0044): zdarzenie zones.changed do wszystkich połączonych po zmianie
+      stref w panelu; rental.updated ma strefy hulajnogi (zones) i wymagania stref (zoneControl).
 
 servers:
   lokalny:
@@ -47,6 +49,12 @@ channels:
         $ref: '#/components/messages/RentalsSubscribe'
       changed:
         $ref: '#/components/messages/RentalsChanged'
+  zones:
+    address: null
+    description: Wszyscy połączeni (panel i aplikacja); zmiana stref w edytorze panelu
+    messages:
+      changed:
+        $ref: '#/components/messages/ZonesChanged'
   user:
     address: user:{userId}
     description: Pokój klienta; zmiany jego przejazdów na wszystkich urządzeniach
@@ -79,6 +87,13 @@ operations:
     summary: 'rental.updated: pełny widok przejazdu klienta (stan, komenda w toku, komunikat, liczniki na chwilę asOf)'
     messages:
       - $ref: '#/channels/user/messages/rentalUpdated'
+  sendZonesChanged:
+    action: send
+    channel:
+      $ref: '#/channels/zones'
+    summary: 'zones.changed: identyfikatory zmienionych stref; geometrie pobiera się przez GET /zones albo GET /admin/zones'
+    messages:
+      - $ref: '#/channels/zones/messages/changed'
   receiveSubscribe:
     action: receive
     channel:
@@ -164,7 +179,32 @@ components:
           price:
             type: object
             description: Kwoty w groszach (ADR 0042)
+          zones:
+            type: array
+            description: Strefy, w których jest hulajnoga (wykrywanie z telemetrii, ADR 0043), od najbardziej restrykcyjnej
+            items:
+              type: object
+              properties:
+                code: { type: string }
+                name: { type: string }
+                type: { type: string, enum: [SERVICE_AREA, PARKING, SLOW, NO_RIDE] }
+                speedLimitKmh: { type: [integer, 'null'] }
+          zoneControl:
+            type: object
+            description: Wymagania stref (ADR 0044); aplikacja pokazuje z nich komunikat strefy na ekranie jazdy
+            properties:
+              stopped: { type: boolean, description: Strefa zakazu albo poza obszarem działania }
+              speedLimitKmh: { type: [integer, 'null'] }
           asOf: { type: string, format: date-time }
+    ZonesChanged:
+      name: zones.changed
+      payload:
+        description: ZonesChanged z packages/shared/src/realtime.ts
+        type: object
+        required: [zoneIds, at]
+        properties:
+          zoneIds: { type: array, items: { type: string, format: uuid } }
+          at: { type: string, format: date-time }
   schemas:
     RentalState:
       type: string

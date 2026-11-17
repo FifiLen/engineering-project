@@ -8,12 +8,15 @@ import {
   decideReservation,
   decideResume,
   decideStart,
+  desiredZoneControl,
+  distanceM,
   DomainError,
   ensureCanDeleteAccount,
   ensureCanRing,
   ensureCustomerCanRent,
   estimateRangeKm,
   evaluatePosition,
+  isZoneCommand,
   NEARBY_LIMIT,
   NEARBY_RADIUS_M,
   notFound,
@@ -21,10 +24,13 @@ import {
   RentalStateMachine,
   reservationExpiresAt,
   unavailableReason,
+  zoneControlCommands,
   type CommandType,
+  type GeoPoint,
   type RentalAction,
   type RentalState,
   type RentalTariff,
+  type ZoneTransition,
 } from '@hulajnogi/core';
 import {
   type Database,
@@ -46,11 +52,13 @@ import type {
   RentalHistoryItem,
   RentalListItem,
   RentalView,
+  RouteView,
 } from '@hulajnogi/shared';
 import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { AuditedTransaction } from '../audit/audited-transaction.js';
 import { DB } from '../database/database.module.js';
 import { CommandsService, type AckResult } from '../fleet/commands.service.js';
+import { RoutePlanner } from '../geo/route-planner.js';
 import { JOBS, JobsService } from '../jobs/jobs.service.js';
 import { FleetGateway } from '../realtime/fleet.gateway.js';
 import { buildRentalView, tariffView } from './rental-view.js';
@@ -76,6 +84,7 @@ export class RentalsService implements OnModuleInit {
     private readonly commands: CommandsService,
     private readonly gateway: FleetGateway,
     private readonly audited: AuditedTransaction,
+    private readonly routes: RoutePlanner,
   ) {}
 
   onModuleInit(): void {
@@ -142,6 +151,23 @@ export class RentalsService implements OnModuleInit {
       ensureCanRing(scooter, await repo.openForUser(userId));
       await this.sendCommand(repo, tx, effects, scooter.id, null, 'RING');
     });
+  }
+
+  /**
+   * Trasa piesza do hulajnogi (ADR 0048): tylko do wolnej hulajnogi w promieniu wyszukiwania albo do własnej
+   * rezerwacji; bez OSRM linia prosta.
+   */
+  async walkRoute(userId: string, scooterId: string, from: GeoPoint): Promise<RouteView> {
+    const repo = new DrizzleRentalRepository(this.db);
+    const scooter = await repo.scooter(scooterId);
+    if (!scooter || scooter.lat === null || scooter.lon === null) throw notFound('scooter', scooterId);
+    const own = await repo.openForUser(userId);
+    const target = { lat: scooter.lat, lon: scooter.lon };
+    const mine = own?.scooterId === scooterId && own.state === 'RESERVED';
+    const visible =
+      unavailableReason(scooter, await this.requireTariff(repo)) === null && distanceM(from, target) <= NEARBY_RADIUS_M;
+    if (!mine && !visible) throw notFound('scooter', scooterId);
+    return this.routes.route('foot', from, target);
   }
 
   // --- Przejazd klienta ----------------------------------------------------------------------
@@ -310,6 +336,10 @@ export class RentalsService implements OnModuleInit {
   async onCommandResult(commandId: string, ack: AckResult | null): Promise<boolean> {
     const command = await new DrizzleRentalRepository(this.db).command(commandId);
     if (!command?.rentalId) return false;
+    if (isZoneCommand(command.type)) {
+      await this.onZoneCommandResult(command, ack);
+      return true;
+    }
     await this.transaction(async (repo, tx, effects) => {
       await repo.lockScooter(command.scooterId);
       const rental = (await repo.lock(command.rentalId!))!;
@@ -328,7 +358,14 @@ export class RentalsService implements OnModuleInit {
           data: { commandId: command.id, ...(ack?.reason ? { reason: ack.reason } : {}) },
         });
       if (outcome.action)
-        await this.applyCommandAction(repo, rental, outcome.action, effects, ack?.reason ?? (ack ? null : 'timeout'));
+        await this.applyCommandAction(
+          repo,
+          tx,
+          rental,
+          outcome.action,
+          effects,
+          ack?.reason ?? (ack ? null : 'timeout'),
+        );
       if (outcome.compensateLock) await this.sendCommand(repo, tx, effects, rental.scooterId, rental.id, 'LOCK');
       if (outcome.action || outcome.event) effects.rentals.add(rental.id);
     });
@@ -348,6 +385,81 @@ export class RentalsService implements OnModuleInit {
     if ((last?.type ?? 'CONNECTION_RESTORED') === type) return;
     await repo.addEvent(rental.id, type);
     await this.notify(rental.id);
+  }
+
+  // --- Strefy w trakcie jazdy (ADR 0043, ADR 0044) -------------------------------------------------
+
+  /** Przejazdy, w których śledzimy strefy: hulajnoga po odblokowaniu, przed zakończeniem. */
+  ridingByScooter(scooterIds: string[]): Promise<Map<string, string>> {
+    return new DrizzleRentalRepository(this.db).ridingByScooter(scooterIds);
+  }
+
+  /**
+   * Przejścia stref z modułu Strefy: zdarzenia na osi czasu z czasem odczytu i uzgodnienie komend
+   * z bieżącymi strefami (tylko w `ACTIVE` i tylko po odczycie bieżącym, nie z bufora).
+   */
+  async onZoneChanges(input: {
+    rentalId: string;
+    scooterId: string;
+    transitions: readonly ZoneTransition[];
+    applyControl: boolean;
+  }): Promise<void> {
+    await this.transaction(async (repo, tx, effects) => {
+      await repo.lockScooter(input.scooterId);
+      const rental = await repo.lock(input.rentalId);
+      if (!rental || !RentalStateMachine.isOpen(rental.state)) return;
+      for (const t of input.transitions) {
+        await repo.addEvent(rental.id, t.kind === 'ENTERED' ? 'ZONE_ENTERED' : 'ZONE_EXITED', {
+          zoneId: t.zone.id,
+          data: { code: t.zone.code, zoneType: t.zone.type, recordedAt: t.at.toISOString() },
+        });
+      }
+      if (input.transitions.length) effects.rentals.add(rental.id);
+      if (input.applyControl && rental.state === 'ACTIVE') await this.reconcileZoneControl(repo, tx, effects, rental);
+    });
+  }
+
+  /** Komenda strefy (limit, zatrzymanie): wynik zmienia tylko stan zastosowany; błąd wymusza ponowienie. */
+  private async onZoneCommandResult(command: RentalCommandRecord, ack: AckResult | null): Promise<void> {
+    await this.transaction(async (repo, tx, effects) => {
+      const confirmed = ack !== null && commandResultFromAck(command.type, ack.ok, ack.reason) === 'CONFIRMED';
+      const status = ack ? (confirmed ? 'ACKED' : 'REJECTED') : 'TIMEOUT';
+      if (!(await repo.completeCommand(command.id, status, ack?.at ?? null, ack?.reason ?? null))) return;
+      if (status !== 'ACKED') await new DrizzleZoneRepository(tx).markControlFailed(command.id);
+      effects.rentals.add(command.rentalId!);
+    });
+    await this.commands.notifyPanel(command.id);
+  }
+
+  /** Uzgodnienie stanu docelowego hulajnogi z jej bieżącymi strefami (ADR 0044). */
+  private async reconcileZoneControl(
+    repo: DrizzleRentalRepository,
+    tx: DbExecutor,
+    effects: Effects,
+    rental: RentalRecord,
+  ): Promise<void> {
+    const zones = new DrizzleZoneRepository(tx);
+    const applied = await zones.control(rental.scooterId);
+    if (!applied || applied.rentalId !== rental.id) return;
+    const desired = desiredZoneControl((await zones.presence(rental.scooterId)).map((p) => p.zone));
+    for (const command of zoneControlCommands(applied, desired)) {
+      const kmh = command.type === 'SPEED_LIMIT' ? command.speedLimitKmh : null;
+      const sent = await this.sendCommand(
+        repo,
+        tx,
+        effects,
+        rental.scooterId,
+        rental.id,
+        command.type,
+        kmh ? { kmh } : undefined,
+      );
+      await zones.applyControl(
+        rental.scooterId,
+        command.type === 'SPEED_LIMIT'
+          ? { speedLimitKmh: kmh, limitCommandId: sent.id }
+          : { stopped: command.type === 'STOP_GRADUALLY', stopCommandId: sent.id },
+      );
+    }
   }
 
   /** Wygaśnięcie rezerwacji (zadanie pg-boss); rezerwacja już odblokowana albo anulowana nic nie zmienia. */
@@ -386,7 +498,7 @@ export class RentalsService implements OnModuleInit {
       const rental = await repo.lock(rentalId);
       const decision = decideRemoteEnd(rental, body.reason, body.note);
       await repo.addEvent(rentalId, 'ENDED_REMOTELY', { data: { reason: body.reason, staffId } });
-      await this.complete(repo, rental!, 'END_REMOTELY', decision.to, effects);
+      await this.complete(repo, tx, rental!, 'END_REMOTELY', decision.to, effects);
       if (decision.command) await this.sendCommand(repo, tx, effects, rental!.scooterId, rentalId, decision.command);
       await audit({
         action: 'rental.ended_remotely',
@@ -425,13 +537,14 @@ export class RentalsService implements OnModuleInit {
 
   private async applyCommandAction(
     repo: DrizzleRentalRepository,
+    tx: DbExecutor,
     rental: RentalRecord,
     action: RentalAction,
     effects: Effects,
     reason: string | null,
   ): Promise<void> {
     const to = RentalStateMachine.transition(rental.state, action);
-    if (action === 'COMPLETE_END') return this.complete(repo, rental, action, to, effects);
+    if (action === 'COMPLETE_END') return this.complete(repo, tx, rental, action, to, effects);
     const now = action === 'CONFIRM_UNLOCK' ? await repo.now() : undefined;
     await this.transition(
       repo,
@@ -442,7 +555,13 @@ export class RentalsService implements OnModuleInit {
       reason && action === 'UNLOCK_TIMEOUT' ? { reason } : undefined,
       now,
     );
-    if (to === 'UNLOCK_FAILED') await repo.setScooterStatus(rental.scooterId, 'AVAILABLE');
+    if (to === 'UNLOCK_FAILED') {
+      await repo.setScooterStatus(rental.scooterId, 'AVAILABLE');
+      await new DrizzleZoneRepository(tx).stopTracking(rental.id);
+    }
+    // `lock` kasuje limit i zatrzymanie w hulajnodze; po odblokowaniu strefy obowiązują od razu (ADR 0044).
+    if (to === 'PAUSED') await new DrizzleZoneRepository(tx).resetControl(rental.scooterId);
+    if (to === 'ACTIVE') await this.reconcileZoneControl(repo, tx, effects, { ...rental, state: to });
   }
 
   private async transition(
@@ -462,6 +581,7 @@ export class RentalsService implements OnModuleInit {
   /** `ENDED`: liczniki z osi czasu i kwota z core (ADR 0042), dystans i trasa z telemetrii, hulajnoga wolna. */
   private async complete(
     repo: DrizzleRentalRepository,
+    tx: DbExecutor,
     rental: RentalRecord,
     action: RentalAction,
     to: RentalState,
@@ -481,6 +601,7 @@ export class RentalsService implements OnModuleInit {
       endZoneId,
     });
     await repo.setScooterStatus(rental.scooterId, 'AVAILABLE');
+    await new DrizzleZoneRepository(tx).stopTracking(rental.id);
     effects.rentals.add(rental.id);
   }
 
@@ -492,10 +613,12 @@ export class RentalsService implements OnModuleInit {
     scooterId: string,
     rentalId: string | null,
     type: CommandType,
-  ): Promise<void> {
-    const command = await repo.createCommand({ scooterId, rentalId, type, ttlMs: COMMAND_ACK_TIMEOUT_MS });
+    params?: { kmh?: number },
+  ): Promise<RentalCommandRecord> {
+    const command = await repo.createCommand({ scooterId, rentalId, type, ttlMs: COMMAND_ACK_TIMEOUT_MS, params });
     await this.jobs.sendInTransaction(tx, JOBS.commandAckTimeout, { commandId: command.id }, command.expiresAt!);
     effects.commands.push(command);
+    return command;
   }
 
   private async transaction<T>(

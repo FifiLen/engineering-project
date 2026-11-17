@@ -73,6 +73,27 @@ services:
     volumes:
       - ./osrm:/osrm
 
+  # Drugi OSRM z profilem pieszym: trasa klienta do hulajnogi (ADR 0048). Ten sam wycinek, osobne dane.
+  osrm-foot-prepare:
+    image: ghcr.io/project-osrm/osrm-backend:v26.11.0-debian
+    depends_on:
+      osrm-download:
+        condition: service_completed_successfully
+    volumes:
+      - ./osrm:/osrm
+    entrypoint: ['/bin/sh', '/osrm/prepare-foot.sh']
+
+  osrm-foot:
+    image: ghcr.io/project-osrm/osrm-backend:v26.11.0-debian
+    depends_on:
+      osrm-foot-prepare:
+        condition: service_completed_successfully
+    command: osrm-routed --algorithm mld /osrm/foot/slaskie-latest.osrm
+    ports:
+      - '${OSRM_FOOT_PORT:-5002}:5000'
+    volumes:
+      - ./osrm:/osrm
+
 volumes:
   postgres-data:
   mosquitto-data:

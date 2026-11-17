@@ -36,6 +36,11 @@ const envSchema = z.object({
    * zapisywane, a test wywołuje ich obsługę bezpośrednio.
    */
   JOBS_ENABLED: booleanFlag.default(true),
+  /** Trasy dla klienta (ADR 0048): OSRM z profilem rowerowym i pieszym; bez OSRM linia prosta. */
+  OSRM_URL: z.url().default('http://localhost:5000'),
+  OSRM_FOOT_URL: z.url().default('http://localhost:5002'),
+  /** Wyszukiwanie miejsc (ADR 0045); własna instancja Photon to tylko zmiana adresu. */
+  PHOTON_URL: z.url().default('https://photon.komoot.io'),
 });
 
 /**

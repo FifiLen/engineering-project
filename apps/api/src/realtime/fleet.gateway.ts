@@ -103,6 +103,11 @@ export class FleetGateway implements OnGatewayConnection {
     this.server?.to(RENTALS_ROOM).emit('rentals.changed', rental);
   }
 
+  /** Zmiana stref dla wszystkich połączonych (panel, aplikacja); dane pobiera się przez REST. */
+  zonesChanged(zoneIds: string[]): void {
+    this.server?.emit('zones.changed', { zoneIds, at: new Date().toISOString() });
+  }
+
   rentalUpdated(userId: string, rental: RentalView): void {
     this.server?.to(userRoom(userId)).emit('rental.updated', rental);
   }

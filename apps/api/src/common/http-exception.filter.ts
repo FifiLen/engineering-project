@@ -39,6 +39,12 @@ const DOMAIN_STATUS: Record<string, HttpStatus> = {
   ACCOUNT_BLOCKED: HttpStatus.FORBIDDEN,
   RING_NOT_ALLOWED: HttpStatus.FORBIDDEN,
   TARIFF_MISSING: HttpStatus.SERVICE_UNAVAILABLE,
+  // Strefy (ADR 0047): reguły geometrii to 422, użycie strefy i jej typ to konflikty stanu (409).
+  ZONE_INVALID_GEOMETRY: HttpStatus.UNPROCESSABLE_ENTITY,
+  ZONE_OUTSIDE_SERVICE_AREA: HttpStatus.UNPROCESSABLE_ENTITY,
+  ZONE_OVERLAP: HttpStatus.UNPROCESSABLE_ENTITY,
+  // Usługi map (ADR 0045): wyszukiwanie bez Photon.
+  PLACES_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
 };
 
 @Catch()
