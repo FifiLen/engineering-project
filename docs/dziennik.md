@@ -594,3 +594,20 @@ Plan: [iteracja 4](iteracje/iteracja-04-strefy.md). Etap planowania, bez kodu i 
 
 **Do zrobienia przed implementacją**
 - Odpowiedzi autora na pytania i decyzje z planu; makiety brakujących stanów; ADR-y 0043–0048.
+
+**Odpowiedzi autora (17 listopada 2026)**
+- Wszystkie rekomendacje D1–D8 i domyślne odpowiedzi na pytania 1, 4–7, 9 i 10. Strefa zakazu i wyjazd poza obszar działania: hulajnoga staje, a przejazd trwa.
+- Strefa zakazu w danych startowych: Park imienia świętego Jana Sarkandra (`way/209433745`), wybrany z czterech kandydatów z OpenStreetMap, czyli parków i skwerów w promieniu 1,5 km od Rynku. Publiczne serwery Overpass były przeciążone, więc kandydatów i ich wielokąty pobrał Nominatim (wyszukiwanie i `lookup` z `polygon_geojson`). Odległości od stref parkowania i od S-01 są przybliżone (rzut płaski).
+
+**Makiety (17 listopada 2026)**
+- 14 plansz w [`22-mobile-strefy` i `23-panel-strefy`](projekt/README.md#aplikacja-strefy-iteracja-4): 7 aplikacji (zakaz i wyjazd poza obszar w trakcie jazdy, hulajnoga niedostępna `OUT_OF_AREA`, prowadzenie do strefy, trasa piesza do hulajnogi, wynik wyszukiwania, brak wyników) i 7 panelu (lista z edytorem w nowej nawigacji, nowa strefa, wolna jazda, zakaz z wariantem obszaru, błąd geometrii, dezaktywacja, zmiana w trakcie przejazdów). Spis ekranów: 102.
+- Plansze przygotowało dwóch agentów równolegle, a PNG wyrenderował Chrome headless (aplikacja 2×, panel 1×). Wszystkie PNG obejrzane przed wpisem do spisu. Poprawka po przeglądzie: komunikat strefy zakazu w panelu mówi o kliencie („klient nie zakończy tu przejazdu”), a nie w drugiej osobie.
+- Ustalenia z plansz są w spisie makiet. Najważniejsze dla implementacji:
+  - „Zakończ” w strefie zakazu zostaje aktywny, a o odmowie decyduje API (`OUTSIDE_PARKING`);
+  - „Dezaktywuj” zastępuje „Usuń strefę”;
+  - pole „Granica” w karcie strefy pokazuje błędy geometrii.
+- Otwarte do ADR 0043 i 0047:
+  - czy blokować zmianę typu strefy użytej w przejazdach;
+  - uproszczenie okręgów z danych startowych (64 punkty);
+  - czas wjazdu do strefy w kolumnie „W strefie od”.
+

@@ -55,7 +55,9 @@ Do zrobienia:
 - [x] Wypchnąć iterację 3 i potwierdzić zielone CI (2026-11-17, commit `f010476`).
 - [ ] Development build aplikacji z natywną mapą i aparatem (Xcode jest już zainstalowany) i sprawdzenie ekranów awarii w aplikacji (`control silent`).
 - [x] Przed iteracją 4: plan iteracji 4 (2026-11-17, `docs/iteracje/iteracja-04-strefy.md`).
-- [ ] Przed iteracją 4: odpowiedzi autora na pytania 1–10 i decyzje D1–D8 z planu, makiety brakujących stanów (lista w planie), ADR 0043–0048.
+- [x] Przed iteracją 4: odpowiedzi autora na pytania 1–10 i decyzje D1–D8 (2026-11-17, wszystkie rekomendacje; strefa zakazu: Park im. św. Jana Sarkandra).
+- [x] Przed iteracją 4: makiety brakujących stanów (2026-11-17, `22-mobile-strefy`, `23-panel-strefy`, 14 plansz).
+- [ ] Przed iteracją 4: ADR 0043–0048.
 
 ## Uwagi środowiskowe
 - `.env` w katalogu głównym czytają API, symulator, CLI bazy, testy (Vitest) i `pnpm infra:*`; zmienne z powłoki mają pierwszeństwo.

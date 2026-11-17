@@ -1,6 +1,6 @@
 # Iteracja 4: strefy
 
-**Status:** plan (17 listopada 2026); czeka na odpowiedzi autora, makiety i ADR 0043–0048
+**Status:** plan (17 listopada 2026); decyzje autora przyjęte 17 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-17-listopada-2026)); makiety gotowe 17 listopada 2026; czeka na ADR 0043–0048
 
 ## Cel
 Operator rysuje i zmienia strefy w panelu: obszar działania, strefy parkowania, wolnej jazdy i zakazu. Zmiana działa od razu w aplikacji, w symulatorze i w trwających przejazdach. W trakcie jazdy API wykrywa z telemetrii wjazd i wyjazd ze strefy i zapisuje je na osi czasu przejazdu. Wysyła też hulajnodze komendę limitu prędkości albo stopniowego zatrzymania, a klientowi komunikat na ekranie jazdy, jak w makiecie `przejazd-strefa`. Aplikacja dostaje legendę stref, prowadzenie do najbliższej strefy parkowania, trasę do hulajnogi i wyszukiwanie celu „Dokąd jedziesz?”, czyli rzeczy odłożone w iteracji 3.
@@ -51,24 +51,24 @@ Istniejące makiety, z których korzysta iteracja:
 | Aplikacja: jazda | `05-mobile-przejazd/przejazd-strefa` (wolna jazda z limitem), `przejazd-poza-strefa` („Prowadź do strefy”) |
 | Techniczne | `15-techniczne/tech-jazda` (telemetria i strefy w trakcie jazdy) |
 
-Brakujące makiety:
+Brakujące makiety (gotowe 17 listopada 2026: [`22-mobile-strefy`, `23-panel-strefy`](../projekt/README.md#aplikacja-strefy-iteracja-4), 14 plansz; ekran listy z edytorem `strefy-lista` zastępuje `13-panel/admin-strefy` w nowej nawigacji):
 
-- [ ] **Panel: nowa strefa.** Rysowanie wielokąta od pierwszego punktu, pusty formularz i wybór typu przed zapisem.
-- [ ] **Panel: formularz według typu:**
+- [x] **Panel: nowa strefa.** Rysowanie wielokąta od pierwszego punktu, pusty formularz i wybór typu przed zapisem.
+- [x] **Panel: formularz według typu:**
   - wolna jazda z limitem prędkości;
   - zakaz bez pojemności;
   - obszar działania bez pojemności i bez przełącznika widoczności.
 
   `admin-strefy` pokazuje tylko parkowanie.
-- [ ] **Panel: błędy geometrii.** Wielokąt przecina sam siebie, wychodzi poza obszar działania albo nachodzi na strefę tego samego typu (według D3). Błąd widać przy polu i na mapie.
-- [ ] **Panel: dezaktywacja i usunięcie.** Strefa użyta w przejazdach jest dezaktywowana, a nieużyta usuwana. Okno pokazuje skutki: liczbę trwających przejazdów i hulajnóg w strefie. Do tego lista z filtrem „Nieaktywne” i przywrócenie strefy.
-- [ ] **Panel: zmiana stref w trakcie przejazdów.** Ostrzeżenie przed zapisem, gdy zmiana dotyczy trwających przejazdów, na przykład nowy limit prędkości dla N hulajnóg w strefie.
-- [ ] **Aplikacja: strefa zakazu w trakcie jazdy.** Hulajnoga zwalnia i staje, komunikat mówi, co zrobić (według pytania 2), a po wyjeździe ze strefy jazda wraca.
-- [ ] **Aplikacja: wyjazd poza obszar działania** w trakcie jazdy (według pytania 3).
-- [ ] **Aplikacja: hulajnoga niedostępna w strefie zakazu albo poza obszarem.** Wariant `stan-niedostepna` z nową przyczyną; może wystarczyć tekst bez osobnej planszy.
-- [ ] **Aplikacja: prowadzenie do strefy parkowania.** Ekran jazdy z trasą do najbliższej strefy, odległością i czasem dojazdu po „Prowadź do strefy” z `przejazd-poza-strefa`.
-- [ ] **Aplikacja: trasa do hulajnogi** z karty hulajnogi albo rezerwacji („Trasa”, decyzja D5 z iteracji 3), według D6.
-- [ ] **Aplikacja: wynik wyszukiwania.** Cel na mapie ze strefami parkowania przy celu, wolnymi hulajnogami w pobliżu i szacunkiem czasu. Do tego brak wyników i błąd usługi wyszukiwania. `mapa-szukaj` pokazuje tylko listę wyników.
+- [x] **Panel: błędy geometrii.** Wielokąt przecina sam siebie, wychodzi poza obszar działania albo nachodzi na strefę tego samego typu (według D3). Błąd widać przy polu i na mapie.
+- [x] **Panel: dezaktywacja i usunięcie.** Strefa użyta w przejazdach jest dezaktywowana, a nieużyta usuwana. Okno pokazuje skutki: liczbę trwających przejazdów i hulajnóg w strefie. Do tego lista z filtrem „Nieaktywne” i przywrócenie strefy.
+- [x] **Panel: zmiana stref w trakcie przejazdów.** Ostrzeżenie przed zapisem, gdy zmiana dotyczy trwających przejazdów, na przykład nowy limit prędkości dla N hulajnóg w strefie.
+- [x] **Aplikacja: strefa zakazu w trakcie jazdy.** Hulajnoga zwalnia i staje, komunikat mówi, co zrobić (według pytania 2), a po wyjeździe ze strefy jazda wraca.
+- [x] **Aplikacja: wyjazd poza obszar działania** w trakcie jazdy (według pytania 3).
+- [x] **Aplikacja: hulajnoga niedostępna w strefie zakazu albo poza obszarem.** Wariant `stan-niedostepna` z nową przyczyną; może wystarczyć tekst bez osobnej planszy.
+- [x] **Aplikacja: prowadzenie do strefy parkowania.** Ekran jazdy z trasą do najbliższej strefy, odległością i czasem dojazdu po „Prowadź do strefy” z `przejazd-poza-strefa`.
+- [x] **Aplikacja: trasa do hulajnogi** z karty hulajnogi albo rezerwacji („Trasa”, decyzja D5 z iteracji 3), według D6.
+- [x] **Aplikacja: wynik wyszukiwania.** Cel na mapie ze strefami parkowania przy celu, wolnymi hulajnogami w pobliżu i szacunkiem czasu. Do tego brak wyników i błąd usługi wyszukiwania. `mapa-szukaj` pokazuje tylko listę wyników.
 
 Stany, które nie wymagają nowych plansz:
 - **Wyjazd ze strefy wolnej jazdy:** ten sam komunikat co przy wjeździe, z tekstem „Koniec strefy wolnej jazdy”.
@@ -109,7 +109,7 @@ Stany, które nie wymagają nowych plansz:
 - [ ] **`packages/db`:**
   - repozytorium stref: lista według wzorca (`ListSource` dla `zones` z filtrami typu, aktywności i widoczności), odczyt jednej strefy z geometrią, zapis z wersją rekordu (konflikt `CONFLICT`), dezaktywacja, przywrócenie, usunięcie i bieżące strefy hulajnóg;
   - **dane startowe:**
-    - strefa zakazu w miejscu wybranym przez autora (pytanie 8), ze współrzędnymi z `pnpm db:places`, a nie zgadniętymi;
+    - strefa zakazu w Parku imienia świętego Jana Sarkandra (pytanie 8, `way/209433745`), ze współrzędnymi z `pnpm db:places`, a nie zgadniętymi;
     - przykładowe przejazdy ze zdarzeniami stref.
 - [ ] **`packages/shared`:**
   - definicja zasobu `zones` (filtry: typ, aktywna, widoczna w aplikacji, wyszukiwanie po kodzie i nazwie; sortowanie po kodzie, nazwie, typie i dacie zmiany);
@@ -172,6 +172,33 @@ Numery są propozycją, ostatni ADR to 0042. Każdy ADR powstaje przed kodem, kt
 | 0046 | Symulator a strefy | Zmienia część [ADR 0039](../adr/0039-symulator-w-trakcie-przejazdu.md):<ul><li>źródło stref (API zamiast pliku miejsc);</li><li>odświeżanie po zmianie;</li><li>zachowanie po `stop_gradually` i przy granicy obszaru;</li><li>przejazd pokazowy przez strefy.</li></ul> |
 | 0047 | Edytor geometrii w panelu | Biblioteka do rysowania i edycji wielokątów na MapLibre GL JS 6 (wersja sprawdzona, starsza niż 3 dni). Do tego:<ul><li>przyciąganie do granic innych stref;</li><li>`Polygon` w edytorze a `MultiPolygon` w bazie;</li><li>uproszczenie i dokładność współrzędnych;</li><li>cofanie zmian;</li><li>walidacja na kliencie a w bazie.</li></ul> |
 | 0048 | Trasy dla klienta z OSRM | Prowadzenie do strefy i trasa do hulajnogi:<ul><li>adapter OSRM w API (dziś używa go tylko symulator);</li><li>profil pieszy według D6;</li><li>pamięć podręczna;</li><li>zachowanie przy niedostępnym OSRM (linia prosta z odległością).</li></ul> |
+
+## Odpowiedzi autora (17 listopada 2026)
+Autor przyjął wszystkie rekomendacje D1–D8 i domyślne odpowiedzi na pytania. Miejsce strefy zakazu w danych startowych autor wybrał z propozycji z OpenStreetMap. Do `rybnik-places.json` trafi przy implementacji, ze współrzędnymi z `pnpm db:places`.
+
+| Pytanie | Odpowiedź |
+|---|---|
+| 1. Limit w wolnej jeździe | Operator ustawia 5–15 km/h; seed zostaje przy 10 km/h. |
+| 2. Strefa zakazu w trakcie jazdy | Hulajnoga zwalnia i staje (`stop_gradually`), przejazd trwa i jest naliczany. Klient prowadzi hulajnogę pieszo poza strefę, wtedy silnik wraca. Zakończenie w strefie zakazu niemożliwe (`canPark`). |
+| 3. Wyjazd poza obszar działania | Tak samo jak strefa zakazu: zatrzymanie, powrót silnika po powrocie do obszaru, zakończenie niemożliwe. Bez opłaty w tej iteracji. |
+| 4. Start w zakazie albo poza obszarem | Hulajnoga niedostępna dla klientów z przyczyną `OUT_OF_AREA`; czeka na serwis. |
+| 5. Pełna strefa parkowania | Pojemność tylko informuje (panel, aplikacja), nie blokuje zakończenia. |
+| 6. Granica strefy | Wjazd od pierwszego odczytu w strefie; wyjazd po dwóch kolejnych odczytach poza strefą albo po oddaleniu o więcej niż 10 m. |
+| 7. Zmiana strefy w trakcie przejazdów | Działa od następnego odczytu, z ostrzeżeniem w panelu przed zapisem. Strefę użytą w przejazdach się dezaktywuje, więc zakończone przejazdy zachowują strefę końcową. |
+| 8. Strefa zakazu w danych startowych | Park imienia świętego Jana Sarkandra, `way/209433745`, 1,63 ha, około 430 m od Rynku, w obszarze działania. Jego krawędź jest około 185 m od strefy P-03 i około 200 m od S-01, więc strefa nie nachodzi na inne. Odrzuceni kandydaci: Park nad Nacyną (nachodzi na S-01, 60 m od P-05), Mały Park (0,17 ha, za mały na demo), Park Śródmiejski (około 1,4 km od Rynku, poza trasami demo). |
+| 9. Wyszukiwanie | Obszar działania z zapasem 1 km, 5 wyników. |
+| 10. Kto edytuje strefy | `zones.write` tylko u Administratora, jak w migracji 0002; makieta z Dyspozytorem jest przykładem. |
+
+| Decyzja | Rozstrzygnięcie |
+|---|---|
+| D1 | Edytor rysuje wielokąty; okręgi z danych startowych stają się wielokątami do edycji. Jedna strefa to jeden wielokąt w edytorze. |
+| D2 | Jeden ekran „Strefy” według `admin-strefy`; lista po lewej korzysta z kontraktu list (filtry, wyszukiwanie, sortowanie, stronicowanie). |
+| D3 | Każda strefa w obszarze działania (pilnuje baza); strefy parkowania nie nachodzą na siebie; wolna jazda i zakaz mogą nachodzić na inne strefy. |
+| D4 | Ostatnie wyszukiwania na urządzeniu; „Dom”, „Praca” i „Dodaj” ukryte. |
+| D5 | Wynik wyszukiwania: cel, strefy parkowania przy celu i hulajnogi przy kliencie, szacunek czasu z OSRM; bez nawigacji zakręt po zakręcie. |
+| D6 | Wycinek OSRM z profilem pieszym, jeśli rozmiar i czas przygotowania są akceptowalne (sprawdzenie przy ADR 0048); w przeciwnym razie profil rowerowy z dopiskiem „szacunkowo”. |
+| D7 | `SPEED_LIMIT` i `STOP_GRADUALLY` wysyła tylko system według stref; panel ich nie wysyła ręcznie. |
+| D8 | Historia zmian strefy z wersji rekordu i dziennika audytu (stara i nowa geometria); bez tabeli wersji stref. |
 
 ## Pytania do autora: wartości biznesowe
 Otwarte decyzje z `CLAUDE.md` i nowe pytania tej iteracji. Seed ma wartości deweloperskie, a makiety pokazują nawiasy. Plan ich nie ustala.

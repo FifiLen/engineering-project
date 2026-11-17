@@ -15,7 +15,7 @@ Uwagi do eksportu:
 - Plansze z katalogu `00-eksploracja` używały krojów Space Grotesk, JetBrains Mono, Bricolage Grotesque i DM Sans; na zrzutach zastąpiono je krojem systemowym. Obecny kierunek używa tylko Intera.
 - Liczby w makietach (np. 87%, 2,4 km, nazwiska w panelu) są przykładowe.
 
-Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **88**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
+Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **102**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
 
 ## Eksploracja kierunku (archiwum)
 
@@ -304,3 +304,56 @@ Ustalenia z plansz:
 - Lista bez zaznaczania wierszy i operacji grupowych: przejazdy są tylko do odczytu poza zdalnym zakończeniem.
 - Powody zdalnego zakończenia: Hulajnoga nie odpowiada, Prośba klienta, Naruszenie regulaminu, Inny powód (z notatką). Zdalne zakończenie nie czeka na potwierdzenie blokady (ADR 0036).
 - Oś czasu bez zdarzeń stref (iteracja 4); eksport XLSX zamiast CSV, bez stanu `UNPAID` do iteracji 5.
+
+## Aplikacja: strefy (iteracja 4)
+
+Brakujące stany z [planu iteracji 4](../iteracje/iteracja-04-strefy.md) według odpowiedzi autora (17 listopada 2026). Powstały w repozytorium na stylach plansz `04-mobile-mapa`, `05-mobile-przejazd` i `20-mobile-wypozyczenie`; legenda (`mapa-strefy`), wolna jazda (`przejazd-strefa`) i wyszukiwanie (`mapa-szukaj`) zostają bez zmian.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Strefa zakazu w trakcie jazdy | [PNG](ekrany/22-mobile-strefy/przejazd-zakaz.png) | [HTML](ekrany/22-mobile-strefy/przejazd-zakaz.html) | 390×844 |
+| Poza obszarem działania w trakcie jazdy | [PNG](ekrany/22-mobile-strefy/przejazd-poza-obszarem.png) | [HTML](ekrany/22-mobile-strefy/przejazd-poza-obszarem.html) | 390×844 |
+| Hulajnoga niedostępna: zakaz albo poza obszarem | [PNG](ekrany/22-mobile-strefy/hulajnoga-niedostepna-strefa.png) | [HTML](ekrany/22-mobile-strefy/hulajnoga-niedostepna-strefa.html) | 390×844 |
+| Prowadzenie do strefy parkowania | [PNG](ekrany/22-mobile-strefy/przejazd-prowadz-do-strefy.png) | [HTML](ekrany/22-mobile-strefy/przejazd-prowadz-do-strefy.html) | 390×844 |
+| Trasa piesza do hulajnogi | [PNG](ekrany/22-mobile-strefy/hulajnoga-trasa.png) | [HTML](ekrany/22-mobile-strefy/hulajnoga-trasa.html) | 390×844 |
+| Wynik wyszukiwania na mapie | [PNG](ekrany/22-mobile-strefy/szukaj-wynik.png) | [HTML](ekrany/22-mobile-strefy/szukaj-wynik.html) | 390×844 |
+| Wyszukiwanie bez wyników | [PNG](ekrany/22-mobile-strefy/szukaj-brak-wynikow.png) | [HTML](ekrany/22-mobile-strefy/szukaj-brak-wynikow.html) | 390×844 |
+
+Ustalenia z plansz:
+
+- Komunikat strefy jest u góry ekranu jazdy, jak w `przejazd-strefa`. Zatrzymanie (zakaz, poza obszarem) ma odznakę w kolorze błędu i pigułkę „Silnik zatrzymany” w miejscu pigułki limitu; po wyjeździe ze strefy na chwilę „Silnik znów działa”, bez osobnej planszy.
+- „Zakończ” w strefie zakazu i poza obszarem zostaje aktywny, jak w `przejazd-poza-strefa`. Dopisek pod przyciskami uprzedza, że tu nie da się zakończyć, a odmowę `OUTSIDE_PARKING` pokazuje panel „Tu nie zakończysz jazdy” z podtytułem o zakazie albo obszarze. Poza obszarem bez słowa o opłacie (iteracja 5).
+- `OUT_OF_AREA` ma jeden tekst dla zakazu i obszaru (klucz `scooter.unavailable.reasons.OUT_OF_AREA`); stan pojawia się tylko po skanie albo numerze, bo takich hulajnóg nie ma na mapie.
+- Linie na mapie: pełna kobaltowa to jazda (ślad przejazdu, prowadzenie do strefy), przerywana to trasa piesza. Podczas prowadzenia ślad przejazdu jest ukryty.
+- Prowadzenie do strefy kończy się samo po wjeździe do strefy, ✕ wraca do zwykłego ekranu jazdy, komunikat strefy ma pierwszeństwo przed kartą prowadzenia.
+- Trasa do hulajnogi rysuje się po rezerwacji i po „Trasa” na ekranie hulajnogi; bez OSRM linia prosta z odległością bez czasu, na profilu rowerowym dopisek „(szacunkowo)” (D6).
+- Wynik wyszukiwania: grafitowa pinezka celu (kobalt zostaje dla „Twoje”), bez linii trasy; „Zarezerwuj” i „Skanuj i jedź” jak w `mapa-karta-rezerwuj`; gdy cel leży w wolnej jeździe, notka podaje limit.
+- Wyszukiwanie ma tylko „Ostatnio wyszukiwane” z „Wyczyść” (D4). Błąd usługi: ten sam układ co brak wyników, odznaka ostrzeżenia i „Spróbuj ponownie” (opis w komentarzu planszy).
+
+## Panel operatora: strefy (iteracja 4)
+
+Plansze w nawigacji z `21-panel-przejazdy`; ekran „Strefy” zastępuje `13-panel/admin-strefy`.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Strefy – lista z edytorem | [PNG](ekrany/23-panel-strefy/strefy-lista.png) | [HTML](ekrany/23-panel-strefy/strefy-lista.html) | 1440×900 |
+| Nowa strefa – rysowanie | [PNG](ekrany/23-panel-strefy/strefa-nowa.png) | [HTML](ekrany/23-panel-strefy/strefa-nowa.html) | 1440×900 |
+| Strefa wolnej jazdy | [PNG](ekrany/23-panel-strefy/strefa-wolna-jazda.png) | [HTML](ekrany/23-panel-strefy/strefa-wolna-jazda.html) | 1440×900 |
+| Strefa zakazu (i wariant obszaru działania) | [PNG](ekrany/23-panel-strefy/strefa-zakaz.png) | [HTML](ekrany/23-panel-strefy/strefa-zakaz.html) | 1440×900 |
+| Błąd geometrii | [PNG](ekrany/23-panel-strefy/strefa-blad-geometrii.png) | [HTML](ekrany/23-panel-strefy/strefa-blad-geometrii.html) | 1440×900 |
+| Dezaktywacja strefy | [PNG](ekrany/23-panel-strefy/strefa-dezaktywacja.png) | [HTML](ekrany/23-panel-strefy/strefa-dezaktywacja.html) | 1440×900 |
+| Zmiana strefy w trakcie przejazdów | [PNG](ekrany/23-panel-strefy/strefa-zmiana-w-trakcie.png) | [HTML](ekrany/23-panel-strefy/strefa-zmiana-w-trakcie.html) | 1440×900 |
+
+Ustalenia z plansz:
+
+- Lista po lewej korzysta z kontraktu list (D2): wyszukiwanie po kodzie i nazwie, szybkie filtry typu z licznikami, filtr Aktywne/Nieaktywne (domyślnie Aktywne), sortowanie i stronicowanie. Filtr „Widoczna w aplikacji” jest tylko w zapytaniu.
+- Opis pozycji zależy od typu: parkowanie „N z pojemności hulajnóg” (pełna strefa bursztynem), wolna jazda z limitem, zakaz „Zakaz jazdy i parkowania”, obszar z powierzchnią.
+- Karta ma pole „Granica” (liczba punktów, powierzchnia, „Pokaż”), przy którym są błędy geometrii (`ZONE_OUTSIDE_SERVICE_AREA`, `ZONE_INVALID_GEOMETRY`, `ZONE_OVERLAP`, za mało punktów) z wyróżnieniem na mapie i „Przywróć granicę”.
+- „Obszar” jest zablokowany w wyborze typu, bo aktywny obszar może być tylko jeden; formularz obszaru jak zakaz, bez przełącznika widoczności i bez dezaktywacji.
+- Pojemność z podpowiedzią „Nie blokuje zakończenia przejazdu” (pytanie 5); pole „Obowiązuje” z `admin-strefy` usunięte, bo nie ma go w modelu.
+- „Dezaktywuj” zastępuje „Usuń strefę”; „Usuń strefę” tylko dla nieużytej strefy, w tym samym układzie okna. Okno dezaktywacji jest bez powodu i notatki.
+- Ostrzeżenie o przejazdach w trakcie ma bursztynową ikonę i kobaltowy „Zapisz i zastosuj”; ten sam układ dla zmiany granicy i typu.
+- Pasek narzędzi mapy dostał „Cofnij” (ADR 0047); środki krawędzi to uchwyty dodawania punktu. Nowy wielokąt jest kobaltowy do wyboru typu, nowa strefa jest domyślnie widoczna w aplikacji.
+- Nienarysowane, opisane w komentarzach: widok tylko do odczytu dla `zones.read`, karta nieaktywnej strefy z „Przywróć strefę”, konflikt wersji `CONFLICT` jak w `17-panel-wzorce`, okno „Usunąć strefę?”.
+- Do rozstrzygnięcia w ADR 0043 i 0047: blokada zmiany typu strefy użytej w przejazdach, uproszczenie okręgów z danych startowych (64 punkty), czas wjazdu do strefy potrzebny w kolumnie „W strefie od”.
+

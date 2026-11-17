@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Prowadzenie do strefy</title>
+<!-- Aplikacja mobilna, strefy (iteracja 4, decyzja D5, decyzja D6; ADR 0048 o trasach z OSRM). Ekran jazdy po „Prowadź do strefy” z 05-mobile-przejazd/przejazd-poza-strefa: aplikacja pyta GET /zones/nearest-parking?lat&lon (najbliższa strefa parkowania z trasą z OSRM, profil rowerowy, bo klient jedzie hulajnogą) i rysuje trasę pełną linią kobaltu (Twoja trasa; linia przerywana zostaje dla tras pieszych i podglądu w przejazd-poza-strefa). Ślad przejazdu jest ukryty, dopóki trwa prowadzenie, żeby na mapie była jedna kobaltowa linia. Karta prowadzenia u góry zastępuje pigułki z produkt-przejazd: strefa (kod i nazwa), odległość i czas dojazdu, przycisk zamknięcia (accessibility label „Zakończ prowadzenie”). Bez nawigacji zakręt po zakręcie (D5).
+     Zachowanie: odległość i czas odświeżają się z pozycją hulajnogi (nowe zapytanie przy zejściu z trasy o więcej niż [PRÓG] m albo co [N] s, decyzja w ADR 0048). Po wjeździe do strefy parkowania prowadzenie kończy się samo, a karta na chwilę pokazuje „Jesteś w strefie P-01 Rynek. Możesz zakończyć przejazd.”. Zamknięcie karty wraca do zwykłego ekranu jazdy; zmiana strefy (wolna jazda, zakaz) pokazuje komunikat strefy w miejscu karty, a prowadzenie wraca po jego zamknięciu. Przy niedostępnym OSRM: linia prosta przerywana do strefy i tekst „90 m w linii prostej” bez czasu. Liczniki, „Pauza” i „Zakończ” działają jak na zwykłym ekranie jazdy.
+     Dane przykładowe: hulajnoga #0027 (numer czterocyfrowy jak w panelu i w temacie MQTT), strefa P-01 Rynek z danych startowych Rybnika, klientka Anna. Etykiety pochodzą z pliku tłumaczeń aplikacji (ADR 0032), kwoty z wersji cennika zapisanej w przejeździe; wartości nieustalone w nawiasach. Plansza 390×844 px, wartości z docs/projekt/tokens.json. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+.phone{width:390px;height:844px;position:relative;overflow:hidden;background:#F6F6F3;color:#16181D;font-family:Inter,system-ui,sans-serif}
+.phone.map{background:#EFEFEC}
+.phone.camera{background:#2A2D33}
+.page{padding:20px 20px 32px;display:flex;flex-direction:column}
+.glass{background:rgba(246,246,243,0.84);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);border:1px solid rgba(255,255,255,0.7);box-shadow:0 12px 40px rgba(22,24,29,0.14)}
+.topbar{position:absolute;left:16px;right:16px;top:20px;display:flex;gap:10px;align-items:center}
+.round{width:44px;height:44px;border-radius:22px;border:none;background:#E3E3DE;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.round.small{width:40px;height:40px;border-radius:20px;background:transparent}
+.pill{height:40px;padding:0 16px;border-radius:20px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500}
+.banner{position:absolute;left:16px;right:16px;top:20px;border-radius:22px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start}
+.sheet{position:absolute;left:12px;right:12px;bottom:12px;border-radius:32px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.ride-sheet{position:absolute;left:0;right:0;bottom:0;height:384px;background:#F6F6F3;border-radius:32px 32px 0 0;padding:32px 24px 28px;display:flex;flex-direction:column}
+.btn{height:56px;border-radius:28px;border:none;padding:0 20px;font-family:Inter,sans-serif;font-size:17px;font-weight:600;width:100%;white-space:nowrap}
+.btn.primary{background:#2B3FF5;color:#FFFFFF}
+.btn.secondary{background:#E3E3DE;color:#16181D}
+.btn.dark{background:#16181D;color:#FFFFFF}
+.btns{display:flex;flex-direction:column;gap:10px}
+.btns.split{display:grid;grid-template-columns:1fr 1.6fr;gap:10px}
+.btns.half{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.badge{border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.b44{width:44px;height:44px}
+.b48{width:48px;height:48px}
+.b56{width:56px;height:56px}
+.neutral{background:#E3E3DE} .danger{background:#FBE3E3} .warn{background:#FFF1DB} .accent{background:#EEF0FE}
+.chip{display:inline-flex;height:30px;padding:0 12px;border-radius:15px;font-size:13px;font-weight:600;align-items:center}
+.chip.danger{background:#FBE3E3;color:#C62F2F}
+.b-title{font-size:16px;font-weight:600}
+.b-body{font-size:14px;line-height:1.45;color:#6B6E75}
+.alert-title{font-size:19px;font-weight:600;letter-spacing:-0.01em}
+.body15{font-size:15px;line-height:1.45;color:#6B6E75}
+.muted{color:#6B6E75}
+.num{font-weight:500}
+.label13{font-size:13px;font-weight:500;color:#6B6E75}
+.timer{font-size:72px;font-weight:500;letter-spacing:-0.035em;line-height:1;text-align:center;margin-top:6px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));text-align:center}
+.stats > div{display:flex;flex-direction:column;gap:2px}
+.stats > div:nth-child(2){border-left:1px solid #E3E3DE;border-right:1px solid #E3E3DE}
+.stats .v{font-size:20px;font-weight:500;letter-spacing:-0.015em}
+.stats .l{font-size:13px;color:#6B6E75}
+.group{background:#FFFFFF;border-radius:20px;border:1px solid #E3E3DE;overflow:hidden}
+.grow{display:flex;align-items:center;gap:12px;min-height:54px;padding:0 16px;font-size:15px}
+.grow + .grow{border-top:1px solid #E3E3DE}
+.section{font-size:14px;font-weight:600;color:#6B6E75}
+.row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid #E3E3DE}
+.row .ico{width:40px;height:40px;border-radius:20px;background:#E3E3DE;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.row .txt{flex-grow:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.row .t{font-size:16px;font-weight:500}
+.row .s{font-size:14px;color:#6B6E75}
+.row .e{font-size:14px;color:#6B6E75}
+svg{flex-shrink:0}
+</style>
+</head>
+<body>
+<div class="phone map">
+<svg viewBox="0 0 390 500" width="390" height="500" style="position:absolute;left:0;top:0;display:block" role="img" aria-label="Mapa z trasą od hulajnogi do najbliższej strefy parkowania">
+<rect x="0" y="0" width="390" height="500" fill="#EFEFEC"></rect>
+<rect x="222" y="120" width="150" height="140" rx="16" fill="#E5E8E1"></rect>
+<path d="M-10 440 C 110 400 230 490 400 450" stroke="#DFE3E8" stroke-width="30" fill="none"></path>
+<path d="M0 90 L390 66 M262 0 L292 500 M42 0 L58 500 M0 380 L390 350" stroke="#FAFAF8" stroke-width="5" fill="none"></path>
+<path d="M0 290 L390 256 M124 0 L156 500" stroke="#FFFFFF" stroke-width="10" fill="none"></path>
+<rect x="246" y="160" width="70" height="46" rx="10" fill="#2B3FF5" fill-opacity="0.16" stroke="#2B3FF5" stroke-width="1.5"></rect>
+<text x="281" y="189" text-anchor="middle" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#2B3FF5">P</text>
+<path d="M150 404 L141.8 277.6 L279 265.7 L274.4 206" stroke="#2B3FF5" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="150" cy="404" r="22" fill="#2B3FF5" fill-opacity="0.16"></circle>
+<circle cx="150" cy="404" r="10" fill="#2B3FF5" stroke="#FFFFFF" stroke-width="3"></circle>
+</svg>
+<div class="banner glass" style="align-items:center;padding:12px 10px 12px 14px">
+<div class="badge b44 accent"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2B3FF5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"></rect><path d="M10 16V8h3a2.5 2.5 0 010 5h-3"></path></svg></div>
+<div style="display:flex;flex-direction:column;gap:2px;flex-grow:1;min-width:0"><span class="b-title">Do strefy P-01 Rynek</span><span style="font-size:14px"><span class="num">90 m</span> · około <span class="num">1 min</span> jazdy</span></div>
+<button type="button" class="round" aria-label="Zakończ prowadzenie" style="background:rgba(22,24,29,0.06)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<div class="ride-sheet">
+<div class="label13" style="text-align:center">Czas przejazdu</div>
+<div class="timer">14:52</div>
+<div class="stats" style="margin-top:28px">
+<div><div class="v">2,9 km</div><div class="l">dystans</div></div>
+<div><div class="v">12 km/h</div><div class="l">prędkość</div></div>
+<div><div class="v">[KOSZT]</div><div class="l">zł</div></div>
+</div>
+<div style="flex-grow:1"></div>
+<div class="btns half"><button type="button" class="btn secondary">Pauza</button><button type="button" class="btn dark">Zakończ</button></div>
+</div>
+</div>
+</body>
+</html>
