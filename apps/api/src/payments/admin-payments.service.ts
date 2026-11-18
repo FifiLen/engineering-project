@@ -1,5 +1,5 @@
 import { decideRefund, ensureAdjustment, notFound, planPayout } from '@hulajnogi/core';
-import { type Database, DrizzleCustomerRepository, DrizzlePaymentRepository } from '@hulajnogi/db';
+import { type Database, type DbExecutor, DrizzleCustomerRepository, DrizzlePaymentRepository } from '@hulajnogi/db';
 import type {
   CustomerWalletAdmin,
   ListQuery,
@@ -94,9 +94,15 @@ export class AdminPaymentsService {
 
   /**
    * Zwrot za przejazd (pytanie 11): z portfela od razu z korektą paragonu, na kartę jako zwrot `PENDING`
-   * zlecony u operatora po zatwierdzeniu polecenia.
+   * zlecony u operatora po zatwierdzeniu polecenia. `onRecorded` dopisuje w tej samej transakcji skutki poza
+   * modułem Płatności (powiązanie z reklamacją, ADR 0055).
    */
-  async refundRental(staffId: string, rentalId: string, body: RentalRefund): Promise<void> {
+  async refundRental(
+    staffId: string,
+    rentalId: string,
+    body: RentalRefund,
+    onRecorded?: (tx: DbExecutor, refundId: string) => Promise<void>,
+  ): Promise<void> {
     const effects = new PaymentEffects();
     const result = await this.audited.run(staffId, async ({ tx, audit }) => {
       const repo = new DrizzlePaymentRepository(tx);
@@ -116,6 +122,7 @@ export class AdminPaymentsService {
         staffId,
         status: source === 'WALLET' ? 'SUCCEEDED' : 'PENDING',
       });
+      await onRecorded?.(tx, refundId);
       if (source === 'WALLET') {
         await repo.post({ userId: rental.userId, type: 'REFUND', amount: body.amount, rentalId, refundId, staffId });
         await this.payments.issueCorrection(tx, refundId);
@@ -124,7 +131,14 @@ export class AdminPaymentsService {
         action: 'rental.refunded',
         entityType: 'rental',
         entityId: rentalId,
-        data: { refundId, amount: body.amount, source, reason: body.reason, ...(body.note ? { note: body.note } : {}) },
+        data: {
+          refundId,
+          amount: body.amount,
+          source,
+          reason: body.reason,
+          ...(body.note ? { note: body.note } : {}),
+          ...(body.ticketId ? { ticketId: body.ticketId } : {}),
+        },
       });
       effects.wallets.add(rental.userId);
       effects.rentals.add(rentalId);

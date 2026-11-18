@@ -6,7 +6,7 @@ import {
   type CommandRecord,
   type CommandType,
 } from '@hulajnogi/core';
-import { DrizzleCommandRepository, DrizzleScooterRepository } from '@hulajnogi/db';
+import { type Database, DrizzleCommandRepository, DrizzleScooterRepository } from '@hulajnogi/db';
 import {
   ackSchema,
   scooterIdFromTopic,
@@ -16,8 +16,9 @@ import {
   type CommandView,
   type PanelCommand,
 } from '@hulajnogi/shared';
-import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { AuditedTransaction } from '../audit/audited-transaction.js';
+import { DB } from '../database/database.module.js';
 import { JOBS, JobsService } from '../jobs/jobs.service.js';
 import { MqttService } from '../mqtt/mqtt.service.js';
 import { FleetGateway } from '../realtime/fleet.gateway.js';
@@ -59,6 +60,7 @@ export class CommandsService implements OnModuleInit {
     private readonly gateway: FleetGateway,
     private readonly transaction: AuditedTransaction,
     private readonly jobs: JobsService,
+    @Inject(DB) private readonly db: Database,
   ) {}
 
   onModuleInit(): void {
@@ -72,8 +74,7 @@ export class CommandsService implements OnModuleInit {
     });
     // Zabezpieczenie: komendy, których zadanie limitu się zgubiło (ADR 0037).
     this.jobs.handle(JOBS.timeoutSweep, async () => {
-      for (const record of await this.commands.overdue(new Date(Date.now() - COMMAND_ACK_TIMEOUT_MS)))
-        await this.timeout(record);
+      for (const record of await this.commands.overdue(new Date())) await this.timeout(record);
     });
   }
 
@@ -88,7 +89,7 @@ export class CommandsService implements OnModuleInit {
     // Zapis komendy z wpisem w dzienniku i zadaniem limitu; publikacja w MQTT dopiero po zatwierdzeniu transakcji.
     const record = await this.transaction.run(staffId, async ({ tx, audit }) => {
       const expiresAt = new Date(Date.now() + COMMAND_ACK_TIMEOUT_MS);
-      const created = await new DrizzleCommandRepository(tx).create(scooterId, type, params ?? {}, expiresAt);
+      const created = await new DrizzleCommandRepository(tx).create(scooterId, type, params ?? {}, expiresAt, staffId);
       await this.jobs.sendInTransaction(tx, JOBS.commandAckTimeout, { commandId: created.id }, expiresAt);
       await audit({
         action: 'scooter.command_sent',
@@ -99,6 +100,23 @@ export class CommandsService implements OnModuleInit {
       return { ...created, expiresAt };
     });
     await this.dispatch({ ...record, scooterNumber: scooter.number, params });
+    return this.publish(record);
+  }
+
+  /**
+   * Komenda systemu bez przejazdu i bez operatora (np. `lock` hulajnogi, która bez przejazdu zgłasza się
+   * odblokowana, ADR 0056): zapis z terminem ważności i zadaniem limitu, publikacja po zatwierdzeniu.
+   */
+  async sendSystem(scooterId: string, type: CommandType): Promise<CommandView> {
+    const scooter = await this.scooters.findState(scooterId);
+    if (!scooter) throw notFound('scooter', scooterId);
+    const record = await this.db.transaction(async (tx) => {
+      const expiresAt = new Date(Date.now() + COMMAND_ACK_TIMEOUT_MS);
+      const created = await new DrizzleCommandRepository(tx).create(scooterId, type, {}, expiresAt);
+      await this.jobs.sendInTransaction(tx, JOBS.commandAckTimeout, { commandId: created.id }, expiresAt);
+      return { ...created, expiresAt };
+    });
+    await this.dispatch({ ...record, scooterNumber: scooter.number });
     return this.publish(record);
   }
 

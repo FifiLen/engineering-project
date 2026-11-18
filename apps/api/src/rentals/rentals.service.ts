@@ -1,6 +1,16 @@
 import {
   COMMAND_ACK_TIMEOUT_MS,
   commandResultFromAck,
+  decideOfflineEnd,
+  decideTowing,
+  distanceAfterEnd,
+  ensureCanAddParkingPhoto,
+  isMovedAfterEnd,
+  newBatteryThresholds,
+  OFFLINE_BILLING_CAP_MS,
+  priceRental,
+  qualifiesForTowing,
+  rentalCounters,
   decideCancelReservation,
   decideEnd,
   decidePause,
@@ -18,6 +28,7 @@ import {
   evaluatePosition,
   isZoneCommand,
   NEARBY_LIMIT,
+  needsBatteryCriticalTicket,
   NEARBY_RADIUS_M,
   notFound,
   rentalCommandOutcome,
@@ -26,6 +37,7 @@ import {
   unavailableReason,
   zoneControlCommands,
   type CommandType,
+  type EndMode,
   type GeoPoint,
   type RentalAction,
   type RentalState,
@@ -58,17 +70,45 @@ import type {
 import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { AuditedTransaction } from '../audit/audited-transaction.js';
 import { DB } from '../database/database.module.js';
+import { FilesService } from '../files/files.service.js';
 import { CommandsService, type AckResult } from '../fleet/commands.service.js';
 import { RoutePlanner } from '../geo/route-planner.js';
 import { JOBS, JobsService } from '../jobs/jobs.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { OperationsService, systemScope, type OperationsEffects } from '../operations/operations.service.js';
 import { PaymentEffects, PaymentsService } from '../payments/payments.service.js';
 import { FleetGateway } from '../realtime/fleet.gateway.js';
 import { buildRentalView, tariffView } from './rental-view.js';
 
-/** Skutki transakcji wykonywane dopiero po jej zatwierdzeniu: komendy do MQTT i zdarzenia Socket.IO. */
-class Effects extends PaymentEffects {
+/**
+ * Skutki transakcji wykonywane dopiero po jej zatwierdzeniu: komendy do MQTT, zdarzenia Socket.IO przejazdu,
+ * portfela i zgłoszeń automatycznych (moduł Operacje).
+ */
+class Effects extends PaymentEffects implements OperationsEffects {
   readonly commands: RentalCommandRecord[] = [];
+  readonly tickets = new Set<string>();
+  readonly tasks = new Set<string>();
+  readonly systemCommands: OperationsEffects['systemCommands'] = [];
 }
+
+/** Odczyt telemetrii po zapisie partii: bateria w trakcie jazdy i ruch po zakończeniu offline (ADR 0056). */
+export interface RentalReading {
+  scooterId: string;
+  recordedAt: Date;
+  batteryPct: number;
+  buffered: boolean;
+}
+
+/** Zakończenie przejazdu: tryb i opłata za odholowanie zapisywane w `rentals` (ADR 0056, ADR 0060). */
+interface CompleteOptions {
+  endMode?: EndMode;
+  towingFee?: number | null;
+}
+
+/** Margines zegara między zaplanowaniem zadania a czasem bazy (pg-boss uruchamia zadanie po `startAfter`). */
+const JOB_CLOCK_SKEW_MS = 5000;
+/** Powiadomienie `reservation_ending` przed końcem bezpłatnej rezerwacji (ADR 0058). */
+export const RESERVATION_ENDING_BEFORE_MS = 2 * 60_000;
 
 /**
  * Moduł Wypożyczenia (ADR 0036). Każda operacja to jedna transakcja: blokada hulajnogi, potem przejazdu,
@@ -87,6 +127,9 @@ export class RentalsService implements OnModuleInit {
     private readonly audited: AuditedTransaction,
     private readonly routes: RoutePlanner,
     private readonly payments: PaymentsService,
+    private readonly files: FilesService,
+    private readonly operations: OperationsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   onModuleInit(): void {
@@ -99,9 +142,18 @@ export class RentalsService implements OnModuleInit {
     this.jobs.handle(JOBS.reservationExpire, async ({ rentalId }) => {
       await this.expireReservation(rentalId as string);
     });
+    this.jobs.handle(JOBS.reservationEnding, async ({ rentalId }) => {
+      await this.reservationEnding(rentalId as string);
+    });
     this.jobs.handle(JOBS.expireSweep, async () => {
       for (const id of await new DrizzleRentalRepository(this.db).dueReservations(new Date()))
         await this.expireReservation(id);
+    });
+    this.jobs.handle(JOBS.offlineEndTimeout, async ({ rentalId }) => {
+      await this.offlineEndTimeout(rentalId as string);
+    });
+    this.jobs.handle(JOBS.offlineBillingStop, async ({ rentalId }) => {
+      await this.stopOfflineBilling(rentalId as string);
     });
   }
 
@@ -219,6 +271,9 @@ export class RentalsService implements OnModuleInit {
       await repo.addEvent(rentalId, 'STATE_CHANGED', { from: null, to: decision.to });
       await repo.setScooterStatus(scooterId, 'RESERVED');
       await this.jobs.sendInTransaction(tx, JOBS.reservationExpire, { rentalId }, expiresAt);
+      // Przypomnienie 2 min przed końcem (ADR 0058); przy krótszej rezerwacji go nie ma.
+      const remindAt = new Date(expiresAt.getTime() - RESERVATION_ENDING_BEFORE_MS);
+      if (remindAt > now) await this.jobs.sendInTransaction(tx, JOBS.reservationEnding, { rentalId }, remindAt);
       effects.rentals.add(rentalId);
       return { id: rentalId, created: true };
     });
@@ -297,37 +352,89 @@ export class RentalsService implements OnModuleInit {
     return this.rideCommand(userId, (rental) => decideResume(rental, userId).command);
   }
 
-  /** Zakończenie przez klienta: strefa parkowania z ostatniej pozycji hulajnogi, potem blokada (ADR 0036). */
+  /**
+   * Zakończenie przez klienta: strefa parkowania z ostatniej pozycji hulajnogi, potem blokada (ADR 0036). Przy
+   * hulajnodze offline (ADR 0056) pozycja ma najwyżej 120 s, naliczanie kończy się przy żądaniu, a `lock` czeka
+   * na powrót łączności 10 min; bez potwierdzenia zadanie `rental.offline-end-timeout` kończy przejazd.
+   */
   async end(userId: string): Promise<RentalView> {
     const rentalId = await this.lockedUserRental(userId, async (repo, rental, tx, effects) => {
-      const zones =
-        rental.scooterLat === null
-          ? []
-          : await new DrizzleZoneRepository(tx).findAt({ lat: rental.scooterLat, lon: rental.scooterLon! });
+      const position: GeoPoint | null =
+        rental.scooterLat === null ? null : { lat: rental.scooterLat, lon: rental.scooterLon! };
+      const zones = position ? await new DrizzleZoneRepository(tx).findAt(position) : [];
       const canPark = evaluatePosition(zones).canPark;
-      const nearestParking =
-        canPark || rental.scooterLat === null ? null : await repo.nearestParking(rental.scooterLat, rental.scooterLon!);
-      const decision = decideEnd(rental, userId, { canPark, nearestParking });
+      const nearestParking = canPark || !position ? null : await repo.nearestParking(position.lat, position.lon);
       // Strefa parkowania na osi czasu („żądanie zakończenia w strefie P-04”).
-      const zoneId = await repo.parkingZoneAt(rental.scooterLat!, rental.scooterLon!);
-      await repo.addEvent(rental.id, 'END_REQUESTED', { data: { resumeState: decision.resumeState }, zoneId });
-      await this.transition(repo, rental, 'REQUEST_END', decision.to, effects);
-      await this.sendCommand(repo, tx, effects, rental.scooterId, rental.id, decision.command);
+      const zoneId = position ? await repo.parkingZoneAt(position.lat, position.lon) : null;
+      if (rental.scooterOnline) {
+        const decision = decideEnd(rental, userId, { canPark, nearestParking });
+        await repo.addEvent(rental.id, 'END_REQUESTED', { data: { resumeState: decision.resumeState }, zoneId });
+        await this.transition(repo, rental, 'REQUEST_END', decision.to, effects, undefined, {
+          endMode: decision.endMode,
+        });
+        await this.sendCommand(repo, tx, effects, rental.scooterId, rental.id, decision.command);
+        return rental.id;
+      }
+      const decision = decideOfflineEnd(rental, userId, {
+        positionAt: rental.scooterPositionAt,
+        now: await repo.now(),
+        inParking: zones.some((z) => z.type === 'PARKING'),
+        inNoRide: zones.some((z) => z.type === 'NO_RIDE'),
+        nearestParking,
+      });
+      // Pozycja z chwili żądania jest punktem odniesienia dla `MOVED_AFTER_END` po dosłaniu bufora.
+      await repo.addEvent(rental.id, 'END_REQUESTED', {
+        data: {
+          resumeState: decision.resumeState,
+          mode: 'OFFLINE',
+          position,
+          positionAt: rental.scooterPositionAt?.toISOString() ?? null,
+        },
+        zoneId,
+      });
+      await this.transition(repo, rental, 'REQUEST_END', decision.to, effects, undefined, {
+        endMode: decision.endMode,
+      });
+      const lock = await this.sendCommand(repo, tx, effects, rental.scooterId, rental.id, decision.command, undefined, {
+        ttlMs: decision.commandTtlMs,
+      });
+      await this.jobs.sendInTransaction(
+        tx,
+        JOBS.offlineEndTimeout,
+        { rentalId: rental.id, commandId: lock.id },
+        lock.expiresAt!,
+      );
       return rental.id;
+    });
+    return this.viewFor(userId, rentalId);
+  }
+
+  /**
+   * Zdjęcie parkowania po zakończeniu (ADR 0057): własny plik z celem `PARKING_PHOTO`, wysłany wcześniej przez
+   * `POST /files`. Wymagane po zakończeniu bez łączności, poza tym opcjonalne.
+   */
+  async addParkingPhoto(userId: string, rentalId: string, fileId: string): Promise<RentalView> {
+    await this.transaction(async (repo, tx, effects) => {
+      const rental = await repo.lock(rentalId);
+      if (!rental || rental.userId !== userId) throw notFound('rental', rentalId);
+      ensureCanAddParkingPhoto(rental);
+      await this.files.ensureAttachable(tx, fileId, { userId }, 'PARKING_PHOTO');
+      await repo.setParkingPhoto(rentalId, fileId);
+      effects.rentals.add(rentalId);
     });
     return this.viewFor(userId, rentalId);
   }
 
   async current(userId: string): Promise<RentalView | null> {
     const rental = await new DrizzleRentalRepository(this.db).openForUser(userId);
-    return rental ? buildRentalView(new DrizzleRentalRepository(this.db), rental) : null;
+    return rental ? buildRentalView(new DrizzleRentalRepository(this.db), rental, { files: this.files }) : null;
   }
 
   async viewFor(userId: string, rentalId: string): Promise<RentalView> {
     const repo = new DrizzleRentalRepository(this.db);
     const rental = await repo.find(rentalId);
     if (!rental || rental.userId !== userId) throw notFound('rental', rentalId);
-    return buildRentalView(repo, rental);
+    return buildRentalView(repo, rental, { files: this.files });
   }
 
   history(userId: string, limit: number): Promise<RentalHistoryItem[]> {
@@ -393,6 +500,7 @@ export class RentalsService implements OnModuleInit {
         result,
         late,
         resumeState: rental.state === 'ENDING' ? await repo.endResumeState(rental.id) : undefined,
+        endMode: rental.endMode,
       });
       if (outcome.event)
         await repo.addEvent(rental.id, outcome.event, {
@@ -414,18 +522,164 @@ export class RentalsService implements OnModuleInit {
     return true;
   }
 
-  /** Łączność hulajnogi w trakcie przejazdu: zdarzenie na osi czasu bez zmiany naliczania (reguła w iteracji 6). */
+  /**
+   * Łączność hulajnogi w trakcie przejazdu: zdarzenie na osi czasu. Naliczanie liczy core z osi czasu (odcinek
+   * bez łączności najwyżej 30 min, ADR 0056); po 30 min zadanie `rental.offline-billing-stop` zapisuje
+   * `BILLING_STOPPED`, a przejazd trafia na pulpit „Wymaga uwagi”.
+   */
   async onConnectionChange(scooterId: string, online: boolean): Promise<void> {
+    const found = await new DrizzleRentalRepository(this.db).openForScooter(scooterId);
+    if (!found || found.state === 'RESERVED') return;
+    await this.transaction(async (repo, tx, effects) => {
+      await repo.lockScooter(scooterId);
+      const rental = await repo.lock(found.id);
+      if (!rental || !RentalStateMachine.isOpen(rental.state)) return;
+      const type = online ? 'CONNECTION_RESTORED' : 'CONNECTION_LOST';
+      if (((await repo.lastConnectionEvent(rental.id))?.type ?? 'CONNECTION_RESTORED') === type) return;
+      await repo.addEvent(rental.id, type);
+      effects.rentals.add(rental.id);
+      if (online) return;
+      const lostAt = await repo.now();
+      await this.jobs.sendInTransaction(
+        tx,
+        JOBS.offlineBillingStop,
+        { rentalId: rental.id },
+        new Date(lostAt.getTime() + OFFLINE_BILLING_CAP_MS),
+      );
+    });
+  }
+
+  /**
+   * Zadanie `rental.offline-billing-stop` (ADR 0056): 30 min bez łączności bez żądania klienta zapisuje
+   * `BILLING_STOPPED` raz na odcinek bez łączności. Powrót łączności, żądanie zakończenia albo koniec przejazdu
+   * przed upływem limitu nic nie zapisują.
+   */
+  async stopOfflineBilling(rentalId: string): Promise<void> {
+    const found = await new DrizzleRentalRepository(this.db).find(rentalId);
+    if (!found) return;
+    await this.transaction(async (repo, _tx, effects) => {
+      await repo.lockScooter(found.scooterId);
+      const rental = await repo.lock(rentalId);
+      if (rental?.state !== 'ACTIVE' && rental?.state !== 'PAUSED') return;
+      const lost = await repo.lastConnectionEvent(rentalId);
+      if (lost?.type !== 'CONNECTION_LOST') return;
+      const stoppedAt = new Date(lost.at.getTime() + OFFLINE_BILLING_CAP_MS);
+      if ((await repo.now()).getTime() + JOB_CLOCK_SKEW_MS < stoppedAt.getTime()) return;
+      if (await repo.hasEventSince(rentalId, 'BILLING_STOPPED', lost.at)) return;
+      await repo.addEvent(rentalId, 'BILLING_STOPPED', {
+        data: { connectionLostAt: lost.at.toISOString(), stoppedAt: stoppedAt.toISOString() },
+      });
+      effects.rentals.add(rentalId);
+    });
+  }
+
+  /**
+   * Zadanie `rental.offline-end-timeout` (ADR 0056): blokada po żądaniu offline bez potwierdzenia w 10 min kończy
+   * przejazd jako `END_UNCONFIRMED` z naliczaniem do żądania. Wynik komendy przychodzi zwykle wcześniej (limit
+   * potwierdzenia ma ten sam termin), więc zadanie działa tylko, gdy przejazd wciąż czeka.
+   */
+  async offlineEndTimeout(rentalId: string): Promise<void> {
     const repo = new DrizzleRentalRepository(this.db);
-    const rental = await repo.openForScooter(scooterId);
-    if (!rental || rental.state === 'RESERVED') return;
-    const last = (await repo.timelineEvents(rental.id))
-      .filter((e) => e.type === 'CONNECTION_LOST' || e.type === 'CONNECTION_RESTORED')
-      .at(-1);
-    const type = online ? 'CONNECTION_RESTORED' : 'CONNECTION_LOST';
-    if ((last?.type ?? 'CONNECTION_RESTORED') === type) return;
-    await repo.addEvent(rental.id, type);
-    await this.notify(rental.id);
+    const rental = await repo.find(rentalId);
+    if (rental?.state !== 'ENDING' || rental.endMode !== 'CUSTOMER_OFFLINE') return;
+    const lock = await repo.pendingLock(rentalId);
+    if (lock) {
+      await this.commands.timeout(lock);
+      return;
+    }
+    // Blokada ma już wynik, a przejazd nadal czeka (np. wynik zapisany bez przejścia): kończymy bez potwierdzenia.
+    await this.transaction(async (repo, tx, effects) => {
+      await repo.lockScooter(rental.scooterId);
+      const locked = await repo.lock(rentalId);
+      if (locked?.state !== 'ENDING' || locked.endMode !== 'CUSTOMER_OFFLINE') return;
+      await repo.addEvent(rentalId, 'LOCK_FAILED', { data: { reason: 'timeout' } });
+      await this.complete(repo, tx, locked, 'END_UNCONFIRMED', 'ENDED', effects, { endMode: 'UNCONFIRMED' });
+    });
+  }
+
+  // --- Telemetria w trakcie i po przejeździe (ADR 0056) ----------------------------------------------
+
+  /**
+   * Odczyty z partii telemetrii: progi baterii z odczytu bieżącego w trakcie jazdy i ruch hulajnogi po zakończeniu
+   * bez łączności (punkty dosłane z bufora). Wywołuje moduł Telemetria po zapisie partii.
+   */
+  async onTelemetry(readings: readonly RentalReading[]): Promise<void> {
+    if (!readings.length) return;
+    const repo = new DrizzleRentalRepository(this.db);
+    const scooterIds = [...new Set(readings.map((r) => r.scooterId))];
+    const riding = await repo.ridingByScooter(scooterIds);
+    for (const [scooterId, rentalId] of riding) {
+      const current = readings.filter((r) => r.scooterId === scooterId && !r.buffered).at(-1);
+      if (current) await this.checkBattery(rentalId, scooterId, current.batteryPct);
+    }
+    for (const { rentalId, scooterId } of await repo.offlineEndedByScooter(scooterIds)) {
+      await this.checkMovedAfterEnd(rentalId, scooterId);
+    }
+  }
+
+  /**
+   * Progi baterii (ADR 0056): `LOW` z wersji cennika przejazdu i `CRITICAL` 5%, każdy jedno zdarzenie
+   * `BATTERY_LOW` na przejazd. `CRITICAL` dokłada limit 10 km/h do uzgadniania komend stref.
+   */
+  private async checkBattery(rentalId: string, scooterId: string, batteryPct: number): Promise<void> {
+    const read = new DrizzleRentalRepository(this.db);
+    const found = await read.find(rentalId);
+    if (found?.state !== 'ACTIVE' && found?.state !== 'PAUSED') return;
+    const tariff = await read.tariff(found.tariffId);
+    const fresh = newBatteryThresholds({
+      batteryPct,
+      minBatteryPct: tariff.minBatteryPct,
+      reached: await read.batteryThresholds(rentalId),
+    });
+    if (!fresh.length) return;
+    await this.transaction(async (repo, tx, effects) => {
+      await repo.lockScooter(scooterId);
+      const rental = await repo.lock(rentalId);
+      if (rental?.state !== 'ACTIVE' && rental?.state !== 'PAUSED') return;
+      const reached = await repo.batteryThresholds(rentalId);
+      const thresholds = newBatteryThresholds({ batteryPct, minBatteryPct: tariff.minBatteryPct, reached });
+      for (const threshold of thresholds) {
+        await repo.addEvent(rentalId, 'BATTERY_LOW', { data: { threshold, batteryPct } });
+      }
+      if (!thresholds.length) return;
+      effects.rentals.add(rentalId);
+      // Push „Niska bateria” przy progu z cennika (pytanie 2); aplikacja na pierwszym planie go ukrywa.
+      if (thresholds.includes('LOW')) {
+        await this.notifications.batteryLow(tx, {
+          rentalId,
+          userId: rental.userId,
+          scooterNumber: rental.scooterNumber,
+          batteryPct,
+        });
+      }
+      if (thresholds.includes('CRITICAL') && rental.state === 'ACTIVE') {
+        await this.reconcileZoneControl(repo, tx, effects, rental);
+      }
+    });
+  }
+
+  /** `MOVED_AFTER_END` (ADR 0056): ponad 200 m po żądaniu zakończenia offline; kwota się nie zmienia. */
+  private async checkMovedAfterEnd(rentalId: string, scooterId: string): Promise<void> {
+    const read = new DrizzleRentalRepository(this.db);
+    const request = await read.offlineEndRequest(rentalId);
+    if (!request) return;
+    const distance = distanceAfterEnd({
+      endRequestedAt: request.at,
+      origin: request.position,
+      readings: await read.readingsAfter(rentalId, scooterId, request.at),
+    });
+    if (!isMovedAfterEnd(distance)) return;
+    await this.transaction(async (repo, _tx, effects) => {
+      await repo.lock(rentalId);
+      if (await repo.hasEventSince(rentalId, 'MOVED_AFTER_END', request.at)) return;
+      await repo.addEvent(rentalId, 'MOVED_AFTER_END', { data: { distanceM: distance } });
+      effects.rentals.add(rentalId);
+    });
+  }
+
+  /** Stan blokady hulajnóg dla reguły `shouldLockIdleScooter` w module Telemetria (ADR 0056). */
+  lockStates(scooterIds: string[]) {
+    return new DrizzleRentalRepository(this.db).lockStates(scooterIds);
   }
 
   // --- Strefy w trakcie jazdy (ADR 0043, ADR 0044) -------------------------------------------------
@@ -482,7 +736,11 @@ export class RentalsService implements OnModuleInit {
     const zones = new DrizzleZoneRepository(tx);
     const applied = await zones.control(rental.scooterId);
     if (!applied || applied.rentalId !== rental.id) return;
-    const desired = desiredZoneControl((await zones.presence(rental.scooterId)).map((p) => p.zone));
+    const batteryCritical = (await repo.batteryThresholds(rental.id)).includes('CRITICAL');
+    const desired = desiredZoneControl(
+      (await zones.presence(rental.scooterId)).map((p) => p.zone),
+      { batteryCritical },
+    );
     for (const command of zoneControlCommands(applied, desired)) {
       const kmh = command.type === 'SPEED_LIMIT' ? command.speedLimitKmh : null;
       const sent = await this.sendCommand(
@@ -501,6 +759,25 @@ export class RentalsService implements OnModuleInit {
           : { stopped: command.type === 'STOP_GRADUALLY', stopCommandId: sent.id },
       );
     }
+  }
+
+  /**
+   * Zadanie `rental.reservation-ending` (ADR 0058): powiadomienie `reservation_ending`, tylko gdy rezerwacja nadal
+   * trwa; preferencję `notify_reservation_end` sprawdza wysyłka.
+   */
+  async reservationEnding(rentalId: string): Promise<void> {
+    await this.transaction(async (repo, tx) => {
+      const rental = await repo.lock(rentalId);
+      if (rental?.state !== 'RESERVED' || !rental.reservationExpiresAt) return;
+      const leftMs = rental.reservationExpiresAt.getTime() - (await repo.now()).getTime();
+      if (leftMs <= 0) return;
+      await this.notifications.reservationEnding(tx, {
+        rentalId,
+        userId: rental.userId,
+        scooterNumber: rental.scooterNumber,
+        minutesLeft: Math.max(1, Math.ceil(leftMs / 60_000)),
+      });
+    });
   }
 
   /** Wygaśnięcie rezerwacji (zadanie pg-boss); rezerwacja już odblokowana albo anulowana nic nie zmienia. */
@@ -528,7 +805,11 @@ export class RentalsService implements OnModuleInit {
 
   // --- Panel ---------------------------------------------------------------------------------
 
-  /** Zdalne zakończenie (D7): bez sprawdzania strefy, z powodem w dzienniku audytu i na osi czasu. */
+  /**
+   * Zdalne zakończenie (D7): bez sprawdzania strefy, z powodem w dzienniku audytu i na osi czasu. Poza strefą
+   * parkowania operator decyduje o opłacie za odholowanie z wersji cennika przejazdu (ADR 0060); dziennik zapisuje
+   * opłatę albo jej pominięcie.
+   */
   async remoteEnd(staffId: string, rentalId: string, body: RemoteEnd): Promise<void> {
     const found = await new DrizzleRentalRepository(this.db).find(rentalId);
     if (!found) throw notFound('rental', rentalId);
@@ -537,18 +818,62 @@ export class RentalsService implements OnModuleInit {
       const repo = new DrizzleRentalRepository(tx);
       await repo.lockScooter(found.scooterId);
       const rental = await repo.lock(rentalId);
-      const decision = decideRemoteEnd(rental, body.reason, body.note);
-      await repo.addEvent(rentalId, 'ENDED_REMOTELY', { data: { reason: body.reason, staffId } });
-      await this.complete(repo, tx, rental!, 'END_REMOTELY', decision.to, effects);
-      if (decision.command) await this.sendCommand(repo, tx, effects, rental!.scooterId, rentalId, decision.command);
+      // Hulajnoga offline dostaje blokadę ważną 10 min (z sesji trwałej brokera po powrocie łączności), jak przy
+      // zakończeniu klienta offline (ADR 0056); po jej wygaśnięciu działa reguła blokady hulajnogi bez przejazdu.
+      const decision = decideRemoteEnd(rental, body.reason, body.note, { online: rental?.scooterOnline ?? true });
+      const towing = decideTowing({
+        outsideParking: await this.outsideParking(tx, rental!),
+        collect: body.collectTowingFee,
+        outOfZoneFee: await repo.outOfZoneFee(rental!.tariffId),
+      });
+      await repo.addEvent(rentalId, 'ENDED_REMOTELY', {
+        data: { reason: body.reason, staffId, ...(towing.towingFee ? { towingFee: towing.towingFee } : {}) },
+      });
+      // Poza strefą parkowania zawsze zgłoszenie `OUT_OF_ZONE` z zadaniem `RELOCATION` do najbliższej strefy, także
+      // bez opłaty (ADR 0055, ADR 0060); przed zakończeniem, żeby hulajnoga przeszła od razu do `MAINTENANCE`.
+      if (towing.relocation) {
+        await this.operations.openAutoTicket(
+          systemScope(tx),
+          {
+            scooterId: rental!.scooterId,
+            kind: 'OUT_OF_ZONE',
+            rentalId,
+            position: rental!.scooterLat === null ? null : { lat: rental!.scooterLat, lon: rental!.scooterLon! },
+            data: { towingFee: towing.towingFee },
+          },
+          effects,
+        );
+      }
+      await this.complete(repo, tx, rental!, 'END_REMOTELY', decision.to, effects, {
+        endMode: decision.endMode,
+        towingFee: towing.towingFee,
+      });
+      if (decision.command) {
+        await this.sendCommand(repo, tx, effects, rental!.scooterId, rentalId, decision.command, undefined, {
+          ttlMs: decision.commandTtlMs,
+        });
+      }
       await audit({
         action: 'rental.ended_remotely',
         entityType: 'rental',
         entityId: rentalId,
-        data: { reason: body.reason, ...(body.note ? { note: body.note } : {}), fromState: rental!.state },
+        data: {
+          reason: body.reason,
+          ...(body.note ? { note: body.note } : {}),
+          fromState: rental!.state,
+          outsideParking: towing.relocation,
+          ...(towing.relocation ? { towingFee: towing.towingFee } : {}),
+        },
       });
     });
     await this.afterCommit(effects);
+  }
+
+  /** Ostatnia znana pozycja hulajnogi poza strefą parkowania albo brak pozycji (`qualifiesForTowing`, ADR 0060). */
+  async outsideParking(executor: DbExecutor, rental: RentalRecord): Promise<boolean> {
+    if (rental.scooterLat === null) return qualifiesForTowing(null);
+    const zones = await new DrizzleZoneRepository(executor).findAt({ lat: rental.scooterLat, lon: rental.scooterLon! });
+    return qualifiesForTowing({ canPark: evaluatePosition(zones).canPark });
   }
 
   // --- Wspólne --------------------------------------------------------------------------------
@@ -586,6 +911,9 @@ export class RentalsService implements OnModuleInit {
   ): Promise<void> {
     const to = RentalStateMachine.transition(rental.state, action);
     if (action === 'COMPLETE_END') return this.complete(repo, tx, rental, action, to, effects);
+    // Blokada po żądaniu offline nie przyszła w 10 min (ADR 0056): koniec z naliczaniem do żądania.
+    if (action === 'END_UNCONFIRMED')
+      return this.complete(repo, tx, rental, action, to, effects, { endMode: 'UNCONFIRMED' });
     const now = action === 'CONFIRM_UNLOCK' ? await repo.now() : undefined;
     await this.transition(
       repo,
@@ -594,7 +922,7 @@ export class RentalsService implements OnModuleInit {
       to,
       effects,
       reason && action === 'UNLOCK_TIMEOUT' ? { reason } : undefined,
-      now,
+      now ? { startedAt: now } : {},
     );
     if (to === 'UNLOCK_FAILED') {
       await repo.setScooterStatus(rental.scooterId, 'AVAILABLE');
@@ -612,14 +940,17 @@ export class RentalsService implements OnModuleInit {
     to: RentalState,
     effects: Effects,
     data?: Record<string, unknown>,
-    startedAt?: Date,
+    extra: { startedAt?: Date; endMode?: EndMode } = {},
   ): Promise<void> {
-    await repo.setState(rental.id, to, startedAt ? { startedAt } : {});
+    await repo.setState(rental.id, to, extra);
     await repo.addEvent(rental.id, 'STATE_CHANGED', { from: rental.state, to, data: { action, ...data } });
     effects.rentals.add(rental.id);
   }
 
-  /** `ENDED`: liczniki z osi czasu i kwota z core (ADR 0042), dystans i trasa z telemetrii, hulajnoga wolna. */
+  /**
+   * `ENDED`: liczniki z osi czasu i kwota z core (ADR 0042, ADR 0056) z opłatą za odholowanie (ADR 0060), dystans
+   * i trasa z telemetrii, hulajnoga wolna.
+   */
   private async complete(
     repo: DrizzleRentalRepository,
     tx: DbExecutor,
@@ -627,25 +958,80 @@ export class RentalsService implements OnModuleInit {
     action: RentalAction,
     to: RentalState,
     effects: Effects,
+    options: CompleteOptions = {},
   ): Promise<void> {
     const now = await repo.now();
     const tariff = await repo.tariff(rental.tariffId);
-    const view = await buildRentalView(repo, rental, tariff, now);
+    const events = await repo.timelineEvents(rental.id);
+    const counters = rentalCounters(events, now, { endMode: options.endMode ?? rental.endMode });
+    const price = priceRental(tariff, counters, { towingFee: options.towingFee });
     const endZoneId =
       rental.scooterLat === null ? null : await repo.parkingZoneAt(rental.scooterLat, rental.scooterLon!);
     await repo.addEvent(rental.id, 'STATE_CHANGED', { from: rental.state, to, data: { action } });
+    await this.autoTickets(tx, rental, options, effects);
     await repo.finish(rental.id, {
       endedAt: now,
-      rideSeconds: view.rideSeconds,
-      pauseSeconds: view.pauseSeconds,
-      totalAmount: view.price.total,
+      rideSeconds: counters.rideSeconds,
+      pauseSeconds: counters.pauseSeconds,
+      totalAmount: price.total,
       endZoneId,
+      endMode: options.endMode,
+      towingFee: options.towingFee ?? null,
     });
     await repo.setScooterStatus(rental.scooterId, 'AVAILABLE');
     await new DrizzleZoneRepository(tx).stopTracking(rental.id);
     // Rozliczenie w tej samej transakcji (ADR 0049): portfel od razu, karta zadaniem po zatwierdzeniu.
-    await this.payments.settleRide(tx, rental.id, effects);
+    const charge = await this.payments.settleRide(tx, rental.id, effects);
+    // `ride_ended` (ADR 0058) po rozliczeniu: portfel i przejazd bez opłaty od razu, karta po paragonie z płatności.
+    if (charge !== 'CARD') {
+      await this.notifications.rideEnded(
+        tx,
+        {
+          id: rental.id,
+          userId: rental.userId,
+          number: rental.number,
+          rideSeconds: counters.rideSeconds,
+          pauseSeconds: counters.pauseSeconds,
+          totalAmount: price.total,
+          towingFee: options.towingFee ?? null,
+        },
+        charge === 'WALLET',
+      );
+    }
     effects.rentals.add(rental.id);
+  }
+
+  /**
+   * Zgłoszenia automatyczne przy zakończeniu (ADR 0055) przed zwolnieniem hulajnogi, więc otwarte zadanie od razu
+   * wybiera `MAINTENANCE` (wyzwalacz `scooters_status`): `OFFLINE` po zakończeniu bez potwierdzenia blokady
+   * (ADR 0056) i `BATTERY_CRITICAL` z zadaniem `BATTERY_SWAP` przy baterii poniżej 10%.
+   */
+  private async autoTickets(
+    tx: DbExecutor,
+    rental: RentalRecord,
+    options: CompleteOptions,
+    effects: Effects,
+  ): Promise<void> {
+    const scope = systemScope(tx);
+    if (options.endMode === 'UNCONFIRMED') {
+      await this.operations.openAutoTicket(
+        scope,
+        { scooterId: rental.scooterId, kind: 'OFFLINE', rentalId: rental.id, data: { endMode: 'UNCONFIRMED' } },
+        effects,
+      );
+    }
+    if (needsBatteryCriticalTicket(rental.scooterBatteryPct)) {
+      await this.operations.openAutoTicket(
+        scope,
+        {
+          scooterId: rental.scooterId,
+          kind: 'BATTERY_CRITICAL',
+          rentalId: rental.id,
+          data: { batteryPct: rental.scooterBatteryPct },
+        },
+        effects,
+      );
+    }
   }
 
   /** Przejście wywołane wynikiem płatności (`DECLINE_PAYMENT`, `SETTLE_DEBT`) w transakcji modułu Płatności. */
@@ -672,8 +1058,11 @@ export class RentalsService implements OnModuleInit {
     rentalId: string | null,
     type: CommandType,
     params?: { kmh?: number },
+    options: { ttlMs?: number } = {},
   ): Promise<RentalCommandRecord> {
-    const command = await repo.createCommand({ scooterId, rentalId, type, ttlMs: COMMAND_ACK_TIMEOUT_MS, params });
+    // Blokada przy zakończeniu bez łączności czeka 10 min (ADR 0056); pozostałe komendy 10 s (ADR 0038).
+    const ttlMs = options.ttlMs ?? COMMAND_ACK_TIMEOUT_MS;
+    const command = await repo.createCommand({ scooterId, rentalId, type, ttlMs, params });
     await this.jobs.sendInTransaction(tx, JOBS.commandAckTimeout, { commandId: command.id }, command.expiresAt!);
     effects.commands.push(command);
     return command;
@@ -705,13 +1094,14 @@ export class RentalsService implements OnModuleInit {
     }
     for (const id of effects.rentals) await this.notify(id);
     for (const userId of effects.wallets) await this.payments.notifyWallet(userId);
+    await this.operations.afterCommit(effects);
   }
 
   /** Klient dostaje pełny widok przejazdu, panel wiersz listy (ADR 0036). */
   async notify(rentalId: string): Promise<void> {
     const repo = new DrizzleRentalRepository(this.db);
     const [rental, item] = await Promise.all([repo.find(rentalId), repo.listItem(rentalId)]);
-    if (rental) this.gateway.rentalUpdated(rental.userId, await buildRentalView(repo, rental));
+    if (rental) this.gateway.rentalUpdated(rental.userId, await buildRentalView(repo, rental, { files: this.files }));
     if (item) this.gateway.rentalChanged(item as RentalListItem);
   }
 

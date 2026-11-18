@@ -13,7 +13,9 @@
     "openapi": "nest build && node dist/export-openapi.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1169.0",
     "@fastify/cookie": "11.1.5",
+    "@fastify/multipart": "10.1.8",
     "@fastify/static": "^10.1.2",
     "@hulajnogi/core": "workspace:*",
     "@hulajnogi/db": "workspace:*",
@@ -25,6 +27,7 @@
     "@nestjs/swagger": "^12.0.0",
     "@nestjs/websockets": "12.3.2",
     "@node-rs/argon2": "2.2.2",
+    "expo-server-sdk": "8.0.0",
     "fastify": "^5.6.0",
     "mqtt": "^5.16.1",
     "pg-boss": "12.38.2",

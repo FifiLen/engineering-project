@@ -1,16 +1,25 @@
 import {
   FLEET_ROOM,
   RENTALS_ROOM,
+  SERVICE_ROOM,
+  SIMULATOR_ROOM,
+  TICKETS_ROOM,
   userRoom,
   type ClientToServerEvents,
   type CommandView,
   type FleetMapScooter,
+  type NotificationView,
   type RentalListItem,
   type RentalView,
   type ServerToClientEvents,
+  type ServiceTaskUpdated,
+  type SimulatorResult,
+  type SimulatorStatusView,
   type SubscribeAck,
+  type TicketUpdated,
   type WalletSummary,
 } from '@hulajnogi/shared';
+import type { Permission } from '@hulajnogi/core';
 import { Inject } from '@nestjs/common';
 import {
   ConnectedSocket,
@@ -23,6 +32,7 @@ import type { Server, Socket } from 'socket.io';
 import { JWT } from '../auth/auth.tokens.js';
 import type { JwtCodec } from '../auth/crypto/jwt.js';
 import { StaffPermissionsService } from '../auth/staff-permissions.service.js';
+import { CONFIG, type AppConfig } from '../config.js';
 
 interface SocketData {
   staffId?: string;
@@ -33,8 +43,10 @@ type ClientSocket = Socket<ClientToServerEvents, ServerToClientEvents, object, S
 
 /**
  * Zdarzenia na żywo (ADR 0012, arc42 §8.7). Panel łączy się z tokenem operatora i dołącza do pokoi `fleet`
- * (`scooters.read`) i `rentals` (`rentals.read`); aplikacja łączy się z tokenem klienta i od razu trafia
- * do pokoju `user:{id}` ze zmianami swoich przejazdów (ADR 0035, ADR 0036).
+ * (`scooters.read`), `rentals` (`rentals.read`), `tickets` (`tickets.read`), `service` (`service.read`)
+ * i `simulator` (`simulator.manage`, tylko przy włączonym sterowaniu symulatorem, ADR 0059); aplikacja łączy się
+ * z tokenem klienta i od razu trafia do pokoju `user:{id}` ze zmianami swoich przejazdów, zgłoszeń
+ * i powiadomień (ADR 0035, ADR 0036, ADR 0055, ADR 0058).
  */
 @WebSocketGateway({ cors: { origin: true, credentials: true } })
 export class FleetGateway implements OnGatewayConnection {
@@ -43,6 +55,7 @@ export class FleetGateway implements OnGatewayConnection {
 
   constructor(
     @Inject(JWT) private readonly jwt: JwtCodec,
+    @Inject(CONFIG) private readonly config: AppConfig,
     private readonly permissions: StaffPermissionsService,
   ) {}
 
@@ -78,11 +91,24 @@ export class FleetGateway implements OnGatewayConnection {
     return this.joinStaffRoom(socket, RENTALS_ROOM, 'rentals.read');
   }
 
-  private async joinStaffRoom(
-    socket: ClientSocket,
-    room: string,
-    permission: 'scooters.read' | 'rentals.read',
-  ): Promise<SubscribeAck> {
+  @SubscribeMessage('tickets.subscribe')
+  subscribeTickets(@ConnectedSocket() socket: ClientSocket): Promise<SubscribeAck> {
+    return this.joinStaffRoom(socket, TICKETS_ROOM, 'tickets.read');
+  }
+
+  @SubscribeMessage('service.subscribe')
+  subscribeService(@ConnectedSocket() socket: ClientSocket): Promise<SubscribeAck> {
+    return this.joinStaffRoom(socket, SERVICE_ROOM, 'service.read');
+  }
+
+  /** Symulator wyłączony w konfiguracji (ADR 0059) wygląda jak brak uprawnienia. */
+  @SubscribeMessage('simulator.subscribe')
+  subscribeSimulator(@ConnectedSocket() socket: ClientSocket): Promise<SubscribeAck> {
+    if (!this.config.SIMULATOR_CONTROL_ENABLED) return Promise.resolve({ ok: false, code: 'FORBIDDEN' });
+    return this.joinStaffRoom(socket, SIMULATOR_ROOM, 'simulator.manage');
+  }
+
+  private async joinStaffRoom(socket: ClientSocket, room: string, permission: Permission): Promise<SubscribeAck> {
     const staffId = socket.data.staffId;
     if (!staffId) return { ok: false, code: 'UNAUTHENTICATED' };
     const state = await this.permissions.get(staffId);
@@ -115,5 +141,34 @@ export class FleetGateway implements OnGatewayConnection {
 
   walletUpdated(userId: string, wallet: WalletSummary): void {
     this.server?.to(userRoom(userId)).emit('wallet.updated', wallet);
+  }
+
+  /**
+   * Zgłoszenie: panel (pokój `tickets`) i zgłaszający klient (ADR 0055); treść bez nazwisk i notatek, a klient
+   * dostaje wersję bez przypisanego operatora.
+   */
+  ticketUpdated(ticket: TicketUpdated, reporterId: string | null): void {
+    this.server?.to(TICKETS_ROOM).emit('ticket.updated', ticket);
+    if (!reporterId) return;
+    const forCustomer: TicketUpdated = { ...ticket };
+    delete forCustomer.assigneeId;
+    this.server?.to(userRoom(reporterId)).emit('ticket.updated', forCustomer);
+  }
+
+  serviceTaskUpdated(task: ServiceTaskUpdated): void {
+    this.server?.to(SERVICE_ROOM).emit('service-task.updated', task);
+  }
+
+  /** Powiadomienie klienta po wysyłce (ADR 0058): baner w wersji web, aplikacja natywna je pomija. */
+  notificationCreated(userId: string, notification: NotificationView): void {
+    this.server?.to(userRoom(userId)).emit('notification.created', notification);
+  }
+
+  simulatorStatus(status: SimulatorStatusView): void {
+    this.server?.to(SIMULATOR_ROOM).emit('simulator.status', status);
+  }
+
+  simulatorResult(result: SimulatorResult): void {
+    this.server?.to(SIMULATOR_ROOM).emit('simulator.result', result);
   }
 }

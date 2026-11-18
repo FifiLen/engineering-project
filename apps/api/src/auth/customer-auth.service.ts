@@ -41,6 +41,7 @@ import type {
 } from '@hulajnogi/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { DB } from '../database/database.module.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { JWT, OTP_CODES } from './auth.tokens.js';
 import type { JwtCodec } from './crypto/jwt.js';
 import type { OtpCodes } from './crypto/secrets.js';
@@ -59,6 +60,7 @@ export class CustomerAuthService {
     @Inject(JWT) private readonly jwt: JwtCodec,
     @Inject(OTP_CODES) private readonly codes: OtpCodes,
     private readonly sms: SmsGateway,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async requestOtp(rawPhone: string): Promise<OtpRequestResult> {
@@ -68,9 +70,11 @@ export class CustomerAuthService {
     const issued = await otp.issuedSince(phone, new Date(now.getTime() - HOUR_MS));
     ensureCanIssueOtp(issued, now);
     const code = this.codes.generate();
+    // Treść z szablonu `login_code` (kanał SMS) edytowanego w panelu (ADR 0058); kod jest jedyną zmienną. Szablon
+    // renderujemy przed zapisem kodu: brak szablonu albo błąd treści nie zużywa limitu kodów klienta.
+    const text = await this.sms.render('login_code', { code });
     await otp.create(phone, this.codes.hash(phone, code), otpExpiresAt(now));
-    // Treść SMS-a trafi do szablonów powiadomień w iteracji 6 (ADR 0027); kod jest jedyną zmienną.
-    await this.sms.send(phone, `[nazwa]: ${code} to Twój kod logowania. Nie podawaj go nikomu.`);
+    await this.sms.deliver(phone, text);
     return {
       phone,
       expiresInSeconds: OTP_POLICY.ttlSeconds,
@@ -126,15 +130,23 @@ export class CustomerAuthService {
         now,
       );
       if (!rotated) throw unauthenticated('SESSION_ROTATED');
+      // Tokeny push należą do sesji (ADR 0058): przechodzą do następcy, żeby wylogowanie i lista w panelu je widziały.
+      await this.notifications.moveSessionTokens(tx, session.id, rotated.id);
       return this.tokens(session.ownerId, rotated.id, token, now);
     });
   }
 
-  /** Wylogowanie z tego urządzenia: unieważnia rodzinę sesji tokenu. */
+  /**
+   * Wylogowanie z tego urządzenia: unieważnia rodzinę sesji tokenu i usuwa jej tokeny push (ADR 0058). Sesja zostaje
+   * w bazie z `revoked_at`, więc `ON DELETE CASCADE` z `push_tokens.session_id` tu nie działa.
+   */
   async logout(refreshToken: string): Promise<void> {
-    const sessions = new DrizzleCustomerSessionRepository(this.db);
-    const session = await sessions.findByTokenHash(hashToken(refreshToken));
-    if (session) await sessions.revokeFamily(session.familyId, new Date());
+    const session = await new DrizzleCustomerSessionRepository(this.db).findByTokenHash(hashToken(refreshToken));
+    if (!session) return;
+    await this.db.transaction(async (tx) => {
+      await new DrizzleCustomerSessionRepository(tx).revokeFamily(session.familyId, new Date());
+      await this.notifications.forgetSessionFamily(tx, session.familyId);
+    });
   }
 
   async me(userId: string, db: DbExecutor = this.db): Promise<MeResponse> {
@@ -233,7 +245,11 @@ export class CustomerAuthService {
 
   private tokens(userId: string, sessionId: string, refreshToken: string, now: Date): CustomerTokens {
     return {
-      accessToken: this.jwt.sign({ sub: userId, typ: 'customer', sid: sessionId }, SESSION_POLICY.accessTokenSeconds, now),
+      accessToken: this.jwt.sign(
+        { sub: userId, typ: 'customer', sid: sessionId },
+        SESSION_POLICY.accessTokenSeconds,
+        now,
+      ),
       refreshToken,
       expiresInSeconds: SESSION_POLICY.accessTokenSeconds,
     };

@@ -39,7 +39,8 @@ export class AdminRentalsController {
   @RequirePermission('rentals.manage')
   @Post(':id/end')
   @ApiOperation({
-    summary: 'Zdalne zakończenie (D7): niezależnie od strefy, z powodem, komendą lock i wpisem w dzienniku audytu',
+    summary:
+      'Zdalne zakończenie (D7): niezależnie od strefy, z powodem, komendą lock i wpisem w dzienniku audytu; poza strefą parkowania opcjonalna opłata za odholowanie z cennika przejazdu (collectTowingFee, ADR 0060), w strefie 422 TOWING_FEE_NOT_APPLICABLE',
   })
   end(
     @CurrentStaff() staff: StaffPrincipal,

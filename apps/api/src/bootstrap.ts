@@ -1,9 +1,11 @@
 import fastifyCookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
+import { MULTIPART_LIMITS } from './files/files.controller.js';
 import type { AppConfig } from './config.js';
 import { buildOpenApiDocument } from './openapi.js';
 
@@ -18,6 +20,8 @@ export async function createApp(
     { logger: options.logger === false ? false : undefined, rawBody: true },
   );
   await app.register(fastifyCookie);
+  // Wysyłka zdjęć (ADR 0057): plik ponad limit jest ucięty (`truncated`), a odrzuca go reguła z core.
+  await app.register(fastifyMultipart, { limits: MULTIPART_LIMITS, throwFileSizeLimit: false });
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableShutdownHooks();
   // Panel działa na innym porcie niż API; w trybie deweloperskim dopuszczamy każdy localhost.

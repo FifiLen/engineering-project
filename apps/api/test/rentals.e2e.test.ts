@@ -208,7 +208,12 @@ describe.skipIf(!adminUrl)('API: wypożyczenie', () => {
     const rental = first.json<shared.RentalView>();
     expect(rental).toMatchObject({ state: 'RESERVED', scooter: { number: 1 }, price: { total: 0 } });
     expect(new Date(rental.reservationExpiresAt!).getTime() - new Date(rental.reservedAt!).getTime()).toBe(10 * 60_000);
-    expect(jobs().sent.at(-1)).toMatchObject({ name: JOBS.reservationExpire, data: { rentalId: rental.id } });
+    // Wygaśnięcie i przypomnienie 2 min przed końcem (`reservation_ending`, ADR 0058).
+    expect(
+      jobs()
+        .sent.filter((j) => j.data.rentalId === rental.id)
+        .map((j) => j.name),
+    ).toEqual([JOBS.reservationExpire, JOBS.reservationEnding]);
     expect(await statusOf(1)).toBe('RESERVED');
 
     const again = await as('anna')({ method: 'POST', url: '/reservations', payload: { scooterId } });

@@ -58,6 +58,28 @@ const envSchema = z.object({
   FAKE_WEBHOOK_DELAY_MS: z.coerce.number().int().min(0).max(60_000).default(2000),
   /** Adres punktu webhooka dla atrapy; domyślnie to samo API. */
   FAKE_WEBHOOK_URL: optional(z.url()),
+  /**
+   * Magazyn plików (ADR 0057): SeaweedFS przez API S3 z `forcePathStyle`, albo pamięć procesu w testach API.
+   * Wybór jak `PAYMENT_PROVIDER`; pamięć nie działa w produkcji.
+   */
+  FILE_STORAGE: z.enum(['s3', 'memory']).default('s3'),
+  S3_ENDPOINT: z.url().default('http://localhost:8333'),
+  S3_REGION: z.string().min(1).default('us-east-1'),
+  S3_BUCKET: z.string().min(1).default('hulajnogi'),
+  /** Klucze z `infra/seaweedfs/s3.json`; w produkcji wymagane. */
+  S3_ACCESS_KEY: optional(z.string().min(1)),
+  S3_SECRET_KEY: optional(z.string().min(1)),
+  /**
+   * Bramka powiadomień push (ADR 0058): atrapa w procesie (zapis `SENT` i log w API, jak kod SMS) albo Expo Push
+   * po skonfigurowaniu projektu EAS przez autora. Token dostępu Expo jest opcjonalny.
+   */
+  PUSH_PROVIDER: z.enum(['fake', 'expo']).default('fake'),
+  EXPO_ACCESS_TOKEN: optional(z.string().min(1)),
+  /**
+   * Sterowanie symulatorem z panelu (ADR 0059): domyślnie tylko przy `NODE_ENV=development`; przy `false` punkty
+   * `/admin/simulator/*` zwracają 404, a API nie subskrybuje tematów symulatora.
+   */
+  SIMULATOR_CONTROL_ENABLED: optional(booleanFlag),
   /** Dane sprzedawcy na paragonie (ADR 0052); w trybie deweloperskim nawiasy jak w makietach. */
   SELLER_NAME: z.string().default('[dane sprzedawcy]'),
   SELLER_ADDRESS: optional(z.string()),
@@ -70,11 +92,19 @@ const envSchema = z.object({
  */
 const DEV_JWT_SECRET = 'dev-only-jwt-secret-not-for-production-use';
 const DEV_TOTP_KEY = Buffer.alloc(32, 7).toString('base64');
+/** Klucze SeaweedFS z `infra/seaweedfs/s3.json` (tylko lokalny magazyn deweloperski). */
+const DEV_S3_KEYS = { access: 'hulajnogi', secret: 'hulajnogi-dev-secret' };
 
 type ParsedEnv = z.infer<typeof envSchema>;
-export type AppConfig = Omit<ParsedEnv, 'JWT_SECRET' | 'TOTP_ENCRYPTION_KEY'> & {
+export type AppConfig = Omit<
+  ParsedEnv,
+  'JWT_SECRET' | 'TOTP_ENCRYPTION_KEY' | 'S3_ACCESS_KEY' | 'S3_SECRET_KEY' | 'SIMULATOR_CONTROL_ENABLED'
+> & {
+  SIMULATOR_CONTROL_ENABLED: boolean;
   JWT_SECRET: string;
   TOTP_ENCRYPTION_KEY: string;
+  S3_ACCESS_KEY: string;
+  S3_SECRET_KEY: string;
 };
 
 /** Konfiguracja z zmiennych środowiskowych, sprawdzana przy starcie (błąd = brak startu). */
@@ -91,7 +121,25 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, unknown> = pr
     throw new Error('Nieprawidłowa konfiguracja: w produkcji wymagane są JWT_SECRET i TOTP_ENCRYPTION_KEY');
   }
   checkPaymentConfig(data);
-  return { ...data, JWT_SECRET: jwtSecret ?? DEV_JWT_SECRET, TOTP_ENCRYPTION_KEY: totpKey ?? DEV_TOTP_KEY };
+  const s3Access = data.S3_ACCESS_KEY as string | undefined;
+  const s3Secret = data.S3_SECRET_KEY as string | undefined;
+  if (data.NODE_ENV === 'production') {
+    if (data.FILE_STORAGE === 'memory') {
+      throw new Error('Nieprawidłowa konfiguracja: magazyn plików w pamięci nie działa w produkcji');
+    }
+    if (!s3Access || !s3Secret) {
+      throw new Error('Nieprawidłowa konfiguracja: w produkcji wymagane są S3_ACCESS_KEY i S3_SECRET_KEY');
+    }
+  }
+  const simulatorControl = data.SIMULATOR_CONTROL_ENABLED as boolean | undefined;
+  return {
+    ...data,
+    SIMULATOR_CONTROL_ENABLED: simulatorControl ?? data.NODE_ENV === 'development',
+    JWT_SECRET: jwtSecret ?? DEV_JWT_SECRET,
+    TOTP_ENCRYPTION_KEY: totpKey ?? DEV_TOTP_KEY,
+    S3_ACCESS_KEY: s3Access ?? DEV_S3_KEYS.access,
+    S3_SECRET_KEY: s3Secret ?? DEV_S3_KEYS.secret,
+  };
 }
 
 /**

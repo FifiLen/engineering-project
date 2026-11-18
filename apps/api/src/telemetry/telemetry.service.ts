@@ -1,5 +1,6 @@
 import {
   evaluateTelemetry,
+  shouldLockIdleScooter,
   type CurrentStateUpdate,
   type TelemetryReading,
   type TelemetryTarget,
@@ -8,10 +9,12 @@ import { DrizzleTelemetryRepository } from '@hulajnogi/db';
 import { scooterIdFromTopic, statusSchema, telemetrySchema, type FleetMapScooter } from '@hulajnogi/shared';
 import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
 import { CONFIG, type AppConfig } from '../config.js';
-import { safeJson } from '../fleet/commands.service.js';
+import { CommandsService, safeJson } from '../fleet/commands.service.js';
 import { FleetStatusService } from '../fleet/fleet-status.service.js';
 import { MqttService } from '../mqtt/mqtt.service.js';
 import { JOBS, JobsService } from '../jobs/jobs.service.js';
+import { OperationsService } from '../operations/operations.service.js';
+import { TicketsService } from '../operations/tickets.service.js';
 import { FleetGateway } from '../realtime/fleet.gateway.js';
 import { RentalsService } from '../rentals/rentals.service.js';
 import { ZoneTracker } from '../zones/zone-tracker.service.js';
@@ -47,6 +50,9 @@ export class TelemetryService implements OnModuleInit, OnApplicationShutdown {
     private readonly jobs: JobsService,
     private readonly rentals: RentalsService,
     private readonly zones: ZoneTracker,
+    private readonly commands: CommandsService,
+    private readonly tickets: TicketsService,
+    private readonly operations: OperationsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -157,6 +163,50 @@ export class TelemetryService implements OnModuleInit, OnApplicationShutdown {
         })),
       )
       .catch((e: Error) => this.logger.error(`Strefy: ${e.message}`));
+    // Bateria w trakcie jazdy i ruch po zakończeniu offline (ADR 0056) po strefach, bo limit baterii uzgadnia się
+    // z bieżącymi strefami; błąd nie wstrzymuje telemetrii.
+    await this.rentals
+      .onTelemetry(
+        history.map(({ scooterId, reading }) => ({
+          scooterId,
+          recordedAt: reading.recordedAt,
+          batteryPct: reading.batteryPct,
+          buffered: reading.buffered,
+        })),
+      )
+      .catch((e: Error) => this.logger.error(`Przejazd: ${e.message}`));
+    await this.lockIdleScooters(current).catch((e: Error) => this.logger.error(`Blokada: ${e.message}`));
+    // Hulajnoga w serwisie z przyczyną `BATTERY_BELOW_THRESHOLD` wraca do floty po odczycie bieżącym baterii ponad
+    // progiem (np. po `battery_swapped`, ADR 0059), jeśli nic innego jej nie zatrzymuje.
+    const recovered = [...current.values()]
+      .filter(({ scooterId, reading }) => !reading.buffered && byId.get(scooterId)?.status === 'MAINTENANCE')
+      .map(({ scooterId }) => scooterId);
+    if (recovered.length) {
+      await this.operations
+        .returnAfterBatteryRecovered(recovered)
+        .catch((e: Error) => this.logger.error(`Powrót do floty: ${e.message}`));
+    }
+  }
+
+  /**
+   * Hulajnoga bez przejazdu, która zgłasza się odblokowana (np. po zakończeniu offline, `END_UNCONFIRMED` albo
+   * zdalnym zakończeniu bez łączności), dostaje `lock` bez `rental_id` (ADR 0056), także w serwisie, chyba że
+   * operator odblokował ją z panelu (`shouldLockIdleScooter`). Liczy się odczyt bieżący nowszy niż koniec ostatniego
+   * przejazdu, żeby odczyt sprzed potwierdzenia blokady nie wysłał drugiej komendy.
+   */
+  private async lockIdleScooters(current: Map<string, CurrentStateUpdate>): Promise<void> {
+    const unlocked = [...current.values()].filter(({ reading }) => !reading.locked && !reading.buffered);
+    if (!unlocked.length) return;
+    const states = await this.rentals.lockStates(unlocked.map((u) => u.scooterId));
+    const now = new Date();
+    for (const { scooterId, reading } of unlocked) {
+      const state = states.get(scooterId);
+      if (!state) continue;
+      if (state.lastEndedAt && reading.recordedAt <= state.lastEndedAt) continue;
+      if (shouldLockIdleScooter({ ...state, locked: reading.locked, now })) {
+        await this.commands.sendSystem(scooterId, 'LOCK');
+      }
+    }
   }
 
   /** Status (retained, Last Will przy zerwaniu): najpierw zapis telemetrii sprzed zmiany, potem łączność. */
@@ -171,6 +221,18 @@ export class TelemetryService implements OnModuleInit, OnApplicationShutdown {
       if (!target) return;
       this.gateway.updates([await this.toMapUpdate(target)]);
       await this.rentals.onConnectionChange(target.id, target.online);
+      // Zgłoszenie `OFFLINE` (ADR 0055): sprawdzenie po 5 min przy zmianie online → offline (nie przy powtórzonym
+      // statusie po restarcie API), automatyczne zamknięcie po powrocie łączności. Błąd nie wstrzymuje telemetrii.
+      if (!target.online && target.wasOnline) {
+        await this.tickets
+          .scheduleOfflineCheck(target.id, new Date())
+          .catch((e: Error) => this.logger.error(`Zgłoszenie offline: ${e.message}`));
+      }
+      if (target.online) {
+        await this.tickets
+          .onConnectionRestored(target.id)
+          .catch((e: Error) => this.logger.error(`Zgłoszenie offline: ${e.message}`));
+      }
     });
   }
 

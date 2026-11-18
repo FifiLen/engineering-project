@@ -140,12 +140,25 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
     expect(duplicate.statusCode).toBe(409);
     expect(duplicate.json()).toMatchObject({ code: 'ALREADY_EXISTS', details: { field: 'number' } });
 
+    // Formularz floty nie omija reguły powrotu do floty (ADR 0055): nowa hulajnoga bez łączności i baterii zostaje
+    // w serwisie, a po pierwszym sygnale z baterią ponad progiem wraca.
+    const blocked = await api({
+      method: 'PATCH',
+      url: `/admin/scooters/${id}`,
+      payload: { version: 1, status: 'AVAILABLE' },
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json()).toMatchObject({
+      code: 'RETURN_TO_FLEET_BLOCKED',
+      details: { blockers: ['OFFLINE', 'BATTERY_BELOW_THRESHOLD'] },
+    });
+    await pool.query(`UPDATE scooters SET online = true, battery_pct = 90, last_seen_at = now() WHERE id = $1`, [id]);
     const edited = await api({
       method: 'PATCH',
       url: `/admin/scooters/${id}`,
       payload: { version: 1, status: 'AVAILABLE' },
     });
-    expect(edited.json()).toMatchObject({ status: 'AVAILABLE', version: 2 });
+    expect(edited.json()).toMatchObject({ status: 'AVAILABLE', statusReason: null, version: 2 });
     const stale = await api({
       method: 'PATCH',
       url: `/admin/scooters/${id}`,
@@ -173,7 +186,32 @@ describe.skipIf(!adminUrl)('API: flota, telemetria, komendy', () => {
     expect(retired.json()).toEqual({ outcome: 'RETIRED' });
     expect((await api({ method: 'GET', url: `/admin/scooters/${id}` })).json()).toMatchObject({
       status: 'RETIRED',
+      statusReason: 'OTHER',
       version: 3,
+    });
+    // Wycofana wraca tylko do serwisu, z przyczyną pasującą do MAINTENANCE (wcześniej błąd 500 z CHECK).
+    const restored = await api({
+      method: 'PATCH',
+      url: `/admin/scooters/${id}`,
+      payload: { version: 3, status: 'MAINTENANCE' },
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json()).toMatchObject({ status: 'MAINTENANCE', statusReason: 'OTHER', version: 4 });
+    // Otwarte zadanie: formularz nie przywróci do floty ani nie wycofa (jak „Wyłącz z ruchu”).
+    await pool.query(`INSERT INTO service_tasks (scooter_id, type) VALUES ($1, 'INSPECTION')`, [id]);
+    const withTask = await api({
+      method: 'PATCH',
+      url: `/admin/scooters/${id}`,
+      payload: { version: 4, status: 'AVAILABLE' },
+    });
+    expect(withTask.json()).toMatchObject({ code: 'RETURN_TO_FLEET_BLOCKED', details: { blockers: ['OPEN_TASKS'] } });
+    const retireWithTask = await api({ method: 'DELETE', url: `/admin/scooters/${id}?version=4` });
+    expect(retireWithTask.json()).toMatchObject({ code: 'SCOOTER_HAS_OPEN_TASKS' });
+    await pool.query(`UPDATE service_tasks SET status = 'CANCELLED', cancel_reason = 'test' WHERE scooter_id = $1`, [
+      id,
+    ]);
+    expect((await api({ method: 'DELETE', url: `/admin/scooters/${id}?version=4` })).json()).toEqual({
+      outcome: 'RETIRED',
     });
 
     const missing = await api({ method: 'GET', url: `/admin/scooters/${randomUUID()}` });

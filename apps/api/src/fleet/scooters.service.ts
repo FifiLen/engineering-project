@@ -1,13 +1,19 @@
 import {
   diffForAudit,
   ensureModelAssignable,
-  ensureOperatorStatusChange,
   ensureVersion,
   estimateRangeKm,
+  fleetFormStatusChange,
   notFound,
-  planScooterRemoval,
+  type ScooterStatus,
+  type ScooterStatusReason,
 } from '@hulajnogi/core';
-import { type DbExecutor, DrizzleScooterModelRepository, DrizzleScooterRepository } from '@hulajnogi/db';
+import {
+  type DbExecutor,
+  DrizzleScooterModelRepository,
+  DrizzleScooterRepository,
+  DrizzleServiceRepository,
+} from '@hulajnogi/db';
 import type {
   ListQuery,
   ListResponse,
@@ -19,6 +25,7 @@ import type {
 } from '@hulajnogi/shared';
 import { Injectable } from '@nestjs/common';
 import { AuditedTransaction } from '../audit/audited-transaction.js';
+import { returnCheck } from '../operations/operations.service.js';
 
 /**
  * Serwis aplikacyjny hulajnóg: dane z repozytoriów, reguły z packages/core. Każdy zapis operatora
@@ -62,36 +69,48 @@ export class ScootersService {
       const [state, before] = await Promise.all([scooters.findState(id), scooters.details(id)]);
       if (!state || !before) throw notFound('scooter', id);
       ensureVersion(version, state.version);
-      if (changes.status) ensureOperatorStatusChange(state.status, changes.status, state.hasOpenRental);
+      const status = changes.status ? await statusChange(tx, id, changes.status) : null;
       if (changes.modelId && changes.modelId !== state.modelId) await ensureModel(tx, changes.modelId);
-      if (!(await scooters.update(id, version, changes))) {
+      if (!(await scooters.update(id, version, changes, status ? status.reason : undefined))) {
         // Ktoś zapisał zmianę między odczytem a zapisem.
         ensureVersion(version, (await scooters.findState(id))!.version);
       }
-      const diff = diffForAudit(before, changes);
-      const action = Object.keys(diff).length === 1 && diff.status ? 'scooter.status_changed' : 'scooter.updated';
-      await audit({ action, entityType: 'scooter', entityId: id, data: { changes: diff, version: [version, version + 1] } });
+      const fields = diffForAudit(before, changes);
+      const action = Object.keys(fields).length === 1 && fields.status ? 'scooter.status_changed' : 'scooter.updated';
+      const diff = {
+        ...fields,
+        ...(status && status.reason !== status.before ? { statusReason: [status.before, status.reason] } : {}),
+      };
+      await audit({
+        action,
+        entityType: 'scooter',
+        entityId: id,
+        data: { changes: diff, version: [version, version + 1] },
+      });
     });
     return this.details(id);
   }
 
-  /** Usunięcie hulajnogi to wycofanie z floty (ADR 0031). */
+  /**
+   * Usunięcie hulajnogi to wycofanie z floty (ADR 0031) według reguł „Wyłącz z ruchu” (ADR 0055): nie w przejeździe
+   * ani przy otwartych zadaniach, z powodem `OTHER` (formularz nie pyta o powód).
+   */
   async remove(staffId: string, id: string, version: number): Promise<RemovalResult> {
     return this.transaction.run(staffId, async ({ tx, audit }) => {
       const scooters = new DrizzleScooterRepository(tx);
       const state = await scooters.findState(id);
       if (!state) throw notFound('scooter', id);
       ensureVersion(version, state.version);
-      planScooterRemoval(state.status, state.hasOpenRental);
-      if (state.status !== 'RETIRED') {
-        if (!(await scooters.update(id, version, { status: 'RETIRED' }))) {
+      const status = await statusChange(tx, id, 'RETIRED');
+      if (status) {
+        if (!(await scooters.update(id, version, { status: 'RETIRED' }, status.reason))) {
           ensureVersion(version, (await scooters.findState(id))!.version);
         }
         await audit({
           action: 'scooter.retired',
           entityType: 'scooter',
           entityId: id,
-          data: { changes: { status: [state.status, 'RETIRED'] } },
+          data: { changes: { status: [state.status, 'RETIRED'], statusReason: [status.before, status.reason] } },
         });
       }
       return { outcome: 'RETIRED' } as const;
@@ -103,4 +122,28 @@ async function ensureModel(tx: DbExecutor, modelId: string): Promise<void> {
   const model = await new DrizzleScooterModelRepository(tx).findState(modelId);
   if (!model) throw notFound('scooterModel', modelId);
   ensureModelAssignable(model);
+}
+
+/**
+ * Zmiana stanu z formularza floty według reguł obiegu serwisowego (`fleetFormStatusChange`): powrót z serwisu przez
+ * regułę powrotu do floty, przyczyna stanu zgodna z nowym stanem. Blokuje hulajnogę (kolejność: najpierw hulajnoga).
+ * `null`: stan bez zmian.
+ */
+async function statusChange(
+  tx: DbExecutor,
+  id: string,
+  to: ScooterStatus,
+): Promise<{ reason: ScooterStatusReason | null; before: ScooterStatusReason | null } | null> {
+  const service = new DrizzleServiceRepository(tx);
+  const scooter = await service.lockScooter(id);
+  if (!scooter) throw notFound('scooter', id);
+  const decision = fleetFormStatusChange({
+    from: scooter.status,
+    to,
+    hasOpenRental: scooter.hasOpenRental,
+    openTasks: scooter.openTasks,
+    blockers: returnCheck(scooter, await service.minBatteryPct()).blockers,
+    serviceHold: await service.serviceHold(id),
+  });
+  return decision ? { reason: decision.reason, before: scooter.statusReason } : null;
 }

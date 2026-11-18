@@ -14,6 +14,15 @@ export function bearerToken(headers: AuthenticatedRequest['headers']): string | 
   return match?.[1] ?? null;
 }
 
+/** Rodzaj tokenu przed weryfikacją (punkt dla klienta i operatora); podpis sprawdza potem `verify`. */
+function tokenType(token: string): unknown {
+  try {
+    return (JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8')) as { typ?: unknown }).typ;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Jeden strażnik dla całego API (ADR 0035): czyta deklarację dostępu z dekoratora, weryfikuje token
  * i uprawnienia. Punkt HTTP bez deklaracji jest odrzucany, żeby brak `@RequirePermission` był błędem.
@@ -46,7 +55,7 @@ export class AuthGuard implements CanActivate {
     if (!token) throw unauthenticated('TOKEN_MISSING');
     const now = new Date();
 
-    if (access.kind === 'customer') {
+    if (access.kind === 'customer' || (access.kind === 'customerOrStaff' && tokenType(token) === 'customer')) {
       const claims = this.jwt.verify(token, 'customer', now);
       request.principal = { kind: 'customer', userId: claims.sub, sessionId: claims.sid! };
       return true;
@@ -55,7 +64,7 @@ export class AuthGuard implements CanActivate {
     const claims = this.jwt.verify(token, 'staff', now);
     const state = await this.staffPermissions.get(claims.sub);
     if (!state.active) throw unauthenticated('STAFF_INACTIVE');
-    for (const permission of access.permissions) state.permissions.require(permission);
+    for (const permission of access.kind === 'staff' ? access.permissions : []) state.permissions.require(permission);
     request.principal = { kind: 'staff', staffId: claims.sub, sessionId: claims.sid! };
     return true;
   }

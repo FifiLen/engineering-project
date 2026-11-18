@@ -3,12 +3,16 @@ import { AccessModule } from './access/access.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CONFIG, type AppConfig } from './config.js';
 import { DatabaseModule } from './database/database.module.js';
+import { FilesModule } from './files/files.module.js';
 import { FleetModule } from './fleet/fleet.module.js';
 import { HealthController } from './health/health.controller.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { MqttModule } from './mqtt/mqtt.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
+import { OperationsModule } from './operations/operations.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { RentalsModule } from './rentals/rentals.module.js';
+import { SimulatorModule } from './simulator/simulator.module.js';
 import { TelemetryModule } from './telemetry/telemetry.module.js';
 import { ZonesModule } from './zones/zones.module.js';
 
@@ -22,14 +26,18 @@ export class AppModule {
       imports: [
         DatabaseModule,
         JobsModule,
+        NotificationsModule,
         AuthModule,
         AccessModule,
         MqttModule,
         RealtimeModule,
+        FilesModule,
         ZonesModule,
         FleetModule,
+        OperationsModule,
         RentalsModule,
         TelemetryModule,
+        SimulatorModule,
       ],
       controllers: [HealthController],
       providers: [{ provide: CONFIG, useValue: config }],

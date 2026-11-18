@@ -1,4 +1,4 @@
-import { auditEntry, type AuditEntry } from '@hulajnogi/core';
+import { auditEntry, systemAuditEntry, type AuditEntry } from '@hulajnogi/core';
 import { type Database, type DbExecutor, DrizzleAuditLogRepository, rethrowDatabaseRule } from '@hulajnogi/db';
 import { Inject, Injectable } from '@nestjs/common';
 import { DB } from '../database/database.module.js';
@@ -10,6 +10,16 @@ export interface AuditScope {
   tx: DbExecutor;
   /** Dopisuje wpis w tej samej transakcji co zmiana (ADR 0028): nie ma zmiany bez wpisu. */
   audit(record: AuditRecord): Promise<void>;
+  /**
+   * Wpis systemu (`actor = SYSTEM`, ADR 0055) w tej samej transakcji: skutek reguły, nie decyzja operatora
+   * (np. automatyczne `MAINTENANCE`, powrót do floty po ostatnim zadaniu).
+   */
+  system(record: AuditRecord): Promise<void>;
+}
+
+/** Wpis systemu w transakcji bez operatora (zadanie w tle, zgłoszenie klienta, zakończenie przejazdu). */
+export function systemAudit(tx: DbExecutor, record: AuditRecord): Promise<void> {
+  return new DrizzleAuditLogRepository(tx).appendSystem(systemAuditEntry(record));
 }
 
 /**
@@ -24,7 +34,11 @@ export class AuditedTransaction {
     try {
       return await this.db.transaction((tx) => {
         const log = new DrizzleAuditLogRepository(tx);
-        return work({ tx, audit: (record) => log.append(auditEntry({ ...record, staffId })) });
+        return work({
+          tx,
+          audit: (record) => log.append(auditEntry({ ...record, staffId })),
+          system: (record) => log.appendSystem(systemAuditEntry(record)),
+        });
       });
     } catch (error) {
       rethrowDatabaseRule(error);

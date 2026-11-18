@@ -90,7 +90,8 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
     await adminApi({ method: 'PATCH', url: `/admin/scooters/${scooterId}`, payload: { version: 2, status: 'MAINTENANCE' } });
     const history = (await adminApi({ method: 'GET', url: `/admin/scooters/${scooterId}/history` })).json<shared.AuditLogDetails[]>();
     expect(history.map((h) => [h.action, h.staffName, h.data.changes])).toEqual([
-      ['scooter.status_changed', 'Piotr Mazur', { status: ['AVAILABLE', 'MAINTENANCE'] }],
+      // Formularz floty zapisuje przyczynę serwisu (`OTHER`) razem ze stanem (ADR 0055).
+      ['scooter.status_changed', 'Piotr Mazur', { status: ['AVAILABLE', 'MAINTENANCE'], statusReason: [null, 'OTHER'] }],
       ['scooter.updated', 'Piotr Mazur', { firmware: ['v2.4.1', 'v2.4.2'] }],
     ]);
     // Konflikt wersji nie zostawia wpisu: zmiana i wpis są w jednej transakcji.

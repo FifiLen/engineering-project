@@ -1,9 +1,11 @@
 import {
   nearbyQuerySchema,
   notificationPreferencesSchema,
+  parkingPhotoSchema,
   rentalRequestSchema,
   type NearbyQuery,
   type NotificationPreferences,
+  type ParkingPhotoRequest,
   type RentalRequest,
 } from '@hulajnogi/shared';
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Res } from '@nestjs/common';
@@ -119,10 +121,23 @@ export class RentalsController {
   @HttpCode(202)
   @ApiOperation({
     summary:
-      'Zakończenie w strefie parkowania: ENDING, ENDED po potwierdzeniu blokady; poza strefą 422 OUTSIDE_PARKING',
+      'Zakończenie w strefie parkowania: ENDING, ENDED po potwierdzeniu blokady; poza strefą 422 OUTSIDE_PARKING. Hulajnoga offline (ADR 0056): ostatnia pozycja najwyżej 120 s (422 POSITION_STALE), naliczanie do żądania, blokada czeka 10 min, potem END_UNCONFIRMED; zdjęcie parkowania wymagane',
   })
   end(@CurrentCustomer() customer: CustomerPrincipal) {
     return this.rentals.end(customer.userId);
+  }
+
+  @Post('rentals/:id/parking-photo')
+  @ApiOperation({
+    summary:
+      'Zdjęcie parkowania po zakończeniu (ADR 0057): plik z POST /files z celem PARKING_PHOTO; RENTAL_NOT_ENDED, PARKING_PHOTO_EXISTS, FILE_ALREADY_ATTACHED (409)',
+  })
+  addParkingPhoto(
+    @CurrentCustomer() customer: CustomerPrincipal,
+    @Param('id', idParam) id: string,
+    @Body(new ZodPipe(parkingPhotoSchema)) body: ParkingPhotoRequest,
+  ) {
+    return this.rentals.addParkingPhoto(customer.userId, id, body.fileId);
   }
 
   @Get('rentals')

@@ -60,6 +60,9 @@ describe.skipIf(!adminUrl)('API: zadania w tle (pg-boss)', () => {
     expect(schedules.rows.map((r) => r.name)).toEqual([
       'auth.purge',
       'commands.timeout-sweep',
+      'files.cleanup',
+      'files.retention',
+      'notifications.sweep',
       'payments.reconcile',
       'rentals.expire-sweep',
       'telemetry.partitions',

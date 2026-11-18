@@ -14,6 +14,8 @@ export class MqttService implements OnApplicationBootstrap, OnApplicationShutdow
   private readonly logger = new Logger(MqttService.name);
   private client: MqttClient | null = null;
   private readonly handlers: MqttHandler[] = [];
+  /** Tematy spoza kontraktu urządzeń zgłoszone przez moduły (np. stan symulatora, ADR 0059). */
+  private readonly extraTopics = new Set<string>();
   /** Publikacje przy wyłączonym MQTT (testy). */
   readonly published: Array<{ topic: string; payload: unknown }> = [];
 
@@ -33,10 +35,15 @@ export class MqttService implements OnApplicationBootstrap, OnApplicationShutdow
     });
     this.client.on('connect', () => {
       this.logger.log(`Połączono z brokerem ${this.config.MQTT_URL}`);
-      this.client!.subscribe([topics.allTelemetry, topics.allStatus, topics.allAcks], { qos: 1 });
+      this.client!.subscribe([topics.allTelemetry, topics.allStatus, topics.allAcks, ...this.extraTopics], { qos: 1 });
     });
     this.client.on('error', (error) => this.logger.warn(`MQTT: ${error.message}`));
     this.client.on('message', (topic, payload) => this.dispatch(topic, payload));
+  }
+
+  /** Dodatkowa subskrypcja przy każdym połączeniu; moduły zgłaszają ją w `onModuleInit`, przed połączeniem. */
+  subscribe(topic: string): void {
+    this.extraTopics.add(topic);
   }
 
   onMessage(handler: MqttHandler): void {

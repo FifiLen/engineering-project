@@ -6,7 +6,9 @@ export type Access =
   | { kind: 'public' }
   | { kind: 'customer' }
   /** Zalogowany operator; `permissions` puste = każdy operator (np. własne dane). */
-  | { kind: 'staff'; permissions: readonly Permission[] };
+  | { kind: 'staff'; permissions: readonly Permission[] }
+  /** Klient albo dowolny aktywny operator; uprawnienie do konkretnej operacji sprawdza serwis (np. cel pliku). */
+  | { kind: 'customerOrStaff' };
 
 export const ACCESS_KEY = 'hulajnogi:access';
 
@@ -22,6 +24,16 @@ export const RequirePermission = (...permissions: [Permission, ...Permission[]])
 
 /** Punkt dla każdego zalogowanego operatora (bez konkretnego uprawnienia). */
 export const StaffAuth = () => SetMetadata(ACCESS_KEY, { kind: 'staff', permissions: [] } satisfies Access);
+
+/** Punkt wspólny dla aplikacji i panelu (wysyłka zdjęć, ADR 0057). */
+export const CustomerOrStaffAuth = () => SetMetadata(ACCESS_KEY, { kind: 'customerOrStaff' } satisfies Access);
+
+/** Klient albo operator z tokenu (tylko w punktach z `@CustomerOrStaffAuth`). */
+export const CurrentPrincipal = createParamDecorator((_: unknown, ctx: ExecutionContext): Principal => {
+  const principal = ctx.switchToHttp().getRequest<AuthenticatedRequest>().principal;
+  if (!principal) throw new Error('CurrentPrincipal użyty w punkcie bez uwierzytelnienia');
+  return principal;
+});
 
 export interface StaffPrincipal {
   kind: 'staff';

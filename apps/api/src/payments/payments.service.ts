@@ -13,6 +13,7 @@ import {
   RIDE_CHARGE_RETRY_MS,
   rideCharge,
   rideReceiptItems,
+  rideWalletEntries,
   shouldRetryRideCharge,
   TOPUP_MAX,
   TOPUP_MIN,
@@ -48,6 +49,7 @@ import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleIn
 import { CONFIG, type AppConfig } from '../config.js';
 import { DB } from '../database/database.module.js';
 import { JOBS, JobsService } from '../jobs/jobs.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { FleetGateway } from '../realtime/fleet.gateway.js';
 import { FakePaymentProvider } from './provider/fake-payment-provider.js';
 import {
@@ -96,6 +98,7 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly jobs: JobsService,
     private readonly gateway: FleetGateway,
+    private readonly notifications: NotificationsService,
   ) {}
 
   onModuleInit(): void {
@@ -341,18 +344,20 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
 
   /**
    * Rozliczenie w transakcji `ENDED` (D4): portfel od razu z paragonem, karta jako płatność `PENDING`
-   * z zadaniem obciążenia. Kwota 0 bez obciążenia.
+   * z zadaniem obciążenia. Kwota 0 bez obciążenia. Zwraca sposób rozliczenia (powiadomienie `ride_ended`
+   * przy karcie wysyła dopiero wynik płatności).
    */
-  async settleRide(tx: DbExecutor, rentalId: string, effects: PaymentEffects): Promise<void> {
+  async settleRide(tx: DbExecutor, rentalId: string, effects: PaymentEffects): Promise<'NONE' | 'WALLET' | 'CARD'> {
     const repo = new DrizzlePaymentRepository(tx);
     const rental = (await repo.settlementRental(rentalId))!;
     const charge = rideCharge(rental.totalAmount ?? 0, rental.paymentSource);
-    if (charge.kind === 'NONE') return;
+    if (charge.kind === 'NONE') return 'NONE';
     if (charge.kind === 'WALLET') {
-      await repo.post({ userId: rental.userId, type: 'RIDE_CHARGE', amount: -charge.amount, rentalId });
+      // Opłata za odholowanie to osobny wpis w tej samej transakcji; saldo może spaść poniżej zera (ADR 0060).
+      await this.postRideCharges(repo, rental);
       await this.issueRideReceipt(tx, rental, 'WALLET', null);
       effects.wallets.add(rental.userId);
-      return;
+      return 'WALLET';
     }
     const payment = await repo.insertPayment({
       userId: rental.userId,
@@ -364,6 +369,7 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
       provider: this.provider.name,
     });
     await this.jobs.sendInTransaction(tx, JOBS.chargeRide, { paymentId: payment.id }, new Date());
+    return 'CARD';
   }
 
   /** Zadanie `payment.charge-ride`: obciążenie zapisanej karty bez udziału klienta (ADR 0050). */
@@ -485,7 +491,7 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
         });
         return { payment, card: card! };
       }
-      await repo.post({ userId, type: 'RIDE_CHARGE', amount: -(rental.totalAmount ?? 0), rentalId });
+      await this.postRideCharges(repo, rental);
       await this.requireHandler().transition(tx, rentalId, 'SETTLE_DEBT', { source: 'WALLET' });
       await this.issueRideReceipt(tx, rental, 'WALLET', null);
       effects.wallets.add(userId);
@@ -528,7 +534,11 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
         if (rental.state === 'UNPAID') {
           await this.requireHandler().transition(tx, rental.id, 'SETTLE_DEBT', { source: 'CARD', paymentId });
         }
-        if (!(await repo.saleReceipt(rental.id))) await this.issueRideReceipt(tx, rental, 'CARD', paymentId);
+        if (!(await repo.saleReceipt(rental.id))) {
+          await this.issueRideReceipt(tx, rental, 'CARD', paymentId);
+          // `ride_ended` przejazdu kartą po paragonie (ADR 0058); spłata zaległości kartą też ma paragon.
+          await this.notifications.rideEnded(tx, rental, true);
+        }
         return true;
       }
       // Odmowa tylko wtedy, gdy przejazd nie jest opłacony inaczej (portfel, inna płatność kartą).
@@ -537,6 +547,8 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
           paymentId,
           failureCode: failure.code,
         });
+        // `payment_failed` (ADR 0058): zaległość do spłaty w aplikacji; jedno na przejazd.
+        await this.notifications.paymentFailed(tx, rental);
         if (shouldRetryRideCharge(await repo.failedRideAttempts(rental.id))) {
           await this.jobs.sendInTransaction(
             tx,
@@ -550,7 +562,14 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
     });
   }
 
-  /** Paragon przejazdu z pozycjami z wyceny i stawką VAT z wersji cennika przejazdu (ADR 0052). */
+  /** Obciążenie portfela za przejazd: `RIDE_CHARGE` i osobny `TOWING_FEE` przez `sp_wallet_post` (ADR 0060). */
+  private async postRideCharges(repo: DrizzlePaymentRepository, rental: SettlementRental): Promise<void> {
+    for (const entry of rideWalletEntries(rental.totalAmount ?? 0, rental.towingFee)) {
+      await repo.post({ userId: rental.userId, type: entry.type, amount: -entry.amount, rentalId: rental.id });
+    }
+  }
+
+  /** Paragon przejazdu z pozycjami z wyceny i stawką VAT z wersji cennika przejazdu (ADR 0052, ADR 0060). */
   private async issueRideReceipt(
     tx: DbExecutor,
     rental: SettlementRental,
@@ -558,7 +577,7 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
     paymentId: string | null,
   ): Promise<void> {
     const tariff = (await new DrizzleTariffRepository(tx).details(rental.tariffId))!;
-    const price = priceRental(tariff, rental);
+    const price = priceRental(tariff, rental, { towingFee: rental.towingFee });
     if (price.total !== rental.totalAmount) {
       this.logger.warn(
         `Paragon przejazdu ${rental.number}: wycena ${price.total} różna od kwoty ${rental.totalAmount}`,
