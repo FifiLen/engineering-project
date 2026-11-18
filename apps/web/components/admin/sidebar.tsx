@@ -1,20 +1,29 @@
 'use client';
 
+import type { ListResponse, SimulatorOverview, TicketListItem } from '@hulajnogi/shared';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ComponentType } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { api } from '../../lib/api';
 import { t } from '../../lib/i18n';
+import { useStaffFeed } from '../../lib/realtime';
 import { useSession } from '../../lib/session';
 import {
+  BoxIcon,
   BrandMark,
+  BriefcaseIcon,
   CardIcon,
+  ChipIcon,
   DocumentIcon,
+  GridIcon,
   ListIcon,
   LogoutIcon,
   MapIcon,
+  NotificationIcon,
   ParkingIcon,
   RouteIcon,
   ScooterIcon,
+  ServiceIcon,
   ShieldIcon,
   TagIcon,
   UsersIcon,
@@ -30,11 +39,25 @@ interface NavItem {
   permission: string;
   /** Inne ścieżki tej samej pozycji (zakładki). */
   also?: string[];
+  /** Pozycja aktywna tylko pod dokładnie tym adresem (pulpit pod `/admin`). */
+  exact?: boolean;
+  /** Licznik przy pozycji (nowe zgłoszenia). */
+  badge?: 'newTickets';
+  /** Pozycja widoczna tylko, gdy API udostępnia ekran (symulator tylko w środowisku deweloperskim, ADR 0059). */
+  feature?: 'simulator';
 }
 
-/** Nawigacja boczna pogrupowana jak w makiecie wzorca widoku tabeli; tylko gotowe ekrany. */
+/**
+ * Nawigacja boczna pogrupowana jak w makietach 27-panel-serwis; tylko gotowe ekrany (Raporty i Wydruki dochodzą
+ * w kolejnych iteracjach).
+ */
 const groups: Array<{ label?: string; items: NavItem[] }> = [
-  { items: [{ href: '/admin/mapa', label: t('admin.nav.map'), Icon: MapIcon, permission: 'scooters.read' }] },
+  {
+    items: [
+      { href: '/admin', label: t('admin.nav.dashboard'), Icon: GridIcon, permission: 'dashboard.read', exact: true },
+      { href: '/admin/mapa', label: t('admin.nav.map'), Icon: MapIcon, permission: 'scooters.read' },
+    ],
+  },
   {
     label: t('admin.nav.operations'),
     items: [
@@ -45,12 +68,33 @@ const groups: Array<{ label?: string; items: NavItem[] }> = [
     ],
   },
   {
+    label: t('admin.nav.service'),
+    items: [
+      {
+        href: '/admin/zgloszenia',
+        label: t('admin.nav.tickets'),
+        Icon: ServiceIcon,
+        permission: 'tickets.read',
+        badge: 'newTickets',
+      },
+      { href: '/admin/zadania', label: t('admin.nav.tasks'), Icon: BriefcaseIcon, permission: 'service.read' },
+      { href: '/admin/czesci', label: t('admin.nav.parts'), Icon: BoxIcon, permission: 'service.read' },
+    ],
+  },
+  {
     label: t('admin.nav.configuration'),
     items: [
       { href: '/admin/strefy', label: t('admin.nav.zones'), Icon: ZonesIcon, permission: 'zones.read' },
       { href: '/admin/cennik', label: t('admin.nav.tariffs'), Icon: TagIcon, permission: 'tariffs.read' },
       { href: '/admin/modele', label: t('admin.nav.models'), Icon: ScooterIcon, permission: 'scooters.read' },
       { href: '/admin/tresci', label: t('admin.nav.content'), Icon: DocumentIcon, permission: 'content.read' },
+      // Szablony, wysłane powiadomienia i tokeny push to zakładki jednej pozycji (makieta szablony-powiadomien).
+      {
+        href: '/admin/powiadomienia',
+        label: t('admin.nav.notifications'),
+        Icon: NotificationIcon,
+        permission: 'content.read',
+      },
     ],
   },
   {
@@ -67,13 +111,74 @@ const groups: Array<{ label?: string; items: NavItem[] }> = [
       },
     ],
   },
+  {
+    label: t('admin.nav.analysis'),
+    items: [
+      {
+        href: '/admin/symulator',
+        label: t('admin.nav.simulator'),
+        Icon: ChipIcon,
+        permission: 'simulator.manage',
+        feature: 'simulator',
+      },
+    ],
+  },
 ];
+
+/** Czy API udostępnia symulator (`GET /admin/simulator/status` zwraca 404 poza środowiskiem deweloperskim). */
+let simulatorAvailable: Promise<boolean> | null = null;
+
+function useSimulatorAvailable(allowed: boolean): boolean {
+  const [available, setAvailable] = useState(false);
+  useEffect(() => {
+    if (!allowed) return;
+    simulatorAvailable ??= api<SimulatorOverview>('/admin/simulator/status')
+      .then((s) => s.enabled)
+      .catch(() => {
+        simulatorAvailable = null;
+        return false;
+      });
+    let current = true;
+    void simulatorAvailable.then((value) => current && setAvailable(value));
+    return () => {
+      current = false;
+    };
+  }, [allowed]);
+  return allowed && available;
+}
+
+/** Liczba nowych zgłoszeń przy pozycji „Zgłoszenia”, odświeżana po zdarzeniu `ticket.updated` (ADR 0055). */
+function useNewTickets(allowed: boolean): number {
+  const [count, setCount] = useState(0);
+  const [revision, setRevision] = useState(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bump = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setRevision((n) => n + 1), 1000);
+  };
+  useStaffFeed(allowed ? { tickets: bump, reconnected: bump } : {});
+  useEffect(() => {
+    if (!allowed) return;
+    const controller = new AbortController();
+    api<ListResponse<TicketListItem>>('/admin/tickets?status=NEW&pageSize=1', { signal: controller.signal })
+      .then((r) => setCount(r.total))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [allowed, revision]);
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+  return allowed ? count : 0;
+}
 
 export function Sidebar() {
   const pathname = usePathname();
   const { staff, can, logout } = useSession();
+  const simulator = useSimulatorAvailable(can('simulator.manage'));
+  const newTickets = useNewTickets(can('tickets.read'));
   const visible = groups
-    .map((group) => ({ ...group, items: group.items.filter((item) => can(item.permission)) }))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => can(item.permission) && (item.feature !== 'simulator' || simulator)),
+    }))
     .filter((group) => group.items.length > 0);
   const initials = staff.name
     .split(/\s+/)
@@ -96,15 +201,24 @@ export function Sidebar() {
       {visible.map((group, i) => (
         <div key={group.label ?? i}>
           {group.label && <div className="nav-group">{group.label}</div>}
-          {group.items.map(({ href, label, Icon, also }) => (
+          {group.items.map(({ href, label, Icon, also, exact, badge }) => (
             <Link
               key={href}
               href={href}
               className="nav-item"
-              aria-current={[href, ...(also ?? [])].some((p) => pathname.startsWith(p)) ? 'page' : undefined}
+              aria-current={
+                (exact ? pathname === href : [href, ...(also ?? [])].some((p) => pathname.startsWith(p)))
+                  ? 'page'
+                  : undefined
+              }
             >
               <Icon />
               {label}
+              {badge === 'newTickets' && newTickets > 0 && (
+                <span className="nav-badge num" aria-label={t('admin.nav.newTickets', { count: newTickets })}>
+                  {newTickets}
+                </span>
+              )}
             </Link>
           ))}
         </div>

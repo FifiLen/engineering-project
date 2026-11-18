@@ -193,10 +193,14 @@ export function buildTimeline(r: RentalAdminDetails): TimelineItem[] {
         tone = 'danger';
       }
       if (action === 'REQUEST_END' && e.zoneCode) detail = t('rentals.timeline.inZone', { zone: e.zoneCode });
-      if (action === 'END_REMOTELY' && remoteEnd)
+      if (action === 'END_REMOTELY' && remoteEnd) {
         detail = t('rentals.timeline.remoteReason', {
           reason: t.dynamic(`rentals.end.reasons.${String(remoteEnd.data.reason)}`).toLowerCase(),
         });
+        // Opłata za odholowanie pobrana przy zdalnym zakończeniu (ADR 0060).
+        if (r.towingFee) detail = `${detail} · ${t('rentals.timeline.towingFee', { fee: formatPln(r.towingFee) })}`;
+      }
+      if (action === 'END_UNCONFIRMED') tone = 'warn';
       items.push({
         key: `${e.at}-${items.length}`,
         at: e.at,
@@ -220,6 +224,29 @@ export function buildTimeline(r: RentalAdminDetails): TimelineItem[] {
       tone = 'warn';
     }
     if (e.type === 'LATE_UNLOCK_LOCKED') tone = 'warn';
+    // Iteracja 6 (ADR 0056): progi baterii, koniec naliczania bez łączności, ruch po zakończeniu offline.
+    if (e.type === 'BATTERY_LOW') {
+      const threshold = typeof e.data.threshold === 'string' ? e.data.threshold : null;
+      if (typeof e.data.batteryPct === 'number')
+        detail = t('rentals.timeline.battery', {
+          pct: e.data.batteryPct,
+          threshold:
+            threshold && t.has(`rentals.timeline.batteryThreshold.${threshold}`)
+              ? t.dynamic(`rentals.timeline.batteryThreshold.${threshold}`)
+              : String(threshold ?? ''),
+        });
+      tone = threshold === 'CRITICAL' ? 'danger' : 'warn';
+    }
+    if (e.type === 'BILLING_STOPPED') {
+      if (typeof e.data.connectionLostAt === 'string')
+        detail = t('rentals.timeline.billingStopped', { time: formatClock(e.data.connectionLostAt) });
+      tone = 'warn';
+    }
+    if (e.type === 'MOVED_AFTER_END') {
+      if (typeof e.data.distanceM === 'number')
+        detail = t('rentals.timeline.movedAfterEnd', { meters: Math.round(e.data.distanceM) });
+      tone = 'warn';
+    }
     if (e.type === 'CONNECTION_RESTORED' && lostAt)
       detail = t('rentals.timeline.restoredAfter', {
         seconds: Math.round((Date.parse(e.at) - Date.parse(lostAt)) / 1000),

@@ -1,6 +1,10 @@
-import { redirect } from 'next/navigation';
+import { DashboardPage } from '../../../components/admin/dashboard/dashboard';
 
-// Pulpit powstaje w iteracji 8; do tego czasu panel otwiera mapę floty.
+/** Pulpit „Wymaga uwagi” (iteracja 6, D1); bez `dashboard.read` panel otwiera mapę floty. */
 export default function AdminPage() {
-  redirect('/admin/mapa');
+  return (
+    <main className="page-main">
+      <DashboardPage />
+    </main>
+  );
 }

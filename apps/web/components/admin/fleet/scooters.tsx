@@ -31,7 +31,20 @@ function location(s: ScooterListItem): string {
 const columns: Column<ScooterListItem>[] = [
   { field: 'number', width: '80px', render: (s) => scooterNumber(s.number) },
   { field: 'variant', width: '80px', render: (s) => valueLabel(scootersResource, 'variant', s.variant) },
-  { field: 'fleetStatus', width: '130px', render: (s) => <StatusPill status={s.fleetStatus} /> },
+  {
+    field: 'fleetStatus',
+    width: '150px',
+    // Przyczyna stanu `MAINTENANCE` i `RETIRED` pod stanem (ADR 0055).
+    render: (s) =>
+      s.statusReason ? (
+        <span className="status-with-reason" title={valueLabel(scootersResource, 'statusReason', s.statusReason)}>
+          <StatusPill status={s.fleetStatus} />
+          <small>{valueLabel(scootersResource, 'statusReason', s.statusReason)}</small>
+        </span>
+      ) : (
+        <StatusPill status={s.fleetStatus} />
+      ),
+  },
   {
     field: 'batteryPct',
     width: '120px',
@@ -50,6 +63,7 @@ const filters: FilterSpec[] = [
   { field: 'batteryPct', kind: 'range' },
   { field: 'lastSeenAt', kind: 'dateRange' },
   { field: 'online', kind: 'boolean' },
+  { field: 'statusReason', kind: 'checklist' },
 ];
 
 /**
@@ -156,6 +170,12 @@ export function ScooterForm({ id }: { id?: string }) {
           <h2>{scooterNumber(s.number)}</h2>
           <StatusPill status={s.fleetStatus} />
           <dl style={{ margin: 0 }}>
+            {s.statusReason && (
+              <div className="kv">
+                <dt>{t('resource.scooters.fields.statusReason')}</dt>
+                <dd>{valueLabel(scootersResource, 'statusReason', s.statusReason)}</dd>
+              </div>
+            )}
             <div className="kv">
               <dt>{t('map.battery')}</dt>
               <dd>

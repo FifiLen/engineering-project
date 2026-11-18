@@ -3,7 +3,8 @@
 /**
  * Zwrot za przejazd (makieta przejazd-zwrot, ADR 0054, pytanie 11): całość albo część kwoty, powód z listy
  * i notatka do dziennika audytu. Cel zwrotu wynika ze źródła płatności przejazdu (karta albo portfel)
- * i nie da się go wybrać.
+ * i nie da się go wybrać. Otwarte ze zgłoszenia (reklamacja) wiąże zwrot ze zgłoszeniem (`ticketId`, ADR 0055),
+ * więc zwrot pojawia się na osi czasu zgłoszenia.
  */
 import { formatPln, REFUND_REASONS, type RefundReason, type RentalAdminDetails } from '@hulajnogi/shared';
 import { useEffect, useRef, useState } from 'react';
@@ -16,12 +17,14 @@ import { customerName } from './rental-parts';
 
 interface RefundDialogProps {
   rental: RentalAdminDetails;
+  /** Zgłoszenie, z którego otwarto okno (reklamacja); zwrot trafia na jego oś czasu. */
+  ticketId?: string | null;
   onClose: () => void;
   /** Szczegóły po zwrocie (odpowiedź API). */
   onRefunded: (rental: RentalAdminDetails, amount: number) => void;
 }
 
-export function RefundDialog({ rental, onClose, onRefunded }: RefundDialogProps) {
+export function RefundDialog({ rental, ticketId = null, onClose, onRefunded }: RefundDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const { settlement, refundable } = rental;
   const [whole, setWhole] = useState(true);
@@ -49,7 +52,7 @@ export function RefundDialog({ rental, onClose, onRefunded }: RefundDialogProps)
     try {
       const next = await api<RentalAdminDetails>(`/admin/rentals/${rental.id}/refund`, {
         method: 'POST',
-        json: { amount, reason, note: note.trim() || null },
+        json: { amount, reason, note: note.trim() || null, ticketId },
       });
       onRefunded(next, amount);
     } catch (e) {

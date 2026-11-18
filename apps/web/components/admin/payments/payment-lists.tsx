@@ -92,9 +92,16 @@ export function LedgerDetails({ entry }: { entry: WalletLedgerItem }) {
   let title: ReactNode = null;
   let detail: ReactNode = null;
   switch (entry.type) {
+    // Opłata za odholowanie: osobny wpis tego samego przejazdu i paragonu (ADR 0060).
     case 'RIDE_CHARGE':
+    case 'TOWING_FEE':
       title = rental;
-      detail = [t('payments.ledger.fromWallet'), entry.receiptNumber].filter(Boolean).join(' · ');
+      detail = [
+        entry.type === 'TOWING_FEE' ? t('payments.ledger.towingFee') : t('payments.ledger.fromWallet'),
+        entry.receiptNumber,
+      ]
+        .filter(Boolean)
+        .join(' · ');
       break;
     case 'TOPUP':
     case 'PAYOUT':

@@ -22,6 +22,7 @@ import { useStaffFeed } from '../../../lib/realtime';
 import { useSession } from '../../../lib/session';
 import { Banner, initials } from '../access/common';
 import { rentalNumber, scooterNumber } from '../fleet/fleet-format';
+import { fileUrl } from '../service/service-format';
 import { BellIcon, ChevronRightIcon, MapIcon, ScooterIcon, StopIcon, UndoIcon } from '../icons';
 import { RentalSettlementCard, settlementPill } from './rental-settlement';
 import { RefundDialog } from './refund-dialog';
@@ -106,6 +107,10 @@ export function RentalDetailsPage({ id }: { id: string }) {
   const battery = live?.batteryPct ?? rental.scooterBatteryPct;
   const lastSeenAt = live?.lastSeenAt ?? scooter?.lastSeenAt ?? null;
   const number = rentalNumber(rental.number);
+  // Opłata za odholowanie (ADR 0060): z zakończenia zdalnego albo z pozycji ceny.
+  const towingFee = rental.towingFee ?? rental.price.towingFee ?? 0;
+  const photo = rental.parkingPhoto ?? null;
+  const showEnding = Boolean(rental.endMode || rental.billingStoppedAt || photo);
 
   const ring = () => {
     setActionError(null);
@@ -247,6 +252,11 @@ export function RentalDetailsPage({ id }: { id: string }) {
                     })}
                   </span>
                 </Line>
+                {towingFee > 0 && (
+                  <Line label={t('rentals.price.towingFee')}>
+                    <span className="num">{formatPln(towingFee)}</span>
+                  </Line>
+                )}
               </div>
               <div className="price-total">
                 <span>
@@ -308,6 +318,44 @@ export function RentalDetailsPage({ id }: { id: string }) {
             </div>
             <Timeline items={timeline} showState />
           </section>
+
+          {showEnding && (
+            <section className="card ending-card">
+              <div className="card-head">
+                <h2>{t('rentals.ending.title')}</h2>
+              </div>
+              <div className="lines">
+                {rental.endMode && (
+                  <Line label={t('rentals.ending.mode')}>
+                    <span>{t.dynamic(`rentals.ending.modes.${rental.endMode}`)}</span>
+                  </Line>
+                )}
+                {rental.billingStoppedAt && (
+                  <Line label={t('rentals.ending.billingStopped')}>
+                    <span className="num">{formatDateTime(rental.billingStoppedAt)}</span>
+                  </Line>
+                )}
+                {towingFee > 0 && (
+                  <Line label={t('rentals.price.towingFee')}>
+                    <span className="num">{formatPln(towingFee)}</span>
+                  </Line>
+                )}
+              </div>
+              {photo && (
+                <figure className="parking-photo">
+                  {fileUrl(photo.url) ? (
+                    // Podpisany adres z API (10 min) z innego pochodzenia, więc zwykły <img>.
+                    <img src={fileUrl(photo.url) ?? undefined} alt={t('rentals.ending.photoAlt', { number })} />
+                  ) : (
+                    <span className="muted">{t('service.photoDeleted')}</span>
+                  )}
+                  <figcaption className="small">
+                    {t('rentals.ending.photo', { time: formatDateTime(photo.createdAt) })}
+                  </figcaption>
+                </figure>
+              )}
+            </section>
+          )}
 
           <section className="card people-card">
             <h2>{t('rentals.people.title')}</h2>

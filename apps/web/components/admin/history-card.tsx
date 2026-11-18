@@ -59,7 +59,7 @@ export function HistoryCard({
                 <span className={i === 0 ? 'dot recent' : 'dot'} aria-hidden="true" />
                 <div>
                   <span>
-                    <b>{e.staffName}</b> {actionLabel(e.action).toLowerCase()}
+                    <b>{e.staffName ?? t('audit.system')}</b> {actionLabel(e.action).toLowerCase()}
                     {fields && <span className="muted">{t('history.fields', { fields })}</span>}
                   </span>
                   <small>{formatDateTime(e.createdAt)}</small>

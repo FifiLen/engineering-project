@@ -1,12 +1,28 @@
 /** Wspólne ustawienia map panelu (mapa floty, trasa przejazdu): styl, wątek roboczy i warstwy stref (ADR 0017). */
 import type { FeatureCollection, MultiPolygon } from 'geojson';
-import type { Map as MapLibreMap } from 'maplibre-gl';
+import type { ExpressionSpecification, Map as MapLibreMap } from 'maplibre-gl';
 
 export const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron';
 /** Wątek roboczy MapLibre kopiowany do public/ przez scripts/maplibre-worker.mjs. */
 export const MAP_WORKER_URL = '/maplibre-gl-worker.mjs';
 
 export type ZoneCollection = FeatureCollection<MultiPolygon, { code: string; type: string; name: string }>;
+
+/**
+ * Kolory typów jak w edytorze stref (makiety 23-panel-strefy, `ZONE_COLOR`): parkowanie kobaltem, wolna jazda kolorem
+ * ostrzeżenia, zakaz kolorem błędu, obszar działania szarym obrysem.
+ */
+const TYPE_COLOR: ExpressionSpecification = [
+  'match',
+  ['get', 'type'],
+  'NO_RIDE',
+  '#C62F2F',
+  'SLOW',
+  '#8F5500',
+  'SERVICE_AREA',
+  '#6B6E75',
+  '#2B3FF5',
+];
 
 /** Źródło `zones` i warstwy stref: wypełnienie (bez obszaru działania) i przerywany obrys. */
 export function addZoneLayers(map: MapLibreMap): void {
@@ -17,8 +33,8 @@ export function addZoneLayers(map: MapLibreMap): void {
     source: 'zones',
     filter: ['!=', ['get', 'type'], 'SERVICE_AREA'],
     paint: {
-      'fill-color': ['match', ['get', 'type'], 'NO_RIDE', '#C62F2F', 'SLOW', '#2B3FF5', '#8F5500'],
-      'fill-opacity': ['match', ['get', 'type'], 'SLOW', 0.06, 0.14],
+      'fill-color': TYPE_COLOR,
+      'fill-opacity': ['match', ['get', 'type'], 'PARKING', 0.14, 'SLOW', 0.08, 0.14],
     },
   });
   map.addLayer({
@@ -26,17 +42,7 @@ export function addZoneLayers(map: MapLibreMap): void {
     type: 'line',
     source: 'zones',
     paint: {
-      'line-color': [
-        'match',
-        ['get', 'type'],
-        'NO_RIDE',
-        '#C62F2F',
-        'SLOW',
-        '#2B3FF5',
-        'SERVICE_AREA',
-        '#6B6E75',
-        '#8F5500',
-      ],
+      'line-color': TYPE_COLOR,
       'line-width': 1.5,
       'line-dasharray': [3, 2],
     },

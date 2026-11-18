@@ -26,7 +26,11 @@ const columns: Column<AuditLogListItem>[] = [
       </span>
     ),
   },
-  { field: 'staffName', width: 'minmax(0,1.3fr)', render: (e) => <Person name={e.staffName} detail={e.staffEmail} /> },
+  {
+    field: 'staffName',
+    width: 'minmax(0,1.3fr)',
+    render: (e) => <Person name={e.staffName ?? t('audit.system')} detail={e.staffEmail} />,
+  },
   {
     field: 'action',
     width: 'minmax(0,1.6fr)',
@@ -42,6 +46,8 @@ const columns: Column<AuditLogListItem>[] = [
 
 const filters: FilterSpec[] = [
   { field: 'entityType', kind: 'checklist' },
+  // Wpisy systemu bez operatora (zgłoszenia automatyczne, zadania pg-boss; ADR 0055).
+  { field: 'actor', kind: 'chips' },
   { field: 'createdAt', kind: 'dateRange' },
 ];
 
@@ -71,6 +77,10 @@ function entityHref(entry: AuditLogListItem): string | null {
     staff: '/admin/operatorzy',
     role: '/admin/role',
     user: '/admin/klienci',
+    rental: '/admin/przejazdy',
+    ticket: '/admin/zgloszenia',
+    service_task: '/admin/zadania',
+    spare_part: '/admin/czesci',
   };
   return paths[entry.entityType] ? `${paths[entry.entityType]}/${entry.entityId}` : null;
 }
@@ -89,7 +99,12 @@ export function AuditEntry({ id }: { id: string }) {
   const changes = (entry.data.changes ?? {}) as Record<string, [unknown, unknown]>;
   const rest = Object.fromEntries(Object.entries(entry.data).filter(([k]) => k !== 'changes'));
   const href = entityHref(entry);
-  const show = (v: unknown) => (v === null || v === undefined || v === '' ? t('common.none') : typeof v === 'object' ? JSON.stringify(v) : String(v));
+  const show = (v: unknown) =>
+    v === null || v === undefined || v === ''
+      ? t('common.none')
+      : typeof v === 'object'
+        ? JSON.stringify(v)
+        : String(v);
 
   return (
     <>
@@ -135,9 +150,11 @@ export function AuditEntry({ id }: { id: string }) {
         </section>
         <div className="col">
           <section className="card side-card">
-            <dl style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '10px 12px', margin: 0, fontSize: 13 }}>
+            <dl
+              style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '10px 12px', margin: 0, fontSize: 13 }}
+            >
               <dt className="muted">{t('audit.staff')}</dt>
-              <dd style={{ margin: 0 }}>{entry.staffName}</dd>
+              <dd style={{ margin: 0 }}>{entry.staffName ?? t('audit.system')}</dd>
               <dt className="muted">{t('audit.action')}</dt>
               <dd style={{ margin: 0 }} className="code">
                 {entry.action}

@@ -346,3 +346,134 @@ export const PersonIcon = (p: P) => (
     <path d="M4.5 20c1.2-3.5 4-5 7.5-5s6.3 1.5 7.5 5" />
   </Icon>
 );
+
+// Iteracja 6 (makiety 27-panel-serwis): pulpit, serwis, magazyn, powiadomienia, symulator.
+
+export const GridIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="4" y="4" width="7" height="7" rx="2" />
+    <rect x="13" y="4" width="7" height="7" rx="2" />
+    <rect x="4" y="13" width="7" height="7" rx="2" />
+    <rect x="13" y="13" width="7" height="7" rx="2" />
+  </Icon>
+);
+
+/** Klucz serwisowy z nawigacji (Zgłoszenia, „Utwórz zadanie”, „Wyślij do serwisu”). */
+export const ServiceIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M14.5 5.5a4 4 0 00-5 5L4 16l4 4 5.5-5.5a4 4 0 005-5l-2.5 2.5-2.5-.5-.5-2.5z" />
+  </Icon>
+);
+
+export const BriefcaseIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="3" y="7" width="18" height="13" rx="2" />
+    <path d="M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M3 12h18M10 12v2h4v-2" />
+  </Icon>
+);
+
+export const BoxIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
+    <path d="M4 7.5l8 4.5 8-4.5M12 12v9" />
+  </Icon>
+);
+
+export const ChipIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="6" y="6" width="12" height="12" rx="2" />
+    <path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4" />
+  </Icon>
+);
+
+export const NotificationIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15z" />
+    <path d="M10 20.5a2 2 0 004 0" />
+  </Icon>
+);
+
+export const WifiOffIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M3 3l18 18" />
+    <path d="M8.5 16.5a5 5 0 017 0M5 12.9a10 10 0 015.2-2.8M14.4 10.2A10 10 0 0119 12.9M2 9.3a15 15 0 014.3-2.6M10.7 5.1A15 15 0 0122 9.3" />
+    <path d="M12 20h.01" />
+  </Icon>
+);
+
+export const BatteryIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="2.5" y="7" width="17" height="10" rx="2.5" />
+    <path d="M22 11v2" />
+    <path d="M6 10.5v3" />
+  </Icon>
+);
+
+export const MuteIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 9v6h4l5 4V5L8 9z" />
+    <path d="M17 9l5 6M22 9l-5 6" />
+  </Icon>
+);
+
+/** Zakaz: „Wyłącz z ruchu”, wjazd w strefę zakazu. */
+export const BanIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M6 6l12 12" />
+  </Icon>
+);
+
+export const PinIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 21s-7-6.2-7-11.5a7 7 0 0114 0C19 14.8 12 21 12 21z" />
+    <circle cx="12" cy="9.5" r="2.5" />
+  </Icon>
+);
+
+export const PlayIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M7 4.5v15l12.5-7.5z" />
+  </Icon>
+);
+
+export const SquareIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="6" y="6" width="12" height="12" rx="2" />
+  </Icon>
+);
+
+export const TruckIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M3 6h11v10H3zM14 10h4l3 3v3h-7" />
+    <circle cx="7" cy="17.5" r="1.8" />
+    <circle cx="17" cy="17.5" r="1.8" />
+  </Icon>
+);
+
+export const WalletIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M19 7V5.5A1.5 1.5 0 0017.5 4H6a2 2 0 000 4h13a1 1 0 011 1v10a1 1 0 01-1 1H6a2 2 0 01-2-2V6" />
+    <path d="M16 14h.01" />
+  </Icon>
+);
+
+export const DownloadIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+  </Icon>
+);
+
+export const ArrowRightIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </Icon>
+);
+
+export const ImageIcon = (p: P) => (
+  <Icon size={14} {...p}>
+    <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+    <path d="M3.5 15l4.5-4 4 3.5 3-2.5 5.5 4.5" />
+    <circle cx="15.5" cy="9.5" r="1.3" />
+  </Icon>
+);

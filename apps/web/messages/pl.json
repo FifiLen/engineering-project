@@ -26,7 +26,16 @@
       "content": "Treści",
       "zones": "Strefy",
       "payments": "Płatności",
-      "tariffs": "Cennik i zasady"
+      "tariffs": "Cennik i zasady",
+      "dashboard": "Pulpit",
+      "service": "Serwis",
+      "tickets": "Zgłoszenia",
+      "tasks": "Zadania",
+      "parts": "Części",
+      "notifications": "Powiadomienia",
+      "simulator": "Symulator",
+      "newTickets": "{count, plural, one {# nowe zgłoszenie} few {# nowe zgłoszenia} other {# nowych zgłoszeń}}",
+      "analysis": "Analiza"
     },
     "auth": {
       "sideTitle": "Panel operatora floty",
@@ -222,7 +231,52 @@
     "NOTHING_TO_PAY_OUT": "Saldo klienta nie ma nic do zwrotu na kartę",
     "PAYMENT_IN_PROGRESS": "Płatność jest w toku; poczekaj na jej wynik",
     "PAYMENT_METHOD_IN_USE": "Karta jest używana w trwającym przejeździe albo zaległości",
-    "WEBHOOK_SIGNATURE_INVALID": "Nieprawidłowy podpis zdarzenia operatora płatności"
+    "WEBHOOK_SIGNATURE_INVALID": "Nieprawidłowy podpis zdarzenia operatora płatności",
+    "FILE_TOO_LARGE": "Plik jest za duży (najwyżej 10 MB)",
+    "FILE_TYPE_NOT_ALLOWED": "Dozwolone są zdjęcia JPEG, PNG i WebP",
+    "FILE_ALREADY_ATTACHED": "Plik jest już przypięty do innego rekordu",
+    "FILE_ATTACHED": "Plik jest przypięty; nie można go usunąć",
+    "FILE_DELETED": "Plik został usunięty",
+    "FILE_PURPOSE_MISMATCH": "Plik ma inny cel niż to miejsce",
+    "FILE_URL_EXPIRED": "Adres zdjęcia wygasł; odśwież widok",
+    "TICKET_CATEGORIES_REQUIRED": "Wybierz co najmniej jedną kategorię",
+    "TICKET_CATEGORY_NOT_ALLOWED": "Tej kategorii nie można wybrać",
+    "TICKET_DESCRIPTION_REQUIRED": "Opis jest wymagany przy tej kategorii",
+    "TICKET_HAS_OPEN_TASKS": "Zgłoszenie ma otwarte zadanie serwisowe; status zmieni zakończenie zadania",
+    "TICKET_RENTAL_MISMATCH": "Zgłoszenie dotyczy innego przejazdu",
+    "TICKET_RENTAL_REQUIRED": "Ta kategoria wymaga przejazdu",
+    "TICKET_REPLY_NOT_ALLOWED": "Odpowiedź można wysłać tylko w zgłoszeniu klienta",
+    "TICKET_REPLY_REQUIRED": "Przy rozwiązaniu zgłoszenia klienta wpisz odpowiedź",
+    "TICKET_RESOLVED": "Zgłoszenie jest już rozwiązane",
+    "TICKET_TOO_MANY_PHOTOS": "Zgłoszenie może mieć najwyżej 3 zdjęcia",
+    "INVALID_TICKET_TRANSITION": "Zgłoszenie jest już w innym stanie. Odśwież widok.",
+    "INVALID_TASK_TRANSITION": "Zadanie jest już w innym stanie. Odśwież widok.",
+    "TASK_ASSIGNED_TO_OTHER": "Zadanie jest przypisane do innego serwisanta",
+    "TASK_CLOSED": "Zadanie jest już zamknięte",
+    "TASK_NOT_IN_PROGRESS": "Części można zmieniać tylko w zadaniu w toku",
+    "SERVICE_TASK_TYPE_OPEN": "Hulajnoga ma już otwarte zadanie tego rodzaju",
+    "SCOOTER_HAS_OPEN_TASKS": "Hulajnoga ma otwarte zadania serwisowe",
+    "SCOOTER_NOT_IN_MAINTENANCE": "Hulajnoga nie jest w serwisie",
+    "RETURN_TO_FLEET_BLOCKED": "Hulajnoga nie może wrócić do floty: sprawdź zadania, łączność i baterię",
+    "ALREADY_IN_STATE": "Rekord jest już w tym stanie",
+    "NO_CHANGE": "Nic się nie zmieniło",
+    "PART_INACTIVE": "Część jest zarchiwizowana",
+    "PART_OUT_OF_STOCK": "Za mało części w magazynie",
+    "PART_RETURN_EXCEEDS": "Nie można zwrócić więcej części, niż użyto w zadaniu",
+    "PART_ADJUST_NO_CHANGE": "Nowy stan jest taki sam jak obecny",
+    "TEMPLATE_SYNTAX_ERROR": "Błąd składni szablonu",
+    "TEMPLATE_UNKNOWN_PARAM": "Szablon używa nieznanego parametru",
+    "TEMPLATE_UNKNOWN_OPTION": "Szablon używa nieznanej wartości wyboru",
+    "TEMPLATE_MISSING_PARAM": "Szablon musi zawierać wymagany parametr",
+    "TEMPLATE_PARAM_TYPE": "Parametr ma inny typ niż w szablonie",
+    "TEMPLATE_TOO_LONG": "Treść jest za długa",
+    "TEMPLATE_RENDER_FAILED": "Nie udało się przygotować podglądu",
+    "TEMPLATE_UNKNOWN": "Nieznany szablon",
+    "TEMPLATE_MISSING": "Brak szablonu powiadomienia",
+    "SIMULATOR_UNAVAILABLE": "Symulator nie odpowiada; polecenie nie zostało wysłane",
+    "TOWING_FEE_NOT_APPLICABLE": "Hulajnoga stoi w strefie parkowania; opłata za odholowanie nie przysługuje",
+    "POSITION_STALE": "Ostatnia pozycja hulajnogi jest zbyt stara",
+    "OUTSIDE_PARKING": "Hulajnoga stoi poza strefą parkowania"
   },
   "fleetStatus": {
     "AVAILABLE": "Dostępna",
@@ -319,7 +373,9 @@
         "odometerM": "Przebieg",
         "firmware": "Oprogramowanie",
         "lat": "Szerokość",
-        "lon": "Długość"
+        "lon": "Długość",
+        "statusReason": "Przyczyna stanu",
+        "statusChangedAt": "Zmiana stanu"
       },
       "hints": {
         "number": "Numer na hulajnodze i w tematach MQTT, od 1 do 9999",
@@ -342,6 +398,16 @@
         "online": {
           "true": "Online",
           "false": "Offline"
+        },
+        "statusReason": {
+          "URGENT_TICKET": "Pilne zgłoszenie",
+          "SERVICE_TASK": "Zadanie serwisowe",
+          "BATTERY_BELOW_THRESHOLD": "Bateria poniżej progu",
+          "OFFLINE": "Brak łączności",
+          "THEFT": "Kradzież",
+          "DAMAGE": "Zniszczenie",
+          "END_OF_LIFE": "Koniec eksploatacji",
+          "OTHER": "Inny powód"
         }
       }
     },
@@ -588,7 +654,8 @@
         "staffEmail": "E-mail operatora",
         "action": "Akcja",
         "entityType": "Obiekt",
-        "entityId": "Identyfikator obiektu"
+        "entityId": "Identyfikator obiektu",
+        "actor": "Autor"
       },
       "values": {
         "entityType": {
@@ -598,7 +665,21 @@
           "role": "Rola",
           "user": "Klient",
           "legal_document": "Dokument",
-          "zone": "Strefa"
+          "zone": "Strefa",
+          "tariff": "Cennik",
+          "rental": "Przejazd",
+          "wallet": "Portfel",
+          "refund": "Zwrot",
+          "ticket": "Zgłoszenie",
+          "service_task": "Zadanie serwisowe",
+          "spare_part": "Część",
+          "notification_template": "Szablon powiadomienia",
+          "file": "Plik",
+          "simulator": "Symulator"
+        },
+        "actor": {
+          "STAFF": "Operator",
+          "SYSTEM": "System"
         }
       }
     },
@@ -826,7 +907,8 @@
           "RIDE_CHARGE": "Przejazd",
           "REFUND": "Zwrot",
           "ADJUSTMENT": "Korekta",
-          "PAYOUT": "Zwrot salda"
+          "PAYOUT": "Zwrot salda",
+          "TOWING_FEE": "Odholowanie"
         },
         "reason": {
           "COMPLAINT": "Reklamacja",
@@ -1008,6 +1090,456 @@
           "RIDE": "Przejazd"
         }
       }
+    },
+    "tickets": {
+      "title": "Zgłoszenia",
+      "searchPlaceholder": "Numer, hulajnoga lub klient",
+      "new": "Nowe zgłoszenie",
+      "emptyTitle": "Nie ma zgłoszeń",
+      "emptyBody": "Zgłoszenia przychodzą z aplikacji, z systemu (brak łączności, bateria, strefa) i od operatorów.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "number": "Numer",
+        "status": "Stan",
+        "urgent": "Pilność",
+        "categories": "Zgłoszenie",
+        "source": "Źródło",
+        "autoKind": "Rodzaj automatycznego",
+        "description": "Opis",
+        "scooterId": "Hulajnoga",
+        "scooterNumber": "Hulajn.",
+        "scooterStatus": "Stan hulajnogi",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "reportedBy": "Zgłaszający",
+        "reporterName": "Zgłaszający",
+        "reporterPhone": "Telefon zgłaszającego",
+        "assigneeId": "Przypisany",
+        "assigneeName": "Przypisany",
+        "photos": "Zdjęcia",
+        "openTasks": "Otwarte zadania",
+        "serviceTaskId": "Zadanie",
+        "serviceTaskNumber": "Zadanie",
+        "serviceTaskStatus": "Stan zadania",
+        "refundedAmount": "Zwrócono",
+        "customerReply": "Odpowiedź dla klienta",
+        "customerReplyAt": "Odpowiedź wysłana",
+        "customerReplyReadAt": "Odpowiedź przeczytana",
+        "resolutionNote": "Notatka rozwiązania",
+        "createdAt": "Zgłoszono",
+        "updatedAt": "Ostatnia zmiana",
+        "resolvedAt": "Rozwiązano",
+        "ageSeconds": "Wiek",
+        "version": "Wersja"
+      },
+      "values": {
+        "status": {
+          "NEW": "Nowe",
+          "IN_PROGRESS": "W trakcie",
+          "AT_SERVICE": "W serwisie",
+          "RESOLVED": "Rozwiązane"
+        },
+        "urgent": {
+          "true": "Pilne",
+          "false": "Zwykłe"
+        },
+        "categories": {
+          "BRAKES": "Hamulce",
+          "LIGHTS": "Światła",
+          "WHEEL": "Koło",
+          "HANDLEBAR": "Kierownica",
+          "QR_CODE": "Kod QR",
+          "BATTERY": "Bateria",
+          "CONNECTION": "Brak łączności",
+          "OTHER": "Inne",
+          "BILLING": "Rozliczenie",
+          "OUT_OF_ZONE": "Poza strefą"
+        },
+        "source": {
+          "USER": "Klient",
+          "AUTO": "Automatyczne",
+          "STAFF": "Operator"
+        },
+        "autoKind": {
+          "OFFLINE": "Brak łączności",
+          "BATTERY_CRITICAL": "Krytyczna bateria",
+          "OUT_OF_ZONE": "Poza strefą"
+        },
+        "scooterStatus": {
+          "AVAILABLE": "Dostępna",
+          "RESERVED": "Zarezerwowana",
+          "IN_USE": "W użyciu",
+          "MAINTENANCE": "Serwis",
+          "RETIRED": "Wycofana"
+        },
+        "serviceTaskStatus": {
+          "OPEN": "Otwarte",
+          "IN_PROGRESS": "W toku",
+          "DONE": "Zakończone",
+          "CANCELLED": "Anulowane"
+        }
+      },
+      "summary": "{count, plural, one {# zgłoszenie} few {# zgłoszenia} other {# zgłoszeń}}",
+      "summaryOpen": "{open, plural, one {# otwarte} few {# otwarte} other {# otwartych}}: {fresh, plural, one {# nowe} few {# nowe} other {# nowych}}, {urgent, plural, one {# pilne} few {# pilne} other {# pilnych}}",
+      "quick": {
+        "open": "Otwarte"
+      }
+    },
+    "service-tasks": {
+      "title": "Zadania serwisowe",
+      "searchPlaceholder": "Numer lub hulajnoga",
+      "new": "Nowe zadanie",
+      "emptyTitle": "Nie ma zadań serwisowych",
+      "emptyBody": "Zadanie powstaje ze zgłoszenia, z karty hulajnogi („Wyślij do serwisu”) albo automatycznie.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "number": "Numer",
+        "type": "Rodzaj",
+        "status": "Stan",
+        "priority": "Priorytet",
+        "description": "Opis",
+        "resultNote": "Notatka z naprawy",
+        "cancelReason": "Powód anulowania",
+        "scooterId": "Hulajnoga",
+        "scooterNumber": "Hulajn.",
+        "scooterStatus": "Stan hulajnogi",
+        "assigneeId": "Przypisany",
+        "assigneeName": "Przypisany",
+        "createdBy": "Utworzył",
+        "createdByName": "Utworzył",
+        "dueAt": "Termin",
+        "overdue": "Po terminie",
+        "ticketId": "Zgłoszenie",
+        "ticketNumber": "Zgłoszenie",
+        "ticketCategories": "Kategorie zgłoszenia",
+        "targetZoneId": "Strefa docelowa",
+        "targetZoneCode": "Strefa docelowa",
+        "targetZoneName": "Strefa docelowa",
+        "targetLat": "Cel: szerokość",
+        "targetLon": "Cel: długość",
+        "partsCount": "Pozycje części",
+        "partsCost": "Części",
+        "cancelledBy": "Anulował",
+        "cancelledByName": "Anulował",
+        "createdAt": "Utworzono",
+        "startedAt": "Rozpoczęto",
+        "completedAt": "Zakończono",
+        "updatedAt": "Ostatnia zmiana",
+        "version": "Wersja"
+      },
+      "values": {
+        "type": {
+          "REPAIR": "Naprawa",
+          "BATTERY_SWAP": "Wymiana baterii",
+          "INSPECTION": "Przegląd",
+          "RELOCATION": "Przewiezienie"
+        },
+        "status": {
+          "OPEN": "Otwarte",
+          "IN_PROGRESS": "W toku",
+          "DONE": "Zakończone",
+          "CANCELLED": "Anulowane"
+        },
+        "priority": {
+          "LOW": "Niski",
+          "NORMAL": "Normalny",
+          "HIGH": "Wysoki"
+        },
+        "overdue": {
+          "true": "Po terminie",
+          "false": "W terminie"
+        },
+        "scooterStatus": {
+          "AVAILABLE": "Dostępna",
+          "RESERVED": "Zarezerwowana",
+          "IN_USE": "W użyciu",
+          "MAINTENANCE": "Serwis",
+          "RETIRED": "Wycofana"
+        },
+        "ticketCategories": {
+          "BRAKES": "Hamulce",
+          "LIGHTS": "Światła",
+          "WHEEL": "Koło",
+          "HANDLEBAR": "Kierownica",
+          "QR_CODE": "Kod QR",
+          "BATTERY": "Bateria",
+          "CONNECTION": "Brak łączności",
+          "OTHER": "Inne",
+          "BILLING": "Rozliczenie",
+          "OUT_OF_ZONE": "Poza strefą"
+        }
+      },
+      "summary": "{count, plural, one {# zadanie} few {# zadania} other {# zadań}}",
+      "summaryTodo": "{todo} do zrobienia, {overdue} po terminie",
+      "quick": {
+        "todo": "Do zrobienia"
+      }
+    },
+    "spare-parts": {
+      "title": "Części",
+      "searchPlaceholder": "Nazwa lub SKU",
+      "new": "Nowa część",
+      "newTitle": "Nowa część",
+      "editTitle": "Część {sku}",
+      "emptyTitle": "Magazyn jest pusty",
+      "emptyBody": "Dodaj część, żeby serwisanci mogli ją wpisywać do zadań.",
+      "bulkRemove": "Archiwizuj",
+      "removeTitle": "Archiwizować część?",
+      "removeBody": "Część z ruchami magazynowymi zostanie zarchiwizowana (zniknie z wyboru w zadaniach); nowa część bez ruchów zostanie usunięta.",
+      "removeAction": "Archiwizuj",
+      "fields": {
+        "id": "Identyfikator",
+        "sku": "SKU",
+        "name": "Nazwa",
+        "unitCost": "Cena jedn.",
+        "stockQty": "Stan",
+        "minStockQty": "Minimum",
+        "belowMinimum": "Poniżej minimum",
+        "active": "Aktywna",
+        "used30d": "Zużycie, 30 dni",
+        "lastMovementAt": "Ostatnia zmiana stanu",
+        "lastMovementKind": "Rodzaj ostatniej zmiany",
+        "lastMovementDelta": "Ostatnia zmiana",
+        "lastMovementTaskNumber": "Zadanie ostatniej zmiany",
+        "usedInTasks": "Użyta w zadaniach",
+        "initialQty": "Stan początkowy",
+        "document": "Dokument dostawy",
+        "createdAt": "Utworzono",
+        "updatedAt": "Ostatnia zmiana",
+        "version": "Wersja",
+        "actions": ""
+      },
+      "values": {
+        "belowMinimum": {
+          "true": "Poniżej minimum",
+          "false": "Powyżej minimum"
+        },
+        "active": {
+          "true": "Aktywna",
+          "false": "Nieaktywna"
+        },
+        "usedInTasks": {
+          "true": "Tak",
+          "false": "Nie"
+        },
+        "lastMovementKind": {
+          "RECEIPT": "Dostawa",
+          "ADJUSTMENT": "Korekta",
+          "USE": "Użycie",
+          "RETURN": "Zwrot"
+        }
+      },
+      "summary": "{active, plural, one {# aktywna pozycja} few {# aktywne pozycje} other {# aktywnych pozycji}}, {below} poniżej minimum",
+      "quick": {
+        "active": "Aktywne",
+        "belowMinimum": "Poniżej minimum",
+        "inactive": "Nieaktywne"
+      }
+    },
+    "spare-part-movements": {
+      "title": "Ruchy magazynowe",
+      "searchPlaceholder": "SKU, część, zadanie albo dokument",
+      "new": "",
+      "emptyTitle": "Brak ruchów",
+      "emptyBody": "Ruch powstaje przy przyjęciu dostawy, korekcie stanu i użyciu części w zadaniu.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Numer",
+        "createdAt": "Czas",
+        "partId": "Część",
+        "sku": "SKU",
+        "partName": "Część",
+        "kind": "Rodzaj",
+        "delta": "Zmiana",
+        "stockAfter": "Stan po",
+        "unitCost": "Cena jedn.",
+        "taskId": "Zadanie",
+        "taskNumber": "Zadanie",
+        "scooterId": "Hulajnoga",
+        "scooterNumber": "Hulajnoga",
+        "staffId": "Operator",
+        "staffName": "Operator",
+        "document": "Dokument",
+        "reason": "Powód korekty",
+        "note": "Notatka"
+      },
+      "values": {
+        "kind": {
+          "RECEIPT": "Dostawa",
+          "ADJUSTMENT": "Korekta",
+          "USE": "Użycie",
+          "RETURN": "Zwrot"
+        },
+        "reason": {
+          "STOCKTAKE": "Inwentaryzacja",
+          "DAMAGED": "Uszkodzenie",
+          "LOST": "Zagubienie",
+          "OTHER": "Inny powód"
+        }
+      },
+      "summary": "{count, plural, one {# ruch} few {# ruchy} other {# ruchów}}"
+    },
+    "files": {
+      "title": "Pliki",
+      "searchPlaceholder": "Nazwa, przejazd albo zgłoszenie",
+      "new": "",
+      "emptyTitle": "Brak plików",
+      "emptyBody": "Pliki to zdjęcia zgłoszeń i parkowania.",
+      "bulkRemove": "Usuń",
+      "removeBody": "Usunąć można tylko plik, który nie jest przypięty do zgłoszenia ani przejazdu.",
+      "fields": {
+        "id": "Identyfikator",
+        "purpose": "Cel",
+        "status": "Stan",
+        "contentType": "Typ",
+        "sizeBytes": "Rozmiar",
+        "sha256": "Skrót SHA-256",
+        "originalName": "Nazwa",
+        "uploadedBy": "Klient",
+        "uploadedByName": "Klient",
+        "uploadedByStaff": "Operator",
+        "uploadedByStaffName": "Operator",
+        "createdAt": "Wysłano",
+        "deletedAt": "Usunięto",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "ticketId": "Zgłoszenie",
+        "ticketNumber": "Zgłoszenie",
+        "attached": "Przypięty"
+      },
+      "values": {
+        "purpose": {
+          "PARKING_PHOTO": "Zdjęcie parkowania",
+          "TICKET_PHOTO": "Zdjęcie zgłoszenia",
+          "MEDIA": "Media",
+          "DOCUMENT_TEMPLATE": "Szablon dokumentu",
+          "GENERATED_DOCUMENT": "Wydruk",
+          "REPORT_EXPORT": "Raport"
+        },
+        "status": {
+          "READY": "Dostępny",
+          "DELETED": "Usunięty"
+        },
+        "attached": {
+          "true": "Przypięty",
+          "false": "Nieprzypięty"
+        }
+      }
+    },
+    "notification-templates": {
+      "title": "Powiadomienia",
+      "searchPlaceholder": "Kod albo tytuł",
+      "new": "",
+      "emptyTitle": "Brak szablonów",
+      "emptyBody": "Szablony zakładają dane startowe; kody wyznacza system.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "code": "Kod",
+        "channel": "Kanał",
+        "title": "Tytuł",
+        "body": "Treść",
+        "description": "Opis",
+        "version": "Wersja",
+        "updatedAt": "Ostatnia zmiana",
+        "updatedByName": "Zmienił",
+        "versions": "Wersje",
+        "lastSentAt": "Ostatnie wysłanie",
+        "sent30d": "Wysłane, 30 dni"
+      },
+      "values": {
+        "channel": {
+          "PUSH": "Push",
+          "SMS": "SMS"
+        }
+      }
+    },
+    "notifications": {
+      "title": "Powiadomienia",
+      "searchPlaceholder": "Treść, klient, przejazd albo zgłoszenie",
+      "new": "",
+      "emptyTitle": "Nie wysłano jeszcze powiadomień",
+      "emptyBody": "Powiadomienia wysyła system po zdarzeniach (przejazd, płatność, zgłoszenie).",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Numer",
+        "createdAt": "Utworzono",
+        "sentAt": "Wysłano",
+        "status": "Stan",
+        "channel": "Kanał",
+        "templateCode": "Szablon",
+        "templateVersion": "Wersja szablonu",
+        "title": "Tytuł",
+        "body": "Treść",
+        "error": "Błąd albo powód pominięcia",
+        "dedupeKey": "Klucz deduplikacji",
+        "providerRef": "Identyfikator bramki",
+        "readAt": "Przeczytano",
+        "userId": "Klient",
+        "userName": "Klient",
+        "userPhone": "Telefon klienta",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "ticketId": "Zgłoszenie",
+        "ticketNumber": "Zgłoszenie"
+      },
+      "values": {
+        "status": {
+          "QUEUED": "W kolejce",
+          "SENT": "Wysłane",
+          "FAILED": "Nieudane",
+          "SKIPPED": "Pominięte"
+        },
+        "channel": {
+          "PUSH": "Push",
+          "SMS": "SMS"
+        },
+        "error": {
+          "PREFERENCE_DISABLED": "Wyłączone w preferencjach",
+          "NO_PUSH_TOKEN": "Brak tokenu push",
+          "DeviceNotRegistered": "Urządzenie wyrejestrowane"
+        }
+      },
+      "summary": "{count, plural, one {# powiadomienie} few {# powiadomienia} other {# powiadomień}}"
+    },
+    "push-tokens": {
+      "title": "Powiadomienia",
+      "searchPlaceholder": "Klient, telefon albo token",
+      "new": "",
+      "emptyTitle": "Brak tokenów push",
+      "emptyBody": "Token zapisuje aplikacja po zgodzie na powiadomienia; wylogowanie go usuwa.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "userId": "Klient",
+        "userName": "Klient",
+        "userPhone": "Telefon",
+        "platform": "Platforma",
+        "expoToken": "Token Expo",
+        "sessionId": "Sesja",
+        "sessionActive": "Sesja",
+        "createdAt": "Zapisano",
+        "lastSeenAt": "Ostatnio"
+      },
+      "values": {
+        "platform": {
+          "IOS": "iOS",
+          "ANDROID": "Android"
+        },
+        "sessionActive": {
+          "true": "Aktywna",
+          "false": "Zakończona"
+        }
+      },
+      "summary": "{count, plural, one {# token} few {# tokeny} other {# tokenów}}"
     }
   },
   "history": {
@@ -1023,7 +1555,10 @@
         "updated": "Zmiana hulajnogi",
         "status_changed": "Zmiana statusu",
         "retired": "Wycofanie z floty",
-        "command_sent": "Komenda zdalna"
+        "command_sent": "Komenda zdalna",
+        "sent_to_service": "Wysłanie do serwisu",
+        "returned_to_fleet": "Powrót do floty",
+        "kept_in_service": "Pozostawienie w serwisie"
       },
       "scooter_model": {
         "created": "Dodanie modelu",
@@ -1079,6 +1614,39 @@
       "wallet": {
         "adjusted": "Korekta salda",
         "paid_out": "Zwrot salda na kartę"
+      },
+      "spare_part": {
+        "created": "Nowa część",
+        "updated": "Zmiana części",
+        "received": "Przyjęcie dostawy",
+        "adjusted": "Korekta stanu",
+        "archived": "Archiwizacja części",
+        "deleted": "Usunięcie części"
+      },
+      "notification_template": {
+        "updated": "Nowa wersja szablonu",
+        "restored": "Przywrócenie wersji szablonu"
+      },
+      "simulator": {
+        "command": "Polecenie symulatora"
+      },
+      "ticket": {
+        "created": "Nowe zgłoszenie",
+        "assigned": "Przypisanie zgłoszenia",
+        "status_changed": "Zmiana statusu zgłoszenia",
+        "replied": "Odpowiedź dla klienta",
+        "photo_added": "Dodanie zdjęcia",
+        "photo_removed": "Usunięcie zdjęcia",
+        "auto_closed": "Automatyczne zamknięcie zgłoszenia"
+      },
+      "service_task": {
+        "created": "Nowe zadanie serwisowe",
+        "assigned": "Przypisanie zadania",
+        "started": "Rozpoczęcie zadania",
+        "part_added": "Użycie części",
+        "part_removed": "Zwrot części",
+        "completed": "Zakończenie zadania",
+        "cancelled": "Anulowanie zadania"
       }
     },
     "entityTypes": {
@@ -1100,7 +1668,8 @@
     "staff": "Operator",
     "action": "Akcja",
     "time": "Czas",
-    "noChanges": "Wpis bez zmienionych pól"
+    "noChanges": "Wpis bez zmienionych pól",
+    "system": "System"
   },
   "access": {
     "tabs": {
@@ -1350,7 +1919,8 @@
       "soFar": "Do tej pory",
       "total": "Razem",
       "note": "Każda rozpoczęta minuta jazdy i pauzy. Naliczanie kończy się przy żądaniu zakończenia, jeśli blokada zostanie potwierdzona.",
-      "paid": "Zapłacono"
+      "paid": "Zapłacono",
+      "towingFee": "Odholowanie"
     },
     "commands": {
       "title": "Komendy MQTT",
@@ -1410,7 +1980,10 @@
         "BATTERY_LOW": "Niska bateria",
         "PHOTO_UPLOADED": "Zdjęcie parkowania",
         "DECLINE_PAYMENT": "Płatność odrzucona",
-        "SETTLE_DEBT": "Spłacono zaległość"
+        "SETTLE_DEBT": "Spłacono zaległość",
+        "END_UNCONFIRMED": "Zakończono bez potwierdzenia",
+        "BILLING_STOPPED": "Naliczanie zatrzymane",
+        "MOVED_AFTER_END": "Ruch po zakończeniu"
       },
       "details": {
         "RESERVE": "w aplikacji",
@@ -1423,7 +1996,9 @@
         "REQUEST_END": "komenda Zablokuj",
         "COMPLETE_END": "blokada potwierdzona",
         "CONNECTION_LOST": "naliczanie bez zmian",
-        "LATE_UNLOCK_LOCKED": "hulajnoga zablokowana ponownie"
+        "LATE_UNLOCK_LOCKED": "hulajnoga zablokowana ponownie",
+        "END_UNCONFIRMED": "blokada niepotwierdzona w 10 min, naliczanie do żądania",
+        "PHOTO_UPLOADED": "zdjęcie od klienta"
       },
       "inZone": "w strefie {zone}",
       "restoredAfter": "po {seconds} s",
@@ -1444,7 +2019,15 @@
         "PARKING": "parkowanie",
         "SLOW": "wolna jazda",
         "NO_RIDE": "zakaz"
-      }
+      },
+      "battery": "{pct}% · {threshold}",
+      "batteryThreshold": {
+        "LOW": "próg z cennika",
+        "CRITICAL": "próg krytyczny, limit 10 km/h"
+      },
+      "billingStopped": "30 min bez łączności od {time}",
+      "movedAfterEnd": "{meters} m od miejsca zakończenia; kwota bez zmian",
+      "towingFee": "opłata za odholowanie {fee}"
     },
     "ackReason": {
       "timeout": "brak odpowiedzi w 10 s",
@@ -1492,10 +2075,21 @@
       "noteRequired": "(wymagana, tylko w dzienniku audytu)",
       "consequences": "Co się stanie",
       "charge": "Klient płaci za czas do teraz: {ride} min jazdy i {pause} min pauzy, razem {total} według cennika w wersji {version}.",
-      "noParkingFee": "Bez opłaty za parkowanie poza strefą, niezależnie od tego, gdzie stoi hulajnoga.",
       "lock": "Hulajnoga {scooter} dostanie komendę blokady. Przejazd kończy się od razu, także bez potwierdzenia.",
       "audit": "Powód i notatka trafią do dziennika audytu, a zakończenie na oś czasu przejazdu.",
-      "submit": "Zakończ przejazd"
+      "submit": "Zakończ przejazd",
+      "towing": {
+        "outside": "Hulajnoga stoi poza strefą parkowania (ostatnia pozycja {time}).",
+        "outsideNoTime": "Hulajnoga stoi poza strefą parkowania.",
+        "collect": "Pobierz opłatę za odholowanie",
+        "fromTariff": "Z cennika w wersji {version}, z chwili startu przejazdu.",
+        "charge": "Osobnym wpisem {fee} za odholowanie.",
+        "receipt": "Paragon przejazdu dostanie pozycję „Opłata za odholowanie”, {fee}.",
+        "relocation": "Powstanie zgłoszenie „Poza strefą” i zadanie Przewiezienie dla {scooter}; do przewiezienia hulajnoga jest w serwisie.",
+        "inParking": "Hulajnoga stoi w strefie parkowania: bez opłaty za odholowanie.",
+        "none": "Bez opłaty za odholowanie.",
+        "submit": "Zakończ i pobierz {fee}"
+      }
     },
     "ringSent": "Hulajnoga {scooter} dostała komendę Dzwonek.",
     "settlement": {
@@ -1547,6 +2141,19 @@
       "submitWallet": "Zwróć {amount} do portfela",
       "exceeds": "Można zwrócić najwyżej {remaining}. Odśwież widok.",
       "done": "Zapisano zwrot {amount} za przejazd {number}."
+    },
+    "ending": {
+      "title": "Zakończenie",
+      "mode": "Tryb",
+      "modes": {
+        "CUSTOMER": "Klient w aplikacji",
+        "CUSTOMER_OFFLINE": "Klient, hulajnoga bez łączności",
+        "REMOTE": "Zdalnie przez operatora",
+        "UNCONFIRMED": "Bez potwierdzenia blokady"
+      },
+      "billingStopped": "Naliczanie zatrzymane",
+      "photo": "Zdjęcie parkowania, {time}",
+      "photoAlt": "Zdjęcie parkowania przejazdu {number}"
     }
   },
   "zones": {
@@ -1839,7 +2446,8 @@
       "fromWallet": "z portfela",
       "toWallet": "do portfela",
       "payout": "zwrot salda na kartę · {staff}",
-      "note": "„{note}”"
+      "note": "„{note}”",
+      "towingFee": "odholowanie z portfela"
     },
     "wallets": {
       "cached": "Saldo w portfelu: {amount}",
@@ -1876,7 +2484,8 @@
       "UNLOCK": "Odblokowanie",
       "RIDE_MINUTES": "Jazda",
       "PAUSE_MINUTES": "Pauza",
-      "REFUND": "Zwrot za przejazd"
+      "REFUND": "Zwrot za przejazd",
+      "TOWING_FEE": "Opłata za odholowanie"
     },
     "net": "Netto",
     "vat": "VAT",
@@ -2112,6 +2721,768 @@
       "keep": "Rezerwacje i przejazdy rozpoczęte wcześniej zostają przy wersji {version}.",
       "audit": "Utworzenie wersji trafi do dziennika audytu. Do {date} wersję {version} można usunąć.",
       "auditNow": "Utworzenie wersji trafi do dziennika audytu. Obowiązującej wersji nie można usunąć; pomyłkę poprawia kolejna wersja."
+    }
+  },
+  "service": {
+    "customer": "Klient",
+    "system": "System",
+    "unassigned": "nieprzypisane",
+    "noTicket": "bez zgłoszenia",
+    "photoCount": "{count, plural, one {# zdjęcie} few {# zdjęcia} other {# zdjęć}}",
+    "photoDeleted": "Zdjęcie usunięte po 30 dniach",
+    "photoAlt": "Zdjęcie {index} zgłoszenia {number}",
+    "age": {
+      "minutes": "{value} min",
+      "hours": "{value} h",
+      "yesterday": "wczoraj",
+      "days": "{value, plural, one {# dzień} other {# dni}}"
+    },
+    "ticketStatus": {
+      "NEW": "Nowe",
+      "IN_PROGRESS": "W trakcie",
+      "AT_SERVICE": "W serwisie",
+      "RESOLVED": "Rozwiązane"
+    },
+    "category": {
+      "BRAKES": "Hamulce",
+      "LIGHTS": "Światła",
+      "WHEEL": "Koło",
+      "HANDLEBAR": "Kierownica",
+      "QR_CODE": "Kod QR",
+      "BATTERY": "Bateria",
+      "CONNECTION": "Brak łączności",
+      "OTHER": "Inne",
+      "BILLING": "Rozliczenie",
+      "OUT_OF_ZONE": "Poza strefą"
+    },
+    "urgent": "Pilne",
+    "source": {
+      "USER": "Klient",
+      "AUTO": "Automatyczne",
+      "STAFF": "Operator"
+    },
+    "autoKind": {
+      "OFFLINE": "Brak łączności",
+      "BATTERY_CRITICAL": "Krytyczna bateria",
+      "OUT_OF_ZONE": "Poza strefą"
+    },
+    "taskType": {
+      "REPAIR": "Naprawa",
+      "BATTERY_SWAP": "Wymiana baterii",
+      "INSPECTION": "Przegląd",
+      "RELOCATION": "Przewiezienie"
+    },
+    "taskStatus": {
+      "OPEN": "Otwarte",
+      "IN_PROGRESS": "W toku",
+      "DONE": "Zakończone",
+      "CANCELLED": "Anulowane"
+    },
+    "priority": {
+      "LOW": "Niski",
+      "NORMAL": "Normalny",
+      "HIGH": "Wysoki"
+    },
+    "statusReason": {
+      "URGENT_TICKET": "Pilne zgłoszenie",
+      "SERVICE_TASK": "Zadanie serwisowe",
+      "BATTERY_BELOW_THRESHOLD": "Bateria poniżej progu",
+      "OFFLINE": "Brak łączności",
+      "THEFT": "Kradzież",
+      "DAMAGE": "Zniszczenie",
+      "END_OF_LIFE": "Koniec eksploatacji",
+      "OTHER": "Inny powód"
+    },
+    "blocker": {
+      "URGENT_TICKET": "Otwarte pilne zgłoszenie",
+      "OPEN_TASKS": "Inne otwarte zadania",
+      "OFFLINE": "Brak łączności",
+      "BATTERY_BELOW_THRESHOLD": "Bateria poniżej progu"
+    },
+    "movementKind": {
+      "RECEIPT": "Dostawa",
+      "ADJUSTMENT": "Korekta",
+      "USE": "Użycie",
+      "RETURN": "Zwrot"
+    },
+    "adjustReason": {
+      "STOCKTAKE": "Inwentaryzacja",
+      "DAMAGED": "Uszkodzenie",
+      "LOST": "Zagubienie",
+      "OTHER": "Inny powód"
+    },
+    "pieces": "{count} szt."
+  },
+  "parts": {
+    "tabs": {
+      "parts": "Części",
+      "movements": "Ruchy magazynowe"
+    },
+    "today": "dziś {time}",
+    "lastMovement": {
+      "RECEIPT": "dostawa",
+      "ADJUSTMENT": "korekta",
+      "USE": "{hasTask, select, true {użycie {task}} other {użycie}}",
+      "RETURN": "{hasTask, select, true {zwrot z {task}} other {zwrot}}"
+    },
+    "lastMovementAt": "{kind}, {when}",
+    "belowMinimum": "Poniżej minimum",
+    "version": "wersja {version}",
+    "modeLabel": "Rodzaj zmiany stanu",
+    "mode": {
+      "receive": "Przyjęcie dostawy",
+      "adjust": "Korekta stanu"
+    },
+    "optionalF": "(opcjonalna)",
+    "optionalM": "(opcjonalny)",
+    "suffix": {
+      "pieces": "szt."
+    },
+    "receive": {
+      "short": "Przyjmij",
+      "title": "Przyjęcie dostawy",
+      "quantity": "Ilość",
+      "quantityHint": "Liczba całkowita większa od zera.",
+      "unitCost": "Cena jednostkowa",
+      "unitCostHint": "Nowa cena dotyczy kolejnych użyć.",
+      "document": "Dokument dostawy",
+      "documentPlaceholder": "np. numer faktury i dostawca",
+      "conseqStock": "Stan wzrośnie o {count} szt. w jednej transakcji z blokadą wiersza; równoczesne użycie w zadaniu poczeka.",
+      "conseqAudit": "Ilość, dokument i cena trafią do dziennika audytu (spare_part.received) i do historii części.",
+      "submit": "Przyjmij {count} szt.",
+      "done": "Przyjęto {count} szt.: {name}"
+    },
+    "adjust": {
+      "title": "Korekta stanu",
+      "newQty": "Nowy stan",
+      "newQtyHint": "Stan policzony w magazynie; musi różnić się od obecnego.",
+      "reason": "Powód",
+      "note": "Notatka",
+      "conseqStock": "Stan zmieni się z {before} na {after} szt. w jednej transakcji z blokadą wiersza.",
+      "conseqAudit": "Nowy stan, powód i notatka trafią do dziennika audytu (spare_part.adjusted) i do historii części.",
+      "submit": "Ustaw stan {count} szt.",
+      "done": "Skorygowano stan: {name}, teraz {count} szt."
+    },
+    "cmp": {
+      "now": "Stan teraz",
+      "afterReceive": "Po przyjęciu",
+      "afterAdjust": "Po korekcie",
+      "min": "minimum {min} szt.",
+      "leavesBelow": "minimum {min} szt. · zniknie z „Poniżej minimum”",
+      "stillBelow": "minimum {min} szt. · nadal poniżej minimum"
+    },
+    "form": {
+      "section": "Część",
+      "skuInvalid": "Wielkie litery, cyfry i myślniki (2–40 znaków)",
+      "hints": {
+        "sku": "Kod magazynowy, np. BRK-PAD-R.",
+        "unitCost": "Cena brutto za sztukę; zmiana dotyczy kolejnych użyć w zadaniach.",
+        "minStockQty": "Poniżej tej liczby część trafia do „Poniżej minimum” i na pulpit.",
+        "initialQty": "Stan początkowy zapisze się jako przyjęcie dostawy.",
+        "active": "Nieaktywnej części nie można dodać do zadania."
+      }
+    },
+    "stock": {
+      "title": "Stan magazynu"
+    },
+    "movements": {
+      "title": "Ostatnie ruchy",
+      "all": "Wszystkie ruchy",
+      "none": "Brak ruchów magazynowych.",
+      "after": "stan {count}"
+    }
+  },
+  "notifications": {
+    "subtitle": "Treści push i SMS z szablonów; zmiana działa od następnego wysłania",
+    "tabs": {
+      "templates": "Szablony",
+      "sent": "Wysłane",
+      "tokens": "Tokeny push",
+      "count": "{count, number}"
+    },
+    "versionShort": "v{version}",
+    "noTitle": "bez tytułu (SMS)",
+    "registryNote": "Kody szablonów wyznacza system (zdarzenia w API); szablonu nie da się dodać ani usunąć w panelu.",
+    "discard": {
+      "title": "Odrzucić niezapisane zmiany?",
+      "body": "Zmiany w bieżącym szablonie nie zostały zapisane. Po przejściu do innego szablonu przepadną.",
+      "action": "Odrzuć zmiany"
+    },
+    "editor": {
+      "unsaved": "Niezapisane zmiany",
+      "readOnly": "Tylko podgląd",
+      "readOnlyHint": "Zmiana treści wymaga uprawnienia do edycji treści.",
+      "meta": "Wersja {version} · {who}, {when}",
+      "params": "Parametry: {params}.",
+      "fields": {
+        "title": "Tytuł",
+        "body": "Treść"
+      },
+      "icu": "(ICU MessageFormat)",
+      "of": " / {max}",
+      "bodyLabel": "Treść szablonu",
+      "discard": "Odrzuć zmiany",
+      "save": "Zapisz jako wersję {version}",
+      "saved": "Zapisano wersję {version}; działa od następnego wysłania.",
+      "conflict": "Ktoś zapisał w międzyczasie nową wersję. Odrzuć zmiany, żeby wczytać aktualną treść.",
+      "fixSyntax": "Popraw błąd składni, żeby zapisać.",
+      "fixIssues": "Popraw zaznaczone problemy, żeby zapisać.",
+      "appliesNext": "Zapis tworzy nową wersję; zmiana działa od następnego wysłania.",
+      "noChanges": "Brak zmian."
+    },
+    "issues": {
+      "at": "Wiersz {line}, znak {column}: {text}",
+      "TEMPLATE_SYNTAX_ERROR": "błąd składni ICU.",
+      "TEMPLATE_UNKNOWN_PARAM": "nieznany parametr {param}; dostępne są tylko parametry z listy.",
+      "TEMPLATE_PARAM_TYPE": "parametr {param} ma inny typ (odmiana tylko dla liczb, bez formatów dat).",
+      "TEMPLATE_UNKNOWN_OPTION": "wartość „{option}” nie występuje w parametrze {param}.",
+      "TEMPLATE_MISSING_PARAM": "brak wymaganego parametru {param}; bez niego wiadomość traci sens.",
+      "TEMPLATE_TOO_LONG": "{field}: {length} znaków, najwyżej {max}.",
+      "VALIDATION_FAILED": "{field}: pole wymagane.",
+      "TEMPLATE_RENDER_FAILED": "nie udało się przygotować podglądu; uzupełnij parametry podglądu."
+    },
+    "syntax": {
+      "EXPECT_ARGUMENT_CLOSING_BRACE": "brak „'}'” zamykającego argument.",
+      "EMPTY_ARGUMENT": "pusty argument „'{}'”.",
+      "MALFORMED_ARGUMENT": "nieprawidłowa nazwa argumentu.",
+      "EXPECT_ARGUMENT_TYPE": "brak rodzaju argumentu po przecinku.",
+      "INVALID_ARGUMENT_TYPE": "nieznany rodzaj argumentu (dozwolone: plural, select, number).",
+      "EXPECT_ARGUMENT_STYLE": "brak stylu argumentu po przecinku.",
+      "EXPECT_SELECT_ARGUMENT_OPTIONS": "brak wariantów w select.",
+      "EXPECT_PLURAL_ARGUMENT_OPTIONS": "brak wariantów w plural.",
+      "EXPECT_SELECT_ARGUMENT_SELECTOR": "brak nazwy wariantu w select.",
+      "EXPECT_PLURAL_ARGUMENT_SELECTOR": "brak nazwy wariantu w plural.",
+      "EXPECT_SELECT_ARGUMENT_SELECTOR_FRAGMENT": "brak treści wariantu w select (w nawiasach klamrowych).",
+      "EXPECT_PLURAL_ARGUMENT_SELECTOR_FRAGMENT": "brak treści wariantu w plural (w nawiasach klamrowych).",
+      "DUPLICATE_SELECT_ARGUMENT_SELECTOR": "powtórzony wariant w select.",
+      "DUPLICATE_PLURAL_ARGUMENT_SELECTOR": "powtórzony wariant w plural.",
+      "MISSING_OTHER_CLAUSE": "brak wariantu other.",
+      "UNCLOSED_QUOTE_IN_ARGUMENT_STYLE": "niezamknięty apostrof."
+    },
+    "params": {
+      "title": "Parametry podglądu",
+      "hint": "przykładowe wartości, nie zapisują się",
+      "kind": {
+        "text": "tekst",
+        "number": "liczba, odmiana",
+        "money": "kwota z API",
+        "boolean": "wybór",
+        "select": "wybór"
+      }
+    },
+    "samples": {
+      "rideNumber": "R-51858",
+      "amount": "12,50 zł",
+      "towingFee": "20,00 zł",
+      "scooterNumber": "#0027",
+      "ticketNumber": "Z-1042",
+      "reply": "Sprawdzamy przejazd, odezwiemy się dziś.",
+      "code": "482913"
+    },
+    "preview": {
+      "title": "Podgląd",
+      "label": "Podgląd powiadomienia na ekranie blokady",
+      "current": "bieżąca treść",
+      "lastValid": "ostatnia poprawna treść",
+      "sms": "SMS",
+      "now": "teraz",
+      "empty": "Podgląd pojawi się po poprawieniu szablonu."
+    },
+    "history": {
+      "title": "Historia",
+      "hint": "dziennik audytu",
+      "seed": "Dane startowe",
+      "current": "obecna",
+      "restore": "Przywróć",
+      "restoreTitle": "Przywrócić wersję {version}?",
+      "restoreBody": "Treść tej wersji zostanie zapisana jako nowa wersja {next}; niezapisane zmiany w edytorze przepadną.",
+      "restored": "Przywrócono treść wersji {from} jako wersję {version}."
+    }
+  },
+  "simulator": {
+    "title": "Symulator floty",
+    "subtitle": "Wirtualne hulajnogi łączą się z brokerem MQTT jak prawdziwe urządzenia",
+    "runningSince": "Działa od {duration}",
+    "uptime": "{hours, plural, =0 {} other {# h }}{minutes} min",
+    "stateAge": "· stan sprzed {seconds} s",
+    "stale": "Symulator nie odpowiada",
+    "offline": "Symulator rozłączony",
+    "unknownZone": "strefy",
+    "point": "punktu",
+    "devOnly": {
+      "title": "Tylko środowisko deweloperskie.",
+      "body": "Polecenia idą przez MQTT simulator/control (publikuje tylko backend) i trafiają do dziennika audytu. Liczba hulajnóg i tempo zmieniają się po restarcie symulatora."
+    },
+    "unavailable": {
+      "title": "Symulator nie jest dostępny",
+      "body": "Sterowanie symulatorem działa tylko w środowisku deweloperskim (SIMULATOR_CONTROL_ENABLED)."
+    },
+    "kpi": {
+      "connected": "Połączone hulajnogi",
+      "connectedValue": "{connected} z {total}",
+      "connectedSub": "{count, plural, =0 {wszystkie bez scenariusza rozłączenia} one {# rozłączona scenariuszem} few {# rozłączone scenariuszem} other {# rozłączonych scenariuszem}}",
+      "telemetry": "Telemetria",
+      "telemetryValue": "{value}/s",
+      "telemetrySub": "co {seconds, number} s",
+      "telemetryNoInterval": "wiadomości na sekundę",
+      "rides": "Przejazdy pokazowe",
+      "ridesSub": "w trakcie, {started} od startu",
+      "ridesPerHour": "w trakcie, {value} na godzinę",
+      "commands": "Komendy od startu",
+      "commandsSub": "{count} bez potwierdzenia"
+    },
+    "new": {
+      "title": "Nowy scenariusz",
+      "oneAtATime": "jedna hulajnoga na raz",
+      "scenario": "Scenariusz",
+      "noRideZone": "Strefa zakazu",
+      "targetKind": "Rodzaj celu",
+      "target": {
+        "zone": "Strefa",
+        "point": "Punkt"
+      },
+      "targetZone": "Strefa docelowa",
+      "lat": "Szerokość",
+      "lon": "Długość",
+      "footer": "Polecenie {action} dla {scooter} na simulator/control",
+      "pickScooter": "Wybierz hulajnogę, żeby uruchomić scenariusz.",
+      "run": "Uruchom dla {scooter}",
+      "runEmpty": "Uruchom"
+    },
+    "scenario": {
+      "disconnect": {
+        "title": "Rozłącz",
+        "body": "Zrywa połączenie MQTT (Last Will). „Przywróć” wraca z buforem trasy."
+      },
+      "silence": {
+        "title": "Milczenie na komendy",
+        "body": "Telemetria płynie, komendy zostają bez potwierdzenia."
+      },
+      "drain": {
+        "title": "Rozładuj do {targetPct}% w {durationS} s",
+        "body": "Bateria spada liniowo; progi z cennika i 5% w przejeździe."
+      },
+      "enter_no_ride": {
+        "title": "Wjazd w strefę zakazu",
+        "body": "Najkrótszą drogą do {zone}."
+      },
+      "goto": {
+        "title": "Jedź do strefy albo punktu",
+        "body": "Cel: strefa z listy albo punkt (współrzędne)."
+      }
+    },
+    "picker": {
+      "label": "Hulajnoga",
+      "placeholder": "Numer hulajnogi",
+      "battery": "bateria {value}%",
+      "none": "Brak hulajnóg"
+    },
+    "active": {
+      "title": "Aktywne scenariusze",
+      "live": "na żywo",
+      "none": "Żadna hulajnoga nie ma teraz scenariusza.",
+      "kind": {
+        "disconnect": "Rozłączona",
+        "silence": "Milczy na komendy",
+        "drain": "Rozładowanie",
+        "goto": "Jedzie do {target}",
+        "enter_no_ride": "Jedzie do strefy zakazu {target}"
+      },
+      "drain": "{battery}% → {target}%, {seconds} s",
+      "silence": "{elapsed} · {count, plural, one {# komenda} few {# komendy} other {# komend}} bez potwierdzenia",
+      "remaining": "zostało {meters} m",
+      "restore": "Przywróć",
+      "stop": "Zatrzymaj"
+    },
+    "recent": {
+      "title": "Ostatnie polecenia",
+      "audit": "Dziennik audytu",
+      "none": "Nie wysłano jeszcze poleceń.",
+      "ok": "Wykonane",
+      "failed": "Odrzucone",
+      "waiting": "Czeka",
+      "noResult": "Bez wyniku"
+    },
+    "commandLabel": {
+      "disconnect": "Rozłącz {scooter}",
+      "restore": "Przywróć {scooter}",
+      "silence": "Milczenie {scooter}",
+      "unsilence": "Koniec milczenia {scooter}",
+      "drain": "Rozładuj {scooter}",
+      "goto": "Jedź {scooter} do {target}",
+      "enter_no_ride": "Wjazd {scooter} do {target}",
+      "cancel": "Zatrzymaj scenariusz {scooter}"
+    },
+    "result": {
+      "sent": "Wysłano: {command}. Czekam na wynik z symulatora.",
+      "ok": "Symulator wykonał: {command}.",
+      "failed": "Symulator odrzucił: {command}. {reason}"
+    },
+    "reasons": {
+      "SCENARIO_ACTIVE": "Na tej hulajnodze trwa już scenariusz.",
+      "NO_SCENARIO": "Hulajnoga nie ma aktywnego scenariusza.",
+      "SCOOTER_NOT_FOUND": "Symulator nie zna tej hulajnogi.",
+      "ZONE_NOT_FOUND": "Symulator nie zna tej strefy.",
+      "ROUTE_NOT_FOUND": "Nie udało się wyznaczyć trasy.",
+      "INVALID_PARAMS": "Nieprawidłowe parametry polecenia.",
+      "EXPIRED": "Polecenie wygasło przed wykonaniem.",
+      "unknown": "Nieznany powód."
+    }
+  },
+  "tickets": {
+    "title": "Zgłoszenie {number}",
+    "preview": "Zgłoszenie {number}",
+    "assignee": "Przypisany",
+    "unassignedOption": "Nieprzypisane",
+    "assignMe": "Przypisz mnie",
+    "assigned": "przypisane do",
+    "change": "Zmień",
+    "enlarge": "Powiększ",
+    "scooter": "Hulajnoga",
+    "rental": "Przejazd",
+    "task": "Zadanie",
+    "noTask": "brak",
+    "history": "Historia",
+    "fullTimeline": "Cała oś czasu",
+    "details": "Szczegóły",
+    "createTask": "Utwórz zadanie",
+    "taskCreated": "Utworzono zadanie {number}",
+    "rentalButton": "Przejazd {number}",
+    "refund": "Zwrot za przejazd",
+    "noPhotos": "bez zdjęć",
+    "noDescription": "Zgłoszenie bez opisu.",
+    "origin": {
+      "app": "w aplikacji",
+      "appRental": "w aplikacji z przejazdu",
+      "staff": "zgłoszenie operatora"
+    },
+    "sub": {
+      "rental": "przejazd {number}",
+      "scooter": "hulajnoga {number}",
+      "created": "zgłoszone {date}"
+    },
+    "card": {
+      "ticket": "Zgłoszenie",
+      "settlement": "Rozliczenie przejazdu"
+    },
+    "settlement": {
+      "byCard": "kartą {card}",
+      "byWallet": "z portfela",
+      "refunded": "zwrócono",
+      "refundedAt": "zwrócono {date}",
+      "rideTime": "czas jazdy",
+      "receipt": "paragon",
+      "receiptCorrected": "paragon z korektą",
+      "notice": "Zgłoszenie nie zwraca pieniędzy: zwrot robisz w oknie zwrotu przejazdu, a trafi on na oś czasu zgłoszenia."
+    },
+    "status": {
+      "title": "Zmiana statusu",
+      "label": "Status",
+      "atServiceHint": "„W serwisie” ustawia zadanie serwisowe utworzone ze zgłoszenia.",
+      "reply": "Odpowiedź dla klienta",
+      "replyHint": "Klient zobaczy ją w „Moje zgłoszenia” i dostanie push.",
+      "replyHintReplaces": "Klient zobaczy ją w „Moje zgłoszenia” i dostanie push. Zastąpi poprzednią: „{previous}”",
+      "replyRequired": "Przy rozwiązaniu zgłoszenia klienta wpisz odpowiedź.",
+      "note": "Notatka wewnętrzna",
+      "noteHint": "(opcjonalna, klient jej nie widzi)",
+      "currentNote": "Obecna notatka: {note}",
+      "save": "Zapisz",
+      "saveAndReply": "Zapisz i wyślij odpowiedź",
+      "saved": "Zapisano zmiany zgłoszenia {number}",
+      "withReply": "z odpowiedzią, niezapisane"
+    },
+    "people": {
+      "title": "Klient i hulajnoga",
+      "scooterOnly": "Hulajnoga",
+      "reporter": "zgłaszający",
+      "online": "online",
+      "offline": "offline"
+    },
+    "toggles": {
+      "urgency": "Pilność",
+      "source": "Źródło"
+    },
+    "timeline": {
+      "title": "Oś czasu",
+      "hint": "dziennik audytu i zdarzenia systemowe",
+      "empty": "Brak wpisów",
+      "pending": "Zmiana w toku",
+      "dateTime": "{date}, {time}",
+      "push": "Push do klienta",
+      "version": "wersja {version}",
+      "unassigned": "Zdjęto przypisanie",
+      "assignedBy": "{by} przypisał(a): {to}",
+      "statusTo": "Status: {status}",
+      "withReply": "{who}, odpowiedź „{reply}”",
+      "taskCreated": "Utworzono zadanie {number}",
+      "refund": "Zwrot {amount}",
+      "refundStatus": {
+        "SUCCEEDED": "Zwrot {amount} potwierdzony",
+        "FAILED": "Zwrot {amount} nieudany"
+      },
+      "titles": {
+        "ticket_created": "Zgłoszono",
+        "ticket_assigned": "Przypisano",
+        "ticket_status_changed": "Zmiana statusu",
+        "ticket_replied": "Odpowiedź dla klienta",
+        "ticket_auto_closed": "Zamknięte automatycznie",
+        "ticket_photo_added": "Dodano zdjęcie",
+        "ticket_photo_removed": "Usunięto zdjęcie",
+        "ticket_updated": "Zmiana zgłoszenia",
+        "service_task_created": "Utworzono zadanie",
+        "service_task_assigned": "Przypisano zadanie",
+        "service_task_started": "Rozpoczęto",
+        "service_task_part_added": "Użyto części",
+        "service_task_part_removed": "Zwrócono część",
+        "service_task_completed": "Zakończono",
+        "service_task_cancelled": "Anulowano",
+        "rental_refunded": "Zwrot za przejazd",
+        "scooter_sent_to_service": "Hulajnoga w serwisie",
+        "scooter_returned_to_fleet": "Hulajnoga wróciła do floty",
+        "scooter_kept_in_service": "Hulajnoga zostaje w serwisie",
+        "scooter_retired": "Hulajnoga wyłączona z ruchu"
+      }
+    }
+  },
+  "tasks": {
+    "title": "Zadanie {number}",
+    "all": "Wszystkie zadania",
+    "start": "Rozpocznij",
+    "open": "Otwórz",
+    "noDue": "bez terminu",
+    "dueToday": "dziś, {time}",
+    "dueDate": "{date}, {time}",
+    "fromTicket": "ze zgłoszenia",
+    "noDescription": "Zadanie bez opisu.",
+    "resultNote": "Notatka z naprawy",
+    "cancelReason": "Powód anulowania",
+    "scooterCard": "Karta hulajnogi",
+    "scooterState": "stan hulajnogi",
+    "battery": "bateria",
+    "online": "online",
+    "offline": "offline",
+    "signal": "sygnał {relative}",
+    "timelineHint": "dziennik audytu",
+    "sub": {
+      "scooter": "hulajnoga {number}",
+      "ticket": "zgłoszenie {number}",
+      "due": "termin {due}"
+    },
+    "card": {
+      "description": "Opis",
+      "scooter": "Hulajnoga {number}"
+    },
+    "target": {
+      "zone": "Cel przewiezienia: {code} {name}",
+      "point": "Cel przewiezienia: {lat}, {lon}"
+    },
+    "mine": {
+      "title": "Moje zadania",
+      "summary": "{count} do zrobienia · najpierw w toku, potem priorytet i termin",
+      "empty": "Nie masz zadań do zrobienia",
+      "cardTitle": "{type} · {scooter}",
+      "target": "→ {code} {name}",
+      "parts": "{count, plural, one {# część} few {# części} other {# części}}, {cost}",
+      "due": "Termin"
+    },
+    "parts": {
+      "title": "Części z magazynu",
+      "hint": "stan zmniejsza się przy dodaniu",
+      "part": "Część",
+      "sku": "SKU",
+      "quantity": "Ilość",
+      "unitCost": "Cena jedn.",
+      "cost": "Koszt",
+      "none": "Nie użyto jeszcze części.",
+      "add": "Dodaj część",
+      "addSubmit": "Dodaj",
+      "pick": "Wybierz część",
+      "option": "{name} · {sku} · stan {stock}",
+      "remove": "Usuń część {name}",
+      "added": "Dodano {name} × {quantity}",
+      "removed": "Zwrócono do magazynu: {name}",
+      "total": "Koszt części"
+    },
+    "check": {
+      "noTasks": "Inne otwarte zadania: brak",
+      "tasks": "Inne otwarte zadania: {count}",
+      "online": "Łączność: online, sygnał {relative}",
+      "offline": "Łączność: offline, ostatni sygnał {relative}",
+      "battery": "Bateria: {battery}, próg z cennika {min}%",
+      "urgent": "Otwarte pilne zgłoszenia: {count}"
+    },
+    "complete": {
+      "open": "Zakończ zadanie",
+      "title": "Zakończyć zadanie {number}?",
+      "body": "{type} hulajnogi {scooter}{hasTicket, select, yes { ze zgłoszenia {ticket}} other {}}, w toku od {since}. Zakończonego zadania nie da się wznowić.",
+      "note": "Notatka z naprawy",
+      "noteHint": "Widoczna w historii hulajnogi i zadania. Części: {count, plural, one {# pozycja} few {# pozycje} other {# pozycji}}, {cost}.",
+      "effect": "Skutek dla hulajnogi {scooter}",
+      "checkedOnSave": "sprawdzane przy zapisie",
+      "staysTitle": "Zostaje w serwisie",
+      "staysBody": "z przyczyną „{reason}”. Wróci do floty po usunięciu przeszkody albo przez „Przywróć do floty” na karcie hulajnogi.",
+      "returns": "Hulajnoga {scooter} wróci do floty jako dostępna.",
+      "returnsAfterSwap": "Hulajnoga {scooter} zostanie w serwisie do odczytu nowej baterii z telemetrii, a potem sama wróci do floty jako dostępna.",
+      "swap": "Utwórz zadanie Wymiana baterii dla {scooter} i przypisz do mnie",
+      "conseqTicket": "Zgłoszenie {ticket} po zakończeniu ostatniego zadania dostanie status Rozwiązane, a klient powiadomienie push.",
+      "conseqAudit": "Notatka, części i skutek trafią do dziennika audytu i na oś czasu zadania i hulajnogi.",
+      "submit": "Zakończ zadanie",
+      "done": "Zakończono zadanie {number}",
+      "doneWithSwap": "Zakończono zadanie {number} i utworzono {swap}",
+      "swapFailed": "Zakończono zadanie {number}, ale nie udało się utworzyć wymiany baterii: {error}"
+    },
+    "cancel": {
+      "open": "Anuluj zadanie",
+      "title": "Anulować zadanie {number}?",
+      "body": "Anulowanego zadania nie da się wznowić.",
+      "reason": "Powód anulowania",
+      "parts": "{count, plural, one {# pozycja części wróci} few {# pozycje części wrócą} other {# pozycji części wróci}} do magazynu.",
+      "ticket": "Zgłoszenie {ticket} po anulowaniu wszystkich zadań wróci do dyspozytora (W trakcie).",
+      "audit": "Powód trafi do dziennika audytu i na oś czasu zadania.",
+      "submit": "Anuluj zadanie",
+      "done": "Anulowano zadanie {number}"
+    },
+    "create": {
+      "title": "Utworzyć zadanie dla {scooter}?",
+      "titleNoScooter": "Nowe zadanie serwisowe",
+      "body": "Hulajnoga przestanie być dostępna dla klientów do zakończenia zadania.",
+      "sendTitle": "Wysłać {scooter} do serwisu?",
+      "sendBody": "Hulajnoga przestanie być dostępna dla klientów do zakończenia zadania.",
+      "scooter": "Hulajnoga",
+      "scooterPlaceholder": "Numer, np. 110",
+      "find": "Znajdź",
+      "scooterNotFound": "Nie ma hulajnogi {number}",
+      "type": "Rodzaj zadania",
+      "typeOpen": "Ten rodzaj jest już otwarty na hulajnodze",
+      "target": "Strefa docelowa",
+      "targetPick": "Wybierz strefę parkowania",
+      "zoneOption": "{code} {name}",
+      "ticket": "Zgłoszenie",
+      "noTicket": "Bez zgłoszenia",
+      "assignee": "Wykonawca",
+      "optional": "(opcjonalny)",
+      "noAssignee": "Nieprzypisane",
+      "me": "{name} (ja)",
+      "priority": "Priorytet",
+      "description": "Opis",
+      "whatHappens": "Co się stanie",
+      "theScooter": "hulajnoga",
+      "conseqScooter": "Hulajnoga {scooter} przejdzie do serwisu i zniknie z mapy w aplikacji. W przejeździe zmiana nastąpi po jego zakończeniu.",
+      "conseqTask": "Powstanie nieprzypisane zadanie {type}.",
+      "conseqTaskFor": "Powstanie zadanie {type} dla: {name} (w „Moje zadania”).",
+      "conseqTicket": "Zgłoszenie {ticket} dostanie status W serwisie.",
+      "conseqAudit": "Polecenie trafi do dziennika audytu i na oś czasu hulajnogi i zgłoszenia.",
+      "submit": "Utwórz zadanie",
+      "sendSubmit": "Wyślij do serwisu"
+    },
+    "timeline": {
+      "part": "{who}: {sku} × {quantity}, stan po zmianie {stock}"
+    }
+  },
+  "scooterService": {
+    "online": "online",
+    "offline": "offline",
+    "battery": "bateria {value}%",
+    "openTickets": "{count, plural, one {# otwarte zgłoszenie} few {# otwarte zgłoszenia} other {# otwartych zgłoszeń}}",
+    "send": "Wyślij do serwisu",
+    "sent": "{scooter} w serwisie: utworzono zadanie {task}",
+    "audit": "Polecenie trafi do dziennika audytu i na oś czasu hulajnogi.",
+    "tickets": "Zgłoszenia",
+    "tasks": "Zadania serwisowe",
+    "all": "Wszystkie {count}",
+    "allTasks": "Wszystkie",
+    "noTickets": "Hulajnoga nie ma zgłoszeń.",
+    "noTasks": "Hulajnoga nie miała zadań serwisowych.",
+    "tabs": {
+      "label": "Hulajnoga",
+      "overview": "Przegląd",
+      "service": "Serwis"
+    },
+    "stats": {
+      "odometer": "przebieg",
+      "tickets": "{open, plural, one {zgłoszeń, # otwarte} few {zgłoszeń, # otwarte} other {zgłoszeń, # otwartych}}",
+      "tasksDone": "zadania zakończone",
+      "partsCost": "koszt części",
+      "lastService": "ostatni serwis"
+    },
+    "rule": {
+      "title": "Powrót do floty",
+      "since": "{reason}, od {date}",
+      "sinceNoReason": "od {date}"
+    },
+    "retire": {
+      "open": "Wyłącz z ruchu",
+      "title": "Wyłączyć {scooter} z ruchu?",
+      "body": "Hulajnoga zniknie z floty i z mapy w aplikacji. Wróci przez „Przywróć do floty”.",
+      "reason": "Powód",
+      "conseq": "{scooter} dostanie stan Wycofana z wybranym powodem.",
+      "submit": "Wyłącz z ruchu",
+      "done": "{scooter} wyłączona z ruchu"
+    },
+    "return": {
+      "open": "Przywróć do floty",
+      "title": "Przywrócić {scooter} do floty?",
+      "body": "Hulajnoga wróci do floty jako dostępna, jeśli spełnia wszystkie warunki.",
+      "rule": "Warunki powrotu",
+      "blocked": "Hulajnoga nie spełnia warunków powrotu do floty.",
+      "submit": "Przywróć do floty",
+      "done": "{scooter} wróciła do floty"
+    }
+  },
+  "dashboard": {
+    "title": "Pulpit",
+    "search": "Hulajnoga, przejazd albo klient",
+    "live": "Na żywo",
+    "attention": "Wymaga uwagi",
+    "summary": "{count, plural, one {# sprawa} few {# sprawy} other {# spraw}} w {groups, plural, one {# grupie} other {# grupach}} · odświeża się samo",
+    "nothing": "Nic nie czeka",
+    "noGroups": "Żadna grupa „Wymaga uwagi” nie jest dostępna dla Twojej roli.",
+    "offline": {
+      "title": "Hulajnogi offline w przejeździe",
+      "note": "bez sygnału w trakcie przejazdu; naliczanie trwa",
+      "noteStopped": "bez sygnału w trakcie przejazdu; w {count, plural, one {# przejeździe} other {# przejazdach}} naliczanie zatrzymane",
+      "link": "Przejazdy z problemami",
+      "ticket": "zgłoszenie {number}",
+      "near": "przy {zone}",
+      "billingStopped": "naliczanie zatrzymane"
+    },
+    "battery": {
+      "title": "Krytyczna bateria",
+      "note": "poniżej {pct}%, wolne i w przejeździe",
+      "link": "Flota: krytyczna bateria",
+      "inRental": "w przejeździe {number}",
+      "inService": "w serwisie",
+      "free": "wolna",
+      "noTask": "bez zadania",
+      "taskOverdue": "{number} po terminie",
+      "taskAssigned": "{number} · {name}",
+      "taskUnassigned": "{number} nieprzypisane"
+    },
+    "tickets": {
+      "title": "Nowe pilne zgłoszenia",
+      "note": "nieprzypisane; hulajnogi już w serwisie",
+      "link": "Zgłoszenia: nowe, pilne"
+    },
+    "payments": {
+      "title": "Nieudane płatności",
+      "note": "dziś; {count, plural, =0 {żaden przejazd nie czeka na spłatę} one {# przejazd czeka na spłatę} few {# przejazdy czekają na spłatę} other {# przejazdów czeka na spłatę}}",
+      "link": "Płatności: nieudane",
+      "purpose": {
+        "TOPUP": "doładowanie {method}",
+        "RIDE": "przejazd"
+      },
+      "method": {
+        "CARD": "kartą",
+        "BLIK": "BLIK"
+      },
+      "declined": "odrzucone",
+      "failure": {
+        "card_declined": "karta odrzucona",
+        "insufficient_funds": "brak środków",
+        "authentication_failed": "3-D Secure",
+        "incorrect_number": "błędny numer karty",
+        "invalid_blik_code": "błędny kod BLIK"
+      }
     }
   }
 }
