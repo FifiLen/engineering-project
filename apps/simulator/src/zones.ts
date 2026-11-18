@@ -18,6 +18,8 @@ const CIRCLE_VERTICES = 32;
 type Polygon = Array<Array<[number, number]>>;
 
 export interface Zone {
+  /** Identyfikator strefy z API (`id` obiektu GeoJSON); strefy zapasowe z pliku miejsc go nie mają. */
+  id?: string;
   code: string;
   name: string;
   type: ZoneType;
@@ -42,6 +44,7 @@ const featureCollectionSchema = z.object({
   type: z.literal('FeatureCollection'),
   features: z.array(
     z.object({
+      id: z.string().optional(),
       geometry: z.discriminatedUnion('type', [
         z.object({ type: z.literal('MultiPolygon'), coordinates: z.array(polygon) }),
         z.object({ type: z.literal('Polygon'), coordinates: polygon }),
@@ -61,10 +64,11 @@ const isZoneType = (type: string): type is ZoneType => (ZONE_TYPES as readonly s
 
 /** Odpowiedź `GET /zones` (GeoJSON FeatureCollection); strefy nieznanego rodzaju są pomijane. */
 export function parseZones(body: unknown): Zone[] {
-  return featureCollectionSchema.parse(body).features.flatMap(({ geometry, properties: p }) => {
+  return featureCollectionSchema.parse(body).features.flatMap(({ id, geometry, properties: p }) => {
     if (!isZoneType(p.type)) return [];
     return [
       {
+        ...(id === undefined ? {} : { id }),
         code: p.code,
         name: p.name,
         type: p.type,
@@ -149,6 +153,11 @@ export function zoneContains(zone: Zone, point: Point): boolean {
 export function canRideAt(zones: readonly Zone[], point: Point): boolean {
   const inArea = zones.some((z) => z.type === 'SERVICE_AREA' && zoneContains(z, point));
   return inArea && !zones.some((z) => z.type === 'NO_RIDE' && zoneContains(z, point));
+}
+
+/** Strefa z polecenia symulatora (`zoneId`, ADR 0059); tylko strefy z API mają identyfikator. */
+export function findZoneById(zones: readonly Zone[], id: string): Zone | undefined {
+  return zones.find((z) => z.id === id);
 }
 
 /** Strefa o kodzie z `control goto` (bez rozróżniania wielkości liter). */

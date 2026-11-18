@@ -7,20 +7,36 @@ const MAX_BUFFERED = 720;
 
 export interface ConnectionStats {
   sent: number;
+  /** Komendy odebrane od startu i te z nich, których hulajnoga nie potwierdziła (milczenie). */
+  commandsReceived: number;
+  commandsUnacked: number;
+}
+
+/** Część połączenia, którą sterują scenariusze symulatora (ADR 0059); w testach zastępowana atrapą. */
+export interface ScooterLink {
+  readonly number: number;
+  /** Komendy bez potwierdzenia od włączenia milczenia. */
+  readonly unacked: number;
+  /** Punkty telemetrii czekające na powrót łączności. */
+  readonly buffered: number;
+  setOffline(offline: boolean): void;
+  setSilent(silent: boolean): void;
 }
 
 /**
  * Własne połączenie MQTT każdej hulajnogi (ADR 0002): Last Will na kanale status, komendy QoS 1,
- * bufor telemetrii dosyłany po odzyskaniu łączności z oryginalnymi znacznikami czasu. Awarie do demo
- * (ADR 0039) ustawia plik sterujący: `offline` zrywa połączenie, `silent` wstrzymuje potwierdzenia.
+ * bufor telemetrii dosyłany po odzyskaniu łączności z oryginalnymi znacznikami czasu (ADR 0056: z bufora
+ * backend wykrywa jazdę po żądaniu zakończenia). Awarie do demo (ADR 0039, ADR 0059) włączają scenariusze:
+ * rozłączenie zrywa połączenie, milczenie wstrzymuje potwierdzenia.
  */
-export class ScooterConnection {
+export class ScooterConnection implements ScooterLink {
   private readonly client: MqttClient;
   private readonly id: string;
   private readonly buffer: Telemetry[] = [];
   private offline = false;
   /** Hulajnoga wykonuje komendy, ale nie wysyła potwierdzeń (demo nieudanego odblokowania). */
-  silent = false;
+  private silent = false;
+  unacked = 0;
 
   constructor(
     private readonly scooter: VirtualScooter,
@@ -64,6 +80,15 @@ export class ScooterConnection {
     else this.client.reconnect();
   }
 
+  setSilent(silent: boolean): void {
+    if (silent && !this.silent) this.unacked = 0;
+    this.silent = silent;
+  }
+
+  get buffered(): number {
+    return this.buffer.length;
+  }
+
   private onConnect(): void {
     const status: Status = { online: true, firmware: this.firmware, since: new Date().toISOString() };
     this.publish(topics.status(this.id), status, true);
@@ -80,7 +105,10 @@ export class ScooterConnection {
     }
     if (!parsed.success) return;
     const ack = this.scooter.handle(parsed.data, new Date());
-    if (!this.silent) this.publish(topics.ack(this.id), ack);
+    this.stats.commandsReceived++;
+    if (!this.silent) return this.publish(topics.ack(this.id), ack);
+    this.stats.commandsUnacked++;
+    this.unacked++;
   }
 
   sendTelemetry(now: Date): void {

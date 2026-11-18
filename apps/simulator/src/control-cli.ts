@@ -1,12 +1,14 @@
 /**
- * Polecenie `pnpm --filter @hulajnogi/simulator control` (ADR 0039, ADR 0046): zmienia plik sterujący,
- * który uruchomiony symulator sprawdza co sekundę. Bez argumentów wypisuje bieżący stan.
+ * Polecenie `pnpm --filter @hulajnogi/simulator control` (ADR 0039, ADR 0046, ADR 0059): zmienia plik
+ * sterujący, który uruchomiony symulator sprawdza co sekundę i zamienia na polecenia scenariuszy, te same
+ * co z panelu. Na hulajnodze działa jeden scenariusz naraz; odrzucone polecenie (np. `SCENARIO_ACTIVE`)
+ * widać w logu symulatora i w stanie na `simulator/status`. Bez argumentów wypisuje bieżący stan pliku.
  *
  *   control offline 0142 7      rozłącza hulajnogi (broker publikuje Last Will)
  *   control silent 27           hulajnoga wykonuje komendy, ale nie wysyła potwierdzeń
- *   control online 0142 27      usuwa numery z list offline i silent
- *   control goto 0142 Z-01      następna trasa hulajnogi prowadzi do anchor strefy o kodzie
- *   control goto 0142 50.1,18.6 następna trasa prowadzi do punktu (lat,lon), np. poza obszar działania
+ *   control online 0142 27      usuwa numery z list offline i silent (powrót łączności, potwierdzenia)
+ *   control goto 0142 Z-01      hulajnoga jedzie do anchor strefy o kodzie (od razu albo po odblokowaniu)
+ *   control goto 0142 50.1,18.6 jazda do punktu (lat,lon), np. poza obszar działania
  */
 import { loadConfig, loadRootEnv } from './config.js';
 import { applyControl, applyGoto, parseTarget, readControl, writeControl, type ControlState } from './control.js';
@@ -18,7 +20,7 @@ const usage = [
   'Użycie:',
   '  control                                   bieżący stan',
   '  control offline|silent|online <numer...>  awarie, np. control offline 0142',
-  '  control goto <numer> <kod strefy|lat,lon> cel następnej trasy (jednorazowy), np. control goto 0142 Z-01',
+  '  control goto <numer> <kod strefy|lat,lon> jazda do celu (jednorazowo), np. control goto 0142 Z-01',
 ].join('\n');
 
 loadRootEnv();
@@ -28,7 +30,7 @@ const print = (state: ControlState) => {
   const targets = Object.entries(state.goto).map(([n, target]) => `${n} → ${target}`);
   console.log(
     `Offline: ${state.offline.join(', ') || 'brak'}\nBez potwierdzeń: ${state.silent.join(', ') || 'brak'}\n` +
-      `Cele następnej trasy: ${targets.join(', ') || 'brak'}\n(${path})`,
+      `Cele do wykonania: ${targets.join(', ') || 'brak'}\n(${path}; wynik w logu symulatora)`,
   );
 };
 const fail = (): never => {

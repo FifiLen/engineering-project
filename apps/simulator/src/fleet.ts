@@ -3,11 +3,10 @@ import { dirname } from 'node:path';
 import { scooterTopicId } from '@hulajnogi/shared';
 import { initialState, randomDestination, type Area } from './area.js';
 import type { ScooterConnection } from './connection.js';
-import type { ControlTarget } from './control.js';
-import type { Point } from './geo.js';
+import type { Point, Route } from './geo.js';
 import type { RoutePlanner } from './osrm.js';
 import { VirtualScooter, type ScooterSnapshot } from './virtual-scooter.js';
-import { canRideAt, findZone, rideDestination, type ZoneProvider } from './zones.js';
+import { canRideAt, rideDestination, zoneContains, type Zone, type ZoneProvider } from './zones.js';
 
 /** Hulajnoga z baterią poniżej tego poziomu nie bierze udziału w przejazdach pokazowych. */
 export const DEMO_RIDE_MIN_BATTERY = 20;
@@ -27,10 +26,21 @@ export interface CommandRideOptions {
   /** Strefy widoczne dla klienta (`GET /zones`, ADR 0046). */
   zones: ZoneProvider;
   random?: () => number;
-  /** Jednorazowy cel z `control goto` dla hulajnogi o numerze; odczyt usuwa go z pliku sterującego. */
-  takeTarget?: (number: number) => ControlTarget | null;
   log?: (message: string) => void;
 }
+
+/**
+ * Cel jazdy ze scenariusza symulatora (`goto`, `enter_no_ride`, ADR 0059): punkt, opis do logu i strefa,
+ * której wnętrze kończy scenariusz (wjazd w strefę zakazu).
+ */
+export interface RideTarget {
+  point: Point;
+  label: string;
+  zone?: Zone;
+}
+
+/** Postęp jazdy do celu: czeka na odblokowanie albo trasę, jedzie (`remainingM`) albo zakończona. */
+export type SteeringProgress = { state: 'waiting' } | { state: 'driving'; remainingM: number } | { state: 'done' };
 
 /**
  * Wirtualny klient przy zatrzymanej hulajnodze (ADR 0046): `walking` prowadzi ją pieszo wstecz po trasie,
@@ -63,7 +73,8 @@ export function writeState(path: string, scooters: readonly VirtualScooter[]): v
 /**
  * Wirtualny klient w jeździe po odblokowaniu komendą (ADR 0039, ADR 0046). `handle()` odpowiada na komendę
  * od razu, a hulajnoga odblokowana bez trasy czeka na nią (`awaitingRoute`); planista co sekundę odświeża
- * strefy z API i pobiera z OSRM trasę do `anchor` losowej strefy parkowania (albo do celu z `control goto`).
+ * strefy z API i pobiera z OSRM trasę do `anchor` losowej strefy parkowania (albo do celu scenariusza `goto`
+ * lub `enter_no_ride`, ADR 0059).
  * Gdy backend wyłączy napęd (`stop_gradually`), klient prowadzi hulajnogę pieszo wstecz po trasie, aż według
  * stref z API wolno jechać, i tam czeka na `release_stop`; potem planuje nową trasę.
  */
@@ -72,6 +83,8 @@ export class CommandRides {
   private readonly log: (message: string) => void;
   private readonly planning = new Set<VirtualScooter>();
   private readonly escorts = new Map<VirtualScooter, Escort>();
+  /** Cele ze scenariuszy i trasa, którą do nich wyznaczono (`null` przed wyznaczeniem). */
+  private readonly steering = new Map<VirtualScooter, RideTarget & { route: Route | null }>();
 
   constructor(
     private readonly scooters: readonly VirtualScooter[],
@@ -90,6 +103,42 @@ export class CommandRides {
     const waiting = this.scooters.filter((s) => s.awaitingRoute && !this.planning.has(s));
     await Promise.all(waiting.map((s) => this.plan(s)));
     return waiting.length;
+  }
+
+  /**
+   * Scenariusz jazdy do celu (ADR 0059). Klient w trakcie jazdy porzuca trasę i planista od razu wyznacza
+   * nową z bieżącego miejsca; zablokowana hulajnoga jedzie do celu po odblokowaniu, a zatrzymana napędem
+   * (strefa zakazu) po `release_stop`.
+   */
+  steer(scooter: VirtualScooter, target: RideTarget): void {
+    this.steering.set(scooter, { ...target, route: null });
+    if (scooter.onCommandTrip && !scooter.driveStopped) scooter.abandonRoute();
+  }
+
+  /**
+   * Koniec scenariusza jazdy. Przerwany w drodze (`abandon`) zostawia klienta bez celu, więc planista
+   * wyznacza trasę do losowej strefy parkowania, jak po zwykłym odblokowaniu.
+   */
+  unsteer(scooter: VirtualScooter, abandon = false): void {
+    const steering = this.steering.get(scooter);
+    this.steering.delete(scooter);
+    if (abandon && steering?.route && scooter.route === steering.route && !scooter.driveStopped) {
+      scooter.abandonRoute();
+    }
+  }
+
+  /**
+   * Postęp jazdy do celu: koniec po dojechaniu, po wjeździe do strefy celu albo gdy jazda straciła trasę
+   * do celu (koniec przejazdu, nowa trasa po `release_stop`).
+   */
+  steeringProgress(scooter: VirtualScooter): SteeringProgress | null {
+    const steering = this.steering.get(scooter);
+    if (!steering) return null;
+    if (!steering.route) return { state: 'waiting' };
+    const remainingM = scooter.route === steering.route ? scooter.remainingM : null;
+    if (remainingM === null || remainingM <= 0) return { state: 'done' };
+    if (steering.zone && zoneContains(steering.zone, scooter.position)) return { state: 'done' };
+    return { state: 'driving', remainingM };
   }
 
   /** Stan prowadzenia hulajnogi przez klienta (do testów i statystyk). */
@@ -137,33 +186,30 @@ export class CommandRides {
     this.planning.add(scooter);
     try {
       await this.options.zones.refresh();
-      const to = this.destination(scooter);
-      scooter.assignRoute(await this.options.planner.route(scooter.position, to));
+      const pending = this.pendingTarget(scooter);
+      if (pending) this.log(`Hulajnoga ${scooterTopicId(scooter.number)}: jazda do ${pending.label}.`);
+      const route = await this.options.planner.route(scooter.position, pending?.point ?? this.destination(scooter));
+      if (!scooter.assignRoute(route)) return;
+      // Trasa należy do celu, z którym ją wyznaczono. Nowy cel ustawiony w trakcie planowania odrzuca ją,
+      // więc w następnym kroku planista wyznaczy trasę do niego.
+      if (pending && this.steering.get(scooter) === pending) pending.route = route;
+      else if (this.pendingTarget(scooter)) scooter.abandonRoute();
     } finally {
       this.planning.delete(scooter);
     }
   }
 
-  /** Cel z `control goto` (jednorazowy), a bez niego `anchor` losowej strefy parkowania. */
+  /** Cel scenariusza, do którego nie wyznaczono jeszcze trasy. */
+  private pendingTarget(scooter: VirtualScooter) {
+    const steering = this.steering.get(scooter);
+    return steering && !steering.route ? steering : undefined;
+  }
+
+  /** Cel bez scenariusza: `anchor` losowej strefy parkowania. */
   private destination(scooter: VirtualScooter): Point {
-    const zones = this.options.zones.zones;
-    const id = scooterTopicId(scooter.number);
-    const target = this.options.takeTarget?.(scooter.number);
-    if (target && 'point' in target) {
-      this.log(`Hulajnoga ${id}: jazda do punktu ${target.point.lat},${target.point.lon} (control goto).`);
-      return target.point;
-    }
-    if (target) {
-      const zone = findZone(zones, target.code);
-      if (zone) {
-        this.log(`Hulajnoga ${id}: jazda do strefy ${zone.code} „${zone.name}” (control goto).`);
-        return zone.anchor;
-      }
-      this.log(`Hulajnoga ${id}: brak aktywnej strefy ${target.code} z control goto, cel losowy.`);
-    }
-    const parking = rideDestination(zones, scooter.position, this.random);
+    const parking = rideDestination(this.options.zones.zones, scooter.position, this.random);
     if (parking) return parking.anchor;
-    this.log(`Hulajnoga ${id}: brak aktywnych stref parkowania, klient stoi w miejscu.`);
+    this.log(`Hulajnoga ${scooterTopicId(scooter.number)}: brak aktywnych stref parkowania, klient stoi w miejscu.`);
     return scooter.position;
   }
 }

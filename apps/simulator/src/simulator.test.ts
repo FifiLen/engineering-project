@@ -1,23 +1,32 @@
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { commandSchema, telemetrySchema, type Command } from '@hulajnogi/shared';
+import {
+  commandSchema,
+  simulatorResultSchema,
+  simulatorStatusSchema,
+  telemetrySchema,
+  type Command,
+} from '@hulajnogi/shared';
 import { describe, expect, it } from 'vitest';
 import { initialState, loadArea, randomDestination } from './area.js';
 import { loadConfig } from './config.js';
 import {
   applyControl,
   applyGoto,
+  controlCommands,
+  emptyControl,
   parseControl,
   parseTarget,
   readControl,
   takeGoto,
   writeControl,
-  type ControlTarget,
 } from './control.js';
 import { CommandRides, DemoTraffic, restoreFleet } from './fleet.js';
 import { distanceM, mulberry32, Route, type Point } from './geo.js';
 import { RoutePlanner } from './osrm.js';
+import { ControlChannel, simulatorStatus, STATUS_ACTIVE_MS, STATUS_INTERVAL_MS, statusDue } from './remote.js';
+import { Scenarios } from './scenarios.js';
 import { METERS_PER_BATTERY_PCT, STOP_DURATION_S, VirtualScooter } from './virtual-scooter.js';
 import {
   canRideAt,
@@ -57,6 +66,19 @@ const straightPlanner = () => {
 };
 const rideUntilStopped = (scooter: VirtualScooter) => {
   for (let i = 0; i < 3600 && scooter.riding; i++) scooter.tick(1);
+};
+/** Atrapa połączenia hulajnogi dla scenariuszy (bez brokera). */
+const fakeLink = (number: number) => {
+  const link = {
+    number,
+    unacked: 0,
+    buffered: 0,
+    offline: false,
+    silent: false,
+    setOffline: (offline: boolean) => void (link.offline = offline),
+    setSilent: (silent: boolean) => void (link.silent = silent),
+  };
+  return link;
 };
 
 describe('obszar i pozycje startowe', () => {
@@ -592,18 +614,13 @@ describe('wirtualny klient po zatrzymaniu (ADR 0046)', () => {
     const scooter = start();
     const { planner, targets } = straightPlanner();
     const logs: string[] = [];
-    let target: ControlTarget | null = { point: beyondNoRide };
     const rides = new CommandRides([scooter], {
       zones: staticZones(apiZones),
       planner,
       random: mulberry32(4),
-      takeTarget: () => {
-        const once = target;
-        target = null;
-        return once;
-      },
       log: (message) => logs.push(message),
     });
+    rides.steer(scooter, { point: beyondNoRide, label: 'punktu 50.101,18.542034' });
     await rides.tick();
     expect(targets).toEqual([beyondNoRide]);
     for (let i = 0; i < 600 && !zoneContains(noRide, scooter.position); i++) {
@@ -661,7 +678,7 @@ describe('wirtualny klient po zatrzymaniu (ADR 0046)', () => {
     expect(scooter.riding).toBe(true);
     expect(rides.escortOf(scooter)).toBeNull();
     expect(logs).toEqual([
-      expect.stringMatching(/^Hulajnoga 0001: jazda do punktu 50.101,18.542034 \(control goto\)/),
+      expect.stringMatching(/^Hulajnoga 0001: jazda do punktu 50.101,18.542034\.$/),
       expect.stringMatching(/strefie zakazu albo poza obszarem.*pieszo/),
       expect.stringMatching(/czeka na release_stop/),
       expect.stringMatching(/napęd przywrócony/),
@@ -707,7 +724,7 @@ describe('cel następnej trasy z control goto (ADR 0046)', () => {
     expect(parseTarget('')).toBeNull();
   });
 
-  it('następna trasa prowadzi do anchor podanej strefy, a cel znika z pliku sterującego', async () => {
+  it('cel z pliku to jednorazowe polecenie goto: jazda do anchor strefy, potem znowu losowe strefy parkowania', async () => {
     const path = join(mkdtempSync(join(tmpdir(), 'simulator-control-')), 'control.json');
     writeControl(path, applyGoto(applyGoto(readControl(path), 142, 'z-01'), 7, '50.2, 18.6'));
     expect(readControl(path).goto).toEqual({ 7: '50.2, 18.6', 142: 'z-01' });
@@ -715,20 +732,28 @@ describe('cel następnej trasy z control goto (ADR 0046)', () => {
     const scooter = new VirtualScooter(142, { position: rynek, batteryPct: 80 });
     scooter.handle(command('unlock'), now);
     const { planner, targets } = straightPlanner();
-    const rides = new CommandRides([scooter], {
+    const rides = new CommandRides([scooter], { zones: fileZones, planner, random: mulberry32(1), log: quiet });
+    const scenarios = new Scenarios({
+      scooters: [scooter],
+      links: [fakeLink(142)],
+      rides,
       zones: fileZones,
-      planner,
-      random: mulberry32(1),
-      takeTarget: (number) => takeGoto(path, number),
       log: quiet,
+    });
+    const target = takeGoto(path, 142)!;
+    expect(target).toEqual({ code: 'z-01' });
+    expect(await scenarios.apply({ scooter: 142, action: 'goto', params: target }, now, 'control.json')).toEqual({
+      ok: true,
     });
     await rides.tick();
     expect(targets).toEqual([placeZones.find((z) => z.code === 'Z-01')!.anchor]);
     expect(readControl(path).goto).toEqual({ 7: '50.2, 18.6' });
 
-    // Cel jest jednorazowy: kolejna jazda znowu do losowej strefy parkowania.
+    // Po dojechaniu scenariusz się kończy, a kolejna jazda znowu prowadzi do losowej strefy parkowania.
     scooter.tick(1);
     rideUntilStopped(scooter);
+    scenarios.tick(now);
+    expect(scenarios.list(now)).toEqual([]);
     scooter.handle(command('lock'), now);
     scooter.handle(command('unlock'), now);
     await rides.tick();
@@ -737,5 +762,323 @@ describe('cel następnej trasy z control goto (ADR 0046)', () => {
     expect(takeGoto(path, 7)).toEqual({ point: { lat: 50.2, lon: 18.6 } });
     expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ offline: [], silent: [], goto: {} });
     expect(takeGoto(path, 7)).toBeNull();
+  });
+});
+
+describe('scenariusze symulatora (ADR 0059)', () => {
+  /** Strefy z API z identyfikatorami UUID, jak w `GET /zones` (polecenia z panelu wskazują strefę po `zoneId`). */
+  const zoneIds: Record<string, string> = {
+    'AREA-TEST': '00000000-0000-4000-8000-000000000001',
+    'P-10': '00000000-0000-4000-8000-000000000010',
+    'P-11': '00000000-0000-4000-8000-000000000011',
+    'S-10': '00000000-0000-4000-8000-000000000020',
+    'Z-10': '00000000-0000-4000-8000-000000000030',
+  };
+  const uuidZones = parseZones({
+    ...apiBody,
+    features: apiBody.features.map((f) => ({ ...f, id: zoneIds[f.properties.code] })),
+  });
+  const idOf = (code: string) => zoneIds[code]!;
+  const later = (seconds: number) => new Date(now.getTime() + seconds * 1000);
+
+  const setup = (scooter = new VirtualScooter(7, { position: rynek, batteryPct: 80 })) => {
+    const { planner, targets } = straightPlanner();
+    const logs: string[] = [];
+    let refreshes = 0;
+    const zones = { zones: uuidZones, refresh: async () => void refreshes++ };
+    const rides = new CommandRides([scooter], { zones, planner, random: mulberry32(2), log: quiet });
+    const link = fakeLink(scooter.number);
+    let changes = 0;
+    const scenarios = new Scenarios({
+      scooters: [scooter],
+      links: [link],
+      rides,
+      zones,
+      onChange: () => void changes++,
+      log: (message) => logs.push(message),
+    });
+    const apply = (command: Parameters<Scenarios['apply']>[0], at = now) => scenarios.apply(command, at, 'test');
+    return {
+      scooter,
+      rides,
+      link,
+      scenarios,
+      apply,
+      targets,
+      logs,
+      refreshes: () => refreshes,
+      changes: () => changes,
+    };
+  };
+
+  const status = (scenarios: Scenarios) =>
+    simulatorStatus(
+      {
+        since: now.toISOString(),
+        fleetSize: 1,
+        connected: 1,
+        riding: 0,
+        messagesPerSecond: 0.2,
+        ridesPerHour: 0,
+        telemetryIntervalMs: 5000,
+        ridesStarted: 0,
+        commandsReceived: 3,
+        commandsUnacked: 2,
+        scenarios: scenarios.list(now),
+      },
+      now,
+    );
+
+  it('rozłączenie i powrót; na hulajnodze działa jeden scenariusz', async () => {
+    const { link, scenarios, apply, logs, changes } = setup();
+    expect(await apply({ scooter: 7, action: 'disconnect' })).toEqual({ ok: true });
+    expect(link.offline).toBe(true);
+    expect(changes()).toBe(1);
+    for (const action of ['disconnect', 'silence'] as const) {
+      expect(await apply({ scooter: 7, action })).toEqual({ ok: false, reason: 'SCENARIO_ACTIVE' });
+    }
+    expect(await apply({ scooter: 7, action: 'drain', params: { targetPct: 5, durationS: 30 } })).toEqual({
+      ok: false,
+      reason: 'SCENARIO_ACTIVE',
+    });
+    expect(await apply({ scooter: 7, action: 'unsilence' })).toEqual({ ok: false, reason: 'NO_SCENARIO' });
+    expect(scenarios.list(later(5))).toEqual([
+      { scooter: 7, kind: 'disconnect', startedAt: now.toISOString(), progress: {} },
+    ]);
+
+    link.buffered = 36;
+    expect(await apply({ scooter: 7, action: 'restore' })).toEqual({ ok: true });
+    expect(link.offline).toBe(false);
+    expect(scenarios.list(now)).toEqual([]);
+    expect(await apply({ scooter: 7, action: 'restore' })).toEqual({ ok: false, reason: 'NO_SCENARIO' });
+    expect(await apply({ scooter: 8, action: 'disconnect' })).toEqual({ ok: false, reason: 'SCOOTER_NOT_FOUND' });
+    expect(logs).toContainEqual('Hulajnoga 0007: powrót łączności, bufor telemetrii: 36 pkt.');
+    expect(logs).toContainEqual('Hulajnoga 0007: polecenie silence odrzucone (SCENARIO_ACTIVE, test).');
+  });
+
+  it('milczenie: komendy bez potwierdzenia w postępie, unsilence przywraca potwierdzenia', async () => {
+    const { link, scenarios, apply } = setup();
+    expect(await apply({ scooter: 7, action: 'silence' })).toEqual({ ok: true });
+    expect(link.silent).toBe(true);
+    link.unacked = 2;
+    expect(simulatorStatusSchema.parse({ ...status(scenarios), online: true })).toMatchObject({
+      scenarios: [{ scooter: 7, kind: 'silence', progress: { unackedCommands: 2 } }],
+    });
+    expect(await apply({ scooter: 7, action: 'unsilence' })).toEqual({ ok: true });
+    expect(link.silent).toBe(false);
+  });
+
+  it('rozładowanie: bateria spada liniowo do celu w zadanym czasie, potem tylko w jeździe', async () => {
+    const { scooter, scenarios, apply } = setup();
+    expect(await apply({ scooter: 7, action: 'drain', params: { targetPct: 5, durationS: 30 } })).toEqual({ ok: true });
+    scenarios.tick(later(0));
+    expect(scooter.batteryPct).toBe(80);
+    scenarios.tick(later(10));
+    expect(scooter.batteryLevel).toBeCloseTo(55, 5);
+    scenarios.tick(later(15));
+    expect(scooter.batteryLevel).toBeCloseTo(42.5, 5);
+    expect(scenarios.list(later(15))).toEqual([
+      {
+        scooter: 7,
+        kind: 'drain',
+        startedAt: now.toISOString(),
+        progress: { batteryPct: 42, targetPct: 5, remainingS: 15 },
+      },
+    ]);
+    scenarios.tick(later(31));
+    expect(scooter.batteryPct).toBe(5);
+    expect(scenarios.list(later(31))).toEqual([]);
+    // Po scenariuszu zwykłe rozładowanie: na postoju bateria się nie zmienia.
+    scenarios.tick(later(60));
+    expect(scooter.batteryPct).toBe(5);
+  });
+
+  it('rozładowanie do poziomu nie niższego niż bateria to błędne parametry', async () => {
+    const { apply, scenarios } = setup(new VirtualScooter(7, { position: rynek, batteryPct: 4 }));
+    expect(await apply({ scooter: 7, action: 'drain', params: { targetPct: 5, durationS: 30 } })).toEqual({
+      ok: false,
+      reason: 'INVALID_PARAMS',
+    });
+    expect(scenarios.list(now)).toEqual([]);
+  });
+
+  it('battery_swapped (kontrakt 1.3.0): bateria 100% i potwierdzenie ok; wymiana kończy rozładowanie', async () => {
+    const { scooter, scenarios, apply, logs } = setup();
+    await apply({ scooter: 7, action: 'drain', params: { targetPct: 5, durationS: 30 } });
+    scenarios.tick(later(20));
+    expect(scooter.batteryPct).toBe(30);
+    const swap = command('battery_swapped');
+    expect(scooter.handle(swap, later(21))).toEqual({
+      commandId: swap.commandId,
+      ok: true,
+      ts: later(21).toISOString(),
+    });
+    expect(scooter.batteryPct).toBe(100);
+    scenarios.tick(later(22));
+    expect(scooter.batteryPct).toBe(100);
+    expect(scenarios.list(later(22))).toEqual([]);
+    expect(logs).toContainEqual('Hulajnoga 0007: wymiana baterii kończy rozładowanie.');
+    // Po wymianie zwykła jazda zużywa baterię jak dotąd.
+    expect(scooter.telemetry(later(22)).bat).toBe(100);
+  });
+
+  it('goto do strefy po zoneId: jadący klient skręca od razu, postęp to pozostała droga', async () => {
+    const scooter = start();
+    const { rides, scenarios, apply, targets } = setup(scooter);
+    await rides.tick();
+    for (let i = 0; i < 10; i++) scooter.tick(1);
+    expect(await apply({ scooter: 1, action: 'goto', params: { zoneId: idOf('P-10') } })).toEqual({ ok: true });
+    expect(scooter.awaitingRoute).toBe(true);
+    expect(await rides.tick()).toBe(1);
+    expect(targets).toHaveLength(2);
+    expect(targets[1]).toEqual(dworzec);
+    scooter.tick(1);
+    const [scenario] = scenarios.list(now);
+    expect(scenario).toMatchObject({ scooter: 1, kind: 'goto', target: { zoneId: idOf('P-10'), code: 'P-10' } });
+    expect(scenario!.progress.remainingM).toBeGreaterThan(500);
+    expect(scenario!.progress.remainingM).toBeLessThan(distanceM(rynek, dworzec));
+    rideUntilStopped(scooter);
+    scenarios.tick(now);
+    expect(scenarios.list(now)).toEqual([]);
+    expect(scooter.position).toEqual(dworzec);
+  });
+
+  it('goto na zablokowanej hulajnodze czeka na odblokowanie; punkt jako cel', async () => {
+    const { scooter, rides, scenarios, apply, targets } = setup();
+    const point = { lat: 50.0931, lon: 18.5401 };
+    expect(await apply({ scooter: 7, action: 'goto', params: { point } })).toEqual({ ok: true });
+    expect(scenarios.list(now)).toEqual([
+      { scooter: 7, kind: 'goto', startedAt: now.toISOString(), progress: {}, target: { point } },
+    ]);
+    scenarios.tick(now);
+    expect(scenarios.list(now)).toHaveLength(1);
+    scooter.handle(command('unlock'), now);
+    await rides.tick();
+    expect(targets).toEqual([point]);
+  });
+
+  it('nieznana strefa po odświeżeniu stref z API to ZONE_NOT_FOUND', async () => {
+    const { apply, refreshes } = setup();
+    const unknown = '00000000-0000-4000-8000-0000000000ff';
+    expect(await apply({ scooter: 7, action: 'goto', params: { zoneId: unknown } })).toEqual({
+      ok: false,
+      reason: 'ZONE_NOT_FOUND',
+    });
+    expect(refreshes()).toBe(1);
+  });
+
+  it('wjazd w strefę zakazu: najkrótsza trasa do strefy, koniec po wjeździe; strefa innego rodzaju odrzucona', async () => {
+    const scooter = start();
+    const { rides, scenarios, apply, targets } = setup(scooter);
+    expect(await apply({ scooter: 1, action: 'enter_no_ride', params: { zoneId: idOf('P-10') } })).toEqual({
+      ok: false,
+      reason: 'INVALID_PARAMS',
+    });
+    expect(await apply({ scooter: 1, action: 'enter_no_ride', params: { zoneId: idOf('Z-10') } })).toEqual({
+      ok: true,
+    });
+    await rides.tick();
+    expect(targets).toEqual([noRideCenter]);
+    for (let i = 0; i < 600 && scenarios.list(now).length; i++) {
+      scooter.tick(1);
+      scenarios.tick(now);
+    }
+    expect(scenarios.list(now)).toEqual([]);
+    expect(zoneContains(noRide, scooter.position)).toBe(true);
+    // Hulajnoga jedzie dalej, aż backend wyłączy napęd (`stop_gradually`); wtedy klient ją wyprowadza.
+    expect(scooter.riding).toBe(true);
+  });
+
+  it('cancel przerywa dowolny scenariusz; przerwana jazda do celu wraca do losowej strefy parkowania', async () => {
+    const scooter = start();
+    const { rides, link, scenarios, apply, targets } = setup(scooter);
+    expect(await apply({ scooter: 1, action: 'cancel' })).toEqual({ ok: false, reason: 'NO_SCENARIO' });
+    await apply({ scooter: 1, action: 'disconnect' });
+    expect(await apply({ scooter: 1, action: 'cancel' })).toEqual({ ok: true });
+    expect(link.offline).toBe(false);
+
+    await apply({ scooter: 1, action: 'goto', params: { zoneId: idOf('Z-10') } });
+    await rides.tick();
+    scooter.tick(1);
+    expect(await apply({ scooter: 1, action: 'cancel' })).toEqual({ ok: true });
+    expect(scenarios.list(now)).toEqual([]);
+    expect(scooter.awaitingRoute).toBe(true);
+    await rides.tick();
+    expect(targets).toHaveLength(2);
+    expect(parkingAnchors(uuidZones)).toContainEqual(targets[1]);
+  });
+
+  it('stan na simulator/status zgodny z kontraktem symulatora; publikacja przy zmianie i okresowo', async () => {
+    const { scenarios, apply } = setup();
+    await apply({ scooter: 7, action: 'drain', params: { targetPct: 5, durationS: 30 } });
+    expect(simulatorStatusSchema.parse(status(scenarios))).toEqual(status(scenarios));
+    expect(status(scenarios)).toMatchObject({ online: true, updatedAt: now.toISOString() });
+    expect(statusDue({ changed: true, scenarios: 0, sinceLastMs: 0 })).toBe(true);
+    expect(statusDue({ changed: false, scenarios: 0, sinceLastMs: STATUS_ACTIVE_MS })).toBe(false);
+    expect(statusDue({ changed: false, scenarios: 0, sinceLastMs: STATUS_INTERVAL_MS })).toBe(true);
+    expect(statusDue({ changed: false, scenarios: 1, sinceLastMs: STATUS_ACTIVE_MS })).toBe(true);
+  });
+
+  it('kanał simulator/control: wynik, powtórzony commandId, wygasłe i błędne polecenie', async () => {
+    const { link, scenarios } = setup();
+    const channel = new ControlChannel(scenarios, quiet);
+    const message = (fields: object) =>
+      JSON.stringify({
+        commandId: crypto.randomUUID(),
+        scooter: 7,
+        issuedBy: '00000000-0000-4000-8000-0000000000aa',
+        expiresAt: later(30).toISOString(),
+        params: {},
+        ...fields,
+      });
+    const disconnect = message({ action: 'disconnect' });
+    const commandId = JSON.parse(disconnect).commandId as string;
+    const result = await channel.handle(disconnect, now);
+    expect(simulatorResultSchema.parse(result)).toEqual({ commandId, ok: true });
+    expect(link.offline).toBe(true);
+    // Ponowne dostarczenie (QoS 1) nie wykonuje polecenia drugi raz i nie daje SCENARIO_ACTIVE.
+    expect(await channel.handle(disconnect, now)).toEqual({ commandId, ok: true });
+    expect(await channel.handle(message({ action: 'silence' }), now)).toMatchObject({
+      ok: false,
+      reason: 'SCENARIO_ACTIVE',
+    });
+    expect(await channel.handle(message({ action: 'restore' }), later(31))).toMatchObject({
+      ok: false,
+      reason: 'EXPIRED',
+    });
+    expect(link.offline).toBe(true);
+    expect(await channel.handle(message({ action: 'drain', params: { targetPct: 200 } }), now)).toMatchObject({
+      ok: false,
+      reason: 'INVALID_PARAMS',
+    });
+    expect(await channel.handle(message({ action: 'explode' }), now)).toMatchObject({ reason: 'INVALID_PARAMS' });
+    expect(await channel.handle(message({ action: 'restore', scooter: 12 }), now)).toMatchObject({
+      reason: 'SCOOTER_NOT_FOUND',
+    });
+    expect(channel.handle('{"action":"restore"}', now)).toBeNull();
+    expect(channel.handle('nie json', now)).toBeNull();
+    // Rozładowanie z wartościami domyślnymi kontraktu (5% w 30 s) po przywróceniu łączności.
+    expect(await channel.handle(message({ action: 'restore' }), now)).toMatchObject({ ok: true });
+    expect(await channel.handle(message({ action: 'drain' }), now)).toMatchObject({ ok: true });
+    expect(scenarios.list(now)[0]).toMatchObject({ kind: 'drain', progress: { targetPct: 5, remainingS: 30 } });
+  });
+
+  it('plik sterujący: zmiany list to polecenia scenariuszy, więc późniejsze polecenie z panelu obowiązuje', async () => {
+    expect(controlCommands(emptyControl(), { offline: [7], silent: [], goto: {} })).toEqual([
+      { scooter: 7, action: 'disconnect' },
+    ]);
+    expect(
+      controlCommands({ offline: [7], silent: [3], goto: {} }, { offline: [], silent: [3, 9], goto: { 5: 'S-01' } }),
+    ).toEqual([
+      { scooter: 7, action: 'restore' },
+      { scooter: 9, action: 'silence' },
+    ]);
+    // Plik: offline [7]; panel: restore 7. Niezmieniony plik nie rozłącza hulajnogi ponownie.
+    const { link, apply } = setup();
+    for (const c of controlCommands(emptyControl(), { offline: [7], silent: [], goto: {} })) await apply(c);
+    expect(await apply({ scooter: 7, action: 'restore' })).toEqual({ ok: true });
+    const same = { offline: [7], silent: [], goto: {} };
+    expect(controlCommands(same, same)).toEqual([]);
+    expect(link.offline).toBe(false);
   });
 });

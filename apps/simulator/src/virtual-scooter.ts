@@ -55,6 +55,8 @@ export class VirtualScooter {
   /** Klient prowadzi hulajnogę pieszo wstecz po trasie: ruch bez napędu i bez zużycia baterii. */
   private pushed = false;
   private readonly acks = new Map<string, Ack>();
+  /** Rozpoczęte jazdy (pokazowe i po odblokowaniu komendą) do statystyk na `simulator/status`. */
+  tripsStarted = 0;
 
   constructor(
     readonly number: number,
@@ -68,6 +70,27 @@ export class VirtualScooter {
 
   get batteryPct(): number {
     return Math.max(0, Math.floor(this.battery));
+  }
+
+  /** Bateria z ułamkiem (scenariusz rozładowania liczy spadek liniowy dokładnie). */
+  get batteryLevel(): number {
+    return this.battery;
+  }
+
+  /** Scenariusz rozładowania (ADR 0059): bateria spada do `pct`, a nigdy nie rośnie. */
+  lowerBattery(pct: number): void {
+    this.battery = Math.max(0, Math.min(this.battery, pct));
+  }
+
+  /** Trasa bieżącej jazdy (także wstrzymanej blokadą); `null` bez jazdy albo przed wyznaczeniem trasy. */
+  get route(): Route | null {
+    return this.trip?.route ?? null;
+  }
+
+  /** Pozostała droga bieżącej trasy w metrach. */
+  get remainingM(): number | null {
+    const route = this.trip?.route;
+    return route ? Math.max(0, route.lengthM - this.trip!.progressM) : null;
   }
 
   /** Hulajnoga jedzie o własnym napędzie: odblokowana, z napędem, baterią i resztą trasy przed sobą. */
@@ -106,11 +129,17 @@ export class VirtualScooter {
     this.locked = false;
     this.trip = { kind: 'demo', route, progressM: 0 };
     this.stopped = false;
+    this.tripsStarted++;
   }
 
-  /** Trasa jazdy po odblokowaniu komendą; ignorowana, jeśli jazda w międzyczasie się skończyła albo ma trasę. */
-  assignRoute(route: Route): void {
-    if (this.trip?.kind === 'command' && this.trip.route === null) this.trip.route = route;
+  /**
+   * Trasa jazdy po odblokowaniu komendą; ignorowana, jeśli jazda w międzyczasie się skończyła albo ma trasę.
+   * Zwraca, czy trasa została przyjęta.
+   */
+  assignRoute(route: Route): boolean {
+    if (this.trip?.kind !== 'command' || this.trip.route !== null) return false;
+    this.trip.route = route;
+    return true;
   }
 
   /** Porzuca trasę jazdy po komendzie; po przywróceniu napędu planista wyznaczy nową z bieżącego miejsca. */
@@ -258,7 +287,10 @@ export class VirtualScooter {
         if (this.batteryPct < UNLOCK_MIN_BATTERY) return 'LOW_BATTERY';
         this.locked = false;
         // Nowa jazda czeka na trasę; wstrzymana jedzie dalej tą samą trasą (ADR 0039).
-        this.trip ??= { kind: 'command', route: null, progressM: 0 };
+        if (!this.trip) {
+          this.trip = { kind: 'command', route: null, progressM: 0 };
+          this.tripsStarted++;
+        }
         return null;
       case 'lock':
         // Zablokowana hulajnoga też kasuje limit i zatrzymanie: backend po potwierdzeniu blokady (także
@@ -286,6 +318,10 @@ export class VirtualScooter {
         this.lightsOn = command.params?.on ?? !this.lightsOn;
         return null;
       case 'ring':
+        return null;
+      case 'battery_swapped':
+        // Kontrakt 1.3.0 (ADR 0059): prawdziwe urządzenie potwierdza po wykryciu nowej baterii, symulator od razu.
+        this.battery = 100;
         return null;
       default:
         return 'UNKNOWN_COMMAND';
