@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Zgłoś problem z przejazdu</title>
+<!-- Aplikacja mobilna, operacje (iteracja 6, pytania 4 i 6, decyzja D5; ADR 0055 zgłoszenia, ADR 0057 pliki). Wariant 06-mobile-profil/profil-usterka otwierany z podsumowania przejazdu (przycisk „Zgłoś problem” pod wierszami podsumowania, 24-mobile-platnosci/podsumowanie-portfel) i z karty hulajnogi na mapie (20-mobile-wypozyczenie/mapa-karta-rezerwuj, link „Zgłoś usterkę” pod ceną, bez kategorii „Rozliczenie”, bo nie ma przejazdu). Hulajnoga i przejazd są podstawione i nie da się ich zmienić (bez „Zmień” z profil-usterka): POST /tickets z scooterId i rentalId (tickets.rental_id), source USER. Tytuł „Zgłoś problem” zamiast „Zgłoś usterkę”, bo w formularzu jest też reklamacja opłaty; ten sam tytuł dostaje wejście z profilu. Kategorie z ticket_category (BRAKES, LIGHTS, WHEEL, HANDLEBAR, QR_CODE, BATTERY, OTHER); CONNECTION nie jest pokazywana klientowi (zgłoszenia automatyczne). „Rozliczenie” to nowa wartość BILLING (brak w typie, migracja 0008) w osobnej sekcji „Opłata za przejazd”, tylko gdy jest przejazd; wybrana sama wymaga opisu. Wiele kategorii naraz (tablica categories). Hamulce, koło i kierownica są pilne (pytanie 4): po wybraniu jednej z nich pojawia się notka, że hulajnoga zostanie wyłączona z ruchu; w trakcie przejazdu (D5) notka mówi „po zakończeniu przejazdu” i formularz nie kończy jazdy. Opis do [500] znaków, opcjonalny poza „Rozliczenie” i „Inne”. Zdjęcia: do [3], aparat albo plik (jak 26-mobile-operacje/zdjecie-parkowania-bez-aparatu), wysyłane przed zgłoszeniem jako files TICKET_PHOTO. „Wyślij zgłoszenie” nieaktywny bez kategorii; po sukcesie 26-mobile-operacje/zgloszenie-wyslane.
+     Dane przykładowe: klientka Anna, hulajnoga #0027 (numer czterocyfrowy jak w panelu i w temacie MQTT), przejazd R-51846, strefa P-01 Rynek z danych startowych Rybnika, zgłoszenia Z-1042 i Z-1046 (numer zgłoszenia wymaga sekwencji w migracji 0008, jak service_task_number_seq). Etykiety pochodzą z pliku tłumaczeń aplikacji (ADR 0032), treści powiadomień z szablonów notification_templates (wymaganie 17); kwoty, limity i czasy nieustalone w nawiasach. Plansza 390×844 px, wartości z docs/projekt/tokens.json. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+.phone{width:390px;height:844px;position:relative;overflow:hidden;background:#F6F6F3;color:#16181D;font-family:Inter,system-ui,sans-serif}
+.phone.map{background:#EFEFEC}
+.phone.camera{background:#2A2D33;color:#F6F6F3}
+.page{padding:20px 24px 32px;display:flex;flex-direction:column}
+.page.list{padding:20px 20px 28px}
+.glass{background:rgba(246,246,243,0.84);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);border:1px solid rgba(255,255,255,0.7);box-shadow:0 12px 40px rgba(22,24,29,0.14)}
+.topbar{position:absolute;left:16px;right:16px;top:20px;display:flex;gap:10px;align-items:center}
+.header{display:flex;align-items:center;gap:14px}
+.round{width:44px;height:44px;border-radius:22px;border:none;background:#E3E3DE;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.round.dark{background:#16181D;color:#F6F6F3;font-family:Inter,sans-serif;font-size:15px;font-weight:600}
+.round.cam{border:1px solid rgba(255,255,255,0.12);background:rgba(31,34,41,0.6);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+.pill{height:40px;padding:0 16px;border-radius:20px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500}
+.banner{position:absolute;left:16px;right:16px;top:20px;border-radius:22px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start}
+.sheet{position:absolute;left:12px;right:12px;bottom:12px;border-radius:32px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.btn{height:56px;border-radius:28px;border:none;padding:0 20px;font-family:Inter,sans-serif;font-size:17px;font-weight:600;width:100%;white-space:nowrap}
+.btn.primary{background:#2B3FF5;color:#FFFFFF}
+.btn.secondary{background:#E3E3DE;color:#16181D}
+.btn.dark{background:#16181D;color:#FFFFFF}
+.btn.oncam{background:rgba(246,246,243,0.16);color:#F6F6F3}
+.btn.text{height:48px;background:transparent;color:#16181D;font-size:16px}
+.btn.text.oncam{background:transparent;color:#D5D7DC}
+.btns{display:flex;flex-direction:column;gap:10px}
+.btns.split{display:grid;grid-template-columns:1fr 1.6fr;gap:10px}
+.btns.half{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.badge{border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.b40{width:40px;height:40px}
+.b44{width:44px;height:44px}
+.b48{width:48px;height:48px}
+.b72{width:72px;height:72px}
+.neutral{background:#E3E3DE} .danger{background:#FBE3E3} .warn{background:#FFF1DB} .accent{background:#EEF0FE} .solid{background:#2B3FF5}
+.alert-title{font-size:19px;font-weight:600;letter-spacing:-0.01em}
+.b-title{font-size:16px;font-weight:600}
+.b-body{font-size:14px;line-height:1.45;color:#6B6E75}
+.body15{font-size:15px;line-height:1.45;color:#6B6E75}
+.muted{color:#6B6E75}
+.num{font-weight:500}
+.label13{font-size:13px;font-weight:500;color:#6B6E75}
+h1.status{margin:0;font-size:30px;font-weight:600;letter-spacing:-0.03em;line-height:1.12}
+h1.heading{margin:0;font-size:22px;font-weight:600;letter-spacing:-0.02em}
+h2.section{margin:0;font-size:17px;font-weight:600}
+.section-label{font-size:14px;font-weight:600;color:#6B6E75;margin:0 0 0 4px}
+.lead{margin:10px 0 0;font-size:16px;line-height:1.5;color:#6B6E75}
+.steps{display:flex;flex-direction:column;gap:16px}
+.step{display:flex;align-items:flex-start;gap:14px;font-size:16px}
+.step .dot{width:26px;height:26px;border-radius:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.step .st{display:flex;flex-direction:column;gap:2px;padding-top:2px}
+.step .ss{font-size:14px;color:#6B6E75;font-weight:400}
+.dot.done{background:#2B3FF5}
+.dot.spin{border:3px solid #D5D5CF;border-top-color:#2B3FF5;transform:rotate(45deg)}
+.dot.todo{border:1.5px solid #D5D5CF}
+.dot.next{border:2px solid #16181D}
+svg{flex-shrink:0}
+.group{background:#FFFFFF;border-radius:20px;border:1px solid #E3E3DE;overflow:hidden}
+.grow{display:flex;align-items:center;gap:14px;min-height:54px;padding:0 16px;font-size:16px}
+.grow + .grow{border-top:1px solid #E3E3DE}
+.grow .txt{flex-grow:1;display:flex;flex-direction:column;gap:2px;min-width:0;padding:12px 0}
+.grow .t{font-size:16px;font-weight:500}
+.grow .s{font-size:13px;color:#6B6E75}
+.chip{display:inline-flex;height:26px;padding:0 10px;border-radius:13px;font-size:12px;font-weight:600;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0}
+.chip.neutral{background:#E3E3DE;color:#16181D}
+.chip.outline{background:#FFFFFF;border:1px solid #D5D5CF;color:#16181D}
+.chip.warn{background:#FFF1DB;color:#8F5500}
+.chip.danger{background:#FBE3E3;color:#C62F2F}
+.pillsel{height:40px;padding:0 16px;border-radius:20px;font-size:15px;font-weight:500;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pillsel.off{background:#FFFFFF;border:1px solid #E3E3DE}
+.pillsel.on{background:#16181D;color:#F6F6F3}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.field{border-radius:16px;border:1px solid #E3E3DE;background:#FFFFFF;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.field .label{font-size:12px;color:#6B6E75}
+.field .value{font-size:16px;line-height:1.45;color:#16181D}
+.lines{display:flex;flex-direction:column;font-size:15px}
+.lines > div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #E3E3DE}
+.lines > div:last-child{border-bottom:1px solid #E3E3DE}
+.lines .k{color:#6B6E75}
+.note{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.45;color:#6B6E75}
+.switch{width:51px;height:31px;border-radius:16px;background:#2B3FF5;position:relative;flex-shrink:0;display:inline-block}
+.switch::after{content:"";position:absolute;top:2px;right:2px;width:27px;height:27px;border-radius:14px;background:#FFFFFF;box-shadow:0 1px 3px rgba(22,24,29,0.25)}
+.switch.off{background:#D5D5CF}
+.switch.off::after{right:auto;left:2px}
+.appicon{border-radius:9px;background:#2B3FF5;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ride-sheet{position:absolute;left:0;right:0;bottom:0;height:384px;background:#F6F6F3;border-radius:32px 32px 0 0;padding:32px 24px 28px;display:flex;flex-direction:column}
+.timer{font-size:72px;font-weight:500;letter-spacing:-0.035em;line-height:1;text-align:center;margin-top:6px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));text-align:center}
+.stats > div{display:flex;flex-direction:column;gap:2px}
+.stats > div:nth-child(2){border-left:1px solid #E3E3DE;border-right:1px solid #E3E3DE}
+.stats .v{font-size:20px;font-weight:500;letter-spacing:-0.015em}
+.stats .l{font-size:13px;color:#6B6E75}
+</style>
+</head>
+<body>
+<div class="phone page">
+<div class="header"><button type="button" class="round" aria-label="Wróć"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button><h1 class="heading" style="flex-grow:1">Zgłoś problem</h1></div>
+<div class="group" style="margin-top:20px;display:flex;align-items:center;gap:14px;padding:12px 16px">
+<img src="../../rendery/hulajnoga-grafit-bok.png" alt="" style="width:56px;height:46px;object-fit:contain">
+<div style="flex-grow:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:500">Hulajnoga #0027</span><span style="font-size:14px;color:#6B6E75">Przejazd <span class="num">R-51846</span>, dziś <span class="num">14:16–14:32</span></span></div>
+</div>
+<h2 class="section" style="margin-top:22px">Co nie działa?</h2>
+<div class="chips" style="margin-top:12px"><span class="pillsel on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F6F6F3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>Hamulce</span><span class="pillsel off">Światła</span><span class="pillsel off">Koło</span><span class="pillsel off">Kierownica</span><span class="pillsel off">Kod QR</span><span class="pillsel off">Bateria</span><span class="pillsel off">Inne</span></div>
+<div class="note" style="margin-top:12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8h.01"></path></svg><span>Hamulce, koło i kierownica to usterki pilne. Po wysłaniu wyłączymy hulajnogę z ruchu do czasu naprawy.</span></div>
+<h2 class="section" style="margin-top:20px">Opłata za przejazd</h2>
+<div class="chips" style="margin-top:12px"><span class="pillsel off"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"></path><path d="M9 8h6M9 12h6M9 16h3"></path></svg>Rozliczenie</span></div>
+<div class="field" style="margin-top:20px;height:96px"><span class="label">Opis</span><span class="value">Tylny hamulec słabo trzyma, na zjeździe trzeba mocno ściskać.</span></div>
+<div style="display:flex;gap:12px;margin-top:14px;align-items:center">
+<div style="position:relative;width:72px;height:72px;flex-shrink:0"><div style="width:72px;height:72px;border-radius:16px;overflow:hidden;background:linear-gradient(#6A6D73 0 62%,#4A4D53 62%)"><img src="../../rendery/hulajnoga-grafit-trzy.png" alt="Dodane zdjęcie hulajnogi" style="width:100%;height:100%;object-fit:cover;display:block"></div><span style="position:absolute;right:-6px;top:-6px;width:24px;height:24px;border-radius:12px;background:#16181D;display:flex;align-items:center;justify-content:center;border:2px solid #F6F6F3"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></div>
+<div style="width:72px;height:72px;border-radius:16px;border:1.5px dashed #B9B9B2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;color:#6B6E75"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3"></rect><circle cx="12" cy="13.5" r="3.5"></circle><path d="M8 7l2-3h4l2 3"></path></svg>Zdjęcie</div>
+<span style="font-size:13px;color:#6B6E75;margin-left:4px"><span class="num">1</span> z <span class="num">[3]</span></span>
+</div>
+<div style="flex-grow:1"></div>
+<button type="button" class="btn primary">Wyślij zgłoszenie</button>
+</div>
+</body>
+</html>

@@ -58,3 +58,9 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0052 | [Paragony](0052-paragony.md) | zaakceptowana |
 | 0053 | [Wersje cennika w panelu](0053-wersje-cennika-w-panelu.md) | zaakceptowana |
 | 0054 | [Zwroty i korekty salda](0054-zwroty-i-korekty-salda.md) | zaakceptowana |
+| 0055 | [Zgłoszenia i proces serwisowy](0055-zgloszenia-i-proces-serwisowy.md) | zaakceptowana |
+| 0056 | [Przejazd przy utracie łączności i niskiej baterii](0056-przejazd-bez-lacznosci-i-niska-bateria.md) | zaakceptowana |
+| 0057 | [Pliki: zdjęcia zgłoszeń i parkowania](0057-pliki-zdjecia.md) | zaakceptowana |
+| 0058 | [Powiadomienia push z szablonów](0058-powiadomienia-push-z-szablonow.md) | zaakceptowana |
+| 0059 | [Symulator sterowany z panelu](0059-symulator-sterowany-z-panelu.md) | zaakceptowana |
+| 0060 | [Opłata za odholowanie](0060-oplata-za-odholowanie.md) | zaakceptowana |

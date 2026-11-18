@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Baner powiadomienia w aplikacji</title>
+<!-- Aplikacja mobilna w wersji web (iteracja 6, decyzje D2 i D7; ADR 0058). Atrapa bramki push zapisuje powiadomienie i wysyła je przez Socket.IO do pokoju klienta, a aplikacja pokazuje baner u góry ekranu nad mapą (także nad ekranem jazdy i listami). Te same treści co push z szablonów notification_templates (tytuł i treść po wyrenderowaniu ICU), ta sama ikona aplikacji co na ekranie blokady (10-ikona-powiadomienia/powiadomienia). W aplikacji natywnej z development build ten sam baner pokazuje się, gdy push przychodzi przy otwartej aplikacji. Baner zakrywa pasek górny mapy na [6] s albo do przesunięcia w górę lub ✕; kolejne powiadomienie zastępuje poprzednie (bez stosu). Dotknięcie otwiera właściwy ekran według typu: odpowiedź na zgłoszenie → 26-mobile-operacje/zgloszenie-szczegoly, przejazd zakończony → podsumowanie, nieudana płatność → 24-mobile-platnosci/zaleglosc-splata, koniec rezerwacji → mapa z rezerwacją. Niska bateria w trakcie jazdy nie ma banera, bo ekran jazdy pokazuje własny komunikat (05-mobile-przejazd/przejazd-bateria). Wyświetlenie banera ustawia czas odczytu powiadomienia (brak kolumny read_at w notifications, migracja 0008).
+     Dane przykładowe: klientka Anna, hulajnoga #0027 (numer czterocyfrowy jak w panelu i w temacie MQTT), przejazd R-51846, strefa P-01 Rynek z danych startowych Rybnika, zgłoszenia Z-1042 i Z-1046 (numer zgłoszenia wymaga sekwencji w migracji 0008, jak service_task_number_seq). Etykiety pochodzą z pliku tłumaczeń aplikacji (ADR 0032), treści powiadomień z szablonów notification_templates (wymaganie 17); kwoty, limity i czasy nieustalone w nawiasach. Plansza 390×844 px, wartości z docs/projekt/tokens.json. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+.phone{width:390px;height:844px;position:relative;overflow:hidden;background:#F6F6F3;color:#16181D;font-family:Inter,system-ui,sans-serif}
+.phone.map{background:#EFEFEC}
+.phone.camera{background:#2A2D33;color:#F6F6F3}
+.page{padding:20px 24px 32px;display:flex;flex-direction:column}
+.page.list{padding:20px 20px 28px}
+.glass{background:rgba(246,246,243,0.84);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);border:1px solid rgba(255,255,255,0.7);box-shadow:0 12px 40px rgba(22,24,29,0.14)}
+.topbar{position:absolute;left:16px;right:16px;top:20px;display:flex;gap:10px;align-items:center}
+.header{display:flex;align-items:center;gap:14px}
+.round{width:44px;height:44px;border-radius:22px;border:none;background:#E3E3DE;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.round.dark{background:#16181D;color:#F6F6F3;font-family:Inter,sans-serif;font-size:15px;font-weight:600}
+.round.cam{border:1px solid rgba(255,255,255,0.12);background:rgba(31,34,41,0.6);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+.pill{height:40px;padding:0 16px;border-radius:20px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500}
+.banner{position:absolute;left:16px;right:16px;top:20px;border-radius:22px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start}
+.sheet{position:absolute;left:12px;right:12px;bottom:12px;border-radius:32px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.btn{height:56px;border-radius:28px;border:none;padding:0 20px;font-family:Inter,sans-serif;font-size:17px;font-weight:600;width:100%;white-space:nowrap}
+.btn.primary{background:#2B3FF5;color:#FFFFFF}
+.btn.secondary{background:#E3E3DE;color:#16181D}
+.btn.dark{background:#16181D;color:#FFFFFF}
+.btn.oncam{background:rgba(246,246,243,0.16);color:#F6F6F3}
+.btn.text{height:48px;background:transparent;color:#16181D;font-size:16px}
+.btn.text.oncam{background:transparent;color:#D5D7DC}
+.btns{display:flex;flex-direction:column;gap:10px}
+.btns.split{display:grid;grid-template-columns:1fr 1.6fr;gap:10px}
+.btns.half{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.badge{border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.b40{width:40px;height:40px}
+.b44{width:44px;height:44px}
+.b48{width:48px;height:48px}
+.b72{width:72px;height:72px}
+.neutral{background:#E3E3DE} .danger{background:#FBE3E3} .warn{background:#FFF1DB} .accent{background:#EEF0FE} .solid{background:#2B3FF5}
+.alert-title{font-size:19px;font-weight:600;letter-spacing:-0.01em}
+.b-title{font-size:16px;font-weight:600}
+.b-body{font-size:14px;line-height:1.45;color:#6B6E75}
+.body15{font-size:15px;line-height:1.45;color:#6B6E75}
+.muted{color:#6B6E75}
+.num{font-weight:500}
+.label13{font-size:13px;font-weight:500;color:#6B6E75}
+h1.status{margin:0;font-size:30px;font-weight:600;letter-spacing:-0.03em;line-height:1.12}
+h1.heading{margin:0;font-size:22px;font-weight:600;letter-spacing:-0.02em}
+h2.section{margin:0;font-size:17px;font-weight:600}
+.section-label{font-size:14px;font-weight:600;color:#6B6E75;margin:0 0 0 4px}
+.lead{margin:10px 0 0;font-size:16px;line-height:1.5;color:#6B6E75}
+.steps{display:flex;flex-direction:column;gap:16px}
+.step{display:flex;align-items:flex-start;gap:14px;font-size:16px}
+.step .dot{width:26px;height:26px;border-radius:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.step .st{display:flex;flex-direction:column;gap:2px;padding-top:2px}
+.step .ss{font-size:14px;color:#6B6E75;font-weight:400}
+.dot.done{background:#2B3FF5}
+.dot.spin{border:3px solid #D5D5CF;border-top-color:#2B3FF5;transform:rotate(45deg)}
+.dot.todo{border:1.5px solid #D5D5CF}
+.dot.next{border:2px solid #16181D}
+svg{flex-shrink:0}
+.group{background:#FFFFFF;border-radius:20px;border:1px solid #E3E3DE;overflow:hidden}
+.grow{display:flex;align-items:center;gap:14px;min-height:54px;padding:0 16px;font-size:16px}
+.grow + .grow{border-top:1px solid #E3E3DE}
+.grow .txt{flex-grow:1;display:flex;flex-direction:column;gap:2px;min-width:0;padding:12px 0}
+.grow .t{font-size:16px;font-weight:500}
+.grow .s{font-size:13px;color:#6B6E75}
+.chip{display:inline-flex;height:26px;padding:0 10px;border-radius:13px;font-size:12px;font-weight:600;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0}
+.chip.neutral{background:#E3E3DE;color:#16181D}
+.chip.outline{background:#FFFFFF;border:1px solid #D5D5CF;color:#16181D}
+.chip.warn{background:#FFF1DB;color:#8F5500}
+.chip.danger{background:#FBE3E3;color:#C62F2F}
+.pillsel{height:40px;padding:0 16px;border-radius:20px;font-size:15px;font-weight:500;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pillsel.off{background:#FFFFFF;border:1px solid #E3E3DE}
+.pillsel.on{background:#16181D;color:#F6F6F3}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.field{border-radius:16px;border:1px solid #E3E3DE;background:#FFFFFF;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.field .label{font-size:12px;color:#6B6E75}
+.field .value{font-size:16px;line-height:1.45;color:#16181D}
+.lines{display:flex;flex-direction:column;font-size:15px}
+.lines > div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #E3E3DE}
+.lines > div:last-child{border-bottom:1px solid #E3E3DE}
+.lines .k{color:#6B6E75}
+.note{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.45;color:#6B6E75}
+.switch{width:51px;height:31px;border-radius:16px;background:#2B3FF5;position:relative;flex-shrink:0;display:inline-block}
+.switch::after{content:"";position:absolute;top:2px;right:2px;width:27px;height:27px;border-radius:14px;background:#FFFFFF;box-shadow:0 1px 3px rgba(22,24,29,0.25)}
+.switch.off{background:#D5D5CF}
+.switch.off::after{right:auto;left:2px}
+.appicon{border-radius:9px;background:#2B3FF5;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ride-sheet{position:absolute;left:0;right:0;bottom:0;height:384px;background:#F6F6F3;border-radius:32px 32px 0 0;padding:32px 24px 28px;display:flex;flex-direction:column}
+.timer{font-size:72px;font-weight:500;letter-spacing:-0.035em;line-height:1;text-align:center;margin-top:6px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));text-align:center}
+.stats > div{display:flex;flex-direction:column;gap:2px}
+.stats > div:nth-child(2){border-left:1px solid #E3E3DE;border-right:1px solid #E3E3DE}
+.stats .v{font-size:20px;font-weight:500;letter-spacing:-0.015em}
+.stats .l{font-size:13px;color:#6B6E75}
+</style>
+</head>
+<body>
+<div class="phone map">
+<svg viewBox="0 0 390 844" width="390" height="844" style="position:absolute;left:0;top:0;display:block" role="img" aria-label="Mapa okolicy z wolnymi hulajnogami i strefą parkowania">
+<rect x="0" y="0" width="390" height="844" fill="#EFEFEC"></rect><rect x="232" y="150" width="140" height="170" rx="16" fill="#E5E8E1"></rect><path d="M-10 560 C 110 520 230 640 400 590" stroke="#DFE3E8" stroke-width="30" fill="none"></path><path d="M0 120 L390 92 M262 0 L300 844 M42 0 L62 844 M0 420 L390 384 M0 760 L390 730" stroke="#FAFAF8" stroke-width="5" fill="none"></path><path d="M0 270 L390 226 M124 0 L166 844 M0 680 L390 640" stroke="#FFFFFF" stroke-width="10" fill="none"></path><rect x="300" y="404" width="62" height="44" rx="10" fill="#2B3FF5" fill-opacity="0.16" stroke="#2B3FF5" stroke-width="1.5"></rect><text x="331" y="432" text-anchor="middle" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#2B3FF5">P</text>
+<circle cx="96" cy="230" r="6" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="214" cy="300" r="6" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="300" cy="200" r="6" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="88" cy="400" r="6" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="320" cy="330" r="6" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="250" cy="520" r="22" fill="#2B3FF5" fill-opacity="0.14"></circle><circle cx="250" cy="520" r="10" fill="#2B3FF5" stroke="#FFFFFF" stroke-width="3"></circle>
+<circle cx="160" cy="345" r="6" fill="#FFFFFF" stroke="#2B3FF5" stroke-width="3"></circle>
+</svg>
+<div class="banner glass" role="status" style="padding:14px 12px 14px 14px;align-items:flex-start;gap:12px">
+<div class="appicon" style="width:38px;height:38px;border-radius:9px"><svg width="31" height="31" viewBox="0 0 1024 1024" aria-hidden="true" fill="none" stroke="#FFFFFF" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"><circle cx="314" cy="668" r="88"></circle><circle cx="710" cy="668" r="88"></circle><path d="M402 668 H622"></path><path d="M710 668 L614 268"></path><path d="M534 268 H684"></path></svg></div>
+<div style="flex-grow:1;display:flex;flex-direction:column;gap:2px;min-width:0">
+<div style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:15px;font-weight:600">Odpowiedź na zgłoszenie</span><span style="font-size:13px;color:#6B6E75">teraz</span></div>
+<span style="font-size:14px;line-height:1.4">Z-1046: zwróciliśmy <span class="num">4,20</span> zł do portfela. Zobacz szczegóły.</span>
+</div>
+<button type="button" aria-label="Zamknij powiadomienie" style="width:32px;height:32px;border:none;border-radius:16px;background:transparent;display:flex;align-items:center;justify-content:center;padding:0;margin:-4px -4px 0 0;flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<div class="sheet glass">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+<div style="display:flex;flex-direction:column;gap:2px">
+<div style="font-size:13px;font-weight:500;color:#6B6E75">Hulajnoga #0031</div>
+<div style="font-size:50px;font-weight:500;letter-spacing:-0.03em;line-height:1">74%</div>
+<div style="font-size:14px;color:#6B6E75">≈ 20 km zasięgu</div>
+</div>
+<img src="../../rendery/hulajnoga-grafit-bok.png" alt="Hulajnoga w wariancie Grafit, widok z boku" style="width:140px;height:112px;object-fit:contain;display:block;flex-shrink:0">
+</div>
+<div style="display:flex;justify-content:space-between;font-size:14px;padding-top:16px;border-top:1px solid #E3E3DE"><span><span class="num">90</span> m · <span class="num">1</span> min pieszo</span><span class="num">[CENA] zł/min</span></div>
+<div class="btns split"><button type="button" class="btn secondary">Zarezerwuj</button><button type="button" class="btn primary">Skanuj i jedź</button></div>
+</div>
+</div>
+</body>
+</html>
