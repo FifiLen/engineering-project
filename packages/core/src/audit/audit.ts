@@ -42,12 +42,18 @@ export function diffForAudit(before: object, after: object): Record<string, Fiel
 
 /** Dane wpisu bez sekretów: dane wejściowe akcji (np. notatka blokady) przechodzą przez ten sam filtr. */
 export function redactSecrets(data: Readonly<Record<string, unknown>>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(data).map(([k, v]) => [k, SECRET_FIELD.test(k) ? REDACTED : normalize(v)]),
-  );
+  return Object.fromEntries(Object.entries(data).map(([k, v]) => [k, SECRET_FIELD.test(k) ? REDACTED : normalize(v)]));
 }
 
 export function auditEntry(entry: AuditEntry): AuditEntry {
+  if (!AUDIT_ACTION_PATTERN.test(entry.action)) throw new Error(`Niepoprawna akcja audytu: ${entry.action}`);
+  return { ...entry, data: redactSecrets(entry.data) };
+}
+
+/** Wpis systemu bez operatora (`actor = SYSTEM`, ADR 0055): zgłoszenia automatyczne, automatyczne `MAINTENANCE`. */
+export type SystemAuditEntry = Omit<AuditEntry, 'staffId'>;
+
+export function systemAuditEntry(entry: SystemAuditEntry): SystemAuditEntry {
   if (!AUDIT_ACTION_PATTERN.test(entry.action)) throw new Error(`Niepoprawna akcja audytu: ${entry.action}`);
   return { ...entry, data: redactSecrets(entry.data) };
 }

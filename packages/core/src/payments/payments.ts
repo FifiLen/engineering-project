@@ -116,6 +116,23 @@ export function rideCharge(total: number, source: PaymentSource): RideCharge {
   return source === 'CARD' ? { kind: 'CARD', amount: total } : { kind: 'WALLET', amount: total };
 }
 
+/**
+ * Wpisy księgi za przejazd opłacony z portfela (ADR 0060): wycena przejazdu jako `RIDE_CHARGE` i opłata za
+ * odholowanie jako osobny `TOWING_FEE` w tej samej transakcji; karta dostaje jedną płatność na sumę. Kwoty
+ * dodatnie (obciążenie zapisuje się ze znakiem minus); pozycja 0 zł nie daje wpisu.
+ */
+export function rideWalletEntries(
+  total: number,
+  towingFee: number | null,
+): Array<{ type: 'RIDE_CHARGE' | 'TOWING_FEE'; amount: number }> {
+  const fee = Math.min(Math.max(towingFee ?? 0, 0), Math.max(total, 0));
+  const ride = Math.max(total, 0) - fee;
+  return [
+    ...(ride > 0 ? [{ type: 'RIDE_CHARGE' as const, amount: ride }] : []),
+    ...(fee > 0 ? [{ type: 'TOWING_FEE' as const, amount: fee }] : []),
+  ];
+}
+
 /** Automatyczne ponowienie tylko po pierwszej odmowie (pytanie 6). */
 export const shouldRetryRideCharge = (failedAttempts: number): boolean => failedAttempts === 1;
 

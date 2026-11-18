@@ -83,13 +83,25 @@ export class DrizzleTelemetryRepository implements TelemetryRepository {
       );
   }
 
-  async setConnection(number: number, online: boolean, firmware: string | null): Promise<TelemetryTarget | null> {
+  /**
+   * Łączność z `status` (retained, Last Will). `wasOnline` to stan sprzed zapisu: zgłoszenie `OFFLINE` planuje się
+   * tylko przy zmianie online → offline, nie przy powtórzonym statusie po restarcie API (ADR 0055).
+   */
+  async setConnection(
+    number: number,
+    online: boolean,
+    firmware: string | null,
+  ): Promise<(TelemetryTarget & { wasOnline: boolean }) | null> {
+    const [before] = await this.db
+      .select({ online: scooters.online })
+      .from(scooters)
+      .where(eq(scooters.number, number));
     const [row] = await this.db
       .update(scooters)
       .set({ online, ...(firmware ? { firmware } : {}) })
       .where(eq(scooters.number, number))
       .returning(targetColumns);
-    return row ? toTarget(row) : null;
+    return row ? { ...toTarget(row), wasOnline: before?.online ?? false } : null;
   }
 
   /** Dzienne partycje telemetrii na najbliższe dni (`sp_ensure_telemetry_partitions`). */

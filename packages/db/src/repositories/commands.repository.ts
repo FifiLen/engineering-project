@@ -1,6 +1,12 @@
-import type { CommandRecord, CommandRepository, CommandStatus, CommandType } from '@hulajnogi/core';
+import {
+  COMMAND_ACK_TIMEOUT_MS,
+  type CommandRecord,
+  type CommandRepository,
+  type CommandStatus,
+  type CommandType,
+} from '@hulajnogi/core';
 import type { CommandView } from '@hulajnogi/shared';
-import { and, desc, eq, lt } from 'drizzle-orm';
+import { and, desc, eq, isNull, lt, or } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { scooterCommands, scooters } from '../schema/schema.js';
 
@@ -23,16 +29,20 @@ const toRecord = (r: { [K in keyof typeof recordColumns]: unknown }): CommandRec
 export class DrizzleCommandRepository implements CommandRepository {
   constructor(private readonly db: DbExecutor) {}
 
-  /** `expiresAt`: termin z kontraktu MQTT 1.1.0, po którym hulajnoga nie wykona komendy (ADR 0038). */
+  /**
+   * `expiresAt`: termin z kontraktu MQTT 1.1.0, po którym hulajnoga nie wykona komendy (ADR 0038); `issuedByStaff`:
+   * operator komendy z panelu (komendy systemu i przejazdu go nie mają).
+   */
   async create(
     scooterId: string,
     type: CommandType,
     payload: Record<string, unknown>,
     expiresAt?: Date,
+    issuedByStaff?: string,
   ): Promise<CommandRecord> {
     const [row] = await this.db
       .insert(scooterCommands)
-      .values({ scooterId, type, payload, expiresAt })
+      .values({ scooterId, type, payload, expiresAt, issuedByStaff })
       .returning(recordColumns);
     return toRecord(row!);
   }
@@ -66,11 +76,26 @@ export class DrizzleCommandRepository implements CommandRepository {
     return row ? toRecord(row) : null;
   }
 
-  async overdue(sentBefore: Date): Promise<string[]> {
+  /**
+   * Komendy SENT po terminie ważności (`expires_at`, ADR 0038): blokada przy zakończeniu bez łączności czeka 10 min,
+   * a nie 10 s (ADR 0056). Komenda bez terminu przekracza czas po `COMMAND_ACK_TIMEOUT_MS` od wysłania.
+   */
+  async overdue(now: Date): Promise<string[]> {
     const rows = await this.db
       .select({ id: scooterCommands.id })
       .from(scooterCommands)
-      .where(and(eq(scooterCommands.status, 'SENT'), lt(scooterCommands.sentAt, sentBefore)))
+      .where(
+        and(
+          eq(scooterCommands.status, 'SENT'),
+          or(
+            lt(scooterCommands.expiresAt, now),
+            and(
+              isNull(scooterCommands.expiresAt),
+              lt(scooterCommands.sentAt, new Date(now.getTime() - COMMAND_ACK_TIMEOUT_MS)),
+            ),
+          ),
+        ),
+      )
       .orderBy(scooterCommands.sentAt)
       .limit(100);
     return rows.map((r) => r.id);

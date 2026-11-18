@@ -176,6 +176,60 @@
         ]
       }
     },
+    "/admin/dashboard/attention": {
+      "get": {
+        "operationId": "DashboardController_attention",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Grupy „Wymaga uwagi” z liczbami i do 4 pozycji; grupa tylko z uprawnieniem listy docelowej (rentals.read, scooters.read, tickets.read, payments.read)",
+        "tags": [
+          "panel: pulpit"
+        ]
+      }
+    },
+    "/admin/files": {
+      "get": {
+        "operationId": "AdminFilesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Pliki według wzorca listy, zawężone do celów z uprawnieniem modułu (rentals.read, tickets.read), z podpisanym adresem podglądu",
+        "tags": [
+          "panel: pliki"
+        ]
+      }
+    },
+    "/admin/files/{id}": {
+      "delete": {
+        "operationId": "AdminFilesController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie nieprzypiętego pliku (409 FILE_ATTACHED) z uprawnieniem do celu jak przy wysyłce",
+        "tags": [
+          "panel: pliki"
+        ]
+      }
+    },
     "/admin/fleet/map": {
       "get": {
         "operationId": "FleetMapController_map",
@@ -364,6 +418,129 @@
         ]
       }
     },
+    "/admin/notification-templates": {
+      "get": {
+        "operationId": "AdminNotificationTemplatesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Szablony powiadomień push i SMS (kody z rejestru) według wzorca listy",
+        "tags": [
+          "panel: powiadomienia"
+        ]
+      }
+    },
+    "/admin/notification-templates/{id}": {
+      "get": {
+        "operationId": "AdminNotificationTemplatesController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Szablon z parametrami z rejestru, ekranem aplikacji i historią wersji"
+          }
+        },
+        "tags": [
+          "panel: powiadomienia"
+        ]
+      },
+      "patch": {
+        "operationId": "AdminNotificationTemplatesController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zapis treści jako nowej wersji (blokada optymistyczna `version`); działa od następnej wysyłki",
+        "tags": [
+          "panel: powiadomienia"
+        ]
+      }
+    },
+    "/admin/notification-templates/{id}/preview": {
+      "post": {
+        "operationId": "AdminNotificationTemplatesController_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Podgląd bez zapisu: problemy szablonu z wierszem i znakiem (składnia, parametry, limity) albo treść po renderowaniu",
+        "tags": [
+          "panel: powiadomienia"
+        ]
+      }
+    },
+    "/admin/notification-templates/{id}/restore": {
+      "post": {
+        "operationId": "AdminNotificationTemplatesController_restore",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Przywrócenie treści starszej wersji jako nowej wersji",
+        "tags": [
+          "panel: powiadomienia"
+        ]
+      }
+    },
+    "/admin/notifications": {
+      "get": {
+        "operationId": "AdminNotificationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Wysłane powiadomienia ze stanem wysyłki; bez users.read bez imienia i telefonu klienta (userName = null)",
+        "tags": [
+          "panel: powiadomienia"
+        ]
+      }
+    },
     "/admin/payment-methods": {
       "get": {
         "operationId": "AdminPaymentsController_methods",
@@ -444,6 +621,21 @@
         "summary": "Katalog uprawnień z modułami i opisami",
         "tags": [
           "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/push-tokens": {
+      "get": {
+        "operationId": "AdminNotificationsController_pushTokens",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Tokeny push klientów ze stanem sesji",
+        "tags": [
+          "panel: powiadomienia"
         ]
       }
     },
@@ -556,7 +748,7 @@
             "description": ""
           }
         },
-        "summary": "Zdalne zakończenie (D7): niezależnie od strefy, z powodem, komendą lock i wpisem w dzienniku audytu",
+        "summary": "Zdalne zakończenie (D7): niezależnie od strefy, z powodem, komendą lock i wpisem w dzienniku audytu; poza strefą parkowania opcjonalna opłata za odholowanie z cennika przejazdu (collectTowingFee, ADR 0060), w strefie 422 TOWING_FEE_NOT_APPLICABLE",
         "tags": [
           "panel: przejazdy"
         ]
@@ -980,6 +1172,519 @@
         ]
       }
     },
+    "/admin/scooters/{id}/retire": {
+      "post": {
+        "operationId": "ScooterServiceController_retire",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Wyłącz z ruchu (RETIRED) z powodem; niedostępne w przejeździe i przy otwartych zadaniach",
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/scooters/{id}/return-to-fleet": {
+      "post": {
+        "operationId": "ScooterServiceController_returnToFleet",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Przywróć do floty: bez otwartych zadań, online, bateria ≥ próg (409 RETURN_TO_FLEET_BLOCKED)",
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/scooters/{id}/service": {
+      "get": {
+        "operationId": "ScooterServiceController_summary",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reguła powrotu do floty, dostępne rodzaje zadań, ostatnie zadania i koszt części"
+          }
+        },
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/service-tasks": {
+      "get": {
+        "operationId": "ServiceTasksController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zadania serwisowe według wzorca listy (koszt części, termin, cel przewiezienia)",
+        "tags": [
+          "panel: serwis"
+        ]
+      },
+      "post": {
+        "operationId": "ServiceTasksController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Utworzenie ze zgłoszenia (ticketId, zgłoszenie przechodzi do AT_SERVICE) albo z karty hulajnogi („Wyślij do serwisu”); wolna hulajnoga od razu do MAINTENANCE",
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/service-tasks/{id}": {
+      "get": {
+        "operationId": "ServiceTasksController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Zadanie z częściami, zgłoszeniem i skutkiem dla hulajnogi (returnCheck)"
+          }
+        },
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/service-tasks/{id}/assign": {
+      "post": {
+        "operationId": "ServiceTasksController_assign",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/service-tasks/{id}/cancel": {
+      "post": {
+        "operationId": "ServiceTasksController_cancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Anulowanie z powodem; części wracają do magazynu",
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/service-tasks/{id}/complete": {
+      "post": {
+        "operationId": "ServiceTasksController_complete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Zakończenie z notatką: zgłoszenie RESOLVED po ostatnim zadaniu, hulajnoga bez przeszkód wraca do floty, BATTERY_SWAP wysyła battery_swapped",
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/service-tasks/{id}/history": {
+      "get": {
+        "operationId": "ServiceTasksController_historyOf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historia zadania z dziennika audytu, od najnowszej"
+          }
+        },
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/service-tasks/{id}/parts": {
+      "post": {
+        "operationId": "ServiceTasksController_addPart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Część z magazynu w zadaniu w toku: stan maleje od razu (422 PART_OUT_OF_STOCK)",
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/service-tasks/{id}/parts/remove": {
+      "post": {
+        "operationId": "ServiceTasksController_removePart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Zwrot części do magazynu z zadania w toku (bez ilości cała pozycja)",
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/service-tasks/{id}/start": {
+      "post": {
+        "operationId": "ServiceTasksController_start",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Rozpoczęcie (OPEN → IN_PROGRESS); nieprzypisane zadanie dostaje operatora",
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/service-tasks/mine": {
+      "get": {
+        "operationId": "ServiceTasksController_mine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Moje zadania: lista z wykonawcą ustawionym na zalogowanego operatora",
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
+    "/admin/simulator/commands": {
+      "post": {
+        "operationId": "SimulatorController_command",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Polecenie scenariusza (rozłączenie, milczenie, rozładowanie, jazda do strefy albo punktu, strefa zakazu, przerwanie) na MQTT simulator/control z wpisem simulator.command w dzienniku audytu; wynik przychodzi zdarzeniem simulator.result",
+        "tags": [
+          "panel: symulator"
+        ]
+      }
+    },
+    "/admin/simulator/status": {
+      "get": {
+        "operationId": "SimulatorController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Ostatni stan z simulator/status (stale = brak stanu od 30 s) i ostatnie polecenia z wynikami"
+          }
+        },
+        "tags": [
+          "panel: symulator"
+        ]
+      }
+    },
+    "/admin/spare-part-movements": {
+      "get": {
+        "operationId": "SparePartsController_movements",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Ruchy magazynowe (przyjęcie, korekta, użycie, zwrot) tylko do odczytu",
+        "tags": [
+          "panel: magazyn"
+        ]
+      }
+    },
+    "/admin/spare-parts": {
+      "get": {
+        "operationId": "SparePartsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Części ze stanem względem minimum i zużyciem z 30 dni",
+        "tags": [
+          "panel: magazyn"
+        ]
+      },
+      "post": {
+        "operationId": "SparePartsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Nowa część; stan początkowy jako przyjęcie dostawy (ruch RECEIPT)",
+        "tags": [
+          "panel: magazyn"
+        ]
+      }
+    },
+    "/admin/spare-parts/{id}": {
+      "delete": {
+        "operationId": "SparePartsController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie części bez historii albo archiwizacja części z ruchami",
+        "tags": [
+          "panel: magazyn"
+        ]
+      },
+      "get": {
+        "operationId": "SparePartsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Część z ostatnimi ruchami magazynowymi"
+          }
+        },
+        "tags": [
+          "panel: magazyn"
+        ]
+      },
+      "patch": {
+        "operationId": "SparePartsController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Edycja słownika z blokadą optymistyczną (stan tylko przyjęciem albo korektą)",
+        "tags": [
+          "panel: magazyn"
+        ]
+      }
+    },
+    "/admin/spare-parts/{id}/adjustments": {
+      "post": {
+        "operationId": "SparePartsController_adjust",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Korekta stanu: nowy stan bezwzględny z powodem (OTHER z notatką)",
+        "tags": [
+          "panel: magazyn"
+        ]
+      }
+    },
+    "/admin/spare-parts/{id}/history": {
+      "get": {
+        "operationId": "SparePartsController_historyOf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historia zmian części z dziennika audytu"
+          }
+        },
+        "tags": [
+          "panel: magazyn"
+        ]
+      }
+    },
+    "/admin/spare-parts/{id}/receipts": {
+      "post": {
+        "operationId": "SparePartsController_receive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Przyjęcie dostawy: stan rośnie, opcjonalna nowa cena dla kolejnych użyć",
+        "tags": [
+          "panel: magazyn"
+        ]
+      }
+    },
     "/admin/staff": {
       "get": {
         "operationId": "StaffController_list",
@@ -1237,6 +1942,161 @@
         },
         "tags": [
           "panel: cennik"
+        ]
+      }
+    },
+    "/admin/tickets": {
+      "get": {
+        "operationId": "AdminTicketsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zgłoszenia według wzorca listy; bez users.read bez imienia i telefonu klienta (reporterName = null)",
+        "tags": [
+          "panel: zgłoszenia"
+        ]
+      },
+      "post": {
+        "operationId": "AdminTicketsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Zgłoszenie operatora (STAFF) z karty hulajnogi albo przejazdu",
+        "tags": [
+          "panel: zgłoszenia"
+        ]
+      }
+    },
+    "/admin/tickets/{id}": {
+      "get": {
+        "operationId": "AdminTicketsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Zgłoszenie ze zdjęciami, zadaniami i osią czasu z dziennika audytu (D6)"
+          }
+        },
+        "tags": [
+          "panel: zgłoszenia"
+        ]
+      }
+    },
+    "/admin/tickets/{id}/assign": {
+      "post": {
+        "operationId": "AdminTicketsController_assign",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Przypisanie (null zdejmuje) z blokadą optymistyczną",
+        "tags": [
+          "panel: zgłoszenia"
+        ]
+      }
+    },
+    "/admin/tickets/{id}/photos": {
+      "post": {
+        "operationId": "AdminTicketsController_addPhoto",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Zdjęcie operatora (POST /files, TICKET_PHOTO), najwyżej 3 na zgłoszenie",
+        "tags": [
+          "panel: zgłoszenia"
+        ]
+      }
+    },
+    "/admin/tickets/{id}/photos/{fileId}": {
+      "delete": {
+        "operationId": "AdminTicketsController_removePhoto",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fileId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie zdjęcia ze zgłoszenia (plik usuwa potem files.cleanup)",
+        "tags": [
+          "panel: zgłoszenia"
+        ]
+      }
+    },
+    "/admin/tickets/{id}/status": {
+      "post": {
+        "operationId": "AdminTicketsController_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Zmiana statusu (NEW, IN_PROGRESS, RESOLVED) i odpowiedź dla klienta (D7); RESOLVED zgłoszenia klienta wymaga odpowiedzi",
+        "tags": [
+          "panel: zgłoszenia"
         ]
       }
     },
@@ -1734,6 +2594,73 @@
         ]
       }
     },
+    "/files": {
+      "post": {
+        "operationId": "FilesController_upload",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "description": "image/jpeg, image/png, image/webp; najwyżej 10 MB",
+                    "format": "binary",
+                    "type": "string"
+                  },
+                  "purpose": {
+                    "enum": [
+                      "PARKING_PHOTO",
+                      "TICKET_PHOTO"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "purpose",
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Wysyłka zdjęcia (201): klient albo operator z uprawnieniem do celu; typ po sygnaturze (JPEG, PNG, WebP), limit 10 MB; FILE_TOO_LARGE (413), FILE_TYPE_NOT_ALLOWED (415)",
+        "tags": [
+          "pliki"
+        ]
+      }
+    },
+    "/files/{id}": {
+      "get": {
+        "operationId": "FilesController_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Odczyt pliku po adresie z widoku przejazdu albo zgłoszenia (podpis HMAC ważny 10 min); FILE_SIGNATURE_INVALID (403), FILE_URL_EXPIRED (403), FILE_DELETED (410)",
+        "tags": [
+          "pliki"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "HealthController_check",
@@ -1931,6 +2858,45 @@
         ]
       }
     },
+    "/me/push-tokens": {
+      "post": {
+        "operationId": "CustomerPushTokensController_register",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Rejestracja tokenu Expo (upsert po tokenie, przy każdym starcie aplikacji); token z innego konta przechodzi do zalogowanego, wylogowanie usuwa tokeny sesji",
+        "tags": [
+          "aplikacja: powiadomienia"
+        ]
+      }
+    },
+    "/me/push-tokens/{token}": {
+      "delete": {
+        "operationId": "CustomerPushTokensController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie własnego tokenu (powiadomienia wyłączone w systemie); brak tokenu to też 204",
+        "tags": [
+          "aplikacja: powiadomienia"
+        ]
+      }
+    },
     "/me/receipts": {
       "get": {
         "operationId": "PaymentsController_receipts",
@@ -1980,6 +2946,45 @@
         "summary": "Zakończenie rejestracji: imię, wiek i zgody na obowiązujące wersje dokumentów",
         "tags": [
           "aplikacja: konto"
+        ]
+      }
+    },
+    "/me/tickets": {
+      "get": {
+        "operationId": "CustomerTicketsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Moje zgłoszenia od najnowszego z oznaczeniem nieprzeczytanej odpowiedzi",
+        "tags": [
+          "aplikacja: zgłoszenia"
+        ]
+      }
+    },
+    "/me/tickets/{id}": {
+      "get": {
+        "operationId": "CustomerTicketsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zgłoszenie ze statusami i odpowiedzią (bez nazwisk); otwarcie oznacza odpowiedź jako przeczytaną",
+        "tags": [
+          "aplikacja: zgłoszenia"
         ]
       }
     },
@@ -2189,6 +3194,30 @@
         ]
       }
     },
+    "/rentals/{id}/parking-photo": {
+      "post": {
+        "operationId": "RentalsController_addParkingPhoto",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Zdjęcie parkowania po zakończeniu (ADR 0057): plik z POST /files z celem PARKING_PHOTO; RENTAL_NOT_ENDED, PARKING_PHOTO_EXISTS, FILE_ALREADY_ATTACHED (409)",
+        "tags": [
+          "aplikacja: wypożyczenie"
+        ]
+      }
+    },
     "/rentals/{id}/pay": {
       "post": {
         "operationId": "PaymentsController_pay",
@@ -2236,7 +3265,7 @@
             "description": ""
           }
         },
-        "summary": "Zakończenie w strefie parkowania: ENDING, ENDED po potwierdzeniu blokady; poza strefą 422 OUTSIDE_PARKING",
+        "summary": "Zakończenie w strefie parkowania: ENDING, ENDED po potwierdzeniu blokady; poza strefą 422 OUTSIDE_PARKING. Hulajnoga offline (ADR 0056): ostatnia pozycja najwyżej 120 s (422 POSITION_STALE), naliczanie do żądania, blokada czeka 10 min, potem END_UNCONFIRMED; zdjęcie parkowania wymagane",
         "tags": [
           "aplikacja: wypożyczenie"
         ]
@@ -2400,6 +3429,21 @@
         },
         "tags": [
           "aplikacja: płatności"
+        ]
+      }
+    },
+    "/tickets": {
+      "post": {
+        "operationId": "CustomerTicketsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Zgłoszenie z przejazdu (w trakcie jazdy przejazd się nie kończy), z karty hulajnogi albo z profilu; zdjęcia z POST /files (TICKET_PHOTO), pilna kategoria wyłącza wolną hulajnogę z ruchu",
+        "tags": [
+          "aplikacja: zgłoszenia"
         ]
       }
     },

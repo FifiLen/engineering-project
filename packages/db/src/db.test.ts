@@ -12,6 +12,7 @@ import {
   priceRental,
   RENTAL_STATES,
   RentalStateMachine,
+  RETURN_BLOCKERS,
   type RentalState,
 } from '@hulajnogi/core';
 import { Pool } from 'pg';
@@ -21,7 +22,7 @@ import { migrationsDir, runMigrations } from './migrator.js';
 import type { PlacesFile } from './places.js';
 import { DrizzleZoneRepository } from './repositories/zones.repository.js';
 import { rethrowDatabaseRule } from './repositories/errors.js';
-import { seedDatabase } from './seed.js';
+import { DEV_NOTIFICATION_TEMPLATES, DEV_SPARE_PARTS, DEV_TARIFF, seedDatabase } from './seed.js';
 
 const adminUrl = process.env.DATABASE_URL;
 const dbName = `hulajnogi_test_${randomUUID().slice(0, 8)}`;
@@ -85,9 +86,23 @@ describe.skipIf(!adminUrl)('baza danych', () => {
       '0005_rentals.sql',
       '0006_zones.sql',
       '0007_payments.sql',
+      '0008_operations.sql',
+      '0009_operations_fixes.sql',
     ]);
     const second = await runMigrations(pool);
     expect(second.applied).toEqual([]);
+
+    // Szablony wszystkich kodów z rejestru po samym `db:migrate` (0009): te same treści co dane startowe, wersja 1.
+    const templates = await pool.query(
+      `SELECT t.code, t.channel::text AS channel, t.title, t.body, t.description, t.version,
+              (SELECT count(*)::int FROM notification_template_versions v WHERE v.template_id = t.id) AS versions
+       FROM notification_templates t ORDER BY t.code`,
+    );
+    expect(templates.rows).toEqual(
+      [...DEV_NOTIFICATION_TEMPLATES]
+        .sort((a, b) => a.code.localeCompare(b.code))
+        .map((t) => ({ ...t, version: 1, versions: 1 })),
+    );
 
     const roles = await pool.query<{ email: string; roles: string[] }>(
       `SELECT email, roles FROM v_staff_overview WHERE email LIKE '%@old.local' ORDER BY email`,
@@ -167,7 +182,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
          (SELECT count(*)::int FROM pg_proc WHERE pronamespace = 'public'::regnamespace
            AND prokind = 'p' AND proname LIKE 'sp\\_%') AS procedures`,
     );
-    expect(rows[0]).toEqual({ tables: 52, views: 31, functions: 18, procedures: 14 });
+    expect(rows[0]).toEqual({ tables: 54, views: 42, functions: 21, procedures: 18 });
   });
 
   it('fn_zones_at_point zwraca strefy od najbardziej restrykcyjnej', async () => {
@@ -1118,5 +1133,749 @@ describe.skipIf(!adminUrl)('baza danych', () => {
       `SELECT fn_vat_from_gross(1000, 23) AS a, fn_vat_from_gross(3, 20) AS b, fn_vat_from_gross(-3, 20) AS c, fn_vat_from_gross(1080, 8) AS d`,
     );
     expect(rows[0]).toEqual({ a: '187', b: '1', c: '-1', d: '80' });
+  });
+  // --- 0008: operacje i serwis -----------------------------------------------------------------------
+
+  /** Hulajnoga tylko dla testu (numery 800+), żeby reguły serwisu nie zależały od wcześniejszych testów. */
+  const testScooter = async (number: number, values: { online?: boolean; battery?: number; status?: string } = {}) =>
+    (
+      await pool.query<{ id: string }>(
+        `INSERT INTO scooters (number, serial_number, variant, model_id, status, online, battery_pct, position)
+         VALUES ($1::int, 'TEST-' || $1::text, 'GRAFIT', (SELECT id FROM scooter_models WHERE code = 'BASE'), $2::scooter_status, $3, $4,
+                 ST_SetSRID(ST_MakePoint(18.5, 50.0), 4326))
+         RETURNING id`,
+        [number, values.status ?? 'AVAILABLE', values.online ?? true, values.battery ?? 80],
+      )
+    ).rows[0]!.id;
+  const staffId = async () =>
+    (await pool.query<{ id: string }>(`SELECT id FROM staff WHERE email = 'a@test.local'`)).rows[0]!.id;
+
+  it('dane startowe: części ze stanem z przyjęcia, szablony z wersją 1 i przykładowy obieg serwisowy, idempotentnie (0008)', async () => {
+    const seed = () =>
+      seedDatabase(pool, {
+        places,
+        fleetSize: 10,
+        admin: { email: 'a@test.local', name: 'A', passwordHash: 'x' },
+        sampleOperations: true,
+      });
+    await seed();
+    await seed();
+    const parts = await pool.query<{ sku: string; stock_qty: number; moved: number }>(
+      `SELECT p.sku, p.stock_qty, (SELECT sum(m.delta)::int FROM spare_part_movements m WHERE m.part_id = p.id) AS moved
+       FROM spare_parts p ORDER BY p.sku`,
+    );
+    expect(parts.rows.map((r) => r.sku)).toEqual(DEV_SPARE_PARTS.map((p) => p.sku).sort());
+    for (const part of parts.rows) expect(part.moved).toBe(part.stock_qty);
+    // Rozwiązane zgłoszenie zużyło po jednej sztuce klocków i linki.
+    expect(parts.rows.find((r) => r.sku === 'BRK-PAD-R')!.stock_qty).toBe(11);
+
+    const templates = await pool.query<{ code: string; channel: string; versions: number; body: string }>(
+      `SELECT code, channel, versions, body FROM v_notification_templates ORDER BY code`,
+    );
+    expect(templates.rows).toHaveLength(DEV_NOTIFICATION_TEMPLATES.length);
+    for (const t of templates.rows) {
+      expect(t.versions).toBe(1);
+      expect(t.body.length).toBeLessThanOrEqual(t.channel === 'SMS' ? 160 : 240);
+    }
+
+    const tickets = await pool.query<{ status: string; source: string; scooter_status: string; open_tasks: number }>(
+      `SELECT status, source, scooter_status, open_tasks FROM v_ticket_list ORDER BY number`,
+    );
+    expect(tickets.rows).toEqual([
+      { status: 'NEW', source: 'USER', scooter_status: 'MAINTENANCE', open_tasks: 0 },
+      { status: 'AT_SERVICE', source: 'USER', scooter_status: 'MAINTENANCE', open_tasks: 1 },
+      { status: 'AT_SERVICE', source: 'AUTO', scooter_status: 'MAINTENANCE', open_tasks: 1 },
+      { status: 'RESOLVED', source: 'USER', scooter_status: 'AVAILABLE', open_tasks: 0 },
+    ]);
+    const tasks = await pool.query<{ type: string; status: string; parts_cost: string }>(
+      `SELECT type, status, parts_cost FROM v_service_task_list WHERE scooter_id IN (SELECT scooter_id FROM tickets) ORDER BY number`,
+    );
+    expect(tasks.rows).toEqual([
+      { type: 'REPAIR', status: 'OPEN', parts_cost: '0' },
+      { type: 'INSPECTION', status: 'OPEN', parts_cost: '0' },
+      { type: 'BATTERY_SWAP', status: 'OPEN', parts_cost: '0' },
+      { type: 'REPAIR', status: 'DONE', parts_cost: '3650' },
+    ]);
+    const system = await pool.query(
+      `SELECT count(*)::int AS n FROM v_audit_log WHERE actor = 'SYSTEM' AND staff_name IS NULL`,
+    );
+    expect(system.rows[0]!.n).toBeGreaterThanOrEqual(3);
+  });
+
+  it('zadania: przejścia pilnuje wyzwalacz, zakończenie wymaga notatki, anulowanie powodu, przewiezienie celu (0008)', async () => {
+    const scooter = await testScooter(801);
+    const admin = await staffId();
+    expect(
+      await domainCode(
+        pool.query(`INSERT INTO service_tasks (scooter_id, type, status) VALUES ($1, 'REPAIR', 'DONE')`, [scooter]),
+      ),
+    ).toEqual({ code: 'INVALID_TASK_TRANSITION', details: { from: null, to: 'DONE' } });
+    const task = (
+      await pool.query<{ id: string }>(
+        `INSERT INTO service_tasks (scooter_id, type) VALUES ($1, 'REPAIR') RETURNING id`,
+        [scooter],
+      )
+    ).rows[0]!.id;
+    const setStatus = (status: string, extra = '') =>
+      pool.query(`UPDATE service_tasks SET status = $2::service_task_status ${extra} WHERE id = $1`, [task, status]);
+    expect(await domainCode(setStatus('DONE'))).toEqual({
+      code: 'INVALID_TASK_TRANSITION',
+      details: { from: 'OPEN', to: 'DONE' },
+    });
+    // W toku wymaga wykonawcy (CHECK z 0002), data rozpoczęcia ustawia się sama.
+    await expect(setStatus('IN_PROGRESS')).rejects.toThrow(/service_tasks_check/);
+    await setStatus('IN_PROGRESS', `, assignee_id = '${admin}'`);
+    expect(await domainCode(setStatus('DONE'))).toEqual({ code: 'TASK_RESULT_NOTE_REQUIRED', details: undefined });
+    expect(await domainCode(setStatus('DONE', `, result_note = '  '`))).toEqual({
+      code: 'TASK_RESULT_NOTE_REQUIRED',
+      details: undefined,
+    });
+    await setStatus('DONE', `, result_note = 'Wymieniono lampę.'`);
+    const done = await pool.query(
+      `SELECT started_at IS NOT NULL AS started, completed_at IS NOT NULL AS completed FROM service_tasks WHERE id = $1`,
+      [task],
+    );
+    expect(done.rows[0]).toEqual({ started: true, completed: true });
+    expect(await domainCode(setStatus('CANCELLED', `, cancel_reason = 'x'`))).toEqual({
+      code: 'INVALID_TASK_TRANSITION',
+      details: { from: 'DONE', to: 'CANCELLED' },
+    });
+
+    const other = (
+      await pool.query<{ id: string }>(
+        `INSERT INTO service_tasks (scooter_id, type) VALUES ($1, 'INSPECTION') RETURNING id`,
+        [scooter],
+      )
+    ).rows[0]!.id;
+    expect(
+      await domainCode(pool.query(`UPDATE service_tasks SET status = 'CANCELLED' WHERE id = $1`, [other])),
+    ).toEqual({
+      code: 'TASK_CANCEL_REASON_REQUIRED',
+      details: undefined,
+    });
+    await pool.query(
+      `UPDATE service_tasks SET status = 'CANCELLED', cancel_reason = 'Duplikat', cancelled_by = $2 WHERE id = $1`,
+      [other, admin],
+    );
+
+    // Przewiezienie ma dokładnie jeden cel; inne rodzaje nie mają celu.
+    expect(
+      await domainCode(pool.query(`INSERT INTO service_tasks (scooter_id, type) VALUES ($1, 'RELOCATION')`, [scooter])),
+    ).toEqual({ code: 'VALIDATION_FAILED', details: undefined });
+    await pool.query(
+      `INSERT INTO service_tasks (scooter_id, type, target_point) VALUES ($1, 'RELOCATION', ST_SetSRID(ST_MakePoint(18.5, 50.0), 4326))`,
+      [scooter],
+    );
+    const list = await pool.query(
+      `SELECT type, target_lat, target_lon FROM v_service_task_list WHERE scooter_id = $1 AND type = 'RELOCATION'`,
+      [scooter],
+    );
+    expect(list.rows[0]).toEqual({ type: 'RELOCATION', target_lat: 50, target_lon: 18.5 });
+  });
+
+  it('części: użycie zmniejsza stan, ponowne dodanie zwiększa ilość, zwrot i anulowanie oddają części, stan nie spada poniżej zera (0008)', async () => {
+    const scooter = await testScooter(802);
+    const admin = await staffId();
+    const part = (
+      await pool.query<{ id: string }>(
+        `INSERT INTO spare_parts (sku, name, unit_cost, stock_qty) VALUES ('TEST-802', 'Część testowa', 1000, 0) RETURNING id`,
+      )
+    ).rows[0]!.id;
+    const receive = await pool.query(`CALL sp_part_receive($1, 3, 1200, 'FV/1', $2, NULL, NULL)`, [part, admin]);
+    expect(receive.rows[0]).toMatchObject({ stock_after: 3 });
+    const newTask = async (type: string) => {
+      const id = (
+        await pool.query<{ id: string }>(`INSERT INTO service_tasks (scooter_id, type) VALUES ($1, $2) RETURNING id`, [
+          scooter,
+          type,
+        ])
+      ).rows[0]!.id;
+      return id;
+    };
+    const task = await newTask('REPAIR');
+    const use = (taskId: string, quantity: number) =>
+      pool.query<{ line_quantity: number; stock_after: number }>(`CALL sp_task_use_part($1, $2, $3, $4, NULL, NULL)`, [
+        taskId,
+        part,
+        quantity,
+        admin,
+      ]);
+    expect(await domainCode(use(task, 1))).toEqual({ code: 'TASK_NOT_IN_PROGRESS', details: undefined });
+    await pool.query(`UPDATE service_tasks SET status = 'IN_PROGRESS', assignee_id = $2 WHERE id = $1`, [task, admin]);
+    expect((await use(task, 1)).rows[0]).toEqual({ line_quantity: 1, stock_after: 2 });
+    // Cena przyjęcia dotyczy kolejnych użyć; ponowne dodanie zwiększa ilość pozycji z kosztem pierwszego użycia.
+    await pool.query(`CALL sp_part_receive($1, 1, 1500, NULL, $2, NULL, NULL)`, [part, admin]);
+    expect((await use(task, 1)).rows[0]).toEqual({ line_quantity: 2, stock_after: 2 });
+    expect(await domainCode(use(task, 3))).toEqual({ code: 'PART_OUT_OF_STOCK', details: { available: 2 } });
+    const line = await pool.query(`SELECT quantity, unit_cost FROM service_task_parts WHERE task_id = $1`, [task]);
+    expect(line.rows[0]).toEqual({ quantity: 2, unit_cost: '1200' });
+
+    const ret = (quantity: number | null) =>
+      pool.query(`CALL sp_task_return_part($1, $2, $3, $4, NULL, NULL)`, [task, part, quantity, admin]);
+    expect(await domainCode(ret(5))).toEqual({ code: 'PART_RETURN_EXCEEDS', details: { quantity: 2 } });
+    expect((await ret(1)).rows[0]).toEqual({ line_quantity: 1, stock_after: 3 });
+
+    // Równoległe użycie ostatnich sztuk: blokada wiersza części przepuszcza jedno, drugie widzi stan po nim.
+    await pool.query(`CALL sp_part_adjust($1, 1, 'STOCKTAKE', NULL, $2, NULL, NULL)`, [part, admin]);
+    expect(
+      await domainCode(pool.query(`CALL sp_part_adjust($1, 1, 'STOCKTAKE', NULL, $2, NULL, NULL)`, [part, admin])),
+    ).toEqual({
+      code: 'PART_ADJUST_NO_CHANGE',
+      details: undefined,
+    });
+    expect(
+      await domainCode(pool.query(`CALL sp_part_adjust($1, 2, 'OTHER', NULL, $2, NULL, NULL)`, [part, admin])),
+    ).toEqual({
+      code: 'VALIDATION_FAILED',
+      details: undefined,
+    });
+    const second = await newTask('INSPECTION');
+    await pool.query(`UPDATE service_tasks SET status = 'IN_PROGRESS', assignee_id = $2 WHERE id = $1`, [
+      second,
+      admin,
+    ]);
+    const a = await pool.connect();
+    const b = await pool.connect();
+    try {
+      await a.query('BEGIN');
+      await b.query('BEGIN');
+      await a.query(`CALL sp_task_use_part($1, $2, 1, NULL, NULL, NULL)`, [task, part]);
+      const waiting = b.query(`CALL sp_task_use_part($1, $2, 1, NULL, NULL, NULL)`, [second, part]).then(
+        () => null,
+        (error: unknown) => error,
+      );
+      await a.query('COMMIT');
+      expect(await domainCode(Promise.reject(await waiting))).toEqual({
+        code: 'PART_OUT_OF_STOCK',
+        details: { available: 0 },
+      });
+    } finally {
+      await b.query('ROLLBACK');
+      a.release();
+      b.release();
+    }
+    const stock = async () =>
+      (await pool.query<{ stock_qty: number }>(`SELECT stock_qty FROM spare_parts WHERE id = $1`, [part])).rows[0]!
+        .stock_qty;
+    expect(await stock()).toBe(0);
+    await expect(pool.query(`UPDATE spare_parts SET stock_qty = -1 WHERE id = $1`, [part])).rejects.toThrow(
+      /stock_qty_check/,
+    );
+
+    // Anulowanie zwraca części ruchem RETURN z autorem anulowania i usuwa pozycje.
+    await pool.query(
+      `UPDATE service_tasks SET status = 'CANCELLED', cancel_reason = 'Zła diagnoza', cancelled_by = $2 WHERE id = $1`,
+      [task, admin],
+    );
+    expect(await stock()).toBe(2);
+    const left = await pool.query(`SELECT count(*)::int AS n FROM service_task_parts WHERE task_id = $1`, [task]);
+    expect(left.rows[0]).toEqual({ n: 0 });
+    const movements = await pool.query<{ kind: string; delta: number; stock_after: number; staff_id: string | null }>(
+      `SELECT kind, delta, stock_after, staff_id FROM v_spare_part_movements WHERE part_id = $1 ORDER BY id`,
+      [part],
+    );
+    expect(movements.rows.map((m) => [m.kind, m.delta, m.stock_after])).toEqual([
+      ['RECEIPT', 3, 3],
+      ['USE', -1, 2],
+      ['RECEIPT', 1, 3],
+      ['USE', -1, 2],
+      ['RETURN', 1, 3],
+      ['ADJUSTMENT', -2, 1],
+      ['USE', -1, 0],
+      ['RETURN', 2, 2],
+    ]);
+    expect(movements.rows.at(-1)!.staff_id).toBe(admin);
+    const sum = movements.rows.reduce((acc, m) => acc + m.delta, 0);
+    expect(sum).toBe(await stock());
+    expect(await domainCode(pool.query(`DELETE FROM spare_part_movements WHERE part_id = $1`, [part]))).toEqual({
+      code: 'PART_MOVEMENTS_APPEND_ONLY',
+      details: undefined,
+    });
+    const listed = await pool.query(
+      `SELECT stock_qty, below_minimum, used_30d, last_movement_kind FROM v_spare_part_list WHERE id = $1`,
+      [part],
+    );
+    expect(listed.rows[0]).toEqual({ stock_qty: 2, below_minimum: false, used_30d: 0, last_movement_kind: 'RETURN' });
+  });
+
+  it('zgłoszenia: numer z sekwencji, pilność z kategorii, jedno otwarte automatyczne danego rodzaju, RESOLVED końcowe (0008)', async () => {
+    const scooter = await testScooter(803);
+    const user = (await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000080') RETURNING id`))
+      .rows[0]!.id;
+    const insert = (categories: string, urgent: boolean, source = 'USER') =>
+      pool.query<{ id: string; number: string }>(
+        `INSERT INTO tickets (scooter_id, reported_by, source, categories, urgent) VALUES ($1, $2, $3::ticket_source, $4::ticket_category[], $5)
+         RETURNING id, number`,
+        [scooter, user, source, categories, urgent],
+      );
+    expect(await domainCode(insert('{BRAKES,LIGHTS}', false))).toEqual({
+      code: 'VALIDATION_FAILED',
+      details: undefined,
+    });
+    expect(await domainCode(insert('{LIGHTS}', true))).toEqual({ code: 'VALIDATION_FAILED', details: undefined });
+    expect(await domainCode(insert('{CONNECTION}', false))).toEqual({
+      code: 'TICKET_CATEGORY_NOT_ALLOWED',
+      details: undefined,
+    });
+    // Nowe wartości z 0008 działają po zatwierdzeniu migracji.
+    expect(await domainCode(insert('{BILLING}', false))).toEqual({
+      code: 'TICKET_RENTAL_REQUIRED',
+      details: undefined,
+    });
+    const first = (await insert('{WHEEL}', true)).rows[0]!;
+    const next = (await insert('{QR_CODE}', false)).rows[0]!;
+    expect(Number(next.number)).toBe(Number(first.number) + 1);
+
+    const auto = () =>
+      pool.query(
+        `INSERT INTO tickets (scooter_id, source, auto_kind, categories) VALUES ($1, 'AUTO', 'OFFLINE', '{CONNECTION}')
+         ON CONFLICT (scooter_id, auto_kind) WHERE status <> 'RESOLVED' DO NOTHING RETURNING id`,
+        [scooter],
+      );
+    const created = await auto();
+    expect(created.rowCount).toBe(1);
+    expect((await auto()).rowCount).toBe(0);
+    expect(
+      await domainCode(
+        pool.query(
+          `INSERT INTO tickets (scooter_id, source, auto_kind, categories) VALUES ($1, 'AUTO', 'OFFLINE', '{CONNECTION}')`,
+          [scooter],
+        ),
+      ),
+    ).toEqual({ code: 'AUTO_TICKET_ALREADY_OPEN', details: undefined });
+    // Inny rodzaj i inna kategoria rodzaju.
+    expect(
+      await domainCode(
+        pool.query(
+          `INSERT INTO tickets (scooter_id, source, auto_kind, categories) VALUES ($1, 'AUTO', 'OUT_OF_ZONE', '{BATTERY}')`,
+          [scooter],
+        ),
+      ),
+    ).toEqual({ code: 'VALIDATION_FAILED', details: undefined });
+    await pool.query(
+      `INSERT INTO tickets (scooter_id, source, auto_kind, categories) VALUES ($1, 'AUTO', 'OUT_OF_ZONE', '{OUT_OF_ZONE}')`,
+      [scooter],
+    );
+    // Po rozwiązaniu wolno założyć następne; rozwiązanego nie da się otworzyć ponownie.
+    const autoId = created.rows[0]!.id as string;
+    await pool.query(`UPDATE tickets SET status = 'RESOLVED', resolution_note = 'Łączność wróciła' WHERE id = $1`, [
+      autoId,
+    ]);
+    const resolved = await pool.query(`SELECT resolved_at IS NOT NULL AS ok FROM tickets WHERE id = $1`, [autoId]);
+    expect(resolved.rows[0]).toEqual({ ok: true });
+    expect((await auto()).rowCount).toBe(1);
+    expect(await domainCode(pool.query(`UPDATE tickets SET status = 'IN_PROGRESS' WHERE id = $1`, [autoId]))).toEqual({
+      code: 'INVALID_TICKET_TRANSITION',
+      details: { from: 'RESOLVED', to: 'IN_PROGRESS' },
+    });
+    // Odpowiedź dla klienta ma czas, a odczyt wymaga odpowiedzi.
+    await expect(
+      pool.query(`UPDATE tickets SET customer_reply = 'Sprawdzamy' WHERE id = $1`, [first.id]),
+    ).rejects.toThrow(/tickets_reply_consistent/);
+    // Najwyżej trzy zdjęcia w kolejności.
+    const photo = async (position: number) => {
+      const file = await pool.query<{ id: string }>(
+        `INSERT INTO files (storage_key, purpose, content_type) VALUES ('ticket/' || gen_random_uuid(), 'TICKET_PHOTO', 'image/jpeg') RETURNING id`,
+      );
+      return pool.query(`INSERT INTO ticket_photos (ticket_id, file_id, position) VALUES ($1, $2, $3)`, [
+        first.id,
+        file.rows[0]!.id,
+        position,
+      ]);
+    };
+    await photo(1);
+    expect(await domainCode(photo(1))).toEqual({ code: 'TICKET_TOO_MANY_PHOTOS', details: undefined });
+    expect(await domainCode(photo(4))).toEqual({ code: 'TICKET_TOO_MANY_PHOTOS', details: undefined });
+    const list = await pool.query(`SELECT photos, reporter_name, urgent FROM v_ticket_list WHERE id = $1`, [first.id]);
+    expect(list.rows[0]).toEqual({ photos: 1, reporter_name: null, urgent: true });
+  });
+
+  it('powrót do floty: fn_scooter_return_blockers liczy otwarte zadania, łączność i baterię z progiem cennika (0008)', async () => {
+    const blockers = async (id: string) =>
+      (await pool.query<{ b: string[] }>(`SELECT fn_scooter_return_blockers($1) AS b`, [id])).rows[0]!.b;
+    const threshold = (await pool.query<{ t: number }>(`SELECT fn_low_battery_threshold() AS t`)).rows[0]!.t;
+    expect(threshold).toBe(DEV_TARIFF.minBatteryPct);
+    const ok = await testScooter(804, { battery: threshold, status: 'MAINTENANCE' });
+    expect(await blockers(ok)).toEqual([]);
+    const all = await testScooter(805, { online: false, battery: threshold - 1, status: 'MAINTENANCE' });
+    await pool.query(`INSERT INTO service_tasks (scooter_id, type) VALUES ($1, 'BATTERY_SWAP')`, [all]);
+    expect(await blockers(all)).toEqual(['OPEN_TASKS', 'OFFLINE', 'BATTERY_BELOW_THRESHOLD']);
+    const unknownBattery = await testScooter(806, { status: 'MAINTENANCE' });
+    await pool.query(`UPDATE scooters SET battery_pct = NULL WHERE id = $1`, [unknownBattery]);
+    expect(await blockers(unknownBattery)).toEqual(['BATTERY_BELOW_THRESHOLD']);
+    expect(await blockers(randomUUID())).toBeNull();
+
+    // Otwarte pilne zgłoszenie bez zadania (0009) jest pierwszą przeszkodą, jak `returnToFleetBlockers` w core.
+    const user = (await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000091') RETURNING id`))
+      .rows[0]!.id;
+    const urgent = await testScooter(820, { battery: threshold, status: 'MAINTENANCE' });
+    const ticket = await pool.query<{ id: string }>(
+      `INSERT INTO tickets (scooter_id, reported_by, source, categories, urgent) VALUES ($1, $2, 'USER', '{WHEEL}', true)
+       RETURNING id`,
+      [urgent, user],
+    );
+    await pool.query(
+      `INSERT INTO tickets (scooter_id, reported_by, source, categories, urgent) VALUES ($1, $2, 'USER', '{LIGHTS}', false)`,
+      [urgent, user],
+    );
+    expect(await blockers(urgent)).toEqual(['URGENT_TICKET']);
+    await pool.query(
+      `INSERT INTO tickets (scooter_id, reported_by, source, categories, urgent) VALUES ($1, $2, 'USER', '{BRAKES}', true)`,
+      [all, user],
+    );
+    expect(await blockers(all)).toEqual([...RETURN_BLOCKERS]);
+    await pool.query(`UPDATE tickets SET status = 'RESOLVED' WHERE id = $1`, [ticket.rows[0]!.id]);
+    expect(await blockers(urgent)).toEqual([]);
+  });
+
+  it('przyczyna stanu: zmiana stanu bez jawnej przyczyny dostaje przyczynę zgodną ze stanem (0009)', async () => {
+    const status = async (id: string) =>
+      (await pool.query(`SELECT status, status_reason FROM scooters WHERE id = $1`, [id])).rows[0];
+    const stolen = await testScooter(821);
+    await pool.query(`UPDATE scooters SET status = 'RETIRED', status_reason = 'THEFT' WHERE id = $1`, [stolen]);
+    // Wycofana po kradzieży wraca do serwisu: THEFT nie pasuje do MAINTENANCE, więc OTHER zamiast błędu CHECK.
+    await pool.query(`UPDATE scooters SET status = 'MAINTENANCE' WHERE id = $1`, [stolen]);
+    expect(await status(stolen)).toEqual({ status: 'MAINTENANCE', status_reason: 'OTHER' });
+    // W serwisie z pilnym zgłoszeniem, potem wycofana bez powodu: URGENT_TICKET nie pasuje do RETIRED.
+    const held = await testScooter(822, { status: 'MAINTENANCE' });
+    await pool.query(`UPDATE scooters SET status_reason = 'URGENT_TICKET' WHERE id = $1`, [held]);
+    await pool.query(`UPDATE scooters SET status = 'RETIRED' WHERE id = $1`, [held]);
+    expect(await status(held)).toEqual({ status: 'RETIRED', status_reason: 'OTHER' });
+    // Do serwisu bez przyczyny: OTHER; przyczyna pasująca do stanu zostaje; poza serwisem znika.
+    const free = await testScooter(823);
+    await pool.query(`UPDATE scooters SET status = 'MAINTENANCE' WHERE id = $1`, [free]);
+    expect(await status(free)).toEqual({ status: 'MAINTENANCE', status_reason: 'OTHER' });
+    await pool.query(`UPDATE scooters SET status = 'RETIRED' WHERE id = $1`, [free]);
+    expect(await status(free)).toEqual({ status: 'RETIRED', status_reason: 'OTHER' });
+    await pool.query(`UPDATE scooters SET status = 'MAINTENANCE', status_reason = 'SERVICE_TASK' WHERE id = $1`, [
+      free,
+    ]);
+    expect(await status(free)).toEqual({ status: 'MAINTENANCE', status_reason: 'SERVICE_TASK' });
+    await pool.query(`UPDATE scooters SET status = 'AVAILABLE' WHERE id = $1`, [free]);
+    expect(await status(free)).toEqual({ status: 'AVAILABLE', status_reason: null });
+    // Jawna przyczyna niezgodna ze stanem dalej odrzuca CHECK (błąd domeny VALIDATION_FAILED).
+    expect(
+      await domainCode(
+        pool.query(`UPDATE scooters SET status = 'RETIRED', status_reason = 'SERVICE_TASK' WHERE id = $1`, [free]),
+      ),
+    ).toEqual({ code: 'VALIDATION_FAILED', details: undefined });
+  });
+
+  it('pliki: zdjęcie parkowania w jednym przejeździe, zdjęcie zgłoszenia w jednym zgłoszeniu (0009)', async () => {
+    const user = (await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000092') RETURNING id`))
+      .rows[0]!.id;
+    const scooter = await testScooter(824);
+    const file = async (purpose: string) =>
+      (
+        await pool.query<{ id: string }>(
+          `INSERT INTO files (storage_key, purpose, content_type, sha256, uploaded_by)
+           VALUES ($1 || '/' || gen_random_uuid(), $1::file_purpose, 'image/jpeg', repeat('b', 64), $2) RETURNING id`,
+          [purpose, user],
+        )
+      ).rows[0]!.id;
+    const rental = async (photoId: string) =>
+      pool.query(
+        `INSERT INTO rentals (user_id, scooter_id, tariff_id, state, started_at, ended_at, total_amount, parking_photo_id)
+         SELECT $1, $2, (SELECT id FROM tariffs WHERE version = 1), 'ENDED', now() - interval '5 minutes', now(), 380, $3`,
+        [user, scooter, photoId],
+      );
+    const parking = await file('PARKING_PHOTO');
+    await rental(parking);
+    expect(await domainCode(rental(parking))).toEqual({ code: 'FILE_ALREADY_ATTACHED', details: undefined });
+
+    const photo = await file('TICKET_PHOTO');
+    const ticket = async () =>
+      (
+        await pool.query<{ id: string }>(
+          `INSERT INTO tickets (scooter_id, reported_by, source, categories, urgent) VALUES ($1, $2, 'USER', '{LIGHTS}', false)
+           RETURNING id`,
+          [scooter, user],
+        )
+      ).rows[0]!.id;
+    const attach = (ticketId: string, position: number) =>
+      pool.query(`INSERT INTO ticket_photos (ticket_id, file_id, position) VALUES ($1, $2, $3)`, [
+        ticketId,
+        photo,
+        position,
+      ]);
+    const first = await ticket();
+    await attach(first, 1);
+    expect(await domainCode(attach(first, 2))).toEqual({ code: 'FILE_ALREADY_ATTACHED', details: undefined });
+    expect(await domainCode(attach(await ticket(), 1))).toEqual({ code: 'FILE_ALREADY_ATTACHED', details: undefined });
+  });
+
+  it('koniec przejazdu albo rezerwacji z otwartym pilnym zgłoszeniem lub zadaniem daje MAINTENANCE z wpisem systemu (0008)', async () => {
+    const user = (await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000081') RETURNING id`))
+      .rows[0]!.id;
+    const riding = await testScooter(807, { status: 'IN_USE' });
+    await pool.query(
+      `INSERT INTO tickets (scooter_id, reported_by, source, categories, urgent) VALUES ($1, $2, 'USER', '{BRAKES}', true)`,
+      [riding, user],
+    );
+    await pool.query(`UPDATE scooters SET status = 'AVAILABLE' WHERE id = $1`, [riding]);
+    const status = async (id: string) =>
+      (await pool.query(`SELECT status, status_reason FROM scooters WHERE id = $1`, [id])).rows[0];
+    expect(await status(riding)).toEqual({ status: 'MAINTENANCE', status_reason: 'URGENT_TICKET' });
+    const audit = await pool.query(
+      `SELECT actor, staff_id, staff_name, action, data->>'reason' AS reason FROM v_audit_log WHERE entity_id = $1`,
+      [riding],
+    );
+    expect(audit.rows).toEqual([
+      { actor: 'SYSTEM', staff_id: null, staff_name: null, action: 'scooter.sent_to_service', reason: 'URGENT_TICKET' },
+    ]);
+
+    // Rezerwacja wygasła przez procedurę, hulajnoga ma otwarte zadanie.
+    const reserved = await testScooter(808, { status: 'RESERVED' });
+    await pool.query(`INSERT INTO service_tasks (scooter_id, type) VALUES ($1, 'INSPECTION')`, [reserved]);
+    await pool.query(
+      `INSERT INTO rentals (user_id, scooter_id, tariff_id, state, reserved_at, reservation_expires_at)
+       SELECT $1, $2, (SELECT id FROM tariffs WHERE version = 1), 'RESERVED', now() - interval '20 minutes', now() - interval '1 minute'`,
+      [user, reserved],
+    );
+    await pool.query(`CALL sp_expire_reservations(NULL)`);
+    expect(await status(reserved)).toEqual({ status: 'MAINTENANCE', status_reason: 'SERVICE_TASK' });
+
+    // Bez przeszkód wraca do AVAILABLE, a powrót z serwisu wyzwalacz zostawia regule powrotu do floty.
+    const free = await testScooter(809, { status: 'IN_USE' });
+    await pool.query(`UPDATE scooters SET status = 'AVAILABLE' WHERE id = $1`, [free]);
+    expect(await status(free)).toEqual({ status: 'AVAILABLE', status_reason: null });
+    await pool.query(`UPDATE scooters SET status = 'AVAILABLE' WHERE id = $1`, [riding]);
+    expect(await status(riding)).toEqual({ status: 'AVAILABLE', status_reason: null });
+    // Przyczyna pasuje do stanu: wycofanie ma własne powody.
+    await expect(
+      pool.query(`UPDATE scooters SET status = 'RETIRED', status_reason = 'SERVICE_TASK' WHERE id = $1`, [free]),
+    ).rejects.toThrow(/scooters_status_reason_matches/);
+    await pool.query(`UPDATE scooters SET status = 'RETIRED', status_reason = 'THEFT' WHERE id = $1`, [free]);
+    expect(await status(free)).toEqual({ status: 'RETIRED', status_reason: 'THEFT' });
+  });
+
+  it('opłata za odholowanie: jeden wpis na przejazd, w kwocie zapłaconej, limicie zwrotu i paragonie przejazdu (0008)', async () => {
+    const user = (await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000082') RETURNING id`))
+      .rows[0]!.id;
+    const scooter = await testScooter(810);
+    const rental = (
+      await pool.query<{ id: string }>(
+        `INSERT INTO rentals (user_id, scooter_id, tariff_id, state, started_at, ended_at, total_amount, end_mode, towing_fee)
+         SELECT $1, $2, (SELECT id FROM tariffs WHERE version = 1), 'ENDED', now() - interval '10 minutes', now(), 3260, 'REMOTE', 2000
+         RETURNING id`,
+        [user, scooter],
+      )
+    ).rows[0]!.id;
+    await expect(pool.query(`UPDATE rentals SET end_mode = 'CUSTOMER' WHERE id = $1`, [rental])).rejects.toThrow(
+      /rentals_towing_fee_remote/,
+    );
+    const post = (type: string, amount: number) =>
+      pool.query(`CALL sp_wallet_post($1, $2::ledger_entry_type, $3, $4, NULL, NULL, NULL, NULL, NULL, NULL, NULL)`, [
+        user,
+        type,
+        amount,
+        rental,
+      ]);
+    await post('RIDE_CHARGE', -1260);
+    await post('TOWING_FEE', -2000);
+    expect(await domainCode(post('TOWING_FEE', -2000))).toEqual({ code: 'RENTAL_ALREADY_CHARGED', details: undefined });
+    const details = await pool.query(
+      `SELECT settlement, paid_amount, wallet_charge, towing_fee, end_mode FROM v_rental_details WHERE id = $1`,
+      [rental],
+    );
+    expect(details.rows[0]).toEqual({
+      settlement: 'WALLET_PAID',
+      paid_amount: '3260',
+      wallet_charge: '-1260',
+      towing_fee: '2000',
+      end_mode: 'REMOTE',
+    });
+    const balance = await pool.query(`SELECT balance FROM wallets WHERE user_id = $1`, [user]);
+    expect(balance.rows[0]).toEqual({ balance: '-3260' });
+
+    // Samą opłatę można zwrócić zwrotem częściowym; limit to cała kwota z opłatą.
+    const refund = (amount: number) =>
+      pool.query(`CALL sp_record_refund($1, $2, NULL, 'WALLET', $3, 'BILLING_ERROR', NULL, NULL, 'SUCCEEDED', NULL)`, [
+        user,
+        rental,
+        amount,
+      ]);
+    await refund(2000);
+    expect(await domainCode(refund(1261))).toEqual({ code: 'REFUND_EXCEEDS_PAYMENT', details: { remaining: 1260 } });
+
+    const items = JSON.stringify([
+      { description: 'UNLOCK', quantity: 1, unitPrice: 300, vatRate: 23, amount: 300 },
+      { description: 'RIDE_MINUTES', quantity: 12, unitPrice: 80, vatRate: 23, amount: 960 },
+      { description: 'TOWING_FEE', quantity: 1, unitPrice: 2000, vatRate: 23, amount: 2000 },
+    ]);
+    const sale = await pool.query<{ receipt_number: string }>(
+      `CALL sp_issue_receipt($1, 'SALE', $2, NULL, NULL, NULL, 'WALLET', '{}'::jsonb, $3::jsonb, NULL, NULL)`,
+      [user, rental, items],
+    );
+    const ledger = await pool.query<{ type: string; receipt_number: string | null }>(
+      `SELECT type, receipt_number FROM v_wallet_ledger WHERE rental_id = $1 AND amount < 0 ORDER BY id`,
+      [rental],
+    );
+    expect(ledger.rows).toEqual([
+      { type: 'RIDE_CHARGE', receipt_number: sale.rows[0]!.receipt_number },
+      { type: 'TOWING_FEE', receipt_number: sale.rows[0]!.receipt_number },
+    ]);
+    const total = await pool.query(`SELECT total_amount FROM receipts WHERE rental_id = $1`, [rental]);
+    expect(total.rows[0]).toEqual({ total_amount: '3260' });
+
+    // Zdjęcie parkowania jest wymagane po zakończeniu bez łączności.
+    await pool.query(`UPDATE rentals SET towing_fee = NULL, end_mode = 'CUSTOMER_OFFLINE' WHERE id = $1`, [rental]);
+    const photo = await pool.query(`SELECT parking_photo_required FROM v_rental_details WHERE id = $1`, [rental]);
+    expect(photo.rows[0]).toEqual({ parking_photo_required: true });
+  });
+
+  it('powiadomienia: jedno na zdarzenie (dedupe_key), stan wysyłki, wersje szablonu przy zmianie treści (0008)', async () => {
+    const user = (await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000083') RETURNING id`))
+      .rows[0]!.id;
+    const key = `ride_ended:${randomUUID()}`;
+    const queue = () =>
+      pool.query(
+        `INSERT INTO notifications (user_id, template_code, channel, payload, dedupe_key) VALUES ($1, 'ride_ended', 'PUSH', '{}', $2)
+         ON CONFLICT (dedupe_key) DO NOTHING RETURNING id`,
+        [user, key],
+      );
+    const first = await queue();
+    expect(first.rowCount).toBe(1);
+    expect((await queue()).rowCount).toBe(0);
+    expect(
+      await domainCode(
+        pool.query(`INSERT INTO notifications (user_id, template_code, dedupe_key) VALUES ($1, 'ride_ended', $2)`, [
+          user,
+          key,
+        ]),
+      ),
+    ).toEqual({ code: 'NOTIFICATION_DUPLICATE', details: undefined });
+    const id = first.rows[0]!.id as string;
+    await expect(pool.query(`UPDATE notifications SET status = 'SENT' WHERE id = $1`, [id])).rejects.toThrow(
+      /notifications_sent_at/,
+    );
+    await expect(pool.query(`UPDATE notifications SET status = 'FAILED' WHERE id = $1`, [id])).rejects.toThrow(
+      /notifications_failed_error/,
+    );
+    await pool.query(
+      `UPDATE notifications SET status = 'SENT', sent_at = now(), template_version = 1, title = 'Przejazd zakończony' WHERE id = $1`,
+      [id],
+    );
+    const listed = await pool.query(`SELECT status, template_code, user_phone FROM v_notification_list WHERE id = $1`, [
+      id,
+    ]);
+    expect(listed.rows[0]).toEqual({ status: 'SENT', template_code: 'ride_ended', user_phone: '+48500000083' });
+
+    // Zmiana treści zapisuje wersję; zmiana bez podniesienia wersji trafia na unikalność, opis nie tworzy wersji.
+    const admin = await staffId();
+    await pool.query(
+      `UPDATE notification_templates SET body = 'Przejazd {rideNumber} zakończony.', version = version + 1, updated_by = $1
+       WHERE code = 'ride_ended'`,
+      [admin],
+    );
+    await expect(
+      pool.query(`UPDATE notification_templates SET body = 'Inna treść {rideNumber}.' WHERE code = 'ride_ended'`),
+    ).rejects.toThrow(/notification_template_versions_template_id_version_key/);
+    await pool.query(`UPDATE notification_templates SET description = 'Opis' WHERE code = 'ride_ended'`);
+    const versions = await pool.query(
+      `SELECT version, staff_id IS NOT NULL AS by_staff, is_current FROM v_notification_template_versions
+       WHERE code = 'ride_ended' ORDER BY version`,
+    );
+    expect(versions.rows).toEqual([
+      { version: 1, by_staff: false, is_current: false },
+      { version: 2, by_staff: true, is_current: true },
+    ]);
+    await expect(
+      pool.query(
+        `UPDATE notification_templates SET title = repeat('x', 51), version = version + 1 WHERE code = 'ride_ended'`,
+      ),
+    ).rejects.toThrow(/notification_templates_title_length/);
+
+    // Token push należy do sesji klienta; usunięcie sesji usuwa token.
+    const session = await pool.query<{ id: string }>(
+      `INSERT INTO sessions (user_id, refresh_token_hash, expires_at) VALUES ($1, gen_random_uuid()::text, now() + interval '1 day') RETURNING id`,
+      [user],
+    );
+    await pool.query(`INSERT INTO push_tokens (user_id, expo_token, platform, session_id) VALUES ($1, $2, 'IOS', $3)`, [
+      user,
+      `ExponentPushToken[${randomUUID()}]`,
+      session.rows[0]!.id,
+    ]);
+    const tokens = await pool.query(`SELECT session_active FROM v_push_tokens WHERE user_id = $1`, [user]);
+    expect(tokens.rows).toEqual([{ session_active: true }]);
+    await pool.query(`DELETE FROM sessions WHERE id = $1`, [session.rows[0]!.id]);
+    const left = await pool.query(`SELECT count(*)::int AS n FROM push_tokens WHERE user_id = $1`, [user]);
+    expect(left.rows[0]).toEqual({ n: 0 });
+  });
+
+  it('dziennik audytu: wpis systemu bez operatora, oś czasu zgłoszenia, pulpit i uprawnienia Dyspozytora (0008)', async () => {
+    await expect(
+      pool.query(`INSERT INTO audit_log (actor, action, entity_type) VALUES ('STAFF', 'x.y', 'ticket')`),
+    ).rejects.toThrow(/audit_log_actor_staff/);
+    await expect(
+      pool.query(
+        `INSERT INTO audit_log (actor, staff_id, action, entity_type) VALUES ('SYSTEM', $1, 'x.y', 'ticket')`,
+        [await staffId()],
+      ),
+    ).rejects.toThrow(/audit_log_actor_staff/);
+
+    const user = (await pool.query<{ id: string }>(`INSERT INTO users (phone) VALUES ('+48500000084') RETURNING id`))
+      .rows[0]!.id;
+    const scooter = await testScooter(811);
+    const ticket = (
+      await pool.query<{ id: string }>(
+        `INSERT INTO tickets (scooter_id, reported_by, source, categories, urgent, created_at)
+         VALUES ($1, $2, 'USER', '{HANDLEBAR}', true, now() - interval '1 minute') RETURNING id`,
+        [scooter, user],
+      )
+    ).rows[0]!.id;
+    const task = (
+      await pool.query<{ id: string }>(
+        `INSERT INTO service_tasks (scooter_id, ticket_id, type) VALUES ($1, $2, 'REPAIR') RETURNING id`,
+        [scooter, ticket],
+      )
+    ).rows[0]!.id;
+    await pool.query(
+      `INSERT INTO audit_log (actor, staff_id, action, entity_type, entity_id) VALUES ('SYSTEM', NULL, 'scooter.sent_to_service', 'scooter', $1),
+         ('SYSTEM', NULL, 'ticket.status_changed', 'ticket', $2), ('SYSTEM', NULL, 'service_task.created', 'service_task', $3)`,
+      [scooter, ticket, task],
+    );
+    await pool.query(
+      `INSERT INTO notifications (user_id, template_code, ticket_id, dedupe_key) VALUES ($1, 'ticket_received', $2::uuid, 'ticket_received:' || $2::text)`,
+      [user, ticket],
+    );
+    const timeline = await pool.query<{ kind: string; action: string; actor: string }>(
+      `SELECT kind, action, actor FROM v_ticket_timeline WHERE ticket_id = $1 ORDER BY at, kind_order, seq`,
+      [ticket],
+    );
+    expect(timeline.rows).toEqual([
+      { kind: 'CREATED', action: 'ticket.created', actor: 'CUSTOMER' },
+      { kind: 'AUDIT', action: 'ticket.status_changed', actor: 'SYSTEM' },
+      { kind: 'AUDIT', action: 'service_task.created', actor: 'SYSTEM' },
+      { kind: 'NOTIFICATION', action: 'ticket_received', actor: 'SYSTEM' },
+    ]);
+
+    const attention = await pool.query(`SELECT * FROM fn_dashboard_attention(10)`);
+    expect(attention.rows).toHaveLength(1);
+    expect(attention.rows[0].urgent_new_unassigned).toBeGreaterThanOrEqual(1);
+    expect(Object.keys(attention.rows[0]).sort()).toEqual([
+      'billing_stopped',
+      'critical_battery',
+      'failed_payments_today',
+      'offline_in_rental',
+      'unpaid_rentals',
+      'urgent_new_unassigned',
+    ]);
+
+    const dispatcher = await pool.query(
+      `SELECT EXISTS (SELECT 1 FROM role_permissions rp JOIN roles r ON r.id = rp.role_id
+                      WHERE r.name = 'Dyspozytor' AND rp.permission_code = 'service.manage') AS ok`,
+    );
+    expect(dispatcher.rows[0]).toEqual({ ok: true });
+
+    const file = await pool.query<{ id: string }>(
+      `INSERT INTO files (storage_key, purpose, content_type, sha256) VALUES ('parking/' || gen_random_uuid(), 'PARKING_PHOTO', 'image/jpeg', repeat('a', 64)) RETURNING id`,
+    );
+    await expect(pool.query(`UPDATE files SET status = 'DELETED' WHERE id = $1`, [file.rows[0]!.id])).rejects.toThrow(
+      /files_deleted_at/,
+    );
+    await pool.query(`UPDATE files SET status = 'DELETED', deleted_at = now() WHERE id = $1`, [file.rows[0]!.id]);
+    const files = await pool.query(`SELECT status, attached FROM v_file_list WHERE id = $1`, [file.rows[0]!.id]);
+    expect(files.rows[0]).toEqual({ status: 'DELETED', attached: false });
   });
 });

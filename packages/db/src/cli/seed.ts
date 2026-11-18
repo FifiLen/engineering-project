@@ -9,7 +9,9 @@ import { databaseUrl, requireEnv } from './env.js';
 /** Treść deweloperska dokumentu z `seed/documents` (bez komentarza HTML z nagłówka pliku). */
 function doc(slug: string): string {
   const path = join(import.meta.dirname, '..', '..', 'seed', 'documents', `${slug}.md`);
-  return readFileSync(path, 'utf8').replace(/^<!--[\s\S]*?-->\n/, '').trim();
+  return readFileSync(path, 'utf8')
+    .replace(/^<!--[\s\S]*?-->\n/, '')
+    .trim();
 }
 
 async function main() {
@@ -27,6 +29,7 @@ async function main() {
       places,
       fleetSize: Number(process.env.SEED_FLEET_SIZE ?? 40),
       sampleRentals: Number(process.env.SEED_SAMPLE_RENTALS ?? 12),
+      sampleOperations: true,
       admin: {
         email: requireEnv('SEED_ADMIN_EMAIL', 'admin@hulajnogi.local'),
         name: 'Administrator',
@@ -37,7 +40,13 @@ async function main() {
         { email: 'serwisant@hulajnogi.local', name: 'Tomasz Nowak', role: 'Serwisant', passwordHash },
       ],
       documents: [
-        { slug: 'regulamin', name: 'Regulamin', consentType: 'TERMS', title: 'Regulamin świadczenia usług', bodyMd: doc('regulamin') },
+        {
+          slug: 'regulamin',
+          name: 'Regulamin',
+          consentType: 'TERMS',
+          title: 'Regulamin świadczenia usług',
+          bodyMd: doc('regulamin'),
+        },
         {
           slug: 'polityka-prywatnosci',
           name: 'Polityka prywatności',
@@ -45,7 +54,13 @@ async function main() {
           title: 'Polityka prywatności',
           bodyMd: doc('polityka-prywatnosci'),
         },
-        { slug: 'zasady-jazdy', name: 'Zasady jazdy', consentType: null, title: 'Zanim ruszysz', bodyMd: doc('zasady-jazdy') },
+        {
+          slug: 'zasady-jazdy',
+          name: 'Zasady jazdy',
+          consentType: null,
+          title: 'Zanim ruszysz',
+          bodyMd: doc('zasady-jazdy'),
+        },
       ],
     });
     console.log(

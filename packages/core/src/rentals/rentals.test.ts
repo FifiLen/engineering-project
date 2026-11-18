@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { COMMAND_ACK_TIMEOUT_MS } from '../fleet/commands.js';
 import { priceRental, rentalCounters, type TimelineEvent } from './pricing.js';
 import { RentalStateMachine } from './rental-state-machine.js';
 import {
@@ -12,6 +13,7 @@ import {
   decideStart,
   ensureCanDeleteAccount,
   ensureCanRing,
+  OFFLINE_END_TIMEOUT_MS,
   rentalCommandOutcome,
   reservationExpiresAt,
   unavailableReason,
@@ -171,6 +173,7 @@ describe('pauza, wznowienie i zakończenie', () => {
       command: 'LOCK',
       to: 'ENDING',
       resumeState: 'ACTIVE',
+      endMode: 'CUSTOMER',
     });
     expect(decideEnd(rental({ state: 'PAUSED' }), 'u1', { canPark: true, nearestParking: null }).resumeState).toBe(
       'PAUSED',
@@ -184,12 +187,23 @@ describe('pauza, wznowienie i zakończenie', () => {
   });
 
   it('operator kończy przejazd z powodem; przy blokadzie w toku nie wysyła drugiej', () => {
-    expect(decideRemoteEnd(rental(), 'CUSTOMER_REQUEST', null)).toEqual({ to: 'ENDED', command: 'LOCK' });
+    expect(decideRemoteEnd(rental(), 'CUSTOMER_REQUEST', null)).toEqual({
+      to: 'ENDED',
+      endMode: 'REMOTE',
+      command: 'LOCK',
+      commandTtlMs: COMMAND_ACK_TIMEOUT_MS,
+    });
     expect(
       decideRemoteEnd(rental({ state: 'ENDING', pendingCommand: 'LOCK' }), 'SCOOTER_NOT_RESPONDING', null),
-    ).toEqual({
+    ).toMatchObject({
       to: 'ENDED',
+      endMode: 'REMOTE',
       command: null,
+    });
+    // Hulajnoga offline: blokada czeka 10 min na powrót łączności, jak przy zakończeniu klienta offline.
+    expect(decideRemoteEnd(rental(), 'SCOOTER_NOT_RESPONDING', null, { online: false })).toMatchObject({
+      command: 'LOCK',
+      commandTtlMs: OFFLINE_END_TIMEOUT_MS,
     });
     expect(code(() => decideRemoteEnd(rental(), 'OTHER', ' '))).toBe('VALIDATION_FAILED');
     expect(code(() => decideRemoteEnd(rental({ state: 'PAUSED', pendingCommand: 'UNLOCK' }), 'OTHER', 'x'))).toBe(
@@ -310,13 +324,20 @@ describe('liczniki i wycena', () => {
       changed('ENDED', 784),
     ];
     const counters = rentalCounters(timeline, at(10_000));
-    expect(counters).toEqual({ rideSeconds: 600, pauseSeconds: 180, startedAt: at(2), billedUntil: at(782) });
+    expect(counters).toEqual({
+      rideSeconds: 600,
+      pauseSeconds: 180,
+      startedAt: at(2),
+      billedUntil: at(782),
+      billingStoppedAt: null,
+    });
     expect(priceRental(tariff, counters)).toEqual({
       unlockFee: 300,
       rideMinutes: 10,
       rideAmount: 800,
       pauseMinutes: 3,
       pauseAmount: 90,
+      towingFee: 0,
       total: 1190,
     });
   });
@@ -341,6 +362,7 @@ describe('liczniki i wycena', () => {
       pauseSeconds: 60,
       startedAt: at(0),
       billedUntil: at(160),
+      billingStoppedAt: null,
     });
     const afterRequest = [
       changed('ACTIVE', 0),

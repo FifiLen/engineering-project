@@ -344,6 +344,8 @@ export interface SettlementRental {
   paymentSource: PaymentSource;
   paymentMethodId: string | null;
   totalAmount: number | null;
+  /** Opłata za odholowanie w `total_amount` (ADR 0060); `null` bez opłaty. */
+  towingFee: number | null;
   rideSeconds: number;
   pauseSeconds: number;
   startedAt: Date | null;
@@ -678,8 +680,8 @@ export class DrizzlePaymentRepository {
   async settlementRental(rentalId: string, lock = false): Promise<SettlementRental | null> {
     if (lock) await this.db.execute(sql`SELECT 1 FROM rentals WHERE id = ${rentalId} FOR UPDATE`);
     const row = await this.one(sql`
-      SELECT id, number, user_id, state, tariff_id, payment_source, payment_method_id, total_amount, ride_seconds,
-             pause_seconds, started_at, ended_at
+      SELECT id, number, user_id, state, tariff_id, payment_source, payment_method_id, total_amount, towing_fee,
+             ride_seconds, pause_seconds, started_at, ended_at
       FROM rentals WHERE id = ${rentalId}`);
     if (!row) return null;
     return {
@@ -691,6 +693,7 @@ export class DrizzlePaymentRepository {
       paymentSource: row.payment_source as PaymentSource,
       paymentMethodId: (row.payment_method_id as string | null) ?? null,
       totalAmount: num(row.total_amount),
+      towingFee: num(row.towing_fee),
       rideSeconds: row.ride_seconds as number,
       pauseSeconds: row.pause_seconds as number,
       startedAt: row.started_at ? new Date(row.started_at as string) : null,

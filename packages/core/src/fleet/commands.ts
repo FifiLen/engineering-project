@@ -1,7 +1,10 @@
 import { DomainError } from '../errors.js';
 import type { ScooterStatus } from './fleet-status.js';
 
-/** Komendy do hulajnogi (typ `command_type`); w MQTT te same nazwy małymi literami. */
+/**
+ * Komendy do hulajnogi (typ `command_type`); w MQTT te same nazwy małymi literami. `BATTERY_SWAPPED` (kontrakt
+ * 1.3.0, ADR 0059) wysyła zakończenie zadania `BATTERY_SWAP`, poza przejazdem i poza panelem.
+ */
 export const COMMAND_TYPES = [
   'UNLOCK',
   'LOCK',
@@ -10,6 +13,7 @@ export const COMMAND_TYPES = [
   'RING',
   'LIGHTS',
   'RELEASE_STOP',
+  'BATTERY_SWAPPED',
 ] as const;
 export type CommandType = (typeof COMMAND_TYPES)[number];
 

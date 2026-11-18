@@ -3,7 +3,8 @@
  */
 import { z } from 'zod';
 import { RIDE_SETTLEMENTS, type RentalSettlementView, type RideSettlement } from '../payments.js';
-import type { RentalPriceView, RentalState, TariffView } from '../rentals.js';
+import type { FileView } from '../files.js';
+import type { EndMode, RentalPriceView, RentalState, TariffView } from '../rentals.js';
 import { RENTAL_STATES } from '../rentals.js';
 import type { CommandStatus } from './fleet.js';
 import type { RefundListItem } from './payments.js';
@@ -12,9 +13,14 @@ import type { ResourceDefinition } from './list.js';
 export const REMOTE_END_REASONS = ['SCOOTER_NOT_RESPONDING', 'CUSTOMER_REQUEST', 'TERMS_VIOLATION', 'OTHER'] as const;
 export type RemoteEndReason = (typeof REMOTE_END_REASONS)[number];
 
+/**
+ * Zdalne zakończenie (D7). `collectTowingFee` (ADR 0060): „Pobierz opłatę za odholowanie” przy hulajnodze poza
+ * strefą parkowania; w strefie API odrzuca zaznaczenie (`TOWING_FEE_NOT_APPLICABLE`).
+ */
 export const remoteEndSchema = z.object({
   reason: z.enum(REMOTE_END_REASONS),
   note: z.string().trim().max(500).nullable().default(null),
+  collectTowingFee: z.boolean().default(false),
 });
 export type RemoteEnd = z.infer<typeof remoteEndSchema>;
 
@@ -107,5 +113,13 @@ export interface RentalAdminDetails extends Omit<RentalListItem, 'settlement'> {
   refunds: RefundListItem[];
   /** Kwota, którą można jeszcze zwrócić (zapłata minus zwroty udane i w toku); 0, gdy przejazd nie jest rozliczony. */
   refundable: number;
+  // Iteracja 6 (ADR 0056, 0057, 0060). Pola opcjonalne do czasu, gdy API je wypełni.
+  endMode?: EndMode | null;
+  /** Opłata za odholowanie pobrana przy zdalnym zakończeniu; `null` bez opłaty. */
+  towingFee?: number | null;
+  /** Okno zdalnego zakończenia: opłata z wersji cennika przejazdu i czy ostatnia pozycja kwalifikuje się do niej. */
+  towing?: { outOfZoneFee: number; outsideParking: boolean; positionAt: string | null } | null;
+  parkingPhoto?: FileView | null;
+  billingStoppedAt?: string | null;
   asOf: string;
 }

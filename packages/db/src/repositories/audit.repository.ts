@@ -1,4 +1,4 @@
-import type { AuditEntry, AuditLogRepository } from '@hulajnogi/core';
+import type { AuditEntry, AuditLogRepository, SystemAuditEntry } from '@hulajnogi/core';
 import {
   auditLogResource,
   type AuditLogDetails,
@@ -25,6 +25,7 @@ const listSource: ListSource<AuditField> = {
     action: vAuditLog.action,
     entityType: vAuditLog.entityType,
     entityId: vAuditLog.entityId,
+    actor: vAuditLog.actor,
   },
 };
 
@@ -34,6 +35,11 @@ export class DrizzleAuditLogRepository implements AuditLogRepository {
 
   async append(entry: AuditEntry): Promise<void> {
     await this.db.insert(auditLog).values(entry);
+  }
+
+  /** Wpis systemu bez operatora (`actor = SYSTEM`, ADR 0055); wpis z `systemAuditEntry` w core. */
+  async appendSystem(entry: SystemAuditEntry): Promise<void> {
+    await this.db.insert(auditLog).values({ ...entry, staffId: null, actor: 'SYSTEM' });
   }
 
   list(query: ListQuery): Promise<ListResponse<AuditLogListItem>> {
@@ -46,6 +52,17 @@ export class DrizzleAuditLogRepository implements AuditLogRepository {
       .from(vAuditLog)
       .where(eq(vAuditLog.id, id));
     return (row as unknown as AuditLogDetails | undefined) ?? null;
+  }
+
+  /** Ostatnie wpisy jednej akcji, od najnowszego (np. „Ostatnie polecenia” symulatora, ADR 0059). */
+  async forAction(action: string, limit = 10): Promise<AuditLogDetails[]> {
+    const rows = await this.db
+      .select({ ...listSource.columns, data: vAuditLog.data })
+      .from(vAuditLog)
+      .where(eq(vAuditLog.action, action))
+      .orderBy(desc(vAuditLog.createdAt), desc(vAuditLog.id))
+      .limit(limit);
+    return rows as unknown as AuditLogDetails[];
   }
 
   /** Historia zmian rekordu do karty w formularzu, od najnowszej. */

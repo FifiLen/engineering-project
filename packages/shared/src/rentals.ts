@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { ScooterVariant } from './admin/fleet.js';
 import type { ZoneType } from './admin/zones.js';
+import type { FileView } from './files.js';
 import type { RentalSettlementView, RideSettlement } from './payments.js';
 
 export const RENTAL_STATES = [
@@ -38,6 +39,14 @@ export const UNAVAILABLE_REASONS = [
   'LOW_BATTERY',
 ] as const;
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
+
+/** Tryb zakończenia (`rentals.end_mode`, ADR 0056). */
+export const END_MODES = ['CUSTOMER', 'CUSTOMER_OFFLINE', 'REMOTE', 'UNCONFIRMED'] as const;
+export type EndMode = (typeof END_MODES)[number];
+
+/** Progi baterii w trakcie jazdy (ADR 0056): `LOW` z cennika, `CRITICAL` 5% z limitem 10 km/h. */
+export const BATTERY_THRESHOLDS = ['LOW', 'CRITICAL'] as const;
+export type BatteryThreshold = (typeof BATTERY_THRESHOLDS)[number];
 
 /** Zdarzenia, które aplikacja pokazuje jako komunikat (nieudana pauza, wznowienie, blokada, odblokowanie). */
 export const RENTAL_NOTICES = ['PAUSE_FAILED', 'RESUME_FAILED', 'LOCK_FAILED', 'ENDED_REMOTELY'] as const;
@@ -111,6 +120,9 @@ export interface RentalPriceView {
   rideAmount: number;
   pauseMinutes: number;
   pauseAmount: number;
+  /** Opłata za odholowanie (ADR 0060): osobna pozycja, 0 bez opłaty. */
+  towingFee: number;
+  /** Suma z opłatą za odholowanie. */
   total: number;
 }
 
@@ -158,8 +170,27 @@ export interface RentalView {
   zoneControl: { stopped: boolean; speedLimitKmh: number | null };
   /** Rozliczenie po zakończeniu (ADR 0049); przed zakończeniem stan `NONE` ze źródłem wybranym przy starcie. */
   settlement: RentalSettlementView;
+  // Iteracja 6 (ADR 0056, 0057, 0060). Pola opcjonalne do czasu, gdy API je wypełni; brak znaczy wartość domyślną.
+  /** Tryb zakończenia; `null` przed żądaniem zakończenia. */
+  endMode?: EndMode | null;
+  /** Zdjęcie parkowania wymagane (zakończenie bez łączności); aplikacja wraca do ekranu zdjęcia, dopóki go nie ma. */
+  parkingPhotoRequired?: boolean;
+  parkingPhoto?: FileView | null;
+  /** Hulajnoga bez łączności według statusu z brokera (komunikat „Hulajnoga nie odpowiada”). */
+  scooterOnline?: boolean;
+  /** Czas ostatniej pozycji z telemetrii: warunek zakończenia offline (najwyżej 120 s). */
+  positionAt?: string | null;
+  /** Naliczanie zatrzymane po 30 min bez łączności (`BILLING_STOPPED`); aplikacja nie dolicza wtedy czasu. */
+  billingStopped?: boolean;
+  billingStoppedAt?: string | null;
+  /** Najpoważniejszy próg baterii osiągnięty w przejeździe (komunikat i prowadzenie do strefy). */
+  batteryAlert?: BatteryThreshold | null;
   asOf: string;
 }
+
+/** `POST /rentals/{id}/parking-photo` po zakończeniu: plik wysłany wcześniej z celem `PARKING_PHOTO` (ADR 0057). */
+export const parkingPhotoSchema = z.object({ fileId: z.uuid() });
+export type ParkingPhotoRequest = z.infer<typeof parkingPhotoSchema>;
 
 export interface RentalHistoryItem {
   id: string;
@@ -174,6 +205,8 @@ export interface RentalHistoryItem {
   endZoneName: string | null;
   settlement: RideSettlement;
   receiptId: string | null;
+  /** Opłata za odholowanie w kwocie przejazdu (ADR 0060); `null` bez opłaty. */
+  towingFee?: number | null;
 }
 
 export interface RentalStats {

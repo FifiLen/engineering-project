@@ -21,7 +21,8 @@ export type PaymentMethodKind = (typeof PAYMENT_METHOD_KINDS)[number];
 export const RIDE_SETTLEMENTS = ['NONE', 'WALLET_PAID', 'CARD_PENDING', 'CARD_PAID', 'FAILED'] as const;
 export type RideSettlement = (typeof RIDE_SETTLEMENTS)[number];
 
-export const LEDGER_ENTRY_TYPES = ['TOPUP', 'RIDE_CHARGE', 'REFUND', 'ADJUSTMENT', 'PAYOUT'] as const;
+/** `TOWING_FEE`: opłata za odholowanie osobnym wpisem w transakcji `ENDED` (ADR 0060). */
+export const LEDGER_ENTRY_TYPES = ['TOPUP', 'RIDE_CHARGE', 'REFUND', 'ADJUSTMENT', 'PAYOUT', 'TOWING_FEE'] as const;
 export type LedgerEntryType = (typeof LEDGER_ENTRY_TYPES)[number];
 
 export const ADJUSTMENT_REASONS = ['COMPLAINT', 'SYSTEM_ERROR', 'GOODWILL', 'OTHER'] as const;
@@ -39,7 +40,7 @@ export const RECEIPT_KINDS = ['SALE', 'CORRECTION'] as const;
 export type ReceiptKind = (typeof RECEIPT_KINDS)[number];
 
 /** Kody pozycji paragonu; tekst pozycji z plików tłumaczeń (`receipt.items.<kod>`). */
-export const RECEIPT_ITEM_CODES = ['UNLOCK', 'RIDE_MINUTES', 'PAUSE_MINUTES', 'REFUND'] as const;
+export const RECEIPT_ITEM_CODES = ['UNLOCK', 'RIDE_MINUTES', 'PAUSE_MINUTES', 'TOWING_FEE', 'REFUND'] as const;
 export type ReceiptItemCode = (typeof RECEIPT_ITEM_CODES)[number];
 
 /** Doładowanie (pytanie 3): kwoty z makiety i kwota własna w pełnych złotych (grosze). */

@@ -4,7 +4,7 @@ import type { RentalPrice } from '../rentals/pricing.js';
  * Kody pozycji paragonu (`receipt_items.description`); tekst pozycji pochodzi z plików tłumaczeń
  * klienta i z szablonu wydruku (ADR 0032, ADR 0052).
  */
-export const RECEIPT_ITEM_CODES = ['UNLOCK', 'RIDE_MINUTES', 'PAUSE_MINUTES', 'REFUND'] as const;
+export const RECEIPT_ITEM_CODES = ['UNLOCK', 'RIDE_MINUTES', 'PAUSE_MINUTES', 'TOWING_FEE', 'REFUND'] as const;
 export type ReceiptItemCode = (typeof RECEIPT_ITEM_CODES)[number];
 
 export interface ReceiptItem {
@@ -30,9 +30,12 @@ export function vatFromGross(gross: number, vatRate: number): number {
   return gross < 0 ? -vat : vat;
 }
 
-/** Pozycje paragonu przejazdu z wyceny (ADR 0042): odblokowanie, minuty jazdy, minuty pauzy, gdy były. */
+/**
+ * Pozycje paragonu przejazdu z wyceny (ADR 0042): odblokowanie, minuty jazdy, minuty pauzy, gdy były, i opłata
+ * za odholowanie ze stawką VAT przejazdu, gdy ją pobrano (ADR 0060).
+ */
 export function rideReceiptItems(
-  price: RentalPrice,
+  price: Omit<RentalPrice, 'towingFee'> & { towingFee?: number },
   tariff: { unlockFee: number; minuteRate: number; pauseMinuteRate: number },
   vatRate: number,
 ): ReceiptItem[] {
@@ -53,6 +56,15 @@ export function rideReceiptItems(
       unitPrice: tariff.pauseMinuteRate,
       vatRate,
       amount: price.pauseAmount,
+    });
+  }
+  if (price.towingFee) {
+    items.push({
+      description: 'TOWING_FEE',
+      quantity: 1,
+      unitPrice: price.towingFee,
+      vatRate,
+      amount: price.towingFee,
     });
   }
   return items;

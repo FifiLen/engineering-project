@@ -1,5 +1,8 @@
 import type {
+  BatteryThreshold,
   CommandType,
+  EndMode,
+  GeoPoint,
   NearestParking,
   OpenRental,
   RentableScooter,
@@ -58,6 +61,13 @@ const listSource: ListSource<RentalField> = {
   },
 };
 
+/** Lista identyfikatorów do `IN (…)` w zapytaniu z aliasem tabeli (bez kolumny schematu Drizzle). */
+const uuidList = (ids: readonly string[]) =>
+  sql`(${sql.join(
+    ids.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  )})`;
+
 const OPEN_STATES = sql.raw(`('RESERVED', 'UNLOCKING', 'ACTIVE', 'PAUSED', 'ENDING')`);
 
 /** Przejazd z danymi do widoku klienta i panelu (bez osi czasu). */
@@ -80,7 +90,14 @@ export interface RentalRecord extends OpenRental {
   scooterOnline: boolean;
   scooterLat: number | null;
   scooterLon: number | null;
+  /** Czas ostatniej pozycji z telemetrii (`scooters.last_seen_at`): warunek zakończenia offline (ADR 0056). */
+  scooterPositionAt: Date | null;
   createdAt: Date;
+  /** Tryb zakończenia (`rentals.end_mode`, ADR 0056); `null` przed żądaniem zakończenia. */
+  endMode: EndMode | null;
+  /** Opłata za odholowanie w groszach (ADR 0060); `null` bez opłaty. */
+  towingFee: number | null;
+  parkingPhotoId: string | null;
 }
 
 export interface RentalCommandRecord {
@@ -162,6 +179,7 @@ const rentalSql = sql`
   SELECT r.id, r.number, r.user_id, r.scooter_id, r.tariff_id, r.state, r.payment_source, r.payment_method_id,
          r.reserved_at, r.reservation_expires_at,
          r.started_at, r.ended_at, r.ride_seconds, r.pause_seconds, r.distance_m, r.total_amount, r.created_at,
+         r.end_mode, r.towing_fee, r.parking_photo_id, s.last_seen_at AS scooter_position_at,
          ez.code AS end_zone_code, ez.name AS end_zone_name,
          s.number AS scooter_number, s.variant AS scooter_variant, s.battery_pct AS scooter_battery_pct,
          s.online AS scooter_online, ST_Y(s.position) AS scooter_lat, ST_X(s.position) AS scooter_lon,
@@ -195,7 +213,11 @@ const toRental = (r: Row): RentalRecord => ({
   scooterOnline: r.scooter_online as boolean,
   scooterLat: num(r.scooter_lat),
   scooterLon: num(r.scooter_lon),
+  scooterPositionAt: date(r.scooter_position_at),
   pendingCommand: (r.pending_command as CommandType | null) ?? null,
+  endMode: (r.end_mode as EndMode | null) ?? null,
+  towingFee: num(r.towing_fee),
+  parkingPhotoId: (r.parking_photo_id as string | null) ?? null,
 });
 
 const commandSql = sql`SELECT c.id, c.scooter_id, s.number AS scooter_number, c.rental_id, c.type, c.status, c.sent_at,
@@ -244,6 +266,12 @@ export class DrizzleRentalRepository {
 
   async tariff(id: string): Promise<RentalTariff> {
     return toTariff((await this.one(sql`${tariffSql} WHERE id = ${id}`))!);
+  }
+
+  /** Opłata za odholowanie z wersji cennika przejazdu (`out_of_zone_fee`, ADR 0060). */
+  async outOfZoneFee(tariffId: string): Promise<number> {
+    const row = await this.one(sql`SELECT out_of_zone_fee FROM tariffs WHERE id = ${tariffId}`);
+    return Number(row?.out_of_zone_fee ?? 0);
   }
 
   async scooter(id: string): Promise<CustomerScooterRow | null> {
@@ -363,10 +391,16 @@ export class DrizzleRentalRepository {
       UPDATE rentals SET payment_source = ${source}, payment_method_id = ${paymentMethodId}, updated_at = now() WHERE id = ${id}`);
   }
 
-  async setState(id: string, state: RentalState, extra: { startedAt?: Date } = {}): Promise<void> {
+  /**
+   * Zmiana stanu. Tryb zakończenia ustawia żądanie zakończenia (`endMode`); powrót do jazdy po nieudanej blokadzie
+   * online czyści go w tej samej instrukcji, bo baza dopuszcza `end_mode` tylko w ENDING, ENDED i UNPAID.
+   */
+  async setState(id: string, state: RentalState, extra: { startedAt?: Date; endMode?: EndMode } = {}): Promise<void> {
     await this.db.execute(sql`
       UPDATE rentals SET state = ${state}, updated_at = now(),
-             started_at = COALESCE(started_at, ${extra.startedAt ?? null}::timestamptz)
+             started_at = COALESCE(started_at, ${extra.startedAt ?? null}::timestamptz),
+             end_mode = CASE WHEN ${state} IN ('ENDING', 'ENDED', 'UNPAID')
+                             THEN COALESCE(${extra.endMode ?? null}::rental_end_mode, end_mode) END
       WHERE id = ${id}`);
   }
 
@@ -376,12 +410,24 @@ export class DrizzleRentalRepository {
    */
   async finish(
     id: string,
-    values: { endedAt: Date; rideSeconds: number; pauseSeconds: number; totalAmount: number; endZoneId: string | null },
+    values: {
+      endedAt: Date;
+      rideSeconds: number;
+      pauseSeconds: number;
+      totalAmount: number;
+      endZoneId: string | null;
+      /** Tryb zakończenia (ADR 0056); bez wartości zostaje tryb z żądania zakończenia. */
+      endMode?: EndMode;
+      /** Opłata za odholowanie w kwocie przejazdu (ADR 0060). */
+      towingFee?: number | null;
+    },
   ): Promise<void> {
     await this.db.execute(sql`
       UPDATE rentals r SET state = 'ENDED', ended_at = ${values.endedAt}, updated_at = now(),
              ride_seconds = ${values.rideSeconds}, pause_seconds = ${values.pauseSeconds},
              total_amount = ${values.totalAmount}, end_zone_id = ${values.endZoneId},
+             end_mode = COALESCE(${values.endMode ?? null}::rental_end_mode, r.end_mode),
+             towing_fee = ${values.towingFee ?? null},
              distance_m = fn_rental_distance_m(r.id), route = fn_rental_route(r.id),
              end_position = (SELECT position FROM scooters WHERE id = r.scooter_id)
       WHERE id = ${id}`);
@@ -403,16 +449,176 @@ export class DrizzleRentalRepository {
               ${JSON.stringify(change.data ?? {})}::jsonb, ${change.zoneId ?? null})`);
   }
 
-  /** Zdarzenia potrzebne do liczników (ADR 0042). */
+  /** Zdarzenia potrzebne do liczników (ADR 0042) z trybem żądania zakończenia (`data.mode`, ADR 0056). */
   async timelineEvents(rentalId: string): Promise<TimelineEvent[]> {
     const rows = await this.rows(
-      sql`SELECT type::text AS type, to_state, created_at FROM rental_events WHERE rental_id = ${rentalId} ORDER BY created_at, id`,
+      sql`SELECT type::text AS type, to_state, created_at, data->>'mode' AS mode
+          FROM rental_events WHERE rental_id = ${rentalId} ORDER BY created_at, id`,
     );
     return rows.map((r) => ({
       type: r.type as RentalEventType,
       toState: (r.to_state as RentalState | null) ?? null,
       at: new Date(r.created_at as string),
+      ...(r.mode === 'OFFLINE' ? { mode: 'OFFLINE' as const } : {}),
     }));
+  }
+
+  /** Progi baterii zapisane w przejeździe (`BATTERY_LOW` z `data.threshold`, ADR 0056). */
+  async batteryThresholds(rentalId: string): Promise<BatteryThreshold[]> {
+    const rows = await this.rows(sql`
+      SELECT DISTINCT data->>'threshold' AS threshold FROM rental_events
+      WHERE rental_id = ${rentalId} AND type = 'BATTERY_LOW' AND data ? 'threshold'`);
+    return rows.map((r) => r.threshold as BatteryThreshold);
+  }
+
+  /** Ostatnie zdarzenie łączności przejazdu (`CONNECTION_LOST` albo `CONNECTION_RESTORED`) z czasem. */
+  async lastConnectionEvent(
+    rentalId: string,
+  ): Promise<{ type: 'CONNECTION_LOST' | 'CONNECTION_RESTORED'; at: Date } | null> {
+    const row = await this.one(sql`
+      SELECT type::text AS type, created_at FROM rental_events
+      WHERE rental_id = ${rentalId} AND type IN ('CONNECTION_LOST', 'CONNECTION_RESTORED')
+      ORDER BY created_at DESC, id DESC LIMIT 1`);
+    return row
+      ? { type: row.type as 'CONNECTION_LOST' | 'CONNECTION_RESTORED', at: new Date(row.created_at as string) }
+      : null;
+  }
+
+  /** Czy przejazd ma już zdarzenie danego typu po chwili `since` (idempotencja zadań w tle). */
+  async hasEventSince(rentalId: string, type: RentalEventType, since: Date): Promise<boolean> {
+    const row = await this.one(sql`
+      SELECT 1 AS found FROM rental_events
+      WHERE rental_id = ${rentalId} AND type::text = ${type} AND created_at >= ${since} LIMIT 1`);
+    return row !== null;
+  }
+
+  /** Żądanie zakończenia offline: czas i pozycja z chwili żądania zapisane w zdarzeniu `END_REQUESTED`. */
+  async offlineEndRequest(rentalId: string): Promise<{ at: Date; position: GeoPoint | null } | null> {
+    const row = await this.one(sql`
+      SELECT created_at, (data->'position'->>'lat')::float8 AS lat, (data->'position'->>'lon')::float8 AS lon
+      FROM rental_events
+      WHERE rental_id = ${rentalId} AND type = 'END_REQUESTED' AND data->>'mode' = 'OFFLINE'
+      ORDER BY id DESC LIMIT 1`);
+    if (!row) return null;
+    return {
+      at: new Date(row.created_at as string),
+      position: row.lat === null ? null : { lat: Number(row.lat), lon: Number(row.lon) },
+    };
+  }
+
+  /**
+   * Przejazdy hulajnóg po zakończeniu bez łączności (ostatnie 24 h albo wciąż w ENDING), bez zdarzenia
+   * `MOVED_AFTER_END`: kandydaci do sprawdzenia ruchu po dosłaniu bufora telemetrii (ADR 0056).
+   */
+  async offlineEndedByScooter(scooterIds: string[]): Promise<Array<{ rentalId: string; scooterId: string }>> {
+    if (!scooterIds.length) return [];
+    const rows = await this.rows(sql`
+      SELECT r.id, r.scooter_id FROM rentals r
+      WHERE r.scooter_id IN ${uuidList(scooterIds)}
+        AND r.end_mode IN ('CUSTOMER_OFFLINE', 'UNCONFIRMED')
+        AND (r.state = 'ENDING' OR r.ended_at > now() - interval '24 hours')
+        AND NOT EXISTS (SELECT 1 FROM rental_events e WHERE e.rental_id = r.id AND e.type = 'MOVED_AFTER_END')`);
+    return rows.map((r) => ({ rentalId: r.id as string, scooterId: r.scooter_id as string }));
+  }
+
+  /**
+   * Punkty telemetrii hulajnogi zapisane po chwili `after` (także dosłane z bufora, bez `rental_id` po zakończeniu),
+   * do pierwszego z: startu kolejnego przejazdu tej hulajnogi, startu zadania serwisowego po `after` (serwisant
+   * przewozi hulajnogę) i ręcznego przejścia do `MAINTENANCE` po zakończeniu przejazdu (wpis w dzienniku audytu).
+   * Przejście do serwisu w transakcji zakończenia (`BATTERY_CRITICAL`, `OUT_OF_ZONE`) granicy nie ustawia, bo ruch
+   * zaraz po zakończeniu to wciąż ruch klienta (K z przeglądu iteracji 6).
+   */
+  async readingsAfter(
+    rentalId: string,
+    scooterId: string,
+    after: Date,
+  ): Promise<Array<{ recordedAt: Date; position: GeoPoint }>> {
+    const rows = await this.rows(sql`
+      WITH bound AS (
+        SELECT LEAST(
+          (SELECT min(n.created_at) FROM rentals n
+           WHERE n.scooter_id = ${scooterId} AND n.id <> ${rentalId} AND n.created_at > ${after}),
+          (SELECT min(st.started_at) FROM service_tasks st
+           WHERE st.scooter_id = ${scooterId} AND st.started_at > ${after}),
+          (SELECT min(a.created_at) FROM audit_log a, rentals r
+           WHERE r.id = ${rentalId} AND r.ended_at IS NOT NULL
+             AND a.entity_type = 'scooter' AND a.entity_id = ${scooterId} AND a.created_at > r.ended_at
+             AND a.data->'changes'->'status'->>1 = 'MAINTENANCE')
+        ) AS until
+      )
+      SELECT t.recorded_at, ST_Y(t.position) AS lat, ST_X(t.position) AS lon FROM telemetry t, bound
+      WHERE t.scooter_id = ${scooterId} AND t.recorded_at > ${after}
+        AND t.recorded_at < COALESCE(bound.until, 'infinity')
+      ORDER BY t.recorded_at`);
+    return rows.map((r) => ({
+      recordedAt: new Date(r.recorded_at as string),
+      position: { lat: Number(r.lat), lon: Number(r.lon) },
+    }));
+  }
+
+  /**
+   * Stan blokady hulajnóg do reguły „hulajnoga bez przejazdu zgłasza się odblokowana” (ADR 0056,
+   * `shouldLockIdleScooter`): otwarty przejazd, oczekująca komenda `lock`, koniec ostatniego przejazdu, ostatnia
+   * potwierdzona komenda `lock`/`unlock` bez przejazdu (panel albo system) i ostatnia nieudana blokada systemu.
+   */
+  async lockStates(scooterIds: string[]): Promise<
+    Map<
+      string,
+      {
+        hasOpenRental: boolean;
+        lockPending: boolean;
+        lastEndedAt: Date | null;
+        lastManualCommand: { type: 'LOCK' | 'UNLOCK'; at: Date } | null;
+        lastLockFailedAt: Date | null;
+      }
+    >
+  > {
+    if (!scooterIds.length) return new Map();
+    const rows = await this.rows(sql`
+      SELECT s.id,
+             EXISTS (SELECT 1 FROM rentals r WHERE r.scooter_id = s.id AND r.state IN ${OPEN_STATES}) AS has_open_rental,
+             EXISTS (SELECT 1 FROM scooter_commands c WHERE c.scooter_id = s.id AND c.status = 'SENT' AND c.type = 'LOCK') AS lock_pending,
+             (SELECT max(r.ended_at) FROM rentals r WHERE r.scooter_id = s.id) AS last_ended_at,
+             m.type AS manual_type, m.acked_at AS manual_at,
+             (SELECT max(COALESCE(c.acked_at, c.expires_at, c.sent_at)) FROM scooter_commands c
+              WHERE c.scooter_id = s.id AND c.rental_id IS NULL AND c.type = 'LOCK'
+                AND c.status IN ('REJECTED', 'TIMEOUT')) AS lock_failed_at
+      FROM scooters s
+      LEFT JOIN LATERAL (
+        SELECT c.type::text AS type, c.acked_at FROM scooter_commands c
+        WHERE c.scooter_id = s.id AND c.rental_id IS NULL AND c.type IN ('LOCK', 'UNLOCK') AND c.status = 'ACKED'
+        ORDER BY c.acked_at DESC LIMIT 1
+      ) m ON true
+      WHERE s.id IN ${uuidList(scooterIds)}`);
+    return new Map(
+      rows.map((r) => [
+        r.id as string,
+        {
+          hasOpenRental: r.has_open_rental as boolean,
+          lockPending: r.lock_pending as boolean,
+          lastEndedAt: date(r.last_ended_at),
+          lastManualCommand: r.manual_type
+            ? { type: r.manual_type as 'LOCK' | 'UNLOCK', at: date(r.manual_at)! }
+            : null,
+          lastLockFailedAt: date(r.lock_failed_at),
+        },
+      ]),
+    );
+  }
+
+  /** Zdjęcie parkowania przejazdu (ADR 0057): tylko gdy go jeszcze nie ma. */
+  async setParkingPhoto(rentalId: string, fileId: string): Promise<boolean> {
+    const { rowCount } = await this.db.execute(sql`
+      UPDATE rentals SET parking_photo_id = ${fileId}, updated_at = now()
+      WHERE id = ${rentalId} AND parking_photo_id IS NULL`);
+    return (rowCount ?? 0) > 0;
+  }
+
+  /** Oczekująca komenda `lock` przejazdu (zakończenie offline czeka na nią do 10 min). */
+  async pendingLock(rentalId: string): Promise<string | null> {
+    const row = await this.one(sql`
+      SELECT id FROM scooter_commands WHERE rental_id = ${rentalId} AND status = 'SENT' AND type = 'LOCK' LIMIT 1`);
+    return (row?.id as string | undefined) ?? null;
   }
 
   /** Ostatnie zdarzenie bez zmiany stanu po ostatniej zmianie stanu (komunikat w aplikacji). */
@@ -514,10 +720,13 @@ export class DrizzleRentalRepository {
     return (rowCount ?? 0) > 0;
   }
 
-  /** Komendy SENT po limicie (zadanie zabezpieczające `commands.timeout-sweep`). */
-  async overdueCommands(sentBefore: Date, limit = 100): Promise<string[]> {
+  /**
+   * Komendy SENT po terminie ważności (zadanie zabezpieczające `commands.timeout-sweep`). Termin liczy się od
+   * `expires_at`, bo blokada przy zakończeniu offline czeka 10 min, a nie 10 s (ADR 0056).
+   */
+  async overdueCommands(now: Date, limit = 100): Promise<string[]> {
     const rows = await this.rows(sql`
-      SELECT id FROM scooter_commands WHERE status = 'SENT' AND sent_at < ${sentBefore} ORDER BY sent_at LIMIT ${limit}`);
+      SELECT id FROM scooter_commands WHERE status = 'SENT' AND expires_at < ${now} ORDER BY expires_at LIMIT ${limit}`);
     return rows.map((r) => r.id as string);
   }
 
@@ -584,6 +793,7 @@ export class DrizzleRentalRepository {
     const rows = await this.rows(sql`
       SELECT h.id, h.number, h.scooter_number, h.started_at, h.ended_at, h.ride_seconds, h.pause_seconds, h.distance_m,
              h.total_amount, h.end_zone_name, fn_rental_settlement(h.id) AS settlement,
+             (SELECT r.towing_fee FROM rentals r WHERE r.id = h.id) AS towing_fee,
              (SELECT rc.id FROM receipts rc WHERE rc.rental_id = h.id AND rc.kind = 'SALE') AS receipt_id
       FROM v_user_rental_history h WHERE h.user_id = ${userId} ORDER BY h.ended_at DESC NULLS LAST LIMIT ${limit}`);
     return rows.map((r) => ({
@@ -599,6 +809,7 @@ export class DrizzleRentalRepository {
       endZoneName: (r.end_zone_name as string | null) ?? null,
       settlement: r.settlement as RentalHistoryItem['settlement'],
       receiptId: (r.receipt_id as string | null) ?? null,
+      towingFee: num(r.towing_fee),
     }));
   }
 

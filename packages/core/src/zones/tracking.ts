@@ -1,4 +1,5 @@
 import type { ZoneCommand } from '../fleet/commands.js';
+import { BATTERY_CRITICAL_SPEED_KMH } from '../rentals/battery.js';
 import { evaluatePosition, type Zone } from './zones.js';
 
 /** Histereza wyjazdu ze strefy (pytanie 6 w planie iteracji 4, ADR 0043). */
@@ -69,9 +70,16 @@ export interface ZoneControl {
   speedLimitKmh: number | null;
 }
 
-export function desiredZoneControl(zones: readonly Zone[]): ZoneControl {
+/**
+ * Stan docelowy hulajnogi w przejeździe. Krytyczna bateria (ADR 0056) to drugie źródło limitu: obowiązuje
+ * mniejszy z limitu stref i `BATTERY_CRITICAL_SPEED_KMH`, do końca przejazdu, bez nowej komendy MQTT.
+ */
+export function desiredZoneControl(zones: readonly Zone[], options: { batteryCritical?: boolean } = {}): ZoneControl {
   const rules = evaluatePosition(zones);
-  return { stopped: !rules.canRide, speedLimitKmh: rules.speedLimitKmh };
+  const limits = [rules.speedLimitKmh, options.batteryCritical ? BATTERY_CRITICAL_SPEED_KMH : null].filter(
+    (limit): limit is number => limit !== null,
+  );
+  return { stopped: !rules.canRide, speedLimitKmh: limits.length ? Math.min(...limits) : null };
 }
 
 /** Stan zastosowany: ostatnio wysłany limit i zatrzymanie oraz to, czy hulajnoga je przyjęła albo czeka. */

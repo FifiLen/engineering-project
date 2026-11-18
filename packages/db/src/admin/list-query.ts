@@ -30,9 +30,13 @@ function filterCondition(column: AnyPgColumn, field: FieldDefinition, filter: Li
   switch (filter.op) {
     case 'eq':
       if (field.array) {
-        // Część wspólna tablic (`&&`): rekord ma którąkolwiek z wartości. Typ elementu z białej listy.
+        // Część wspólna tablic (`&&`): rekord ma którąkolwiek z wartości. Typ elementu z białej listy; kolumna
+        // tablicy wyliczenia (np. kategorie zgłoszenia) porównuje się jako tekst.
         const elementType = sql.raw(field.type === 'uuid' ? 'uuid' : 'text');
-        return sql`${column} && ARRAY[${sql.join(values.map((v) => sql`${v}`), sql`, `)}]::${elementType}[]`;
+        return sql`${column}::${elementType}[] && ARRAY[${sql.join(
+          values.map((v) => sql`${v}`),
+          sql`, `,
+        )}]::${elementType}[]`;
       }
       return values.length === 1 ? eq(column, values[0]) : inArray(column, values);
     case 'gte':

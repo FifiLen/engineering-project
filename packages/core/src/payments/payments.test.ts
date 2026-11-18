@@ -7,6 +7,7 @@ import {
   isCardUsable,
   nextPaymentStatus,
   rideCharge,
+  rideWalletEntries,
   shouldRetryRideCharge,
   type PaymentCheck,
 } from './payments.js';
@@ -94,6 +95,16 @@ describe('rozliczenie i spłata', () => {
     expect(nextPaymentStatus('SUCCEEDED', 'FAILED')).toBeNull();
     expect(nextPaymentStatus('FAILED', 'SUCCEEDED')).toBeNull();
     expect(nextPaymentStatus('SUCCEEDED', 'REFUNDED')).toBe('REFUNDED');
+  });
+
+  it('portfel: przejazd i opłata za odholowanie jako dwa wpisy, bez wpisu za pozycję 0 zł (ADR 0060)', () => {
+    expect(rideWalletEntries(1260, null)).toEqual([{ type: 'RIDE_CHARGE', amount: 1260 }]);
+    expect(rideWalletEntries(3260, 2000)).toEqual([
+      { type: 'RIDE_CHARGE', amount: 1260 },
+      { type: 'TOWING_FEE', amount: 2000 },
+    ]);
+    expect(rideWalletEntries(2000, 2000)).toEqual([{ type: 'TOWING_FEE', amount: 2000 }]);
+    expect(rideWalletEntries(0, null)).toEqual([]);
   });
 
   it('jedno automatyczne ponowienie po pierwszej odmowie', () => {

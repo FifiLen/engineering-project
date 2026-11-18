@@ -499,10 +499,14 @@ export interface RefundListItem {
   receiptNumber: string | null;
 }
 
-/** Zwrot za przejazd (pytanie 11): kwota w groszach, powód z listy, notatka do dziennika audytu. */
+/**
+ * Zwrot za przejazd (pytanie 11): kwota w groszach, powód z listy, notatka do dziennika audytu; `ticketId` wiąże
+ * zwrot z reklamacją (`refunds.ticket_id`, ADR 0055), żeby trafił na oś czasu zgłoszenia.
+ */
 export const rentalRefundSchema = z.object({
   amount: z.number().int().positive(),
   reason: z.enum(REFUND_REASONS),
   note: z.string().trim().max(500).nullable().default(null),
+  ticketId: z.uuid().nullable().default(null),
 });
 export type RentalRefund = z.infer<typeof rentalRefundSchema>;

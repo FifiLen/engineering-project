@@ -1,4 +1,10 @@
-import { type ScooterChanges, type ScooterDraft, type ScooterRepository, type ScooterState } from '@hulajnogi/core';
+import {
+  type ScooterChanges,
+  type ScooterDraft,
+  type ScooterRepository,
+  type ScooterState,
+  type ScooterStatusReason,
+} from '@hulajnogi/core';
 import {
   scootersResource,
   type FleetMapScooter,
@@ -40,6 +46,8 @@ const listSource: ListSource<ScooterField> = {
     lat: vFleetList.lat,
     lon: vFleetList.lon,
     version: vFleetList.version,
+    statusReason: vFleetList.statusReason,
+    statusChangedAt: vFleetList.statusChangedAt,
   },
 };
 
@@ -116,6 +124,12 @@ export class DrizzleScooterRepository implements ScooterRepository {
     return rows[0]!.threshold;
   }
 
+  /** Identyfikator hulajnogi po numerze (polecenie symulatora z panelu wskazuje numer, ADR 0059). */
+  async idByNumber(number: number): Promise<string | null> {
+    const [row] = await this.db.select({ id: scooters.id }).from(scooters).where(eq(scooters.number, number));
+    return row?.id ?? null;
+  }
+
   async findState(id: string): Promise<ScooterState | null> {
     const [row] = await this.db
       .select({
@@ -146,11 +160,25 @@ export class DrizzleScooterRepository implements ScooterRepository {
     }
   }
 
-  async update(id: string, version: number, changes: ScooterChanges): Promise<boolean> {
+  /**
+   * Zapis z blokadą optymistyczną; `statusReason` (gdy podany) zapisuje przyczynę stanu razem ze zmianą stanu
+   * (`scooters_status_reason_matches`, ADR 0055).
+   */
+  async update(
+    id: string,
+    version: number,
+    changes: ScooterChanges,
+    statusReason?: ScooterStatusReason | null,
+  ): Promise<boolean> {
     try {
       const rows = await this.db
         .update(scooters)
-        .set({ ...pickDraft(changes), version: sql`${scooters.version} + 1`, updatedAt: sql`now()` })
+        .set({
+          ...pickDraft(changes),
+          ...(statusReason !== undefined ? { statusReason } : {}),
+          version: sql`${scooters.version} + 1`,
+          updatedAt: sql`now()`,
+        })
         .where(and(eq(scooters.id, id), eq(scooters.version, version)))
         .returning({ id: scooters.id });
       return rows.length > 0;

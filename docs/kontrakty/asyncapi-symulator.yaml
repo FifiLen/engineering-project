@@ -1,0 +1,446 @@
+asyncapi: 3.0.0
+info:
+  title: Sterowanie symulatorem floty (MQTT)
+  version: 1.0.0
+  description: |
+    Kontrakt między backendem a symulatorem floty (apps/simulator) do demo
+    awarii i jazdy z panelu (ADR 0059). Osobny od kontraktu urządzeń
+    (asyncapi-mqtt.yaml): prawdziwa hulajnoga tych kanałów nie zna.
+    Operacje są opisane z perspektywy symulatora: symulator odbiera
+    polecenia i wysyła wyniki oraz stan.
+
+    Zasady:
+    * QoS 1 dla wszystkich wiadomości. Polecenie nie jest retained; stan
+      symulatora jest retained, a Last Will połączenia symulatora to
+      {"online": false} na simulator/status.
+    * Publikować na simulator/control może tylko backend (POST
+      /admin/simulator/commands z uprawnieniem simulator.manage, wpis
+      simulator.command w dzienniku audytu). Na demo pilnuje tego ACL brokera;
+      lokalnie broker jest anonimowy i ochronę daje uprawnienie w API.
+    * Każde polecenie ma commandId; symulator odpowiada wynikiem z tym samym
+      identyfikatorem. Powtórzone polecenie o znanym commandId nie jest
+      wykonywane ponownie, tylko dostaje ten sam wynik.
+    * Polecenie po expiresAt nie jest wykonywane; wynik ma ok = false
+      i powód EXPIRED. Wiadomość niezgodna ze schematem, ale z poprawnym
+      commandId, dostaje INVALID_PARAMS; bez commandId jest pomijana.
+    * Na hulajnodze działa najwyżej jeden scenariusz. Polecenie, które
+      uruchamia scenariusz (disconnect, silence, drain, goto, enter_no_ride),
+      przy trwającym scenariuszu dostaje SCENARIO_ACTIVE. Polecenie, które go
+      kończy (restore dla disconnect, unsilence dla silence, cancel dla
+      dowolnego), bez takiego scenariusza dostaje NO_SCENARIO.
+    * Akcje:
+      * disconnect: hulajnoga zrywa połączenie bez pakietu DISCONNECT, więc
+        broker publikuje jej Last Will, a komendy czekają w sesji trwałej.
+        Telemetria trafia do bufora (do godziny punktów).
+      * restore: powrót połączenia; hulajnoga dosyła zbuforowaną telemetrię
+        z oryginalnymi znacznikami czasu i buffered = true (kontrakt urządzeń).
+      * silence i unsilence: hulajnoga wykonuje komendy, ale ich nie
+        potwierdza; telemetria płynie dalej.
+      * drain: bateria spada liniowo do targetPct w durationS (domyślnie 5%
+        w 30 s), potem tylko zwykłe zużycie w jeździe. Cel nie niższy niż
+        bieżąca bateria to INVALID_PARAMS. Wymiana baterii (komenda
+        battery_swapped) kończy scenariusz.
+      * goto: wirtualny klient jedzie do strefy (punkt wewnątrz strefy,
+        anchor z GET /zones) albo do punktu trasą OSRM. W trakcie jazdy skręca
+        od razu, zablokowana hulajnoga jedzie po odblokowaniu, a zatrzymana
+        napędem (strefa zakazu) po release_stop. Scenariusz kończy się po
+        dojechaniu albo gdy jazda straci trasę do celu (koniec przejazdu).
+      * enter_no_ride: jak goto, ale tylko do strefy rodzaju NO_RIDE (inna
+        strefa to INVALID_PARAMS); scenariusz kończy się po wjeździe do strefy.
+        Dalej działa zwykła obsługa: backend wyłącza napęd, a klient
+        prowadzi hulajnogę pieszo poza strefę (ADR 0046).
+      * cancel: przerywa scenariusz. Rozłączenie i milczenie wracają do
+        normy, rozładowanie zostawia osiągnięty poziom, a przerwana jazda do
+        celu wraca do zwykłej jazdy do losowej strefy parkowania.
+    * Strefę wskazuje zoneId z API; symulator szuka jej w strefach z GET
+      /zones, a przy braku odświeża je raz (ZONE_NOT_FOUND, gdy nadal brak).
+    * Stan publikowany jest przy zmianie scenariuszy, co 2 s w trakcie
+      scenariusza i co 10 s bez scenariuszy. Panel pokazuje „Symulator nie
+      odpowiada” po 30 s bez stanu.
+    * Liczba hulajnóg i tempo telemetrii zmieniają się tylko po restarcie
+      symulatora; scenariusze nie przetrwają restartu.
+    * Plik apps/simulator/.state/control.json (CLI) trafia do tej samej
+      obsługi: zmiany list offline i silent to polecenia disconnect, restore,
+      silence i unsilence, a cel goto jest jednorazowy. Między plikiem
+      a simulator/control obowiązuje polecenie, które przyszło ostatnie.
+
+    Zmiany:
+    * 1.0.0 (2026-11-18): pierwsza wersja (ADR 0059). Stan na
+      simulator/status istniał wcześniej bez pól od updatedAt; panel przyjmuje
+      oba warianty.
+
+servers:
+  lokalny:
+    host: localhost:1883
+    protocol: mqtt
+    description: Mosquitto w Docker Compose
+
+channels:
+  control:
+    address: simulator/control
+    messages:
+      control:
+        $ref: '#/components/messages/Control'
+  result:
+    address: simulator/control/result
+    messages:
+      result:
+        $ref: '#/components/messages/Result'
+  status:
+    address: simulator/status
+    messages:
+      status:
+        $ref: '#/components/messages/Status'
+
+operations:
+  receiveControl:
+    action: receive
+    channel:
+      $ref: '#/channels/control'
+    summary: Polecenie scenariusza z backendu (QoS 1, bez retained)
+    messages:
+      - $ref: '#/channels/control/messages/control'
+  sendResult:
+    action: send
+    channel:
+      $ref: '#/channels/result'
+    summary: Wynik polecenia (QoS 1)
+    messages:
+      - $ref: '#/channels/result/messages/result'
+  sendStatus:
+    action: send
+    channel:
+      $ref: '#/channels/status'
+    summary: Stan symulatora z aktywnymi scenariuszami (retained); offline publikuje broker jako Last Will
+    messages:
+      - $ref: '#/channels/status/messages/status'
+
+components:
+  messages:
+    Control:
+      name: Control
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/Control'
+      examples:
+        - name: rozlaczenie
+          payload:
+            commandId: 7c1e2f40-5a3b-4c6d-8e9f-0a1b2c3d4e5f
+            action: disconnect
+            scooter: 7
+            params: {}
+            issuedBy: 2b4d6f80-1a3c-4e5f-9a7b-c8d9e0f1a2b3
+            expiresAt: '2026-11-18T14:35:32.000Z'
+        - name: rozladowanie
+          payload:
+            commandId: 1f2e3d4c-5b6a-4798-8a7b-6c5d4e3f2a10
+            action: drain
+            scooter: 12
+            params:
+              targetPct: 5
+              durationS: 30
+            issuedBy: 2b4d6f80-1a3c-4e5f-9a7b-c8d9e0f1a2b3
+            expiresAt: '2026-11-18T14:35:14.000Z'
+        - name: jazdaDoStrefy
+          payload:
+            commandId: 9a8b7c6d-5e4f-4321-9fed-cba987654321
+            action: goto
+            scooter: 15
+            params:
+              zoneId: 599af0ac-8db4-4a2b-87c0-6a44fcc86556
+            issuedBy: 2b4d6f80-1a3c-4e5f-9a7b-c8d9e0f1a2b3
+            expiresAt: '2026-11-18T14:34:10.000Z'
+        - name: jazdaDoPunktu
+          payload:
+            commandId: 0d1c2b3a-4958-4776-a5b4-c3d2e1f0a9b8
+            action: goto
+            scooter: 15
+            params:
+              point:
+                lat: 50.1012
+                lon: 18.5431
+            issuedBy: 2b4d6f80-1a3c-4e5f-9a7b-c8d9e0f1a2b3
+            expiresAt: '2026-11-18T14:34:10.000Z'
+        - name: wjazdWStrefeZakazu
+          payload:
+            commandId: 4e5f6a7b-8c9d-4e0f-a1b2-c3d4e5f6a7b8
+            action: enter_no_ride
+            scooter: 7
+            params:
+              zoneId: 93b3d522-f37c-4c83-b40e-ef7e6c671b59
+            issuedBy: 2b4d6f80-1a3c-4e5f-9a7b-c8d9e0f1a2b3
+            expiresAt: '2026-11-18T14:36:00.000Z'
+    Result:
+      name: Result
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/Result'
+      examples:
+        - name: wykonane
+          payload:
+            commandId: 7c1e2f40-5a3b-4c6d-8e9f-0a1b2c3d4e5f
+            ok: true
+        - name: scenariuszTrwa
+          payload:
+            commandId: 1f2e3d4c-5b6a-4798-8a7b-6c5d4e3f2a10
+            ok: false
+            reason: SCENARIO_ACTIVE
+    Status:
+      name: Status
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/Status'
+      examples:
+        - name: zeScenariuszami
+          payload:
+            online: true
+            since: '2026-11-18T12:21:00.000Z'
+            fleetSize: 240
+            connected: 238
+            riding: 6
+            messagesPerSecond: 48
+            ridesPerHour: 30
+            telemetryIntervalMs: 5000
+            ridesStarted: 112
+            commandsReceived: 1204
+            commandsUnacked: 2
+            updatedAt: '2026-11-18T14:35:30.000Z'
+            scenarios:
+              - scooter: 7
+                kind: disconnect
+                startedAt: '2026-11-18T14:32:18.000Z'
+                progress: {}
+              - scooter: 12
+                kind: drain
+                startedAt: '2026-11-18T14:35:12.000Z'
+                progress:
+                  batteryPct: 41
+                  targetPct: 5
+                  remainingS: 18
+              - scooter: 221
+                kind: silence
+                startedAt: '2026-11-18T14:34:25.000Z'
+                progress:
+                  unackedCommands: 2
+              - scooter: 15
+                kind: goto
+                startedAt: '2026-11-18T14:33:40.000Z'
+                progress:
+                  remainingM: 420
+                target:
+                  zoneId: 599af0ac-8db4-4a2b-87c0-6a44fcc86556
+                  code: P-04
+        - name: offline
+          payload:
+            online: false
+  schemas:
+    Control:
+      type: object
+      required: [commandId, action, scooter, issuedBy, expiresAt]
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [disconnect, restore, silence, unsilence, drain, goto, enter_no_ride, cancel]
+        scooter:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          description: Numer hulajnogi (w tematach urządzeń czterocyfrowy, np. 0007)
+        params:
+          description: |
+            Parametry według akcji: drain → DrainParams (brak pól to wartości
+            domyślne), goto → GotoParams, enter_no_ride → ZoneParams; pozostałe
+            akcje → pusty obiekt albo brak pola.
+          oneOf:
+            - $ref: '#/components/schemas/DrainParams'
+            - $ref: '#/components/schemas/GotoParams'
+            - $ref: '#/components/schemas/ZoneParams'
+            - type: object
+              additionalProperties: false
+        issuedBy:
+          type: string
+          format: uuid
+          description: Operator, który wydał polecenie w panelu
+        expiresAt:
+          type: string
+          format: date-time
+          description: Po tym czasie symulator nie wykonuje polecenia (EXPIRED)
+    DrainParams:
+      type: object
+      properties:
+        targetPct:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 5
+        durationS:
+          type: integer
+          minimum: 1
+          maximum: 600
+          default: 30
+    ZoneParams:
+      type: object
+      required: [zoneId]
+      additionalProperties: false
+      properties:
+        zoneId:
+          type: string
+          format: uuid
+    GotoParams:
+      oneOf:
+        - $ref: '#/components/schemas/ZoneParams'
+        - type: object
+          required: [point]
+          additionalProperties: false
+          properties:
+            point:
+              $ref: '#/components/schemas/Point'
+    Point:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lon:
+          type: number
+          minimum: -180
+          maximum: 180
+    Result:
+      type: object
+      required: [commandId, ok]
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        ok:
+          type: boolean
+        reason:
+          type: string
+          enum:
+            - SCENARIO_ACTIVE
+            - NO_SCENARIO
+            - SCOOTER_NOT_FOUND
+            - ZONE_NOT_FOUND
+            - ROUTE_NOT_FOUND
+            - INVALID_PARAMS
+            - EXPIRED
+          description: |
+            Powód odrzucenia, gdy ok = false. ROUTE_NOT_FOUND jest zarezerwowany:
+            bez trasy z OSRM symulator jedzie w linii prostej.
+    Status:
+      oneOf:
+        - type: object
+          required: [online]
+          properties:
+            online:
+              type: boolean
+              const: false
+        - type: object
+          required: [online, since, fleetSize, connected, riding, messagesPerSecond, ridesPerHour]
+          properties:
+            online:
+              type: boolean
+              const: true
+            since:
+              type: string
+              format: date-time
+              description: Start procesu symulatora
+            fleetSize:
+              type: integer
+              minimum: 0
+            connected:
+              type: integer
+              minimum: 0
+              description: Hulajnogi połączone z brokerem
+            riding:
+              type: integer
+              minimum: 0
+              description: Hulajnogi w jeździe o własnym napędzie
+            messagesPerSecond:
+              type: number
+              minimum: 0
+              description: Wiadomości hulajnóg na sekundę (okno co najmniej 10 s)
+            ridesPerHour:
+              type: number
+              minimum: 0
+              description: Przejazdy pokazowe na godzinę (konfiguracja)
+            updatedAt:
+              type: string
+              format: date-time
+              description: Chwila publikacji (od 1.0.0)
+            telemetryIntervalMs:
+              type: integer
+              minimum: 1
+              description: Odstęp telemetrii z konfiguracji (od 1.0.0)
+            ridesStarted:
+              type: integer
+              minimum: 0
+              description: Jazdy rozpoczęte od startu, pokazowe i po odblokowaniu (od 1.0.0)
+            commandsReceived:
+              type: integer
+              minimum: 0
+              description: Komendy urządzeń odebrane od startu (od 1.0.0)
+            commandsUnacked:
+              type: integer
+              minimum: 0
+              description: Komendy bez potwierdzenia przez milczenie (od 1.0.0)
+            scenarios:
+              type: array
+              description: Aktywne scenariusze (od 1.0.0; brak pola to pusta lista)
+              items:
+                $ref: '#/components/schemas/Scenario'
+    Scenario:
+      type: object
+      required: [scooter, kind, startedAt]
+      properties:
+        scooter:
+          type: integer
+          minimum: 1
+          maximum: 9999
+        kind:
+          type: string
+          enum: [disconnect, silence, drain, goto, enter_no_ride]
+        startedAt:
+          type: string
+          format: date-time
+        progress:
+          type: object
+          description: |
+            Postęp do panelu: drain → batteryPct, targetPct, remainingS;
+            goto i enter_no_ride → remainingM (brak pola, gdy hulajnoga czeka
+            na odblokowanie albo trasę); silence → unackedCommands; disconnect
+            → pusty obiekt.
+          properties:
+            batteryPct:
+              type: number
+              minimum: 0
+              maximum: 100
+            targetPct:
+              type: integer
+              minimum: 0
+              maximum: 100
+            remainingS:
+              type: number
+              minimum: 0
+            remainingM:
+              type: number
+              minimum: 0
+            unackedCommands:
+              type: integer
+              minimum: 0
+        target:
+          type: object
+          description: Cel goto i enter_no_ride (zoneId z API i kod strefy albo punkt)
+          properties:
+            zoneId:
+              type: string
+              format: uuid
+            code:
+              type: string
+            point:
+              $ref: '#/components/schemas/Point'

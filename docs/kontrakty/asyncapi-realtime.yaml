@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Zdarzenia na żywo (Socket.IO)
-  version: 1.3.0
+  version: 1.4.0
   description: |
     Kontrakt zdarzeń Socket.IO między backendem a panelem operatora i aplikacją (ADR 0012).
     Operacje opisane z perspektywy backendu. Typy w kodzie: packages/shared/src/realtime.ts.
@@ -13,6 +13,8 @@ info:
     * Od iteracji 2 dołączenie do pokoju fleet wymaga zalogowanego operatora z uprawnieniem scooters.read.
     * Połączenie wymaga tokenu dostępowego w `auth.token` (ADR 0035): operatora albo klienta.
       Klient trafia do pokoju user:{id} od razu po połączeniu, bez osobnej subskrypcji.
+    * Dołączenie do pokoju operatora odpowiada potwierdzeniem (ack) { ok: true } albo
+      { ok: false, code: UNAUTHENTICATED | FORBIDDEN } (SubscribeAck).
 
     Historia:
     * 1.0.0 (iteracja 1): pokój fleet (panel).
@@ -25,6 +27,14 @@ info:
     * 1.3.0 (iteracja 5, ADR 0049 i 0050): zdarzenie wallet.updated w pokoju user:{id} po każdym ruchu
       w portfelu, zmianie płatności, zaległości i zapisanych kartach; rental.updated ma rozliczenie
       (settlement) zamiast stałej wartości PENDING.
+    * 1.4.0 (iteracja 6, ADR 0055, 0056, 0058, 0059, 0060): pokoje panelu tickets (tickets.read),
+      service (service.read) i simulator (simulator.manage, tylko przy SIMULATOR_CONTROL_ENABLED)
+      z subskrypcjami tickets.subscribe, service.subscribe i simulator.subscribe; zdarzenia
+      ticket.updated (pokój tickets i pokój user:{id} zgłaszającego), service-task.updated,
+      simulator.status, simulator.result oraz notification.created w pokoju user:{id}.
+      rental.updated ma pola zakończenia bez łączności, zdjęcia parkowania, zatrzymania naliczania,
+      progu baterii i opłaty za odholowanie (price.towingFee); CommandView zna RELEASE_STOP
+      i BATTERY_SWAPPED.
 
 servers:
   lokalny:
@@ -60,7 +70,7 @@ channels:
         $ref: '#/components/messages/ZonesChanged'
   user:
     address: user:{userId}
-    description: Pokój klienta; zmiany jego przejazdów na wszystkich urządzeniach
+    description: Pokój klienta; zmiany jego przejazdów, portfela, zgłoszeń i powiadomień na wszystkich urządzeniach
     parameters:
       userId:
         description: Identyfikator klienta z tokenu dostępowego
@@ -69,6 +79,42 @@ channels:
         $ref: '#/components/messages/RentalUpdated'
       walletUpdated:
         $ref: '#/components/messages/WalletUpdated'
+      ticketUpdated:
+        $ref: '#/components/messages/CustomerTicketUpdated'
+      notificationCreated:
+        $ref: '#/components/messages/NotificationCreated'
+
+  tickets:
+    address: tickets
+    description: Pokój panelu ze zmianami zgłoszeń (lista, licznik nowych w nawigacji, szczegóły); ADR 0055
+    messages:
+      subscribe:
+        $ref: '#/components/messages/TicketsSubscribe'
+      updated:
+        $ref: '#/components/messages/TicketUpdated'
+
+  service:
+    address: service
+    description: Pokój panelu ze zmianami zadań serwisowych (lista, Moje zadania, szczegóły); ADR 0055
+    messages:
+      subscribe:
+        $ref: '#/components/messages/ServiceSubscribe'
+      taskUpdated:
+        $ref: '#/components/messages/ServiceTaskUpdated'
+
+  simulator:
+    address: simulator
+    description: |
+      Pokój panelu ze stanem symulatora i wynikami poleceń (ADR 0059). API przekazuje tu wiadomości
+      z MQTT simulator/status i simulator/control/result (kontrakt asyncapi-symulator.yaml). Przy
+      SIMULATOR_CONTROL_ENABLED=false subskrypcja kończy się FORBIDDEN.
+    messages:
+      subscribe:
+        $ref: '#/components/messages/SimulatorSubscribe'
+      status:
+        $ref: '#/components/messages/SimulatorStatus'
+      result:
+        $ref: '#/components/messages/SimulatorResult'
 
 operations:
   receiveRentalsSubscribe:
@@ -99,6 +145,69 @@ operations:
     summary: 'wallet.updated: saldo, minimalne saldo i zaległości klienta (te same pola co GET /me/wallet bez historii)'
     messages:
       - $ref: '#/channels/user/messages/walletUpdated'
+  sendTicketUpdatedToUser:
+    action: send
+    channel:
+      $ref: '#/channels/user'
+    summary: 'ticket.updated: zmiana statusu, przypisania albo odpowiedzi zgłoszenia klienta (tylko jego zgłoszenia, bez assigneeId)'
+    messages:
+      - $ref: '#/channels/user/messages/ticketUpdated'
+  sendNotificationCreated:
+    action: send
+    channel:
+      $ref: '#/channels/user'
+    summary: 'notification.created: powiadomienie po wysyłce (SENT) albo pominięte z braku tokenu (SKIPPED, NO_PUSH_TOKEN); wersja web pokazuje baner, aplikacja natywna pomija'
+    messages:
+      - $ref: '#/channels/user/messages/notificationCreated'
+  receiveTicketsSubscribe:
+    action: receive
+    channel:
+      $ref: '#/channels/tickets'
+    summary: 'tickets.subscribe: operator dołącza do pokoju tickets (tickets.read); odpowiedź (ack) SubscribeAck'
+    messages:
+      - $ref: '#/channels/tickets/messages/subscribe'
+  sendTicketUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/tickets'
+    summary: 'ticket.updated: utworzenie zgłoszenia (także automatycznego) i każda zmiana statusu, przypisania albo odpowiedzi'
+    messages:
+      - $ref: '#/channels/tickets/messages/updated'
+  receiveServiceSubscribe:
+    action: receive
+    channel:
+      $ref: '#/channels/service'
+    summary: 'service.subscribe: operator dołącza do pokoju service (service.read); odpowiedź (ack) SubscribeAck'
+    messages:
+      - $ref: '#/channels/service/messages/subscribe'
+  sendServiceTaskUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/service'
+    summary: 'service-task.updated: utworzenie zadania i każda zmiana statusu, przypisania albo części'
+    messages:
+      - $ref: '#/channels/service/messages/taskUpdated'
+  receiveSimulatorSubscribe:
+    action: receive
+    channel:
+      $ref: '#/channels/simulator'
+    summary: 'simulator.subscribe: operator dołącza do pokoju simulator (simulator.manage, tylko przy włączonym sterowaniu); odpowiedź (ack) SubscribeAck'
+    messages:
+      - $ref: '#/channels/simulator/messages/subscribe'
+  sendSimulatorStatus:
+    action: send
+    channel:
+      $ref: '#/channels/simulator'
+    summary: 'simulator.status: stan z simulator/status przekazany przez API (SimulatorStatusView)'
+    messages:
+      - $ref: '#/channels/simulator/messages/status'
+  sendSimulatorResult:
+    action: send
+    channel:
+      $ref: '#/channels/simulator'
+    summary: 'simulator.result: wynik polecenia z simulator/control/result'
+    messages:
+      - $ref: '#/channels/simulator/messages/result'
   sendZonesChanged:
     action: send
     channel:
@@ -190,7 +299,10 @@ components:
           pauseSeconds: { type: integer }
           price:
             type: object
-            description: Kwoty w groszach (ADR 0042)
+            description: Kwoty w groszach (ADR 0042); od 1.4.0 towingFee (0 bez opłaty, ADR 0060), a total ją obejmuje
+            properties:
+              towingFee: { type: integer }
+              total: { type: integer }
           zones:
             type: array
             description: Strefy, w których jest hulajnoga (wykrywanie z telemetrii, ADR 0043), od najbardziej restrykcyjnej
@@ -218,6 +330,32 @@ components:
               refundedAmount: { type: integer }
               receiptId: { type: [string, 'null'], format: uuid }
               failureCode: { type: [string, 'null'], description: Kod odmowy operatora przy FAILED }
+          endMode:
+            type: [string, 'null']
+            enum: [CUSTOMER, CUSTOMER_OFFLINE, REMOTE, UNCONFIRMED, null]
+            description: Tryb zakończenia (ADR 0056); null przed żądaniem zakończenia
+          parkingPhotoRequired:
+            { type: boolean, description: Zdjęcie parkowania wymagane po zakończeniu bez łączności, dopóki go nie ma }
+          parkingPhoto:
+            type: [object, 'null']
+            description: FileView z packages/shared/src/files.ts; url to adres względny /files/{id}?exp=…&sig=… (ADR 0057)
+          scooterOnline: { type: boolean, description: Łączność hulajnogi według statusu z brokera }
+          positionAt:
+            {
+              type: [string, 'null'],
+              format: date-time,
+              description: Czas ostatniej pozycji (warunek zakończenia offline,
+              120 s),
+            }
+          billingStopped:
+            { type: boolean, description: Naliczanie zatrzymane po 30 min bez łączności (BILLING_STOPPED) }
+          billingStoppedAt: { type: [string, 'null'], format: date-time }
+          batteryAlert:
+            {
+              type: [string, 'null'],
+              enum: [LOW, CRITICAL, null],
+              description: Najpoważniejszy próg baterii w przejeździe,
+            }
           asOf: { type: string, format: date-time }
     WalletUpdated:
       name: wallet.updated
@@ -227,7 +365,8 @@ components:
         required: [balance, minWalletBalance, overdue, asOf]
         properties:
           balance: { type: integer, description: Saldo z księgi w groszach; może być ujemne (pytanie 4) }
-          minWalletBalance: { type: integer, description: Minimalne saldo do jazdy z portfela z obowiązującej wersji cennika }
+          minWalletBalance:
+            { type: integer, description: Minimalne saldo do jazdy z portfela z obowiązującej wersji cennika }
           overdue:
             type: array
             description: Przejazdy UNPAID z kwotą, kartą, kodem odmowy i terminem automatycznego ponowienia
@@ -241,6 +380,153 @@ components:
                 retryAt: { type: [string, 'null'], format: date-time }
                 paymentPending: { type: boolean }
           asOf: { type: string, format: date-time }
+    TicketsSubscribe:
+      name: tickets.subscribe
+      payload:
+        type: 'null'
+    ServiceSubscribe:
+      name: service.subscribe
+      payload:
+        type: 'null'
+    SimulatorSubscribe:
+      name: simulator.subscribe
+      payload:
+        type: 'null'
+    TicketUpdated:
+      name: ticket.updated
+      payload:
+        description: TicketUpdated z packages/shared/src/realtime.ts; bez nazwisk i notatek, szczegóły przez REST
+        type: object
+        required: [id, number, scooterId, source, autoKind, status, urgent, assigneeId, hasUnreadReply, updatedAt]
+        properties:
+          id: { type: string, format: uuid }
+          number: { type: integer, description: 'Numer zgłoszenia, pokazywany jako Z-1042' }
+          scooterId: { type: string, format: uuid }
+          source: { type: string, enum: [USER, AUTO, STAFF] }
+          autoKind: { type: [string, 'null'], enum: [OFFLINE, BATTERY_CRITICAL, OUT_OF_ZONE, null] }
+          status: { type: string, enum: [NEW, IN_PROGRESS, AT_SERVICE, RESOLVED] }
+          urgent: { type: boolean }
+          assigneeId: { type: [string, 'null'], format: uuid }
+          hasUnreadReply: { type: boolean, description: Nowa odpowiedź dla klienta, jeszcze nieprzeczytana }
+          updatedAt: { type: string, format: date-time }
+      examples:
+        - name: odpowiedz
+          payload:
+            id: 5b1c2f0e-8a8e-4f6c-9d3a-1f2e3d4c5b6a
+            number: 1042
+            scooterId: 8f42296b-95f1-47ec-b1b8-3b933dd0c42f
+            source: USER
+            autoKind: null
+            status: RESOLVED
+            urgent: true
+            assigneeId: null
+            hasUnreadReply: true
+            updatedAt: '2026-11-18T10:15:00.000Z'
+    CustomerTicketUpdated:
+      name: ticket.updated
+      payload:
+        description: TicketUpdated z packages/shared/src/realtime.ts bez assigneeId (klient nie dostaje danych o operatorach)
+        type: object
+        required: [id, number, scooterId, source, autoKind, status, urgent, hasUnreadReply, updatedAt]
+        properties:
+          id: { type: string, format: uuid }
+          number: { type: integer, description: 'Numer zgłoszenia, pokazywany jako Z-1042' }
+          scooterId: { type: string, format: uuid }
+          source: { type: string, enum: [USER, AUTO, STAFF] }
+          autoKind: { type: [string, 'null'], enum: [OFFLINE, BATTERY_CRITICAL, OUT_OF_ZONE, null] }
+          status: { type: string, enum: [NEW, IN_PROGRESS, AT_SERVICE, RESOLVED] }
+          urgent: { type: boolean }
+          hasUnreadReply: { type: boolean, description: Nowa odpowiedź dla klienta, jeszcze nieprzeczytana }
+          updatedAt: { type: string, format: date-time }
+    ServiceTaskUpdated:
+      name: service-task.updated
+      payload:
+        description: ServiceTaskUpdated z packages/shared/src/realtime.ts
+        type: object
+        required: [id, number, scooterId, ticketId, type, status, priority, assigneeId, updatedAt]
+        properties:
+          id: { type: string, format: uuid }
+          number: { type: integer, description: 'Numer zadania, pokazywany jako S-…' }
+          scooterId: { type: string, format: uuid }
+          ticketId: { type: [string, 'null'], format: uuid }
+          type: { type: string, enum: [REPAIR, BATTERY_SWAP, INSPECTION, RELOCATION] }
+          status: { type: string, enum: [OPEN, IN_PROGRESS, DONE, CANCELLED] }
+          priority: { type: string, enum: [LOW, NORMAL, HIGH] }
+          assigneeId: { type: [string, 'null'], format: uuid }
+          updatedAt: { type: string, format: date-time }
+    NotificationCreated:
+      name: notification.created
+      payload:
+        description: NotificationView z packages/shared/src/notifications.ts (treść po renderowaniu szablonu, ADR 0058)
+        type: object
+        required: [id, templateCode, title, body, path, createdAt, readAt]
+        properties:
+          id: { type: integer }
+          templateCode:
+            type: string
+            enum:
+              [
+                reservation_ending,
+                ride_ended,
+                payment_failed,
+                battery_low,
+                ticket_received,
+                ticket_status_changed,
+                login_code,
+              ]
+          title: { type: [string, 'null'] }
+          body: { type: string }
+          path:
+            {
+              type: [string, 'null'],
+              description: 'Ekran aplikacji (Expo Router), np. /zgloszenie/{id}; null bez ekranu',
+            }
+          createdAt: { type: string, format: date-time }
+          readAt: { type: [string, 'null'], format: date-time }
+      examples:
+        - name: przejazd-zakonczony
+          payload:
+            id: 381
+            templateCode: ride_ended
+            title: Przejazd zakończony
+            body: 'Przejazd R-51858 trwał 16 minut. Koszt: 12,60 zł. Paragon w aplikacji.'
+            path: /podsumowanie/2c9d6a1e-3b4f-4e5a-8c7d-9e0f1a2b3c4d
+            createdAt: '2026-11-18T10:20:00.000Z'
+            readAt: null
+    SimulatorStatus:
+      name: simulator.status
+      payload:
+        description: SimulatorStatusView z packages/shared/src/simulator.ts
+        type: object
+        required: [status, receivedAt, enabled, stale]
+        properties:
+          status:
+            type: [object, 'null']
+            description: Ostatnia wiadomość z simulator/status (simulatorStatusSchema; online, liczniki, aktywne scenariusze); null przed pierwszą
+          receivedAt: { type: [string, 'null'], format: date-time }
+          enabled: { type: boolean, description: SIMULATOR_CONTROL_ENABLED }
+          stale: { type: boolean, description: 'Brak stanu albo stan starszy niż 30 s: „Symulator nie odpowiada”' }
+    SimulatorResult:
+      name: simulator.result
+      payload:
+        description: SimulatorResult z packages/shared/src/simulator.ts (wiadomość z simulator/control/result)
+        type: object
+        required: [commandId, ok]
+        properties:
+          commandId: { type: string, format: uuid }
+          ok: { type: boolean }
+          reason:
+            type: string
+            enum:
+              [
+                SCENARIO_ACTIVE,
+                NO_SCENARIO,
+                SCOOTER_NOT_FOUND,
+                ZONE_NOT_FOUND,
+                ROUTE_NOT_FOUND,
+                INVALID_PARAMS,
+                EXPIRED,
+              ]
     ZonesChanged:
       name: zones.changed
       payload:
@@ -304,7 +590,7 @@ components:
           type: integer
         type:
           type: string
-          enum: [UNLOCK, LOCK, SPEED_LIMIT, STOP_GRADUALLY, RING, LIGHTS]
+          enum: [UNLOCK, LOCK, SPEED_LIMIT, STOP_GRADUALLY, RING, LIGHTS, RELEASE_STOP, BATTERY_SWAPPED]
         status:
           type: string
           enum: [SENT, ACKED, REJECTED, TIMEOUT]

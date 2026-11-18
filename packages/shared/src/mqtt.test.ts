@@ -43,11 +43,23 @@ describe('kontrakt MQTT', () => {
         params: { kmh: 10 },
       }).params?.kmh,
     ).toBe(10);
+    expect(
+      commandSchema.parse({
+        commandId: '3d8f5a61-0c2e-4b7a-9e14-6a2b8c9d0e31',
+        cmd: 'battery_swapped',
+        issuedAt: '2026-11-18T10:42:05.000Z',
+        expiresAt: '2026-11-18T10:42:15.000Z',
+      }).cmd,
+    ).toBe('battery_swapped');
   });
 
   it('odrzuca nieznaną komendę', () => {
     expect(() =>
-      commandSchema.parse({ commandId: '6f1c2d0e-3b1a-4b8e-9b55-0a1f4c2e7d10', cmd: 'explode', issuedAt: '2026-11-09T14:19:02Z' }),
+      commandSchema.parse({
+        commandId: '6f1c2d0e-3b1a-4b8e-9b55-0a1f4c2e7d10',
+        cmd: 'explode',
+        issuedAt: '2026-11-09T14:19:02Z',
+      }),
     ).toThrow();
   });
 

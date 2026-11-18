@@ -3,6 +3,7 @@
  * zgodność pilnuje test API.
  */
 import { z } from 'zod';
+import { SCOOTER_STATUS_REASONS, type ScooterStatusReason } from '../service.js';
 import type { ResourceDefinition } from './list.js';
 
 export const SCOOTER_STATUSES = ['AVAILABLE', 'RESERVED', 'IN_USE', 'MAINTENANCE', 'RETIRED'] as const;
@@ -76,6 +77,9 @@ export const scootersResource = {
     lat: { type: 'decimal' },
     lon: { type: 'decimal' },
     version: { type: 'integer' },
+    // Przyczyna stanu `MAINTENANCE` i `RETIRED` (ADR 0055).
+    statusReason: { type: 'enum', values: SCOOTER_STATUS_REASONS, filters: ['eq'], facet: true },
+    statusChangedAt: { type: 'datetime', filters: ['gte', 'lte'], sortable: true },
   },
   search: ['number', 'serialNumber'],
   defaultSort: ['number'],
@@ -106,6 +110,9 @@ export interface ScooterListItem {
   lon: number | null;
   /** Wersja rekordu do operacji grupowych z blokadą optymistyczną. */
   version: number;
+  /** Przyczyna stanu `MAINTENANCE` albo `RETIRED`; `null` w pozostałych stanach (ADR 0055). */
+  statusReason: ScooterStatusReason | null;
+  statusChangedAt: string;
 }
 
 export interface ScooterDetails extends ScooterListItem {

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { diffForAudit, auditEntry, REDACTED } from '../audit/audit.js';
+import { diffForAudit, auditEntry, REDACTED, systemAuditEntry } from '../audit/audit.js';
 import { PERMISSIONS, type Permission } from './permissions.js';
-import { countRoleManagers, diffPermissions, ensureNotSelf, ensureRoleRemovable, parseRolePermissions } from './roles.js';
+import {
+  countRoleManagers,
+  diffPermissions,
+  ensureNotSelf,
+  ensureRoleRemovable,
+  parseRolePermissions,
+} from './roles.js';
 
 const err = (code: string) => expect.objectContaining({ code });
 
@@ -58,7 +64,9 @@ describe('dziennik audytu', () => {
   });
 
   it('nie zapisuje wartości haseł, sekretów i tokenów', () => {
-    expect(diffForAudit({ passwordHash: 'old' }, { passwordHash: 'new' })).toEqual({ passwordHash: [REDACTED, REDACTED] });
+    expect(diffForAudit({ passwordHash: 'old' }, { passwordHash: 'new' })).toEqual({
+      passwordHash: [REDACTED, REDACTED],
+    });
     const entry = auditEntry({
       staffId: 's',
       action: 'staff.invited',
@@ -68,5 +76,21 @@ describe('dziennik audytu', () => {
     });
     expect(entry.data).toEqual({ roles: ['Dyspozytor'], invitationToken: REDACTED });
     expect(() => auditEntry({ ...entry, action: 'Staff Invited' })).toThrow();
+  });
+
+  it('wpis systemu bez operatora z tą samą walidacją akcji i filtrem sekretów (ADR 0055)', () => {
+    const entry = systemAuditEntry({
+      action: 'scooter.sent_to_service',
+      entityType: 'scooter',
+      entityId: 'x',
+      data: { reason: 'URGENT_TICKET', token: 'abc' },
+    });
+    expect(entry).toEqual({
+      action: 'scooter.sent_to_service',
+      entityType: 'scooter',
+      entityId: 'x',
+      data: { reason: 'URGENT_TICKET', token: REDACTED },
+    });
+    expect(() => systemAuditEntry({ ...entry, action: 'Auto Close' })).toThrow();
   });
 });

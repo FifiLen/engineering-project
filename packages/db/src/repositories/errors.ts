@@ -10,6 +10,7 @@ const UNIQUE_FIELDS: Record<string, string> = {
   staff_email_key: 'email',
   roles_name_key: 'name',
   zones_code_key: 'code',
+  spare_parts_sku_key: 'sku',
 };
 
 /**
@@ -50,6 +51,18 @@ const DATABASE_RULES = [
   'RECEIPT_CORRECTION_EXCEEDS',
   'LEDGER_APPEND_ONLY',
   'LEDGER_BALANCE_MISMATCH',
+  // Operacje i serwis (migracja 0008, ADR 0055): szczegół przejścia to `FROM->TO`, stanu części liczba sztuk.
+  'INVALID_TICKET_TRANSITION',
+  'INVALID_TASK_TRANSITION',
+  'TASK_RESULT_NOTE_REQUIRED',
+  'TASK_CANCEL_REASON_REQUIRED',
+  'TASK_NOT_IN_PROGRESS',
+  'PART_QUANTITY_INVALID',
+  'PART_INACTIVE',
+  'PART_OUT_OF_STOCK',
+  'PART_RETURN_EXCEEDS',
+  'PART_ADJUST_NO_CHANGE',
+  'PART_MOVEMENTS_APPEND_ONLY',
 ] as const;
 
 /** Szczegół błędu z bazy (`DETAIL`) w odpowiedzi API: kod strefy albo kwota do zwrotu. */
@@ -59,7 +72,17 @@ const RULE_DETAILS: Partial<Record<(typeof DATABASE_RULES)[number], (detail: str
   ZONE_IN_USE: (zoneCode) => ({ zoneCode }),
   SERVICE_AREA_REQUIRED: (zoneCode) => ({ zoneCode }),
   REFUND_EXCEEDS_PAYMENT: (remaining) => ({ remaining: Number(remaining) }),
+  INVALID_TICKET_TRANSITION: (transition) => transitionDetails(transition),
+  INVALID_TASK_TRANSITION: (transition) => transitionDetails(transition),
+  PART_OUT_OF_STOCK: (available) => ({ available: Number(available) }),
+  PART_RETURN_EXCEEDS: (quantity) => ({ quantity: Number(quantity) }),
 };
+
+/** `OPEN->DONE` z wyzwalacza przejść; nowy rekord nie ma stanu wyjściowego (`->DONE`). */
+function transitionDetails(transition: string): Record<string, unknown> {
+  const [from, to] = transition.split('->');
+  return { from: from || null, to };
+}
 
 /** Brak rekordu zgłoszony przez procedurę bazy. */
 const NOT_FOUND_RULES: Record<string, string> = {
@@ -68,6 +91,9 @@ const NOT_FOUND_RULES: Record<string, string> = {
   PAYMENT_NOT_FOUND: 'payment',
   RECEIPT_NOT_FOUND: 'receipt',
   WALLET_NOT_FOUND: 'wallet',
+  PART_NOT_FOUND: 'spare_part',
+  TASK_NOT_FOUND: 'service_task',
+  TASK_PART_NOT_FOUND: 'service_task_part',
 };
 
 /**
@@ -82,6 +108,18 @@ const RENTAL_CONSTRAINTS: Record<string, string> = {
   payments_one_pending_per_rental: 'PAYMENT_IN_PROGRESS',
   wallet_ledger_one_charge_per_rental: 'RENTAL_ALREADY_CHARGED',
   receipts_one_sale_per_rental: 'RECEIPT_ALREADY_ISSUED',
+  // Operacje (migracja 0008): drugie otwarte zgłoszenie automatyczne albo zadanie tego samego rodzaju, druga
+  // opłata za odholowanie i drugie powiadomienie o tym samym zdarzeniu.
+  tickets_one_open_auto_per_scooter: 'AUTO_TICKET_ALREADY_OPEN',
+  service_tasks_one_open_per_type: 'TASK_ALREADY_OPEN',
+  wallet_ledger_one_fee_per_rental: 'RENTAL_ALREADY_CHARGED',
+  notifications_dedupe_key_key: 'NOTIFICATION_DUPLICATE',
+  ticket_photos_one_per_position: 'TICKET_TOO_MANY_PHOTOS',
+  // Poprawki po przeglądzie (migracja 0009): plik przypięty w dwóch miejscach naraz (wyścig przypięcia) i to samo
+  // zdjęcie dwa razy w zgłoszeniu.
+  rentals_parking_photo_unique: 'FILE_ALREADY_ATTACHED',
+  ticket_photos_file_unique: 'FILE_ALREADY_ATTACHED',
+  ticket_photos_pkey: 'FILE_ALREADY_ATTACHED',
 };
 
 /** Ograniczenia CHECK geometrii i pól strefy (`ST_IsValid` z 0001, limit tylko w wolnej jeździe z 0006). */
@@ -94,6 +132,18 @@ const CHECK_CONSTRAINTS: Record<string, string> = {
   tariffs_free_reservation_range: 'TARIFF_INVALID',
   tariffs_min_user_age_range: 'TARIFF_INVALID',
   tariffs_vat_rate_check: 'TARIFF_INVALID',
+  tickets_urgent_from_categories: 'VALIDATION_FAILED',
+  tickets_auto_kind_source: 'VALIDATION_FAILED',
+  tickets_auto_kind_category: 'VALIDATION_FAILED',
+  tickets_system_categories: 'TICKET_CATEGORY_NOT_ALLOWED',
+  tickets_billing_has_rental: 'TICKET_RENTAL_REQUIRED',
+  ticket_photos_position_range: 'TICKET_TOO_MANY_PHOTOS',
+  service_tasks_relocation_target: 'VALIDATION_FAILED',
+  spare_part_movements_other_note: 'VALIDATION_FAILED',
+  notification_templates_title_length: 'TEMPLATE_TOO_LONG',
+  notification_templates_body_length: 'TEMPLATE_TOO_LONG',
+  // Przyczyna stanu niezgodna ze stanem hulajnogi (ADR 0055); wyzwalacz z 0009 dopasowuje ją przy zmianie stanu.
+  scooters_status_reason_matches: 'VALIDATION_FAILED',
 };
 
 export function rethrowDatabaseRule(error: unknown): never {

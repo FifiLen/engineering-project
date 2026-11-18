@@ -23,6 +23,85 @@ export const DEV_TARIFF = {
 /** Doładowanie przykładowego klienta przed pierwszym przejazdem (przejazdy z danych startowych są rozliczone z portfela). */
 const SAMPLE_TOPUP = 10_000;
 
+/**
+ * Części zamienne z makiety magazynu (`27-panel-serwis/czesci-magazyn`). Ceny (grosze), stany i minima to wartości
+ * deweloperskie (pytanie 11 w planie iteracji 6). Stan początkowy zakłada przyjęcie dostawy (`sp_part_receive`),
+ * więc suma ruchów magazynowych zgadza się ze stanem.
+ */
+export const DEV_SPARE_PARTS = [
+  { sku: 'BRK-PAD-R', name: 'Klocki hamulcowe tylne (para)', unitCost: 2400, stock: 12, minStock: 10 },
+  { sku: 'BRK-CBL-R', name: 'Linka hamulca tylnego', unitCost: 1250, stock: 13, minStock: 5 },
+  { sku: 'TIRE-10', name: 'Opona pełna 10"', unitCost: 8900, stock: 3, minStock: 6 },
+  { sku: 'LGT-R', name: 'Lampa tylna LED', unitCost: 3200, stock: 1, minStock: 4 },
+  { sku: 'BAT-36V', name: 'Akumulator 36 V 10 Ah', unitCost: 69_000, stock: 4, minStock: 3 },
+  { sku: 'LGT-F', name: 'Lampa przednia LED', unitCost: 4500, stock: 7, minStock: 4 },
+  { sku: 'GRIP-P', name: 'Manetki (para)', unitCost: 1800, stock: 9, minStock: 4 },
+  { sku: 'QR-LBL', name: 'Naklejka z kodem QR', unitCost: 120, stock: 140, minStock: 50 },
+] as const;
+
+/**
+ * Szablony powiadomień w języku polskim (ICU MessageFormat, ADR 0058). Kody i parametry wyznacza rejestr
+ * w packages/shared; panel zmienia tylko treść. Istniejący szablon zostaje bez zmian (jego wersje zmienia się
+ * w panelu), a wersję 1 zapisuje wyzwalacz `notification_templates_version`. Kwoty, numery przejazdów, hulajnóg
+ * i zgłoszeń formatuje API przed renderowaniem. Kod SMS odpowiada tekstowi z `apps/api/src/auth` sprzed iteracji 6.
+ */
+export const DEV_NOTIFICATION_TEMPLATES = [
+  {
+    code: 'reservation_ending',
+    channel: 'PUSH',
+    title: 'Rezerwacja się kończy',
+    body: 'Rezerwacja hulajnogi {scooterNumber} wygasa za {minutesLeft, plural, one {# minutę} few {# minuty} many {# minut} other {# minuty}}. Zeskanuj kod QR, żeby ruszyć.',
+    description:
+      'Wysyłany przed końcem bezpłatnej rezerwacji, gdy klient ma włączone „Koniec rezerwacji”. Parametry: scooterNumber, minutesLeft.',
+  },
+  {
+    code: 'ride_ended',
+    channel: 'PUSH',
+    title: 'Przejazd zakończony',
+    // Opłata za odholowanie osobno (ADR 0060); limit treści push to 240 znaków źródła.
+    body: 'Przejazd {rideNumber} trwał {minutes, plural, one {# minutę} few {# minuty} other {# minut}}. Koszt: {amount}{hasTowingFee, select, true { (odholowanie {towingFee})} other {}}. {hasReceipt, select, true {Paragon w aplikacji.} other {}}',
+    description:
+      'Wysyłany po rozliczeniu przejazdu, gdy klient ma włączone „Paragony”. Parametry: rideNumber, minutes, amount, hasReceipt, towingFee, hasTowingFee.',
+  },
+  {
+    code: 'payment_failed',
+    channel: 'PUSH',
+    title: 'Płatność nieudana',
+    body: 'Nie udało się pobrać {amount} za przejazd {rideNumber}. Spłać zaległość w aplikacji, żeby wypożyczyć kolejną hulajnogę.',
+    description: 'Wysyłany po odmowie obciążenia karty za przejazd (zaległość). Parametry: rideNumber, amount.',
+  },
+  {
+    code: 'battery_low',
+    channel: 'PUSH',
+    title: 'Niska bateria',
+    body: 'Bateria hulajnogi {scooterNumber}: {batteryPct}%. Zakończ przejazd w najbliższej strefie parkowania.',
+    description:
+      'Wysyłany w trakcie jazdy po spadku baterii poniżej progu z cennika. Parametry: scooterNumber, batteryPct.',
+  },
+  {
+    code: 'ticket_received',
+    channel: 'PUSH',
+    title: 'Otrzymaliśmy zgłoszenie',
+    body: 'Zgłoszenie {ticketNumber} dotyczące hulajnogi {scooterNumber} jest u nas. Damy znać, gdy coś się zmieni.',
+    description: 'Wysyłany po przyjęciu zgłoszenia od klienta. Parametry: ticketNumber, scooterNumber.',
+  },
+  {
+    code: 'ticket_status_changed',
+    channel: 'PUSH',
+    title: 'Twoje zgłoszenie',
+    body: 'Zgłoszenie {ticketNumber}: {status, select, IN_PROGRESS {zajmujemy się nim} AT_SERVICE {hulajnoga jest w serwisie} RESOLVED {rozwiązane} other {nowy status}}. {reply}',
+    description:
+      'Wysyłany przy zmianie statusu zgłoszenia z odpowiedzią dla klienta. Parametry: ticketNumber, status, reply.',
+  },
+  {
+    code: 'login_code',
+    channel: 'SMS',
+    title: null,
+    body: '[nazwa]: {code} to Twój kod logowania. Nie podawaj go nikomu.',
+    description: 'SMS z kodem logowania do aplikacji. Parametry: code.',
+  },
+] as const;
+
 export interface SeedStaff {
   email: string;
   name: string;
@@ -49,6 +128,8 @@ export interface SeedOptions {
   documents?: readonly SeedDocument[];
   /** Przykładowe zakończone przejazdy (lista w panelu, historia w aplikacji); 0 = bez przejazdów. */
   sampleRentals?: number;
+  /** Przykładowe zgłoszenia i zadania serwisowe (iteracja 6), tylko w bazie bez zgłoszeń. */
+  sampleOperations?: boolean;
 }
 
 export interface SeedSummary {
@@ -206,6 +287,10 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
     }
 
     if (options.sampleRentals) await seedSampleRentals(client, parking, options.sampleRentals);
+
+    await seedSpareParts(client);
+    await seedNotificationTemplates(client);
+    if (options.sampleOperations) await seedSampleOperations(client, admin.email);
 
     await client.query('COMMIT');
     const zones = await pool.query<{ count: string }>('SELECT count(*) FROM zones');
@@ -391,4 +476,189 @@ async function settleSampleRentals(
     ]);
   }
   await client.query(`CALL sp_rebuild_wallet_balances(NULL)`);
+}
+
+/** Części zamienne: nowa część dostaje stan przyjęciem dostawy; istniejąca zostaje bez zmian (magazyn prowadzi panel). */
+async function seedSpareParts(client: PoolClient): Promise<void> {
+  for (const part of DEV_SPARE_PARTS) {
+    const row = await client.query<{ id: string }>(
+      `INSERT INTO spare_parts (sku, name, unit_cost, stock_qty, min_stock_qty) VALUES ($1, $2, $3, 0, $4)
+       ON CONFLICT (sku) DO NOTHING RETURNING id`,
+      [part.sku, part.name, part.unitCost, part.minStock],
+    );
+    if (row.rows[0]) {
+      await client.query(`CALL sp_part_receive($1, $2, NULL, NULL, NULL, NULL, NULL)`, [row.rows[0].id, part.stock]);
+    }
+  }
+}
+
+async function seedNotificationTemplates(client: PoolClient): Promise<void> {
+  for (const template of DEV_NOTIFICATION_TEMPLATES) {
+    await client.query(
+      `INSERT INTO notification_templates (code, channel, title, body, description) VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (code, channel) DO NOTHING`,
+      [template.code, template.channel, template.title, template.body, template.description],
+    );
+  }
+}
+
+/**
+ * Przykładowy obieg serwisowy (scenariusz demo iteracji 6) na czterech wolnych hulajnogach o najwyższych numerach:
+ * - pilne zgłoszenie „Hamulce” od klienta, nowe i nieprzypisane (hulajnoga w serwisie z przyczyną `URGENT_TICKET`);
+ * - zgłoszenie „Światła” w serwisie z zadaniem naprawy i przeglądem bez zgłoszenia;
+ * - zgłoszenie automatyczne krytycznej baterii z zadaniem wymiany baterii;
+ * - rozwiązane zgłoszenie „Hamulce” z zakończoną naprawą i częściami z magazynu (stan maleje przez `sp_task_use_part`).
+ * Przejścia przechodzą przez wyzwalacze i procedury z migracji 0008, a działania systemu mają wpisy `SYSTEM`
+ * w dzienniku audytu. Idempotentne: baza, w której są już zgłoszenia, nie dostaje przykładów.
+ */
+async function seedSampleOperations(client: PoolClient, adminEmail: string): Promise<void> {
+  if ((await client.query('SELECT 1 FROM tickets LIMIT 1')).rowCount) return;
+  const free = await client.query<{ id: string }>(
+    `SELECT id FROM scooters WHERE status = 'AVAILABLE' ORDER BY number DESC LIMIT 4`,
+  );
+  if (free.rows.length < 4) return;
+  const [urgentScooter, lightsScooter, batteryScooter, repairedScooter] = free.rows.map((r) => r.id);
+
+  const customers: string[] = [];
+  for (const customer of SAMPLE_CUSTOMERS) {
+    const row = await client.query<{ id: string }>(
+      `INSERT INTO users (phone, name) VALUES ($1, $2) ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
+      [customer.phone, customer.name],
+    );
+    customers.push(row.rows[0]!.id);
+  }
+  const staffWithRole = async (role: string) =>
+    (
+      await client.query<{ id: string }>(
+        `SELECT s.id FROM staff s JOIN staff_roles sr ON sr.staff_id = s.id JOIN roles r ON r.id = sr.role_id
+         WHERE r.name = $1 AND s.active ORDER BY s.created_at LIMIT 1`,
+        [role],
+      )
+    ).rows[0]?.id;
+  const adminId = (await client.query<{ id: string }>('SELECT id FROM staff WHERE email = $1', [adminEmail])).rows[0]!
+    .id;
+  const technician = (await staffWithRole('Serwisant')) ?? adminId;
+  const dispatcher = (await staffWithRole('Dyspozytor')) ?? adminId;
+  const lastRide = async (userId: string) =>
+    (
+      await client.query<{ id: string }>(
+        `SELECT id FROM rentals WHERE user_id = $1 AND state = 'ENDED' ORDER BY ended_at DESC LIMIT 1`,
+        [userId],
+      )
+    ).rows[0]?.id ?? null;
+  const partId = async (sku: string) =>
+    (await client.query<{ id: string }>('SELECT id FROM spare_parts WHERE sku = $1', [sku])).rows[0]!.id;
+  const systemAudit = (action: string, entityType: string, entityId: string, data: object) =>
+    client.query(
+      `INSERT INTO audit_log (actor, staff_id, action, entity_type, entity_id, data) VALUES ('SYSTEM', NULL, $1, $2, $3, $4)`,
+      [action, entityType, entityId, JSON.stringify(data)],
+    );
+  const toService = async (scooterId: string, reason: 'URGENT_TICKET' | 'SERVICE_TASK', ticketId: string) => {
+    await client.query(
+      `UPDATE scooters SET status = 'MAINTENANCE', status_reason = $2, updated_at = now(), version = version + 1 WHERE id = $1`,
+      [scooterId, reason],
+    );
+    await systemAudit('scooter.sent_to_service', 'scooter', scooterId, {
+      changes: { status: ['AVAILABLE', 'MAINTENANCE'] },
+      reason,
+      ticketId,
+    });
+  };
+  const insertTicket = async (sql: string, params: unknown[]) =>
+    (await client.query<{ id: string }>(sql, params)).rows[0]!.id;
+
+  // Pilne zgłoszenie od klienta po przejeździe, czeka na dyspozytora.
+  const urgent = await insertTicket(
+    `INSERT INTO tickets (scooter_id, rental_id, reported_by, source, categories, description, urgent, created_at, updated_at)
+     VALUES ($1, $2, $3, 'USER', '{BRAKES}', $4, true, now() - interval '12 minutes', now() - interval '12 minutes')
+     RETURNING id`,
+    [
+      urgentScooter,
+      await lastRide(customers[0]!),
+      customers[0],
+      'Tylny hamulec prawie nie działa, hulajnoga zatrzymuje się dopiero po kilku metrach.',
+    ],
+  );
+  await toService(urgentScooter!, 'URGENT_TICKET', urgent);
+
+  // Zgłoszenie w serwisie: naprawa przypisana serwisantowi, odpowiedź dla klienta i przegląd bez zgłoszenia.
+  const lights = await insertTicket(
+    `INSERT INTO tickets (scooter_id, rental_id, reported_by, source, categories, description, urgent, status, assignee_id,
+                          customer_reply, customer_reply_at, created_at, updated_at)
+     VALUES ($1, $2, $3, 'USER', '{LIGHTS}', $4, false, 'AT_SERVICE', $5, $6, now() - interval '20 hours',
+             now() - interval '1 day', now() - interval '20 hours')
+     RETURNING id`,
+    [
+      lightsScooter,
+      await lastRide(customers[1]!),
+      customers[1],
+      'Nie świeci tylna lampa.',
+      dispatcher,
+      'Sprawdzamy hulajnogę, odezwiemy się wkrótce.',
+    ],
+  );
+  await client.query(
+    `INSERT INTO service_tasks (scooter_id, ticket_id, type, priority, description, assignee_id, created_by, due_at, created_at, updated_at)
+     VALUES ($1, $2, 'REPAIR', 'NORMAL', $3, $4, $5, now() + interval '1 day', now() - interval '20 hours', now() - interval '20 hours'),
+            ($1, NULL, 'INSPECTION', 'LOW', $6, $4, $5, now() + interval '2 days', now() - interval '20 hours', now() - interval '20 hours')`,
+    [lightsScooter, lights, 'Sprawdzić przewód i lampę LGT-R.', technician, dispatcher, 'Przegląd okresowy.'],
+  );
+  await toService(lightsScooter!, 'SERVICE_TASK', lights);
+
+  // Zgłoszenie automatyczne: krytyczna bateria po przejeździe, od razu zadanie wymiany baterii (pytanie 3).
+  await client.query(`UPDATE scooters SET battery_pct = LEAST(COALESCE(battery_pct, 7), 7) WHERE id = $1`, [
+    batteryScooter,
+  ]);
+  const battery = await insertTicket(
+    `INSERT INTO tickets (scooter_id, source, auto_kind, categories, status, created_at, updated_at)
+     VALUES ($1, 'AUTO', 'BATTERY_CRITICAL', '{BATTERY}', 'AT_SERVICE', now() - interval '5 hours', now() - interval '5 hours')
+     RETURNING id`,
+    [batteryScooter],
+  );
+  await systemAudit('ticket.created', 'ticket', battery, { autoKind: 'BATTERY_CRITICAL', batteryPct: 7 });
+  const swap = await insertTicket(
+    `INSERT INTO service_tasks (scooter_id, ticket_id, type, priority, due_at, created_at, updated_at)
+     VALUES ($1, $2, 'BATTERY_SWAP', 'HIGH', now() + interval '3 hours', now() - interval '5 hours', now() - interval '5 hours')
+     RETURNING id`,
+    [batteryScooter, battery],
+  );
+  await systemAudit('service_task.created', 'service_task', swap, { type: 'BATTERY_SWAP', ticketId: battery });
+  await toService(batteryScooter!, 'SERVICE_TASK', battery);
+
+  // Rozwiązane zgłoszenie: naprawa z częściami z magazynu, hulajnoga wróciła do floty.
+  const repaired = await insertTicket(
+    `INSERT INTO tickets (scooter_id, rental_id, reported_by, source, categories, description, urgent, assignee_id,
+                          created_at, updated_at)
+     VALUES ($1, $2, $3, 'USER', '{BRAKES}', $4, true, $5, now() - interval '3 hours', now() - interval '3 hours')
+     RETURNING id`,
+    [repairedScooter, await lastRide(customers[2]!), customers[2], 'Hamulec piszczy i słabo hamuje.', dispatcher],
+  );
+  const repair = await insertTicket(
+    `INSERT INTO service_tasks (scooter_id, ticket_id, type, priority, description, assignee_id, created_by, created_at, updated_at)
+     VALUES ($1, $2, 'REPAIR', 'HIGH', $3, $4, $5, now() - interval '170 minutes', now() - interval '170 minutes')
+     RETURNING id`,
+    [repairedScooter, repaired, 'Sprawdzić klocki i linkę hamulca tylnego.', technician, dispatcher],
+  );
+  await client.query(
+    `UPDATE tickets SET status = 'AT_SERVICE', updated_at = now(), version = version + 1 WHERE id = $1`,
+    [repaired],
+  );
+  await client.query(
+    `UPDATE service_tasks SET status = 'IN_PROGRESS', started_at = now() - interval '2 hours', updated_at = now(),
+            version = version + 1 WHERE id = $1`,
+    [repair],
+  );
+  for (const sku of ['BRK-PAD-R', 'BRK-CBL-R']) {
+    await client.query(`CALL sp_task_use_part($1, $2, 1, $3, NULL, NULL)`, [repair, await partId(sku), technician]);
+  }
+  await client.query(
+    `UPDATE service_tasks SET status = 'DONE', result_note = $2, updated_at = now(), version = version + 1 WHERE id = $1`,
+    [repair, 'Wymieniono klocki i linkę hamulca tylnego, wyregulowano hamulec.'],
+  );
+  await client.query(
+    `UPDATE tickets SET status = 'RESOLVED', resolution_note = $2, customer_reply = $3, customer_reply_at = now(),
+            updated_at = now(), version = version + 1
+     WHERE id = $1`,
+    [repaired, 'Naprawa hamulca w zadaniu serwisowym.', 'Naprawiliśmy hamulec. Dziękujemy za zgłoszenie.'],
+  );
 }

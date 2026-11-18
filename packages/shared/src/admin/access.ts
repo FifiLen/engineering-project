@@ -253,6 +253,10 @@ export interface UserDetails extends UserListItem {
 // Dziennik audytu
 // ---------------------------------------------------------------------------------------------
 
+/** Autor wpisu dziennika audytu (`audit_actor`, migracja 0008). */
+export const AUDIT_ACTORS = ['STAFF', 'SYSTEM'] as const;
+export type AuditActor = (typeof AUDIT_ACTORS)[number];
+
 export const auditLogResource = {
   name: 'audit-log',
   fields: {
@@ -264,6 +268,8 @@ export const auditLogResource = {
     action: { type: 'text', filters: ['eq', 'contains'], sortable: true },
     entityType: { type: 'text', filters: ['eq'], sortable: true, facet: true },
     entityId: { type: 'uuid', filters: ['eq'] },
+    // Wpisy systemu bez operatora (ADR 0055): panel pokazuje „System” z tłumaczeń.
+    actor: { type: 'enum', values: AUDIT_ACTORS, filters: ['eq'], facet: true },
   },
   search: ['action', 'staffName', 'entityType'],
   defaultSort: ['-createdAt', '-id'],
@@ -275,12 +281,14 @@ export const auditLogResource = {
 export interface AuditLogListItem {
   id: number;
   createdAt: string;
-  staffId: string;
-  staffName: string;
-  staffEmail: string;
+  /** `null` we wpisie systemu (`actor = SYSTEM`). */
+  staffId: string | null;
+  staffName: string | null;
+  staffEmail: string | null;
   action: string;
   entityType: string;
   entityId: string | null;
+  actor: AuditActor;
 }
 
 export interface AuditLogDetails extends AuditLogListItem {

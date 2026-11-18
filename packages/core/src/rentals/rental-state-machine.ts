@@ -38,6 +38,7 @@ export type RentalAction =
   | 'ABORT_END'
   | 'ABORT_END_PAUSED'
   | 'END_REMOTELY'
+  | 'END_UNCONFIRMED'
   | 'DECLINE_PAYMENT'
   | 'SETTLE_DEBT';
 
@@ -70,6 +71,9 @@ const TRANSITIONS: Record<RentalAction, ReadonlyArray<readonly [From, RentalStat
     ['PAUSED', 'ENDED'],
     ['ENDING', 'ENDED'],
   ],
+  // Zakończenie bez łączności (ADR 0056): hulajnoga nie potwierdziła blokady w 10 min, a przejazd i tak się
+  // kończy z naliczaniem do żądania klienta i zgłoszeniem automatycznym `OFFLINE`.
+  END_UNCONFIRMED: [['ENDING', 'ENDED']],
   // Odmowa obciążenia karty po zakończeniu (ADR 0049 zmienia ADR 0013): przejazd kończy się od razu,
   // a zaległość jest osobnym stanem do spłaty. `UNPAID` nie jest stanem otwartym.
   DECLINE_PAYMENT: [['ENDED', 'UNPAID']],

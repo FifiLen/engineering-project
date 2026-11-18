@@ -44,8 +44,12 @@ export type Status = z.infer<typeof statusSchema>;
 
 /**
  * Kontrakt 1.2.0 (ADR 0044): `release_stop` przywraca napęd po `stop_gradually`, `speed_limit` bez `kmh` zdejmuje
- * limit, a `lock` kasuje limit i zatrzymanie w urządzeniu.
+ * limit, a `lock` kasuje limit i zatrzymanie w urządzeniu. Kontrakt 1.3.0 (ADR 0059): `battery_swapped` bez
+ * parametrów po zakończeniu zadania `BATTERY_SWAP`; urządzenie potwierdza po wykryciu nowej baterii (symulator
+ * ustawia 100% i potwierdza od razu), a urządzenie z kontraktem 1.2.0 odpowiada `UNKNOWN_COMMAND`.
  */
+export const MQTT_CONTRACT_VERSION = '1.3.0';
+
 export const commandNames = [
   'unlock',
   'lock',
@@ -54,6 +58,7 @@ export const commandNames = [
   'ring',
   'lights',
   'release_stop',
+  'battery_swapped',
 ] as const;
 export type CommandName = (typeof commandNames)[number];
 
