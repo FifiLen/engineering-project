@@ -74,7 +74,7 @@ Do zrobienia:
 - [x] Przed iteracją 6: makiety brakujących stanów (2026-11-18, `26-mobile-operacje`, `27-panel-serwis`, 22 plansze).
 - [x] Przed iteracją 6: ADR 0055–0060 (2026-11-18, zaakceptowane).
 - [x] Iteracja 6: implementacja według planu (2026-11-18).
-- [ ] Wypchnąć iterację 6 i potwierdzić zielone CI.
+- [x] Wypchnąć iterację 6 i potwierdzić zielone CI (2026-11-18, commit `44315da`).
 - [ ] Konto Stripe w trybie testowym z kluczami w `.env` i Stripe CLI (autor; bez nich działa atrapa operatora).
 
 ## Uwagi środowiskowe

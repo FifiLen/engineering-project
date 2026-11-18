@@ -1306,3 +1306,6 @@ Przegląd kodu iteracji 6 znalazł 16 błędów (A–P). Wszystkie potwierdziły
 
 **Uwagi**
 - Agent panelu uruchomił `pkill -x cat` dla bieżącego użytkownika. Mogło to zamknąć procesy `cat` innych sesji; serwerów API, panelu i symulatora nikt nie restartował.
+
+**Wypchnięcie (18 listopada 2026)**
+- Siedem commitów iteracji 6 (`20d0f1f`…`44315da`) na `main`; CI zielone na `44315da`.
