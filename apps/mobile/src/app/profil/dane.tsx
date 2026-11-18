@@ -57,7 +57,6 @@ export default function PersonalDataScreen() {
           textContentType="emailAddress"
           autoComplete="email"
         />
-        <Text style={{ fontSize: 14, lineHeight: 20, color: theme.muted, marginHorizontal: 4 }}>{t('personal.emailHint')}</Text>
       </View>
       <View style={{ gap: 12 }}>
         <View

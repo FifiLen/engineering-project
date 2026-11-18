@@ -38,6 +38,19 @@
           "enableGooglePay": false,
           "disableSPM": true
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Zdjęcie z galerii dołączysz do zgłoszenia albo jako zdjęcie parkowania.",
+          "cameraPermission": "Aparat służy do skanowania kodu QR i zdjęć hulajnogi."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#2B3FF5"
+        }
       ]
     ],
     "experiments": {

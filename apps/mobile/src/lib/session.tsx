@@ -1,6 +1,7 @@
 import type { CustomerSession, MeResponse } from '@hulajnogi/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, refreshTokens, storeTokens } from './api';
+import { unregisterPushToken } from './push-token';
 import { readRefreshToken } from './storage';
 
 type Status = 'loading' | 'signedOut' | 'signedIn';
@@ -65,6 +66,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setMe: setMeState,
       reload,
       signOut: async () => {
+        // Token push najpierw, bo wymaga ważnej sesji (ADR 0058).
+        await unregisterPushToken();
         const refreshToken = await readRefreshToken();
         if (refreshToken) await api('/auth/logout', { method: 'POST', json: { refreshToken } }).catch(() => undefined);
         await storeTokens(null);

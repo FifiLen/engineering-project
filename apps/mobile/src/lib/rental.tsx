@@ -7,13 +7,16 @@ import {
   OPEN_RENTAL_STATES,
   type ClientToServerEvents,
   type PaymentSource,
+  type RentalHistoryItem,
   type RentalView,
   type ServerToClientEvents,
 } from '@hulajnogi/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { api, API_URL, getAccessToken, refreshTokens } from './api';
+import { ApiError, api, API_URL, getAccessToken, refreshTokens } from './api';
+import { notifyNotificationCreated } from './notifications';
 import { useSession } from './session';
+import { notifyTicketUpdated } from './tickets';
 import { notifyWalletUpdated } from './wallet';
 import { notifyZonesChanged } from './zones';
 
@@ -50,6 +53,20 @@ interface RentalValue {
   end(): Promise<RentalView>;
   refresh(): Promise<void>;
   clearOutcome(): void;
+  /**
+   * Zdjęcie parkowania (ADR 0057): powiązanie pliku z przejazdem. Przy zakończeniu bez łączności przejazd
+   * czeka w `ENDING`; gdy API przyjmuje zdjęcie dopiero po `ENDED` (`RENTAL_NOT_ENDED`), aplikacja wiąże
+   * je po zamknięciu przejazdu (`pending`).
+   */
+  attachParkingPhoto(rentalId: string, fileId: string): Promise<'attached' | 'pending'>;
+  /** Zdjęcie przejazdu wysłane w tej sesji aplikacji (także czekające na `ENDED`). */
+  photoSent(rentalId: string): boolean;
+  /**
+   * Zakończony przejazd z wymaganym zdjęciem bez zdjęcia (ADR 0056), wykryty po uruchomieniu aplikacji:
+   * aplikacja raz wraca do ekranu zdjęcia.
+   */
+  photoDue: RentalView | null;
+  clearPhotoDue(): void;
 }
 
 const RentalContext = createContext<RentalValue | null>(null);
@@ -65,6 +82,27 @@ const isOpen = (view: RentalView) => (OPEN_RENTAL_STATES as readonly string[]).i
 export const RIDE_STATES = ['UNLOCKING', 'ACTIVE', 'PAUSED', 'ENDING'] as const;
 export const isRiding = (view: RentalView | undefined | null): boolean =>
   !!view && (RIDE_STATES as readonly string[]).includes(view.state);
+
+/** Zakończenie bez łączności: przejazd czeka w `ENDING` na blokadę do 10 min (ADR 0056). */
+export const isOfflineEnding = (view: RentalView | undefined | null): boolean =>
+  view?.state === 'ENDING' && view.endMode === 'CUSTOMER_OFFLINE';
+
+/**
+ * Ekran przejazdu przejmuje aplikację w stanach jazdy; przy zakończeniu bez łączności tylko do wysłania
+ * zdjęcia, bo klient nie musi czekać na blokadę (makieta koniec-offline).
+ */
+export const holdsRideScreen = (view: RentalView | undefined | null, photoSent: boolean): boolean =>
+  isRiding(view) && !(isOfflineEnding(view) && (photoSent || !!view?.parkingPhoto));
+
+/**
+ * Zdjęcie parkowania po zakończeniu: wymagane po zakończeniu bez łączności, a po zwykłym zakończeniu przez
+ * klienta proponowane z „Pomiń” (makieta zdjecie-parkowania); po zakończeniu przez operatora go nie ma.
+ */
+export const wantsParkingPhoto = (view: RentalView): boolean =>
+  !view.parkingPhoto && (!!view.parkingPhotoRequired || view.endMode === 'CUSTOMER');
+
+/** Zakończony przejazd sprzed najwyżej doby jeszcze przypomina o wymaganym zdjęciu. */
+const PHOTO_DUE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Odpytywanie: szybkie przy oczekiwaniu na potwierdzenie komendy, wolniejsze w trakcie jazdy (źródło
@@ -98,6 +136,10 @@ function RentalState({ enabled, children }: { enabled: boolean; children: ReactN
   const current = useRef<TrackedRental | null>(null);
   const cancelled = useRef(new Set<string>());
   const closed = useRef(new Set<string>());
+  // Zdjęcia parkowania wysłane w tej sesji i plik czekający na `ENDED` (zakończenie bez łączności).
+  const [sentPhotos, setSentPhotos] = useState<ReadonlySet<string>>(() => new Set());
+  const pendingPhoto = useRef<{ rentalId: string; fileId: string } | null>(null);
+  const [photoDue, setPhotoDue] = useState<RentalView | null>(null);
 
   const apply = useCallback((view: RentalView) => {
     const previous = current.current?.view;
@@ -113,6 +155,13 @@ function RentalState({ enabled, children }: { enabled: boolean; children: ReactN
     }
     // Zamknięty przejazd: pokazujemy skutek tylko dla przejazdu, który aplikacja śledziła albo właśnie uruchomiła.
     if (previous && previous.id !== view.id) return;
+    const pending = pendingPhoto.current;
+    if (pending && pending.rentalId === view.id && (view.state === 'ENDED' || view.state === 'UNPAID')) {
+      pendingPhoto.current = null;
+      void api(`/rentals/${view.id}/parking-photo`, { method: 'POST', json: { fileId: pending.fileId } }).catch(
+        () => undefined,
+      );
+    }
     closed.current.add(view.id);
     current.current = null;
     setRental(null);
@@ -139,10 +188,18 @@ function RentalState({ enabled, children }: { enabled: boolean; children: ReactN
     [apply],
   );
 
-  // Stan po uruchomieniu aplikacji i po zalogowaniu (przejazd przejmuje aplikację także po restarcie).
+  // Stan po uruchomieniu aplikacji i po zalogowaniu (przejazd przejmuje aplikację także po restarcie). Bez
+  // otwartego przejazdu ostatni zakończony może jeszcze wymagać zdjęcia parkowania (ADR 0056).
   useEffect(() => {
     if (!enabled) return;
     void refresh()
+      .then(async () => {
+        if (current.current) return;
+        const [last] = await api<RentalHistoryItem[]>('/rentals?limit=1');
+        if (!last?.endedAt || Date.now() - Date.parse(last.endedAt) > PHOTO_DUE_MS) return;
+        const view = await api<RentalView>(`/rentals/${last.id}`);
+        if (view.parkingPhotoRequired && !view.parkingPhoto) setPhotoDue(view);
+      })
       .catch(() => undefined)
       .finally(() => setLoaded(true));
   }, [enabled, refresh]);
@@ -161,12 +218,15 @@ function RentalState({ enabled, children }: { enabled: boolean; children: ReactN
       if (reconnect) {
         notifyZonesChanged();
         notifyWalletUpdated(null);
+        notifyTicketUpdated(null);
       }
       reconnect = true;
     });
     socket.on('rental.updated', apply);
     socket.on('zones.changed', notifyZonesChanged);
     socket.on('wallet.updated', notifyWalletUpdated);
+    socket.on('ticket.updated', notifyTicketUpdated);
+    socket.on('notification.created', notifyNotificationCreated);
     socket.on('disconnect', (reason) => {
       // Serwer rozłącza po wygaśnięciu tokenu: nowy token i ponowne połączenie.
       if (reason === 'io server disconnect') void refreshTokens().then((ok) => ok && socket.connect());
@@ -211,20 +271,42 @@ function RentalState({ enabled, children }: { enabled: boolean; children: ReactN
       end: () => act('/rentals/current/end', { method: 'POST' }),
       refresh,
       clearOutcome: () => setOutcome(null),
+      attachParkingPhoto: async (rentalId, fileId) => {
+        const sent = () => setSentPhotos((s) => new Set(s).add(rentalId));
+        try {
+          const view = await api<RentalView>(`/rentals/${rentalId}/parking-photo`, {
+            method: 'POST',
+            json: { fileId },
+          });
+          sent();
+          if (current.current?.view.id === rentalId) apply(view);
+          return 'attached';
+        } catch (e) {
+          if (!(e instanceof ApiError) || e.code !== 'RENTAL_NOT_ENDED') throw e;
+          pendingPhoto.current = { rentalId, fileId };
+          sent();
+          return 'pending';
+        }
+      },
+      photoSent: (rentalId) => sentPhotos.has(rentalId),
+      photoDue,
+      clearPhotoDue: () => setPhotoDue(null),
     };
-  }, [rental, loaded, outcome, apply, refresh]);
+  }, [rental, loaded, outcome, apply, refresh, sentPhotos, photoDue]);
 
   return <RentalContext.Provider value={value}>{children}</RentalContext.Provider>;
 }
 
 /**
  * Liczniki na chwilę `now` (ADR 0042): do wartości z widoku aplikacja dolicza czas od otrzymania widoku,
- * jazdę w `ACTIVE` i pauzę w `PAUSED`, dopóki naliczanie trwa (`billedUntil` puste). Oczekiwanie na
+ * jazdę w `ACTIVE` i pauzę w `PAUSED`, dopóki naliczanie trwa (`billedUntil` puste, bez `billingStopped`). Oczekiwanie na
  * pauzę liczy się jeszcze jako jazda, a na wznowienie jako pauza, bo stan zmienia dopiero potwierdzenie.
  */
 export function liveCounters(tracked: TrackedRental, now: number): { rideSeconds: number; pauseSeconds: number } {
   const { view } = tracked;
-  const elapsed = view.startedAt && !view.billedUntil ? Math.max(0, (now - tracked.receivedAt) / 1000) : 0;
+  // Naliczanie zatrzymane po 30 min bez łączności (ADR 0056): licznik pokazuje zatrzymaną wartość.
+  const counting = view.startedAt && !view.billedUntil && !view.billingStopped;
+  const elapsed = counting ? Math.max(0, (now - tracked.receivedAt) / 1000) : 0;
   return {
     rideSeconds: view.rideSeconds + (view.state === 'ACTIVE' ? elapsed : 0),
     pauseSeconds: view.pauseSeconds + (view.state === 'PAUSED' ? elapsed : 0),

@@ -37,7 +37,8 @@ import { around, clock, dayTime, distance, money, pln, scooterNo, walkMinutes } 
 import { useLocation } from '../lib/location';
 import { useMapIntent, type Place } from '../lib/map-intent';
 import { usePreferences } from '../lib/preferences';
-import { reservationSecondsLeft, useNow, useRental, type TrackedRental } from '../lib/rental';
+import { useNotifications } from '../lib/notifications';
+import { isOfflineEnding, reservationSecondsLeft, useNow, useRental, type TrackedRental } from '../lib/rental';
 import { loadWalk, routeMinutes, useLiveRoute, walkLabel } from '../lib/routes';
 import { homeFor, useSession } from '../lib/session';
 import { cardTitle, useWallet } from '../lib/wallet';
@@ -67,6 +68,7 @@ export default function MapScreen() {
   const { destination, setDestination, walkTo, setWalkTo } = useMapIntent();
   const { zones, error: zonesError, reload: reloadZones } = useZones();
   const { summary: wallet } = useWallet();
+  const { askOnce } = useNotifications();
   const [nearby, setNearby] = useState<NearbyResponse | null>(null);
   const [offline, setOffline] = useState(false);
   const [manualCenter, setManualCenter] = useState<MapPoint | null>(null);
@@ -92,6 +94,8 @@ export default function MapScreen() {
   const area = useMemo(() => serviceAreaCenter(zones), [zones]);
   const searchCenter = user ?? manualCenter ?? area;
   const reservation = rental?.view.state === 'RESERVED' ? rental : null;
+  // Zakończenie bez łączności po wysłaniu zdjęcia: przejazd czeka na blokadę, a nowego nie da się zacząć.
+  const ending = rental && isOfflineEnding(rental.view) ? rental.view : null;
   const zonesOffline = zonesError instanceof ApiError && zonesError.code === 'NETWORK';
 
   const loadNearby = useCallback(
@@ -227,6 +231,12 @@ export default function MapScreen() {
     }
   }
 
+  /** Rezerwacja; przed pierwszą prośba o powiadomienia (ADR 0058, makieta powiadomienia-zgoda). */
+  async function reserveAsking(id: string) {
+    await askOnce();
+    return reserve(id);
+  }
+
   /** Opis hulajnogi i stawki do arkusza płatności kartą przy rezerwacji. */
   const gateTarget = (
     scooter: { id: string; number: number; batteryPct: number | null } | null,
@@ -269,6 +279,19 @@ export default function MapScreen() {
   let sheet: ReactNode = null;
   if (legend) {
     sheet = <LegendSheet zones={zones} />;
+  } else if (ending) {
+    sheet = (
+      <FloatingSheet>
+        <AlertHeader
+          icon="wifiOff"
+          tone="neutral"
+          title={t('map.ending.title')}
+          subtitle={t('map.ending.subtitle', { number: scooterNo(ending.scooter.number) })}
+        />
+        <SheetText>{t('map.ending.lead')}</SheetText>
+        <Button label={t('map.ending.show')} kind="secondary" onPress={() => router.push('/przejazd')} />
+      </FloatingSheet>
+    );
   } else if (!reservation && wallet && wallet.overdue.length) {
     // Zaległość (makieta mapa-zaleglosc): panel bez zamykania, pierwszeństwo przed ujemnym saldem.
     sheet = <OverdueCard overdue={wallet.overdue} />;
@@ -313,7 +336,7 @@ export default function MapScreen() {
           <Button
             label={t('map.expired.again')}
             busy={busy}
-            onPress={() => void run(() => reserve(v.scooter.id), gateTarget(v.scooter, v.tariff))}
+            onPress={() => void run(() => reserveAsking(v.scooter.id), gateTarget(v.scooter, v.tariff))}
           />
           <Button label={t('map.expired.close')} kind="secondary" onPress={clearOutcome} />
         </View>
@@ -329,8 +352,9 @@ export default function MapScreen() {
         freeMinutes={tariff.freeReservationMinutes}
         busy={busy}
         error={error}
-        onReserve={() => void run(() => reserve(selected.id), gateTarget(selected))}
+        onReserve={() => void run(() => reserveAsking(selected.id), gateTarget(selected))}
         onScan={() => router.push('/skan')}
+        onReport={() => router.push({ pathname: '/zglos', params: { number: String(selected.number) } })}
       />
     );
   } else if (destination) {
@@ -344,7 +368,9 @@ export default function MapScreen() {
         error={error}
         onParking={(anchor) => requestFocus({ center: anchor, zoom: 17 })}
         onScooter={(id) => select(id)}
-        onReserve={(id) => void run(() => reserve(id), gateTarget(nearby?.scooters.find((s) => s.id === id) ?? null))}
+        onReserve={(id) =>
+          void run(() => reserveAsking(id), gateTarget(nearby?.scooters.find((s) => s.id === id) ?? null))
+        }
         onScan={() => router.push('/skan')}
       />
     );
@@ -861,6 +887,7 @@ function ScooterCard({
   error,
   onReserve,
   onScan,
+  onReport,
 }: {
   scooter: NearbyScooter;
   user: MapPoint | null;
@@ -871,6 +898,7 @@ function ScooterCard({
   error: string | null;
   onReserve: () => void;
   onScan: () => void;
+  onReport: () => void;
 }) {
   const theme = useTheme();
   const walkText = walk?.data
@@ -920,9 +948,17 @@ function ScooterCard({
           {t('map.card.price', { price: money(minuteRate) })}
         </Text>
       </View>
-      <SheetText style={{ fontSize: 14, marginTop: -4 }}>
-        {t('map.card.freeReservation', { minutes: freeMinutes })}
-      </SheetText>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: -4 }}>
+        <SheetText style={{ fontSize: 14, flex: 1 }}>
+          {t('map.card.freeReservation', { minutes: freeMinutes })}
+        </SheetText>
+        {/* Zgłoszenie z karty hulajnogi bez przejazdu (makieta zgloszenie-z-przejazdu, link pod ceną). */}
+        <Pressable accessibilityRole="link" onPress={onReport} hitSlop={8}>
+          <Text style={{ fontSize: 14, lineHeight: 22, fontWeight: '500', color: theme.accent }}>
+            {t('map.card.report')}
+          </Text>
+        </Pressable>
+      </View>
       {error && <SheetText style={{ color: theme.danger, fontSize: 14 }}>{error}</SheetText>}
       <ButtonRow split>
         <Button label={t('map.card.reserve')} kind="secondary" busy={busy} onPress={onReserve} />

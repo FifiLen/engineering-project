@@ -93,3 +93,35 @@ export const monthName = (iso: string): string => t.dynamic(`dates.months.${new 
 
 /** Dystans łączny w profilu: od 10 km bez części dziesiętnej („61 km”). */
 export const totalDistance = (m: number): string => (m >= 10000 ? t('units.km', { value: Math.round(m / 1000) }) : distance(m));
+
+const shortDayMonth = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'short' });
+
+/** „dziś 16:05”, „wczoraj 18:12”, „12 lis 9:12” (zgłoszenia: odpowiedź, historia statusów, przejazd). */
+export function shortDayTime(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const hm = time.format(d);
+  if (sameDay(d, now)) return t('dates.todayShort', { time: hm });
+  if (sameDay(d, yesterday)) return t('dates.yesterdayShort', { time: hm });
+  return t('dates.dayShort', { day: shortDayMonth.format(d), time: hm });
+}
+
+/** „dziś 16:05”, „wczoraj 18:12”, a starsze bez godziny: „12 lis” (lista zgłoszeń). */
+export function listDate(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(d, now) || sameDay(d, yesterday)) return shortDayTime(iso, now);
+  return shortDayMonth.format(d);
+}
+
+/** „dziś”, „wczoraj”, „12 lis” (przejazd w nagłówku zgłoszenia: „dziś 14:16–14:32”). */
+export function dayWord(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(d, now)) return t('dates.todayWord');
+  if (sameDay(d, yesterday)) return t('dates.yesterdayWord');
+  return shortDayMonth.format(d);
+}

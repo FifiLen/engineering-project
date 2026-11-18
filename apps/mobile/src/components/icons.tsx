@@ -197,6 +197,62 @@ const ICONS = {
       <Path d="M8 18h8M16.5 16.5L14 4h3.5" />
     </>
   ),
+  // Iteracja 6 (makiety 26-mobile-operacje).
+  receipt: (
+    <>
+      <Path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />
+      <Path d="M9 8h6M9 12h6M9 16h3" />
+    </>
+  ),
+  qr: (
+    <>
+      <Rect x="4" y="4" width="6" height="6" rx="1" />
+      <Rect x="14" y="4" width="6" height="6" rx="1" />
+      <Rect x="4" y="14" width="6" height="6" rx="1" />
+      <Path d="M14 14h2v2M20 14v6h-6M17 17v3" />
+    </>
+  ),
+  wrench: (
+    <Path d="M14.5 4.5a4.5 4.5 0 00-5.6 5.8L3.5 15.7a2 2 0 002.8 2.8l5.4-5.4a4.5 4.5 0 005.8-5.6l-2.7 2.7-2.6-.6-.6-2.6z" />
+  ),
+  camera: (
+    <>
+      <Rect x="3" y="7" width="18" height="13" rx="3" />
+      <Circle cx="12" cy="13.5" r="3.5" />
+      <Path d="M8 7l2-3h4l2 3" />
+    </>
+  ),
+  upload: (
+    <>
+      <Path d="M12 15V4M7 9l5-5 5 5" />
+      <Path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3" />
+    </>
+  ),
+  bellOff: (
+    <>
+      <Path d="M8.5 5.1A6 6 0 0118 11v3.5M16.5 18h-12L6 16v-5c0-.9.2-1.8.6-2.6" />
+      <Path d="M10 21a2 2 0 004 0" />
+      <Path d="M3 3l18 18" />
+    </>
+  ),
+  batteryLow: (
+    <>
+      <Rect x="3" y="7" width="16" height="10" rx="2.5" />
+      <Path d="M22 10.5v3M6.5 10.5v3" />
+    </>
+  ),
+  payment: (
+    <>
+      <Rect x="3" y="5" width="18" height="14" rx="3" />
+      <Path d="M3 10h18M7 15h3" />
+    </>
+  ),
+  message: (
+    <>
+      <Path d="M4 5h16v11H9l-5 4z" />
+      <Path d="M8 9.5h8M8 12.5h5" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof ICONS;

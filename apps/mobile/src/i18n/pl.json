@@ -47,7 +47,7 @@
   },
   "profile": {
     "title": "Jak masz na imię?",
-    "lead": "Imię zobaczysz w aplikacji, a na e-mail wyślemy potwierdzenia płatności.",
+    "lead": "Imię zobaczysz w aplikacji.",
     "name": "Imię",
     "email": "E-mail (opcjonalnie)",
     "age": "Potwierdzam, że mam ukończone {age} lat.",
@@ -102,7 +102,8 @@
     "signOut": "Wyloguj się",
     "avatar": "Profil: {name}",
     "paymentMethods": "Metody płatności",
-    "tariff": "Cennik"
+    "tariff": "Cennik",
+    "help": "Pomoc i zgłoszenia"
   },
   "document": {
     "version": "Wersja {version}"
@@ -144,7 +145,20 @@
     "PAYMENT_METHOD_IN_USE": "Tej karty nie można teraz usunąć: płaci za trwający przejazd albo za zaległość.",
     "PAYMENT_IN_PROGRESS": "Płatność za ten przejazd jest już w toku. Poczekaj na wynik.",
     "RENTAL_NOT_UNPAID": "Ten przejazd jest już opłacony.",
-    "VALIDATION_FAILED": "Sprawdź wpisane dane."
+    "VALIDATION_FAILED": "Sprawdź wpisane dane.",
+    "POSITION_STALE": "Nie znamy aktualnej pozycji hulajnogi, więc nie zakończymy przejazdu.",
+    "RENTAL_NOT_ENDED": "Zdjęcie dodasz po zakończeniu przejazdu.",
+    "PARKING_PHOTO_EXISTS": "Zdjęcie parkowania jest już dodane.",
+    "FILE_TOO_LARGE": "Zdjęcie jest za duże. Wybierz plik do 10 MB.",
+    "FILE_TYPE_NOT_ALLOWED": "Ten plik nie jest zdjęciem JPG, PNG ani WebP.",
+    "FILE_ALREADY_ATTACHED": "To zdjęcie jest już dodane w innym miejscu. Zrób nowe.",
+    "FILE_DELETED": "To zdjęcie zostało usunięte. Zrób nowe.",
+    "FILE_PURPOSE_MISMATCH": "Tego zdjęcia nie można tu użyć. Zrób nowe.",
+    "TICKET_CATEGORIES_REQUIRED": "Wybierz, co nie działa.",
+    "TICKET_CATEGORY_NOT_ALLOWED": "Rozliczenie zgłosisz tylko z przejazdu.",
+    "TICKET_DESCRIPTION_REQUIRED": "Opisz problem: przy rozliczeniu i „Inne” opis jest wymagany.",
+    "TICKET_RENTAL_REQUIRED": "Rozliczenie zgłosisz tylko z przejazdu.",
+    "TICKET_TOO_MANY_PHOTOS": "Możesz dodać najwyżej 3 zdjęcia."
   },
   "units": {
     "m": "{value} m",
@@ -192,7 +206,12 @@
       "9": "października",
       "10": "listopada",
       "11": "grudnia"
-    }
+    },
+    "todayShort": "dziś {time}",
+    "yesterdayShort": "wczoraj {time}",
+    "dayShort": "{day} {time}",
+    "todayWord": "dziś",
+    "yesterdayWord": "wczoraj"
   },
   "variants": {
     "GRAFIT": "Grafit",
@@ -219,7 +238,8 @@
       "freeReservation": "Rezerwacja jest bezpłatna przez {minutes} min.",
       "reserve": "Zarezerwuj",
       "scan": "Skanuj i jedź",
-      "walkLoading": "Szukam trasy pieszej…"
+      "walkLoading": "Szukam trasy pieszej…",
+      "report": "Zgłoś usterkę"
     },
     "reservation": {
       "label": "Zarezerwowana",
@@ -322,6 +342,12 @@
       "pending": "Płatność za przejazd jest w toku. Poczekaj na wynik.",
       "retry": "{when} ponowimy płatność automatycznie.",
       "pay": "Zapłać teraz"
+    },
+    "ending": {
+      "title": "Przejazd się kończy",
+      "subtitle": "Hulajnoga #{number} czeka na łączność",
+      "lead": "Zablokujemy ją, gdy odzyska łączność, najpóźniej w ciągu 10 min. Do tego czasu nie zaczniesz nowego przejazdu.",
+      "show": "Pokaż przejazd"
     }
   },
   "scan": {
@@ -487,6 +513,48 @@
       "close": "Zakończ prowadzenie",
       "arrived": "Jesteś w strefie {zone}",
       "arrivedLead": "Możesz zakończyć przejazd."
+    },
+    "batteryShort": "bateria",
+    "offline": {
+      "title": "Hulajnoga nie odpowiada",
+      "lead": "Możesz jechać dalej. Pozycja i czas zaktualizują się po odzyskaniu łączności.",
+      "stoppedTitle": "Naliczanie zatrzymane",
+      "stoppedLead": "Hulajnoga nie odpowiada od ponad 30 min, więc czas już się nie nalicza. Przejazd zakończy operator.",
+      "lastPosition": "ostatnia pozycja {time} temu",
+      "noPosition": "brak pozycji"
+    },
+    "lowBattery": {
+      "LOW": {
+        "title": "Niski poziom baterii",
+        "lead": "Bateria {value}%. Zaparkuj w najbliższej strefie."
+      },
+      "CRITICAL": {
+        "title": "Bateria prawie pusta",
+        "lead": "Bateria {value}%, więc hulajnoga jedzie najwyżej {limit} km/h. Zaparkuj w najbliższej strefie."
+      }
+    },
+    "offlineEnd": {
+      "subtitle": "Ostatnia pozycja jest poza strefą.",
+      "lead": "Hulajnoga nie odpowiada, a naliczanie trwa. Podjedź do strefy {zone}, {distance} stąd. Zakończysz jazdę, gdy hulajnoga odezwie się w strefie.",
+      "staleSubtitle": "Nie znamy aktualnej pozycji hulajnogi.",
+      "staleLead": "Hulajnoga nie odpowiada od {minutes} min. Zakończysz jazdę, gdy odezwie się w strefie parkowania. Naliczanie trwa.",
+      "pill": "Brak łączności · {minutes} min",
+      "title": "Naliczanie zakończone",
+      "notResponding": "Hulajnoga #{number} nie odpowiada",
+      "toPay": "zł do zapłaty",
+      "position": "Ostatnia pozycja w strefie {zone}",
+      "positionParking": "Ostatnia pozycja w strefie parkowania",
+      "ago": "{minutes, plural, =0 {przed chwilą} other {# min temu}}",
+      "paidUntil": "Płacisz do {time}",
+      "paid": "Płacisz do chwili zakończenia",
+      "paidLead": "Czas już się nie nalicza",
+      "lock": "Blokada czeka na łączność",
+      "lockLead": "Do 10 min, nie musisz czekać",
+      "photo": "Zrób zdjęcie hulajnogi",
+      "photoLead": "Wymagane, bo hulajnoga nie potwierdziła blokady",
+      "photoDone": "Zdjęcie hulajnogi wysłane",
+      "note": "Jeśli hulajnoga nie odezwie się w 10 min, i tak zakończymy przejazd z tą samą kwotą.",
+      "toMap": "Wróć do mapy"
     }
   },
   "summary": {
@@ -520,7 +588,11 @@
       "leadCard": "Nie udało się pobrać {amount} za przejazd z {when}, z karty {card}. Zmień metodę płatności, żeby rozpocząć kolejną jazdę.",
       "change": "Zmień metodę płatności",
       "retry": "Spróbuj ponownie tą kartą"
-    }
+    },
+    "towingFee": "Opłata za odholowanie",
+    "remoteTowing": "Przejazd zakończył operator. Płacisz za czas do chwili zakończenia i za odholowanie hulajnogi spoza strefy parkowania.",
+    "photoAdded": "Zdjęcie parkowania dodane",
+    "report": "Zgłoś problem"
   },
   "history": {
     "title": "Historia przejazdów",
@@ -531,7 +603,8 @@
       "lead": "Twoje trasy i paragony pojawią się tutaj po pierwszej jeździe.",
       "find": "Znajdź hulajnogę"
     },
-    "unpaid": "Nieopłacony"
+    "unpaid": "Nieopłacony",
+    "towing": "w tym odholowanie {amount} zł"
   },
   "settings": {
     "title": "Ustawienia",
@@ -551,13 +624,19 @@
     "languageValue": "Polski",
     "account": "Konto",
     "personal": "Dane osobowe",
-    "delete": "Usuń konto"
+    "delete": "Usuń konto",
+    "pushOff": {
+      "title": "Powiadomienia są wyłączone w telefonie",
+      "lead": "Nie dowiesz się o końcu rezerwacji, nieudanej płatności ani odpowiedzi na zgłoszenie.",
+      "settings": "Otwórz ustawienia telefonu",
+      "enable": "Włącz powiadomienia"
+    },
+    "alwaysSent": "Niską baterię, nieudane płatności i odpowiedzi na zgłoszenia wysyłamy zawsze, gdy powiadomienia są włączone."
   },
   "personal": {
     "title": "Dane osobowe",
     "name": "Imię",
     "email": "E-mail (opcjonalnie)",
-    "emailHint": "Na e-mail wyślemy potwierdzenia płatności.",
     "phone": "Numer telefonu",
     "phoneHint": "Numerem telefonu logujesz się kodem SMS, więc nie zmienisz go tutaj. Jeśli masz nowy numer, napisz do pomocy: {email}.",
     "save": "Zapisz zmiany",
@@ -636,7 +715,8 @@
       "REFUND": "Zwrot za przejazd",
       "ADJUSTMENT": "Korekta salda",
       "PAYOUT": "Zwrot salda na kartę",
-      "with": "{when} · {how}"
+      "with": "{when} · {how}",
+      "TOWING_FEE": "Opłata za odholowanie"
     },
     "reasons": {
       "COMPLAINT": "reklamacja",
@@ -852,7 +932,8 @@
       "UNLOCK": "Odblokowanie",
       "RIDE_MINUTES": "Minuty jazdy",
       "PAUSE_MINUTES": "Minuty pauzy",
-      "REFUND": "Zwrot"
+      "REFUND": "Zwrot",
+      "TOWING_FEE": "Opłata za odholowanie"
     },
     "issuedAt": "{date}\n{time}"
   },
@@ -922,5 +1003,151 @@
     "outOfZoneHint": "Gdy hulajnoga zostanie odholowana",
     "vat": "Ceny zawierają {rate}% VAT. Do jazdy z portfela potrzebujesz co najmniej {minimum}.",
     "footer": "Za czas jazdy płacisz za każdą rozpoczętą minutę."
+  },
+  "notifications": {
+    "banner": {
+      "now": "teraz",
+      "close": "Zamknij powiadomienie",
+      "openHint": "Otwiera szczegóły powiadomienia"
+    },
+    "ask": {
+      "previewLabel": "Przykładowe powiadomienia na ekranie blokady",
+      "preview": {
+        "reservationTitle": "Rezerwacja kończy się za 2 min",
+        "reservationBody": "Hulajnoga #0027 czeka 80 m od Ciebie.",
+        "rideTitle": "Przejazd zakończony",
+        "rideBody": "2,4 km w 16 min. Paragon jest w aplikacji."
+      },
+      "title": "Włącz powiadomienia",
+      "lead": "Napiszemy tylko wtedy, gdy coś dotyczy Twojego przejazdu albo wymaga działania.",
+      "events": {
+        "reservationEnd": "Koniec rezerwacji",
+        "rideEnded": "Przejazd zakończony i paragon",
+        "batteryLow": "Niska bateria w trakcie jazdy",
+        "paymentFailed": "Nieudana płatność",
+        "ticketReply": "Odpowiedź na Twoje zgłoszenie"
+      },
+      "enable": "Włącz powiadomienia",
+      "later": "Nie teraz"
+    }
+  },
+  "parkingPhoto": {
+    "title": "Zdjęcie parkowania",
+    "subtitle": "Hulajnoga #{number} · {zone}",
+    "subtitleShort": "Hulajnoga #{number}",
+    "cameraTitle": "Zrób zdjęcie hulajnogi",
+    "cameraLead": "Pokaż całą hulajnogę i miejsce, w którym stoi.",
+    "cameraFailed": "Nie udało się zrobić zdjęcia. Spróbuj ponownie.",
+    "shutter": "Zrób zdjęcie",
+    "previewLabel": "Zdjęcie zaparkowanej hulajnogi",
+    "retake": "Zrób ponownie",
+    "send": "Wyślij",
+    "sending": "Wysyłam…",
+    "skip": "Pomiń",
+    "retention": "Zdjęcie przechowujemy 30 dni.",
+    "required": "Zdjęcie jest wymagane, bo hulajnoga nie potwierdziła blokady.",
+    "failed": {
+      "title": "Nie udało się wysłać zdjęcia",
+      "lead": "Sprawdź połączenie z internetem i spróbuj ponownie. Przejazd jest już zakończony i rozliczony.",
+      "leadOffline": "Sprawdź połączenie z internetem i spróbuj ponownie. Naliczanie jest już zakończone.",
+      "retry": "Wyślij ponownie"
+    },
+    "rejected": {
+      "title": "Tego zdjęcia nie wyślemy"
+    },
+    "noCamera": {
+      "title": "Nie mamy dostępu do aparatu",
+      "titleWeb": "Dodaj zdjęcie z pliku",
+      "lead": "Zdjęcie parkowania możesz dodać z galerii telefonu albo włączyć aparat w ustawieniach.",
+      "leadWeb": "Wybierz zdjęcie zaparkowanej hulajnogi. Przeglądarka telefonu może od razu otworzyć aparat.",
+      "file": "Wybierz zdjęcie z pliku"
+    },
+    "formats": "JPG, PNG albo HEIC, do 10 MB"
+  },
+  "tickets": {
+    "scooter": "Hulajnoga #{number}",
+    "rentalNumber": "R-{number}",
+    "categories": {
+      "BRAKES": "Hamulce",
+      "LIGHTS": "Światła",
+      "WHEEL": "Koło",
+      "HANDLEBAR": "Kierownica",
+      "QR_CODE": "Kod QR",
+      "BATTERY": "Bateria",
+      "CONNECTION": "Łączność",
+      "OTHER": "Inne",
+      "BILLING": "Rozliczenie",
+      "OUT_OF_ZONE": "Poza strefą"
+    },
+    "statuses": {
+      "NEW": "Przyjęte",
+      "IN_PROGRESS": "W toku",
+      "AT_SERVICE": "W serwisie",
+      "RESOLVED": "Rozwiązane"
+    },
+    "form": {
+      "title": "Zgłoś problem",
+      "submit": "Wyślij zgłoszenie",
+      "lastRide": "Ostatni przejazd, {when}",
+      "rideLine": "Przejazd R-{number}, {day} {from}–{to}",
+      "change": "Zmień",
+      "faults": "Co nie działa?",
+      "urgent": "Hamulce, koło i kierownica to usterki pilne. Po wysłaniu wyłączymy hulajnogę z ruchu do czasu naprawy.",
+      "urgentRide": "Hamulce, koło i kierownica to usterki pilne. Po zakończeniu przejazdu wyłączymy hulajnogę z ruchu do czasu naprawy.",
+      "billingSection": "Opłata za przejazd",
+      "description": "Opis",
+      "descriptionRequired": "Opis (wymagany)",
+      "photo": "Zdjęcie",
+      "addPhoto": "Dodaj zdjęcie",
+      "removePhoto": "Usuń zdjęcie",
+      "photoCount": "{count} z {max}",
+      "takePhoto": "Zrób zdjęcie",
+      "choosePhoto": "Wybierz z galerii"
+    },
+    "chooser": {
+      "title": "Której hulajnogi dotyczy zgłoszenie?",
+      "ride": "Przejazd R-{number}, {when}",
+      "number": "Numer z kierownicy",
+      "confirm": "Wybierz hulajnogę"
+    },
+    "sent": {
+      "title": "Zgłoszenie wysłane",
+      "lead": "Dziękujemy. Gdy zmieni się status, dostaniesz powiadomienie.",
+      "number": "Numer zgłoszenia",
+      "received": "Zgłoszenie przyjęte",
+      "check": "Dyspozytor sprawdzi hulajnogę",
+      "reply": "Odpowiedź dostaniesz w aplikacji",
+      "checkBilling": "Sprawdzimy opłatę",
+      "replyBilling": "Odpowiedź i ewentualny zwrot dostaniesz w aplikacji",
+      "outOfService": "Hulajnoga #{number} wyłączona z ruchu",
+      "outOfServiceLead": "{category} to usterka pilna. Nikt jej nie wypożyczy, dopóki serwis jej nie sprawdzi.",
+      "done": "Gotowe",
+      "mine": "Moje zgłoszenia"
+    },
+    "list": {
+      "title": "Moje zgłoszenia",
+      "unread": "nowa odpowiedź",
+      "line": "{ticket} · #{scooter} · {when}",
+      "note": "Odpowiedź na zgłoszenie wysyłamy w powiadomieniu i zapisujemy tutaj.",
+      "empty": {
+        "title": "Nie masz zgłoszeń",
+        "lead": "Jeśli coś nie działa, zgłoś to z podsumowania przejazdu albo stąd."
+      }
+    },
+    "details": {
+      "loading": "Zgłoszenie",
+      "title": "Zgłoszenie {number}",
+      "subtitle": "{categories} · Hulajnoga #{number}",
+      "reply": "Odpowiedź",
+      "yours": "Twoje zgłoszenie",
+      "ride": "Przejazd",
+      "rideValue": "R-{number}, {when}",
+      "noDescription": "Bez opisu",
+      "noReply": "Odpowiemy w powiadomieniu.",
+      "refund": "Zwrócono",
+      "refundValue": "+{amount}",
+      "correction": "Korekta paragonu",
+      "history": "Historia"
+    }
   }
 }

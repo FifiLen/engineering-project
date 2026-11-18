@@ -102,6 +102,12 @@ export default function HistoryScreen() {
                       {t('units.amount', { amount: money(item.totalAmount) })}
                     </Text>
                     {item.settlement === 'FAILED' && <Text style={{ fontSize: 13, color: theme.danger }}>{t('history.unpaid')}</Text>}
+                    {/* Opłata za odholowanie w kwocie przejazdu (ADR 0060). */}
+                    {!!item.towingFee && item.settlement !== 'FAILED' && (
+                      <Text style={{ fontSize: 13, color: theme.muted }}>
+                        {t('history.towing', { amount: money(item.towingFee) })}
+                      </Text>
+                    )}
                   </View>
                 )}
               </Pressable>

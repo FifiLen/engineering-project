@@ -1,6 +1,7 @@
 import type { PaymentIntentResponse, RentalView, WalletView } from '@hulajnogi/shared';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+import { Image } from 'expo-image';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../../components/icons';
@@ -12,6 +13,7 @@ import { Button, ErrorBox, useTheme } from '../../components/ui';
 import { t } from '../../i18n';
 import { api, errorMessage } from '../../lib/api';
 import { confirmAndOpen } from '../../lib/checkout';
+import { fileUrl } from '../../lib/files';
 import { clock, dayTime, km, pln, signedPln } from '../../lib/format';
 import { usePayments } from '../../lib/payments';
 import { useRental } from '../../lib/rental';
@@ -29,7 +31,7 @@ export default function SummaryScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
-  const { outcome, clearOutcome } = useRental();
+  const { outcome, clearOutcome, photoSent } = useRental();
   const { cards } = useWallet();
   const payments = usePayments();
   const fromOutcome = outcome?.view.id === id ? outcome.view : null;
@@ -163,6 +165,8 @@ export default function SummaryScreen() {
   ];
   if (view.price.pauseMinutes > 0)
     rows.push({ label: t('summary.pause', { minutes: view.price.pauseMinutes }), value: pln(view.price.pauseAmount) });
+  // Opłata za odholowanie osobnym wierszem (ADR 0060).
+  if (view.price.towingFee > 0) rows.push({ label: t('summary.towingFee'), value: pln(view.price.towingFee) });
   if (s.state === 'WALLET_PAID' || s.state === 'CARD_PAID') {
     rows.push({
       label: t('summary.paidWith'),
@@ -194,7 +198,11 @@ export default function SummaryScreen() {
           ? t('summary.free')
           : t('summary.note')
         : null;
-  const notes = [remote ? t('summary.remote') : null, note].filter(Boolean).join(' ');
+  const remoteNote = view.price.towingFee > 0 ? t('summary.remoteTowing') : t('summary.remote');
+  const notes = [remote ? remoteNote : null, note].filter(Boolean).join(' ');
+  // Zdjęcie parkowania (makieta flow-podsumowanie): z widoku albo wysłane przed chwilą (powiązanie po `ENDED`).
+  const photo = view.parkingPhoto?.url ?? null;
+  const photoAdded = !!view.parkingPhoto || photoSent(view.id);
   const receiptId = s.receiptId;
   const finish = negative ? (
     <Button label={t('summary.topup')} onPress={() => router.replace('/portfel')} />
@@ -291,7 +299,41 @@ export default function SummaryScreen() {
               </View>
             </Group>
           )}
+          {photoAdded && (
+            <View
+              accessible
+              accessibilityLabel={t('summary.photoAdded')}
+              style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+            >
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  backgroundColor: theme.line,
+                  overflow: 'hidden',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {photo ? (
+                  <Image source={{ uri: fileUrl(photo) }} style={{ width: 44, height: 44 }} contentFit="cover" />
+                ) : (
+                  <Icon name="camera" color={theme.muted} size={18} />
+                )}
+              </View>
+              <Text style={{ flex: 1, fontSize: 15, color: theme.ink }}>{t('summary.photoAdded')}</Text>
+              <Icon name="check" color={theme.accentMap} size={20} strokeWidth={2.4} />
+            </View>
+          )}
           {notes ? <Note style={{ marginTop: 16 }}>{notes}</Note> : null}
+          {/* Zgłoszenie z przejazdu, także reklamacja opłaty (makieta zgloszenie-z-przejazdu). */}
+          <Button
+            label={t('summary.report')}
+            kind="plain"
+            style={{ marginTop: 8 }}
+            onPress={() => router.push({ pathname: '/zglos', params: { rental: view.id } })}
+          />
         </ScrollView>
         <View style={{ paddingHorizontal: 24, paddingBottom: 16 + insets.bottom }}>
           {receiptId ? (

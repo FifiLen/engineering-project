@@ -114,6 +114,7 @@ export function Button({
   disabled,
   busy,
   style,
+  textColor,
 }: {
   label: string;
   onPress: () => void;
@@ -121,6 +122,8 @@ export function Button({
   disabled?: boolean;
   busy?: boolean;
   style?: object;
+  /** Kolor etykiety na ciemnym tle aparatu (makieta zdjecie-parkowania). */
+  textColor?: string;
 }) {
   const theme = useTheme();
   // Grafitowy: akcje kończące (Zakończ, Gotowe); jasny: na tle aparatu (makieta flow-skan).
@@ -132,7 +135,7 @@ export function Button({
     danger: theme.danger,
     light: '#F6F6F3',
   }[kind];
-  const color = { primary: theme.onAccent, secondary: theme.ink, plain: theme.ink, dark: theme.onDark, danger: '#FFFFFF', light: '#16181D' }[kind];
+  const color = textColor ?? { primary: theme.onAccent, secondary: theme.ink, plain: theme.ink, dark: theme.onDark, danger: '#FFFFFF', light: '#16181D' }[kind];
   return (
     <Pressable
       accessibilityRole="button"

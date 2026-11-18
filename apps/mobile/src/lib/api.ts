@@ -50,7 +50,14 @@ export function refreshTokens(): Promise<boolean> {
   return refreshing;
 }
 
-export async function api<T>(path: string, init: { method?: string; json?: unknown } = {}): Promise<T> {
+interface ApiInit {
+  method?: string;
+  json?: unknown;
+  /** Formularz `multipart/form-data` (wysyłka pliku, ADR 0057); nagłówek z granicą ustawia `fetch`. */
+  form?: () => FormData | Promise<FormData>;
+}
+
+export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
   try {
     return await request<T>(path, init);
   } catch (error) {
@@ -60,16 +67,18 @@ export async function api<T>(path: string, init: { method?: string; json?: unkno
   }
 }
 
-async function request<T>(path: string, { method = 'GET', json }: { method?: string; json?: unknown }): Promise<T> {
+async function request<T>(path: string, { method = 'GET', json, form }: ApiInit): Promise<T> {
   let res: Response;
   try {
+    // Formularz powstaje przy każdym żądaniu, bo ponowienie po odświeżeniu tokenu wysyła go jeszcze raz.
+    const body = form ? await form() : json !== undefined ? JSON.stringify(json) : undefined;
     res = await fetch(`${API_URL}${path}`, {
       method,
       headers: {
         ...(json !== undefined ? { 'content-type': 'application/json' } : {}),
         ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
       },
-      body: json !== undefined ? JSON.stringify(json) : undefined,
+      body,
     });
   } catch {
     throw new ApiError(0, 'NETWORK');

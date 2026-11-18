@@ -23,10 +23,10 @@ import {
 import { Button, useTheme } from '../components/ui';
 import { t } from '../i18n';
 import { ApiError, errorMessage } from '../lib/api';
-import { clock, distance, km, money, scooterNo } from '../lib/format';
+import { clock, distance, km, money, scooterNo, timeOnly } from '../lib/format';
 import { useLocation } from '../lib/location';
 import { usePreferences } from '../lib/preferences';
-import { liveCounters, liveTotal, useNow, useRental, type TrackedRental } from '../lib/rental';
+import { liveCounters, liveTotal, useNow, useRental, wantsParkingPhoto, type TrackedRental } from '../lib/rental';
 import { loadNearestParking, rideLabel, routeMinutes, useLiveRoute } from '../lib/routes';
 import { useZones } from '../lib/zones';
 
@@ -50,14 +50,18 @@ const scooterPoint = (v: RentalView): MapPoint | null =>
  */
 export default function RideScreen() {
   const theme = useTheme();
-  const { rental, outcome, start, clearOutcome } = useRental();
+  const { rental, outcome, start, clearOutcome, photoSent } = useRental();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Zakończony przejazd (także zdalnie przez operatora) prowadzi do podsumowania.
+  // Zakończony przejazd prowadzi do zdjęcia parkowania (po zakończeniu przez klienta, ADR 0057), a potem
+  // do podsumowania; zakończony zdalnie przez operatora od razu do podsumowania.
   useEffect(() => {
-    if (outcome?.cause === 'ended') router.replace({ pathname: '/podsumowanie/[id]', params: { id: outcome.view.id } });
-  }, [outcome]);
+    if (outcome?.cause !== 'ended') return;
+    const v = outcome.view;
+    if (wantsParkingPhoto(v) && !photoSent(v.id)) router.replace({ pathname: '/zdjecie/[id]', params: { id: v.id } });
+    else router.replace({ pathname: '/podsumowanie/[id]', params: { id: v.id } });
+  }, [outcome, photoSent]);
 
   if (!rental) {
     if (outcome?.cause === 'unlockFailed') {
@@ -130,6 +134,7 @@ export default function RideScreen() {
       </WaitScreen>
     );
   }
+  if (v.state === 'ENDING' && v.endMode === 'CUSTOMER_OFFLINE') return <OfflineEnding tracked={rental} />;
   if (v.state === 'ENDING') {
     return (
       <WaitScreen
@@ -256,6 +261,8 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
   // Najbliższa strefa z odmowy zakończenia; panel „Tu nie zakończysz jazdy”; prowadzenie do strefy.
   const [hint, setHint] = useState<NearestParking | null>(null);
   const [panel, setPanel] = useState(false);
+  // Odmowa zakończenia bez łączności z powodu starej pozycji (`POSITION_STALE`, ADR 0056).
+  const [stale, setStale] = useState(false);
   const [guiding, setGuiding] = useState(false);
   const [arrived, setArrived] = useState<{ code: string; name: string } | null>(null);
   const [flash, setFlash] = useState<Banner | null>(null);
@@ -267,21 +274,32 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
   const counters = liveCounters(tracked, now);
   const stop = stopReason(v);
   const limit = stop ? null : v.zoneControl.speedLimitKmh;
+  // Limit ze strefy wolnej jazdy; bez niej limit 10 km/h pochodzi z krytycznej baterii (ADR 0056).
+  const zoneLimit = limit !== null && v.zones.some((z) => z.speedLimitKmh !== null) ? limit : null;
+  const battery = v.batteryAlert ?? null;
   const parkingZone = v.zones.find((z) => z.type === 'PARKING');
+  // Hulajnoga bez łączności (ADR 0056): ostatnia pozycja i jej wiek, prowadzenie od telefonu.
+  const offline = v.scooterOnline === false;
+  const positionAge = v.positionAt
+    ? Math.max(0, (Date.parse(v.asOf) - Date.parse(v.positionAt)) / 1000 + (now - tracked.receivedAt) / 1000)
+    : null;
+  const origin = offline ? position : scooter;
 
-  // Trasa do strefy parkowania od hulajnogi (ADR 0048): podgląd w panelu odmowy i prowadzenie.
+  // Trasa do strefy parkowania od hulajnogi (ADR 0048), a bez łączności od telefonu, bo klient stoi przy
+  // hulajnodze, a jej pozycja się nie zmienia: podgląd w panelu odmowy i prowadzenie.
   const parking = useLiveRoute<NearestParkingRoute>(
     panel || guiding ? 'parking' : null,
-    scooter,
+    origin,
     loadNearestParking,
     (r) => r.route.line,
   );
   const toParking =
-    parking.data ?? (hint && scooter && (parking.failed || parking.revision > 0) ? straightTo(hint, scooter) : null);
+    parking.data ?? (hint && origin && (parking.failed || parking.revision > 0) ? straightTo(hint, origin) : null);
 
   // Zmiany stref w trakcie jazdy: chwilowy komunikat po zdjęciu zatrzymania i przy wjeździe do wolnej jazdy i wyjeździe z niej.
-  const previous = useRef({ stop, limit });
+  const previous = useRef({ stop, limit: zoneLimit });
   useEffect(() => {
+    const limit = zoneLimit;
     const before = previous.current;
     previous.current = { stop, limit };
     if (before.stop && !stop) {
@@ -309,7 +327,7 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
         lead: t('ride.zone.slowEnded.lead'),
       });
     }
-  }, [stop, limit]);
+  }, [stop, zoneLimit]);
   useEffect(() => {
     if (!flash) return;
     const timer = setTimeout(() => setFlash(null), FLASH_MS);
@@ -332,7 +350,7 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
   // Mapa przesuwa się tylko po zmianie klucza: nowy punkt trasy, nowa trasa do strefy albo panel odmowy.
   const showParking = (panel || guiding) && !!toParking;
   const parkingBounds =
-    showParking && scooter ? boundsOf([[scooter.lon, scooter.lat], toParking!.target, ...toParking!.route.line]) : null;
+    showParking && origin ? boundsOf([[origin.lon, origin.lat], toParking!.target, ...toParking!.route.line]) : null;
   const focus: MapFocus | null = !scooter
     ? null
     : parkingBounds
@@ -353,8 +371,9 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
         e instanceof ApiError && e.code === 'OUTSIDE_PARKING'
           ? (e.details?.nearestParking as NearestParking | undefined)
           : undefined;
-      if (e instanceof ApiError && e.code === 'OUTSIDE_PARKING') {
+      if (e instanceof ApiError && (e.code === 'OUTSIDE_PARKING' || e.code === 'POSITION_STALE')) {
         setHint(nearest ?? null);
+        setStale(e.code === 'POSITION_STALE');
         setGuiding(false);
         setPanel(true);
       } else setError(errorMessage(e));
@@ -394,7 +413,16 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
   // i trwała wolna jazda.
   let banner: Banner | null = null;
   if (!paused && !panel) {
-    if (stop) {
+    if (offline) {
+      // Hulajnoga nie odpowiada (makieta przejazd-lacznosc); po 30 min naliczanie stoi, a kończy operator.
+      banner = {
+        key: 'offline',
+        icon: 'wifiOff',
+        tone: 'neutral',
+        title: v.billingStopped ? t('ride.offline.stoppedTitle') : t('ride.offline.title'),
+        lead: v.billingStopped ? t('ride.offline.stoppedLead') : t('ride.offline.lead'),
+      };
+    } else if (stop) {
       banner = {
         key: stop,
         icon: stop === 'NO_RIDE' ? 'noEntry' : 'map',
@@ -411,7 +439,16 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
         lead: t('ride.guide.arrivedLead'),
       };
     } else if (flash) banner = flash;
-    else if (!guiding && limit !== null) {
+    else if (battery && !guiding) {
+      // Niska bateria (makieta przejazd-bateria): przy progu krytycznym hulajnoga zwalnia do 10 km/h.
+      banner = {
+        key: `battery:${battery}`,
+        icon: 'batteryLow',
+        tone: 'warning',
+        title: t.dynamic(`ride.lowBattery.${battery}.title`),
+        lead: t.dynamic(`ride.lowBattery.${battery}.lead`, { value: v.scooter.batteryPct ?? 0, limit: limit ?? 0 }),
+      };
+    } else if (!guiding && limit !== null) {
       banner = {
         key: 'slow',
         icon: 'gauge',
@@ -445,32 +482,48 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
         ? `${hint.code} ${hint.name}`
         : '';
     const meters = route?.distanceM ?? hint?.distanceM ?? null;
+    // Bez łączności (makieta koniec-offline-poza-strefa): ostatnia pozycja poza strefą albo za stara.
+    const subtitle = stale
+      ? t('ride.offlineEnd.staleSubtitle')
+      : offline
+        ? t('ride.offlineEnd.subtitle')
+        : outsideSubtitle;
+    const lead = stale
+      ? t('ride.offlineEnd.staleLead', { minutes: Math.max(1, Math.round((positionAge ?? 0) / 60)) })
+      : offline && meters !== null
+        ? t('ride.offlineEnd.lead', { zone: zoneName, distance: distance(meters) })
+        : meters === null
+          ? null
+          : route && !route.approximate && route.durationSec !== null
+            ? t('ride.outside.leadRoute', {
+                zone: zoneName,
+                distance: distance(meters),
+                minutes: routeMinutes(route.durationSec),
+              })
+            : t('ride.outside.lead', { zone: zoneName, distance: distance(meters) });
     bottom = (
       <FloatingSheet>
-        <AlertHeader icon="parking" tone="danger" title={t('ride.outside.title')} subtitle={outsideSubtitle} />
-        {meters !== null && (
-          <SheetText>
-            {route && !route.approximate && route.durationSec !== null
-              ? t('ride.outside.leadRoute', {
-                  zone: zoneName,
-                  distance: distance(meters),
-                  minutes: routeMinutes(route.durationSec),
-                })
-              : t('ride.outside.lead', { zone: zoneName, distance: distance(meters) })}
-          </SheetText>
-        )}
+        <AlertHeader icon="parking" tone="danger" title={t('ride.outside.title')} subtitle={subtitle} />
+        {lead && <SheetText>{lead}</SheetText>}
         <View style={{ gap: 10 }}>
-          <Button
-            label={t('ride.outside.guide')}
-            disabled={!toParking}
-            onPress={() => {
-              setPanel(false);
-              setArrived(null);
-              setGuiding(true);
-            }}
-          />
+          {(!stale || origin) && (
+            <Button
+              label={t('ride.outside.guide')}
+              disabled={!toParking}
+              onPress={() => {
+                setPanel(false);
+                setArrived(null);
+                setGuiding(true);
+              }}
+            />
+          )}
           <Button label={t('ride.outside.back')} kind="secondary" onPress={() => setPanel(false)} />
         </View>
+        {(offline || stale) && (
+          <Text style={{ fontSize: 14, color: theme.muted, textAlign: 'center', marginTop: -2 }}>
+            {t('ride.help', { phone: t('blocked.phone') })}
+          </Text>
+        )}
       </FloatingSheet>
     );
   } else if (paused) {
@@ -566,7 +619,21 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
               <Stats
                 items={[
                   { value: km(v.distanceM), label: t('ride.distance') },
-                  { value: speed, label: t('ride.speed') },
+                  offline
+                    ? {
+                        value: t('scooter.noValue'),
+                        label:
+                          positionAge !== null
+                            ? t('ride.offline.lastPosition', { time: clock(positionAge) })
+                            : t('ride.offline.noPosition'),
+                      }
+                    : battery && v.scooter.batteryPct !== null
+                      ? {
+                          value: t('units.percent', { value: v.scooter.batteryPct }),
+                          label: t('ride.batteryShort'),
+                          color: theme.warning,
+                        }
+                      : { value: speed, label: t('ride.speed') },
                   { value: money(liveTotal(tracked, now)), label: t('ride.cost') },
                 ]}
               />
@@ -575,13 +642,25 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
         )}
         <View style={{ flex: 1 }} />
         <ButtonRow>
-          <Button
-            label={t('ride.pause')}
-            kind="secondary"
-            busy={busy === 'pause' || v.pendingCommand === 'LOCK'}
-            disabled={!!busy || !!v.pendingCommand}
-            onPress={() => void act('pause', pause)}
-          />
+          {battery && !guiding && !offline ? (
+            // Niska bateria (makieta przejazd-bateria): prowadzenie do strefy zamiast pauzy.
+            <Button
+              label={t('ride.outside.guide')}
+              kind="secondary"
+              onPress={() => {
+                setArrived(null);
+                setGuiding(true);
+              }}
+            />
+          ) : (
+            <Button
+              label={t('ride.pause')}
+              kind="secondary"
+              busy={busy === 'pause' || v.pendingCommand === 'LOCK'}
+              disabled={!!busy || !!v.pendingCommand}
+              onPress={() => void act('pause', pause)}
+            />
+          )}
           <Button
             label={lockFailed ? t('ride.retry') : t('ride.end')}
             kind="dark"
@@ -618,9 +697,9 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
           routeMuted={paused}
           drive={solidParking ? parkingLine : []}
           guide={solidParking ? [] : parkingLine}
-          user={paused || panel ? position : scooter}
+          user={paused || panel || offline ? position : scooter}
           userStyle={paused ? 'ring' : 'dot'}
-          parked={paused || panel ? scooter : null}
+          parked={paused || panel || offline ? scooter : null}
           padding={{ top: topInset, bottom: paused || panel ? 330 : sheetHeight + 16, left: 40, right: 40 }}
         />
       )}
@@ -642,6 +721,10 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
         >
           {paused ? (
             <Pill icon="lockClosed">{t('ride.paused.locked')}</Pill>
+          ) : panel && offline ? (
+            <Pill icon="wifiOff">
+              {t('ride.offlineEnd.pill', { minutes: Math.max(1, Math.round((positionAge ?? 0) / 60)) })}
+            </Pill>
           ) : panel ? (
             <Pill>{t('ride.paused.rideTimer', { time: rideTimer })}</Pill>
           ) : (
@@ -649,6 +732,8 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
           )}
           {paused ? (
             <Pill>{t('ride.paused.rideTimer', { time: clock(counters.rideSeconds) })}</Pill>
+          ) : panel && offline ? (
+            <Pill>{rideTimer}</Pill>
           ) : panel ? (
             <Pill>{km(v.distanceM)}</Pill>
           ) : v.scooter.batteryPct !== null ? (
@@ -801,6 +886,125 @@ function GuideCard({
       >
         <Icon name="close" color={theme.ink} size={18} strokeWidth={2} />
       </Pressable>
+    </View>
+  );
+}
+
+/**
+ * Zakończenie bez łączności (makieta koniec-offline, ADR 0056): naliczanie skończyło się przy żądaniu,
+ * blokada czeka na powrót łączności do 10 min, a zdjęcie hulajnogi jest wymagane. Klient nie musi czekać:
+ * po wysłaniu zdjęcia wraca do mapy, a przejazd zamknie się sam (z tą samą kwotą także bez blokady).
+ */
+function OfflineEnding({ tracked }: { tracked: TrackedRental }) {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const now = useNow();
+  const { photoSent } = useRental();
+  const v = tracked.view;
+  const scooter = scooterPoint(v);
+  const done = !!v.parkingPhoto || photoSent(v.id);
+  const counters = liveCounters(tracked, now);
+  const zone = v.endZone ?? v.zones.find((z) => z.type === 'PARKING') ?? null;
+  const ageMinutes = v.positionAt
+    ? Math.max(0, Math.round((Date.parse(v.asOf) - Date.parse(v.positionAt) + now - tracked.receivedAt) / 60000))
+    : null;
+  // Koniec naliczania: chwila żądania, czyli start przejazdu z czasem jazdy i pauzy z widoku.
+  const paidUntil =
+    v.billedUntil ??
+    (v.startedAt ? new Date(Date.parse(v.startedAt) + (v.rideSeconds + v.pauseSeconds) * 1000).toISOString() : null);
+  const route = v.route;
+  const bounds = route.length ? boundsOf(route) : null;
+  const focus: MapFocus | null = bounds
+    ? { key: 'offline-end', bounds }
+    : scooter
+      ? { key: 'offline-end', center: [scooter.lon, scooter.lat], zoom: 16 }
+      : null;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.map }}>
+      <View style={{ height: 240 + insets.top }} accessibilityLabel={t('ride.map')}>
+        {focus && (
+          <MapView
+            focus={focus}
+            route={route}
+            routeMuted
+            parked={scooter}
+            padding={{ top: insets.top + 24, bottom: 48, left: 40, right: 40 }}
+          />
+        )}
+      </View>
+      <View
+        style={{
+          flex: 1,
+          marginTop: -20,
+          backgroundColor: theme.scheme === 'dark' ? theme.surface : theme.bg,
+          borderTopLeftRadius: 32,
+          borderTopRightRadius: 32,
+          paddingTop: 24,
+          paddingHorizontal: 24,
+          paddingBottom: 16 + insets.bottom,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <IconBadge icon="wifiOff" tone="neutral" size={44} iconSize={19} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text
+              accessibilityRole="header"
+              style={{ fontSize: 22, fontWeight: '600', letterSpacing: -0.4, color: theme.ink }}
+            >
+              {t('ride.offlineEnd.title')}
+            </Text>
+            <Text style={{ fontSize: 14, color: theme.muted }}>
+              {t('ride.offlineEnd.notResponding', { number: scooterNo(v.scooter.number) })}
+            </Text>
+          </View>
+        </View>
+        <View style={{ marginTop: 22 }}>
+          <Stats
+            align="left"
+            items={[
+              { value: clock(counters.rideSeconds + counters.pauseSeconds), label: t('ride.timeShort') },
+              { value: km(v.distanceM), label: t('ride.distance') },
+              { value: money(v.price.total), label: t('ride.offlineEnd.toPay') },
+            ]}
+          />
+        </View>
+        <Steps
+          style={{ marginTop: 24, paddingTop: 22, gap: 16, borderTopWidth: 1, borderColor: theme.line }}
+          steps={[
+            {
+              label: zone
+                ? t('ride.offlineEnd.position', { zone: `${zone.code} ${zone.name}` })
+                : t('ride.offlineEnd.positionParking'),
+              detail: ageMinutes !== null ? t('ride.offlineEnd.ago', { minutes: ageMinutes }) : undefined,
+              state: 'done',
+            },
+            {
+              label: paidUntil
+                ? t('ride.offlineEnd.paidUntil', { time: timeOnly(paidUntil) })
+                : t('ride.offlineEnd.paid'),
+              detail: t('ride.offlineEnd.paidLead'),
+              state: 'done',
+            },
+            { label: t('ride.offlineEnd.lock'), detail: t('ride.offlineEnd.lockLead'), state: 'spin' },
+            done
+              ? { label: t('ride.offlineEnd.photoDone'), state: 'done' }
+              : { label: t('ride.offlineEnd.photo'), detail: t('ride.offlineEnd.photoLead'), state: 'next' },
+          ]}
+        />
+        <View style={{ flex: 1 }} />
+        <Text style={{ fontSize: 14, lineHeight: 20, color: theme.muted, textAlign: 'center', marginBottom: 14 }}>
+          {t('ride.offlineEnd.note')}
+        </Text>
+        {done ? (
+          <Button label={t('ride.offlineEnd.toMap')} kind="dark" onPress={() => router.replace('/mapa')} />
+        ) : (
+          <Button
+            label={t('ride.offlineEnd.photo')}
+            onPress={() => router.push({ pathname: '/zdjecie/[id]', params: { id: v.id, then: 'offline' } })}
+          />
+        )}
+      </View>
     </View>
   );
 }

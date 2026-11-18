@@ -153,15 +153,30 @@ export function BottomSheet({ visible, onClose, children }: { visible: boolean; 
   );
 }
 
-export type StepState = 'done' | 'spin' | 'todo' | 'fail';
+/** `next`: krok czekający na klienta (grafitowy pierścień, pogrubiony; makieta koniec-offline). */
+export type StepState = 'done' | 'spin' | 'todo' | 'fail' | 'next';
 
-/** Kroki oczekiwania na hulajnogę (makiety przejazd-odblokowywanie, przejazd-konczenie, odblokowanie-nieudane). */
-export function Steps({ steps }: { steps: { label: string; state: StepState }[] }) {
+/**
+ * Kroki oczekiwania na hulajnogę (makiety przejazd-odblokowywanie, przejazd-konczenie, odblokowanie-nieudane)
+ * i kroki z podpisem pod etykietą (koniec-offline, zgloszenie-wyslane).
+ */
+export function Steps({
+  steps,
+  style,
+}: {
+  steps: { label: string; state: StepState; detail?: string }[];
+  style?: ViewStyle;
+}) {
   const theme = useTheme();
   return (
-    <View style={styles.steps}>
+    <View style={[styles.steps, style]}>
       {steps.map((s) => (
-        <View key={s.label} style={styles.step} accessible accessibilityLabel={s.label}>
+        <View
+          key={s.label}
+          style={[styles.step, s.detail ? { alignItems: 'flex-start' } : null]}
+          accessible
+          accessibilityLabel={s.detail ? `${s.label}. ${s.detail}` : s.label}
+        >
           {s.state === 'done' || s.state === 'fail' ? (
             <View style={[styles.stepDot, { backgroundColor: s.state === 'done' ? theme.accent : theme.danger }]}>
               <Icon name={s.state === 'done' ? 'check' : 'close'} color="#FFFFFF" size={14} strokeWidth={2.6} />
@@ -170,20 +185,27 @@ export function Steps({ steps }: { steps: { label: string; state: StepState }[] 
             <View style={styles.stepDot}>
               <ActivityIndicator color={theme.accent} />
             </View>
+          ) : s.state === 'next' ? (
+            <View style={[styles.stepDot, { borderWidth: 2, borderColor: theme.ink }]} />
           ) : (
             <View style={[styles.stepDot, { borderWidth: 1.5, borderColor: theme.checkbox }]} />
           )}
-          <Text
-            style={[
-              styles.stepText,
-              {
-                color: s.state === 'fail' ? theme.danger : s.state === 'todo' ? theme.muted : theme.ink,
-                fontWeight: s.state === 'spin' || s.state === 'fail' ? '600' : '400',
-              },
-            ]}
-          >
-            {s.label}
-          </Text>
+          <View style={[styles.flex, s.detail ? { gap: 2, paddingTop: 2 } : null]}>
+            <Text
+              style={[
+                styles.stepText,
+                {
+                  color:
+                    s.state === 'fail' ? theme.danger : s.state === 'todo' && !s.detail ? theme.muted : theme.ink,
+                  fontWeight: s.state === 'spin' || s.state === 'fail' || s.state === 'next' ? '600' : '400',
+                },
+                s.detail && s.state === 'spin' ? { fontWeight: '400' } : null,
+              ]}
+            >
+              {s.label}
+            </Text>
+            {s.detail ? <Text style={[styles.stepDetail, { color: theme.muted }]}>{s.detail}</Text> : null}
+          </View>
         </View>
       ))}
     </View>
@@ -196,7 +218,7 @@ export function Stats({
   size = 20,
   align = 'center',
 }: {
-  items: { value: string; label: string }[];
+  items: { value: string; label: string; color?: string }[];
   size?: number;
   align?: 'center' | 'left';
 }) {
@@ -214,7 +236,7 @@ export function Stats({
             i ? { borderLeftWidth: 1, borderColor: theme.line } : null,
           ]}
         >
-          <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.statValue, { color: theme.ink, fontSize: size }]}>
+          <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.statValue, { color: item.color ?? theme.ink, fontSize: size }]}>
             {item.value}
           </Text>
           <Text style={[styles.statLabel, { color: theme.muted }]}>{item.label}</Text>
@@ -249,7 +271,8 @@ const styles = StyleSheet.create({
   steps: { gap: 18, marginTop: 28 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  stepText: { fontSize: 16, flex: 1 },
+  stepText: { fontSize: 16 },
+  stepDetail: { fontSize: 14, lineHeight: 19 },
   stats: { flexDirection: 'row' },
   stat: { flex: 1, gap: 2 },
   statValue: { fontWeight: '500', letterSpacing: -0.3 },

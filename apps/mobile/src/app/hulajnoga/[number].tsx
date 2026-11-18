@@ -14,6 +14,7 @@ import { ApiError, api, errorMessage } from '../../lib/api';
 import { distance, money, scooterNo, walkMinutes } from '../../lib/format';
 import { useLocation } from '../../lib/location';
 import { useMapIntent } from '../../lib/map-intent';
+import { useNotifications } from '../../lib/notifications';
 import { useRental } from '../../lib/rental';
 
 const REASON_ICON: Record<UnavailableReason, { icon: IconName; tone: BadgeTone }> = {
@@ -30,8 +31,8 @@ const REASON_ICON: Record<UnavailableReason, { icon: IconName; tone: BadgeTone }
 /**
  * Hulajnoga po skanie albo numerze: szczegóły z dzwonkiem i suwakiem odblokowania (makieta
  * produkt-hulajnoga) albo „Tej hulajnogi nie wypożyczysz” z przyczyną (stan-niedostepna,
- * hulajnoga-niedostepna-strefa). „Trasa” wraca na mapę z trasą pieszą (hulajnoga-trasa); „Zgłoś” jest
- * ukryte do iteracji 6 (decyzja D5).
+ * hulajnoga-niedostepna-strefa). „Trasa” wraca na mapę z trasą pieszą (hulajnoga-trasa). Zgłoszenie
+ * usterki bez przejazdu otwiera karta hulajnogi na mapie (makieta zgloszenie-z-przejazdu).
  */
 export default function ScooterScreen() {
   const theme = useTheme();
@@ -39,6 +40,7 @@ export default function ScooterScreen() {
   const { position } = useLocation();
   const { start } = useRental();
   const { setWalkTo } = useMapIntent();
+  const { askOnce } = useNotifications();
   const [scooter, setScooter] = useState<CustomerScooterView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -110,6 +112,8 @@ export default function ScooterScreen() {
     setBusy(true);
     setError(null);
     try {
+      // Przed pierwszym startem prośba o powiadomienia (ADR 0058), potem przerwany start.
+      await askOnce();
       await start(scooter!.id);
       router.replace('/przejazd');
     } catch (e) {
