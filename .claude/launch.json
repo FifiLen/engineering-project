@@ -42,6 +42,46 @@
         "8082"
       ],
       "port": 8082
+    },
+    {
+      "name": "api-local",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "API_PORT=3001",
+        "PANEL_URL=http://localhost:3002",
+        "node",
+        "apps/api/dist/main.js"
+      ],
+      "port": 3001
+    },
+    {
+      "name": "mobile-web-local",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "EXPO_PUBLIC_API_URL=http://localhost:3001",
+        "pnpm",
+        "--filter",
+        "@hulajnogi/mobile",
+        "run",
+        "web",
+        "--port",
+        "8082"
+      ],
+      "port": 8082
+    },
+    {
+      "name": "web-start",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@hulajnogi/web",
+        "exec",
+        "next",
+        "start",
+        "--port",
+        "3006"
+      ],
+      "port": 3006
     }
   ]
 }

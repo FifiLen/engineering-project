@@ -15,7 +15,7 @@ Uwagi do eksportu:
 - Plansze z katalogu `00-eksploracja` używały krojów Space Grotesk, JetBrains Mono, Bricolage Grotesque i DM Sans; na zrzutach zastąpiono je krojem systemowym. Obecny kierunek używa tylko Intera.
 - Liczby w makietach (np. 87%, 2,4 km, nazwiska w panelu) są przykładowe.
 
-Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **120**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
+Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **142**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
 
 ## Eksploracja kierunku (archiwum)
 
@@ -409,3 +409,69 @@ Ustalenia z plansz:
 - Powody (propozycja do ADR 0054): korekta — Reklamacja, Błąd systemu, Gest dobrej woli, Inny powód; zwrot — Awaria hulajnogi, Błąd naliczenia, Reklamacja klienta, Inny powód.
 - Karta klienta ma liczbę zaległości, ostrzeżenie o saldzie poniżej minimum i metody płatności klienta. „Eksportuj XLSX” na liście płatności to iteracja 8.
 
+
+## Aplikacja: operacje (iteracja 6)
+
+Brakujące stany z [planu iteracji 6](../iteracje/iteracja-06-operacje-serwis.md) według odpowiedzi autora (18 listopada 2026), na stylach `20-mobile-wypozyczenie`, `22-mobile-strefy` i `24-mobile-platnosci`. Rozwijają `06-mobile-profil/profil-usterka`, `profil-ustawienia`, `05-mobile-przejazd/przejazd-zdjecie` i `przejazd-lacznosc`.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Zgłoszenie z przejazdu | [PNG](ekrany/26-mobile-operacje/zgloszenie-z-przejazdu.png) | [HTML](ekrany/26-mobile-operacje/zgloszenie-z-przejazdu.html) | 390×844 |
+| Zgłoszenie wysłane | [PNG](ekrany/26-mobile-operacje/zgloszenie-wyslane.png) | [HTML](ekrany/26-mobile-operacje/zgloszenie-wyslane.html) | 390×844 |
+| Moje zgłoszenia | [PNG](ekrany/26-mobile-operacje/moje-zgloszenia.png) | [HTML](ekrany/26-mobile-operacje/moje-zgloszenia.html) | 390×844 |
+| Zgłoszenie z odpowiedzią | [PNG](ekrany/26-mobile-operacje/zgloszenie-szczegoly.png) | [HTML](ekrany/26-mobile-operacje/zgloszenie-szczegoly.html) | 390×844 |
+| Zdjęcie parkowania | [PNG](ekrany/26-mobile-operacje/zdjecie-parkowania.png) | [HTML](ekrany/26-mobile-operacje/zdjecie-parkowania.html) | 390×844 |
+| Zdjęcie parkowania: błąd wysyłki | [PNG](ekrany/26-mobile-operacje/zdjecie-parkowania-blad.png) | [HTML](ekrany/26-mobile-operacje/zdjecie-parkowania-blad.html) | 390×844 |
+| Zdjęcie parkowania bez aparatu | [PNG](ekrany/26-mobile-operacje/zdjecie-parkowania-bez-aparatu.png) | [HTML](ekrany/26-mobile-operacje/zdjecie-parkowania-bez-aparatu.html) | 390×844 |
+| Zgoda na powiadomienia | [PNG](ekrany/26-mobile-operacje/powiadomienia-zgoda.png) | [HTML](ekrany/26-mobile-operacje/powiadomienia-zgoda.html) | 390×844 |
+| Ustawienia: powiadomienia wyłączone | [PNG](ekrany/26-mobile-operacje/ustawienia-powiadomienia-wylaczone.png) | [HTML](ekrany/26-mobile-operacje/ustawienia-powiadomienia-wylaczone.html) | 390×844 |
+| Zakończenie bez łączności | [PNG](ekrany/26-mobile-operacje/koniec-offline.png) | [HTML](ekrany/26-mobile-operacje/koniec-offline.html) | 390×844 |
+| Zakończenie bez łączności poza strefą | [PNG](ekrany/26-mobile-operacje/koniec-offline-poza-strefa.png) | [HTML](ekrany/26-mobile-operacje/koniec-offline-poza-strefa.html) | 390×844 |
+| Baner powiadomienia (wersja web) | [PNG](ekrany/26-mobile-operacje/baner-powiadomienia.png) | [HTML](ekrany/26-mobile-operacje/baner-powiadomienia.html) | 390×844 |
+
+Ustalenia z plansz:
+
+- Formularz nazywa się „Zgłoś problem”, bo obejmuje też reklamację opłaty; ten sam tytuł dostaje wejście z profilu (`profil-usterka`). Z podsumowania przejazdu i z karty hulajnogi hulajnoga jest podstawiona bez wyboru; z karty hulajnogi nie ma „Rozliczenie” (brak przejazdu). Wybór hulajnogi zostaje tylko przy wejściu z profilu.
+- Kategorie wielokrotnego wyboru; kategoria łączności jest ukryta przed klientem (zgłoszenia automatyczne). Opis wymagany przy „Rozliczenie” i „Inne”, do [3] zdjęć. Kategorie pilne (hamulce, koło, kierownica) mają notkę już w formularzu, a potwierdzenie pokazuje kartę „wyłączona z ruchu” (w trakcie przejazdu: „po zakończeniu przejazdu” i „Prowadź do strefy”, D5).
+- Numer zgłoszenia dla klienta ma format Z-1042. Statusy dla klienta: Przyjęte, W toku, W serwisie, Rozwiązane; pilności i zgłoszeń automatycznych ani założonych przez operatora klient nie widzi. Kropka w kolorze akcji oznacza nieprzeczytaną odpowiedź.
+- Odpowiedź to jedno pole bez czatu (D7); historia pokazuje tylko zmiany statusu, bez nazwisk i notatek wewnętrznych. Zwrot z reklamacji jest w kolorze akcji z odnośnikiem do korekty paragonu.
+- Kolejność po zakończeniu: `przejazd-konczenie` → aparat (`przejazd-zdjecie` z „Pomiń”) → podgląd → podsumowanie. Przejazd jest już `ENDED`, więc zdjęcie niczego nie blokuje; „Wyślij ponownie” wysyła ten sam plik, bez kolejki w tle. Po zakończeniu bez łączności zdjęcie jest wymagane i nie ma „Pomiń”.
+- Bez aparatu główną akcją jest wybór pliku (JPG, PNG albo HEIC, do [10] MB); w wersji web bez „Otwórz ustawienia telefonu” i z tytułem „Dodaj zdjęcie z pliku”.
+- Prośba o powiadomienia pojawia się raz, przy pierwszej rezerwacji albo pierwszym starcie, nie przy rejestracji; „Nie teraz” jej nie ponawia, wersja web jej nie pokazuje. Preferencje w ustawieniach zostają edytowalne mimo blokady w systemie; niska bateria, nieudana płatność i odpowiedź na zgłoszenie nie mają przełącznika, „Promocje” to zgoda marketingowa.
+- Zakończenie bez łączności (pytanie 1): „Zakończ” w `przejazd-lacznosc` jest aktywny, gdy ostatnia pozycja nie starsza niż 2 min leży w strefie parkowania. Naliczanie kończy się przy żądaniu, blokada czeka do 10 min, a klient nie musi czekać, ale nie zacznie nowego przejazdu, dopóki ten jest w `ENDING`. Gdy pozycja jest poza strefą albo starsza niż 2 min, zakończenia nie ma, a prowadzenie do strefy liczy trasę od telefonu.
+- Baner w wersji web (D2) jest widoczny [6] s, nowy zastępuje poprzedni, dotknięcie otwiera ekran według rodzaju powiadomienia. Niska bateria w jeździe nie ma banera, bo ekran jazdy ma własny komunikat.
+
+Implementacja (18 listopada 2026) odchodzi od plansz w kilku miejscach: szczegóły zgłoszenia bez „Zwrot do portfela” i „Korekta paragonu”, baner bez zamykania gestem i oznaczania odczytu, niska bateria w procentach zamiast kilometrów, aparat bez latarki, bez wejścia „zgłoś w trakcie jazdy”, a arkusz „Zmień”, panel kończenia bez łączności na mapie i wybór aparat albo galeria powstały bez makiety. Pełna lista: [dziennik, iteracja 6](../dziennik.md#iteracja-6-implementacja-18-listopada-2026).
+
+## Panel operatora: serwis (iteracja 6)
+
+Plansze w nawigacji z `25-panel-platnosci` z nową grupą Serwis (Zgłoszenia z liczbą nowych, Zadania, Części) i pozycją „Powiadomienia” w Konfiguracji. Zastępują `13-panel/admin-zgloszenia` (tablica), `admin-symulator` (suwaki, generowanie przejazdów, wykres) i `admin-pulpit` (wykresy i mapa wracają w iteracji 8), a `przejazd-zakoncz-odholowanie` zmienia zdanie „bez opłaty za parkowanie poza strefą” z `21-panel-przejazdy/przejazd-zakoncz-zdalnie` (pytanie 7).
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Zgłoszenia z panelem bocznym | [PNG](ekrany/27-panel-serwis/zgloszenia-lista.png) | [HTML](ekrany/27-panel-serwis/zgloszenia-lista.html) | 1440×900 |
+| Zgłoszenie: reklamacja i odpowiedź | [PNG](ekrany/27-panel-serwis/zgloszenie-szczegoly.png) | [HTML](ekrany/27-panel-serwis/zgloszenie-szczegoly.html) | 1440×900 |
+| Zadania serwisowe | [PNG](ekrany/27-panel-serwis/zadania-lista.png) | [HTML](ekrany/27-panel-serwis/zadania-lista.html) | 1440×900 |
+| Zakończenie zadania | [PNG](ekrany/27-panel-serwis/zadanie-zakoncz.png) | [HTML](ekrany/27-panel-serwis/zadanie-zakoncz.html) | 1440×900 |
+| Magazyn części: przyjęcie dostawy | [PNG](ekrany/27-panel-serwis/czesci-magazyn.png) | [HTML](ekrany/27-panel-serwis/czesci-magazyn.html) | 1440×900 |
+| Hulajnoga: serwis i „Wyślij do serwisu” | [PNG](ekrany/27-panel-serwis/hulajnoga-serwis.png) | [HTML](ekrany/27-panel-serwis/hulajnoga-serwis.html) | 1440×900 |
+| Szablony powiadomień | [PNG](ekrany/27-panel-serwis/szablony-powiadomien.png) | [HTML](ekrany/27-panel-serwis/szablony-powiadomien.html) | 1440×900 |
+| Symulator | [PNG](ekrany/27-panel-serwis/symulator.png) | [HTML](ekrany/27-panel-serwis/symulator.html) | 1440×900 |
+| Zdalne zakończenie z opłatą za odholowanie | [PNG](ekrany/27-panel-serwis/przejazd-zakoncz-odholowanie.png) | [HTML](ekrany/27-panel-serwis/przejazd-zakoncz-odholowanie.html) | 1440×900 |
+| Pulpit: wymaga uwagi | [PNG](ekrany/27-panel-serwis/pulpit-uwaga.png) | [HTML](ekrany/27-panel-serwis/pulpit-uwaga.html) | 1440×900 |
+
+Ustalenia z plansz:
+
+- Pozycje bez uprawnienia są ukryte, a pusta grupa znika (ADR 0028): Serwisant nie widzi Przejazdów, Płatności, Cennika, Treści, Powiadomień ani grupy Klienci i dostęp; Dyspozytor nie widzi Operatorów ani Symulatora. Pozycje nawigacji mają 36 px, żeby pełna nawigacja Administratora zmieściła się w 900 px.
+- Zgłoszenia: szybkie filtry Otwarte (domyślnie), Nowe, W trakcie, W serwisie, Rozwiązane; pilność i źródło (Klient, Automatyczne, Operator) jako przełączniki z licznikami. Ręcznie ustawia się tylko Nowe, W trakcie i Rozwiązane; „W serwisie” ustawia utworzenie zadania, a zdejmuje zakończenie ostatniego. Pilna kategoria od razu pokazuje hulajnogę jako Serwis.
+- „Odpowiedź dla klienta” jest wymagana przy Rozwiązane; nowa zastępuje poprzednią, a poprzednie zostają na osi czasu (D6, D7). Reklamacja nie zwraca pieniędzy sama: „Zwrot za przejazd” otwiera okno `25-panel-platnosci/przejazd-zwrot`, a zwrot pojawia się na osi zgłoszenia.
+- „Utwórz zadanie” i „Wyślij do serwisu” to jedno okno: rodzaj podpowiada kategoria (Bateria → Wymiana baterii, Poza strefą → Przewiezienie, reszta → Naprawa), rodzaj już otwarty na hulajnodze jest nieaktywny, hulajnoga w przejeździe przechodzi do serwisu po jego zakończeniu.
+- „Moje zadania” to karty zadań otwartych i w toku przypisanych do zalogowanego; „Rozpocznij” przypisuje nieprzypisane zadanie do siebie. Stan części maleje przy dodaniu do zadania, usunięcie pozycji albo anulowanie zadania zwraca części.
+- Zakończenie zadania wymaga notatki i pokazuje skutek liczony z trzech warunków pytania 5 (brak innych otwartych zadań, online, bateria co najmniej [15]%); przy baterii poniżej progu proponuje zadanie Wymiana baterii. Zakończenie `BATTERY_SWAP` wysyła `battery_swapped` (pytanie 8). „Przywróć do floty” na karcie hulajnogi sprawdza tę samą regułę.
+- Magazyn: przyjęcie dostawy (ilość, opcjonalna nowa cena dla kolejnych użyć, dokument) albo korekta stanu z powodem, w jednej transakcji z blokadą wiersza i wpisem w dzienniku audytu.
+- Szablony: kodów nie dodaje się ani nie usuwa (wyznacza je rejestr zdarzeń w API); walidacja ICU przy każdej zmianie i przy zapisie (błąd z wierszem i znakiem, nieznany parametr), podgląd z ostatniej poprawnej wersji, zapis tworzy nową wersję, przywrócenie też. Kwoty formatuje API przed renderowaniem.
+- Symulator: strona i API tylko w środowisku deweloperskim, jedna aktywna operacja na hulajnogę, liczba hulajnóg i tempo tylko do odczytu; po 30 s bez `simulator/status` panel pokazuje „Symulator nie odpowiada”.
+- Odholowanie: pole tylko, gdy ostatnia pozycja jest poza strefą parkowania, domyślnie zaznaczone, kwota z wersji cennika przejazdu; po odznaczeniu zadanie `RELOCATION` powstaje i tak. Ten sam układ służy zakończeniu przy utracie łączności.
+- Pulpit: cztery grupy „Wymaga uwagi” z liczbą i najwyżej czterema pozycjami, odnośnik do listy z tym samym filtrem; każda grupa wymaga uprawnienia listy docelowej, przy zerze „Nic nie czeka”.
+
+Implementacja (18 listopada 2026) odchodzi od plansz w kilku miejscach: bez „Eksportuj XLSX”, Raportów i Wydruków w nawigacji, karta hulajnogi tylko z zakładkami Przegląd i Serwis, cel przewiezienia tylko jako strefa parkowania, szablony bez „Porównaj”, symulator bez tempa i numeru przejazdu, odholowanie bez ulicy, odległości i stawki VAT, a zgłoszenie ma dodatkowe pole „Notatka wewnętrzna”. Pełna lista: [dziennik, iteracja 6](../dziennik.md#iteracja-6-implementacja-18-listopada-2026).

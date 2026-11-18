@@ -993,3 +993,316 @@ Plan: [iteracja 5](iteracje/iteracja-05-platnosci.md), decyzje w [ADR 0049–005
 
 **Commit i CI**
 - Pięć commitów iteracji 5 (`0660b55`–`c623ac1`); CI zielone za pierwszym razem (lint, typy, migracje na czystej bazie, testy, build).
+
+## Plan iteracji 6: operacje i serwis (17 listopada 2026)
+
+Plan: [iteracja 6](iteracje/iteracja-06-operacje-serwis.md). Etap planowania, bez kodu i bez makiet.
+
+**Co powstało**
+- Plan iteracji 6. Cel: zgłoszenia klientów i automatyczne, zadania serwisowe z magazynem części i powrotem hulajnogi do floty, reguły przejazdu przy utracie łączności i niskiej baterii, zdjęcie parkowania, powiadomienia push z szablonów edytowanych w panelu, symulator sterowany z panelu, opłata za odholowanie. Granice z iteracjami 7 (wydruki, pełny moduł treści) i 8 (raporty, wykresy na pulpicie), zakres z migracją 0008, kolejność kroków i scenariusz demo w 9 krokach.
+- Stan wyjściowy spisany z kodu i migracji:
+  - tabele zgłoszeń, zadań, części, plików, powiadomień i szablonów istnieją od migracji 0001–0002, ale nie mają wersji rekordu, historii, statusu dostarczenia ani procedury zużycia części;
+  - `BATTERY_LOW` jest w typie zdarzeń, ale nikt go nie zapisuje;
+  - symulator sterujemy plikiem `control.json`;
+  - `expo-notifications` nie jest zainstalowane.
+- Lista 12 brakujących makiet (7 panelu, 5 aplikacji) i 6 ADR-ów do napisania (0055–0060). ADR 0056 zmienia ADR 0042 w części naliczania przy utracie łączności.
+- 12 pytań o wartości biznesowe (utrata łączności, niska bateria, zgłoszenia automatyczne, pilność i wyłączenie z ruchu, powrót do floty, reklamacje, opłata za odholowanie, wymiana baterii w symulatorze, zdjęcie parkowania, scenariusze symulatora, części, uprawnienia) i 8 decyzji zakresu z rekomendacją (D1–D8).
+
+**Wnioski z przeglądu kodu, migracji i makiet**
+- Dyspozytor nie ma dziś `service.manage`, więc nie założy zadania ze zgłoszenia (pytanie 12).
+- Makieta `admin-zgloszenia` to tablica kolumn sprzed wzorca listy (ADR 0031), więc D3 wybiera między listą a tablicą.
+- Klient nie zakończy dziś przejazdu przy hulajnodze offline: blokada nie przyjdzie, a po 10 s przejazd wraca do jazdy (`LOCK_FAILED`). Pytanie 1 to rozstrzyga.
+- Expo Push wymaga projektu EAS i urządzenia z development build, więc w środowisku deweloperskim potrzebna jest atrapa jak przy SMS (D2).
+- Długi z iteracji 4 i 5 (kolory warstw mapy floty, tekst o e-mailu w `profil-dane`) są w zakresie. Aktualizacja Next.js i `disableSPM` zostają decyzjami autora.
+
+**Do zrobienia przed implementacją**
+- Odpowiedzi autora na pytania i decyzje; makiety brakujących stanów; ADR-y 0055–0060.
+
+**Odpowiedzi autora (18 listopada 2026)**
+- Wszystkie rekomendacje D1–D8 i odpowiedzi na pytania 1–12 ([tabela w planie](iteracje/iteracja-06-operacje-serwis.md#odpowiedzi-autora-18-listopada-2026)).
+- Otwarta od iteracji 3 decyzja o naliczaniu przy utracie łączności jest rozstrzygnięta: naliczanie trwa, a klient kończy przejazd na podstawie ostatniej znanej pozycji (nie starszej niż 2 min) w strefie parkowania. Bez powrotu łączności w 10 min przejazd kończy się automatycznie, a bez żądania klienta naliczanie staje po 30 min. Zapisze to ADR 0056.
+- Opłatę za odholowanie pobiera operator, zaznaczając ją przy zdalnym zakończeniu poza strefą. Dyspozytor dostaje `service.manage` w migracji 0008.
+
+**Makiety (18 listopada 2026)**
+- 22 plansze w [`26-mobile-operacje` i `27-panel-serwis`](projekt/README.md#aplikacja-operacje-iteracja-6):
+  - 12 aplikacji: zgłoszenie z przejazdu, potwierdzenie, moje zgłoszenia, zgłoszenie z odpowiedzią, zdjęcie parkowania (podgląd, błąd wysyłki, bez aparatu), zgoda na powiadomienia, ustawienia z wyłączonymi powiadomieniami, zakończenie bez łączności w strefie i poza nią, baner powiadomienia w wersji web;
+  - 10 panelu: zgłoszenia z panelem bocznym, reklamacja z odpowiedzią, zadania serwisowe, zakończenie zadania, magazyn części z przyjęciem dostawy, karta hulajnogi z „Wyślij do serwisu”, szablony powiadomień, symulator, zdalne zakończenie z opłatą za odholowanie, pulpit „Wymaga uwagi”.
+
+  Spis ekranów: 142. Plansze przygotowało dwóch agentów równolegle, a PNG wyrenderował Chrome headless (aplikacja 2×, panel 1×). Wszystkie PNG obejrzane.
+- Nowe plansze zastępują `13-panel/admin-zgloszenia`, `admin-symulator` i `admin-pulpit`, a w części opłaty także `21-panel-przejazdy/przejazd-zakoncz-zdalnie`. Formularz zgłoszenia nazywa się „Zgłoś problem”, bo obejmuje reklamację opłaty.
+- **Luki w schemacie wykryte przy projektowaniu, dopisane do zakresu migracji 0008:**
+  - numer zgłoszenia z sekwencji;
+  - kategorie `BILLING` i „Poza strefą” oraz rodzaj zgłoszenia automatycznego jako kolumna do indeksu częściowego;
+  - odpowiedź dla klienta z czasem odczytu, `refunds.ticket_id`;
+  - aktor „system” w dzienniku audytu (`staff_id` jest `NOT NULL`);
+  - przyczyna stanu hulajnogi, cel zadania `RELOCATION`, ruchy magazynowe, wersje szablonów;
+  - usuwanie zdjęć po 30 dniach bez łamania klucza obcego;
+  - tryb zakończenia bez łączności z limitem 10 min dla `ENDING`.
+- **Poprawki planu:** migracja 0002 już dodała `tickets.updated_at` i `version`; „Wymaga uwagi” to D1, nie D7.
+- **Do rozstrzygnięcia w ADR 0055 i 0058:** magazyn w `service.manage` (Dyspozytor dostanie też przyjęcia), uprawnienie „Wyłącz z ruchu”, reklamacje tylko u Dyspozytora (Serwisant bez `rentals.manage`), dane klienta ukryte przed Serwisantem, kod SMS jako szablon z panelu.
+- **Sprzeczności ze starszymi planszami do poprawy przy implementacji:**
+  - `przejazd-lacznosc` ma wyszarzony „Zakończ”;
+  - `przejazd-zdjecie` nie ma „Pomiń”;
+  - `powiadomienia` pokazuje Live Activity i promocje spoza zakresu;
+  - `profil-usterka` ma tytuł „Zgłoś usterkę” i „Zmień” przy hulajnodze z podsumowania;
+  - `przejazd-konczenie` mówi, że zdjęcia nie ma;
+  - `admin-hulajnoga` ma próg baterii 20% zamiast progu z cennika.
+
+**ADR 0055–0060 (18 listopada 2026, zaakceptowane przez autora)**
+- **Sprawdzone przed pisaniem:**
+  - wersje starsze niż 3 dni: `@aws-sdk/client-s3` 3.1169.0, `@fastify/multipart` 10.1.8 (Fastify 5.x), `intl-messageformat` 12.1.5 z parserem 3.5.23 (12.2.0 z 17 listopada za świeża), `expo-server-sdk` 8.0.0 (Node ≥ 22.12); z `expo install` dla SDK 58: `expo-notifications` ~58.1.8, `expo-image-picker` ~58.0.10, `expo-image-manipulator` ~58.0.16;
+  - dokumentacja Expo: token push wymaga `projectId` z EAS i nie działa w przeglądarce, Expo Go na Androidzie nie obsługuje powiadomień zdalnych od SDK 53, symulator iOS (Xcode 14+) je odbiera, potwierdzenia po 15 min (usuwane po 24 h), `DeviceNotRegistered` usuwa token, 100 wiadomości w żądaniu;
+  - schemat: `audit_log.staff_id` jest `NOT NULL`, broker deweloperski jest anonimowy, komenda `lock` wygasa po 10 s.
+- **0055 Zgłoszenia i serwis:** numer `Z-…` z sekwencji, kategorie `BILLING` i `OUT_OF_ZONE`, `auto_kind` z indeksem częściowym, odpowiedź dla klienta z czasem odczytu, `MAINTENANCE` przy pilnym zgłoszeniu albo zadaniu (w przejeździe przy jego zakończeniu), powrót do floty regułą w core i funkcją SQL z testem zgodności, przyczyna stanu hulajnogi, ruchy magazynowe przez procedury, aktor `SYSTEM` w dzienniku audytu, Dyspozytor z `service.manage`.
+- **0056 Utrata łączności i bateria:** zmienia ADR 0042 i 0036. Zakończenie bez łączności z pozycji nie starszej niż 120 s w strefie parkowania, `lock` z ważnością 10 min, `END_UNCONFIRMED` po 10 min ze zgłoszeniem, `end_mode`, odcinki bez łączności liczone najwyżej 30 min, zdarzenie `MOVED_AFTER_END` bez automatycznej korekty, progi baterii z limitem 10 km/h przez uzgadnianie komend stref.
+- **0057 Pliki:** wysyłka i odczyt przez API zamiast podpisanego adresu S3 (zmienia założenie z ADR 0024 i arc42 §6.4), sygnatura pliku, SHA-256, adresy odczytu z podpisem HMAC na 10 min, retencja 30 dni bez łamania kluczy obcych.
+- **0058 Powiadomienia:** port `PushGateway` (atrapa domyślnie, Expo po konfiguracji), wpis `QUEUED` i zadanie pg-boss w transakcji zdarzenia, klucz idempotencji, tabela wersji szablonów, rejestr kodów i parametrów w `packages/shared`, walidacja ICU w core, kod SMS z szablonu, baner w wersji web przez Socket.IO.
+- **0059 Symulator:** osobny kontrakt `asyncapi-symulator.yaml` (`simulator/control`, `simulator/control/result`), punkt API tylko w środowisku deweloperskim z `simulator.manage` i dziennikiem audytu, ACL brokera na demo, komenda urządzenia `battery_swapped` w kontrakcie MQTT 1.3.0.
+- **0060 Odholowanie:** opłata jako część rozliczenia przejazdu (`rentals.towing_fee`, wpis `TOWING_FEE`, jedna płatność kartą na sumę, pozycja paragonu). Stawka VAT opłaty do sprawdzenia przez autora, bo może to być kara umowna bez VAT.
+
+## Iteracja 6: implementacja (18 listopada 2026)
+
+Plan: [iteracja 6](iteracje/iteracja-06-operacje-serwis.md), decyzje w [ADR 0055–0060](adr/README.md). Pracowali agenci etapami, każdy z raportem dla następnych: baza, core i shared, API w trzech częściach (A: przejazd, pliki; B: zgłoszenia, serwis; C: powiadomienia, symulator), symulator, a na końcu równolegle panel i aplikacja, każdy w swoim katalogu. Koordynator przeglądał raporty, dopisywał poprawki między etapami i domyka weryfikację techniczną.
+
+**Baza (migracja 0008)**
+- Nowe tabele `spare_part_movements` i `notification_template_versions`. Nowe wartości typów: kategorie `BILLING` i `OUT_OF_ZONE`, zdarzenia `BILLING_STOPPED` i `MOVED_AFTER_END`, wpis `TOWING_FEE`, komenda `BATTERY_SWAPPED`. Nowe typy: aktor dziennika, rodzaj zgłoszenia automatycznego, przyczyna stanu hulajnogi, ruch i powód korekty magazynu, tryb zakończenia, stan pliku i stan powiadomienia. Sekwencja numerów zgłoszeń od 1000.
+- Nowych wartości typu nie wolno użyć w transakcji, która je dodaje. Widoki, funkcje SQL, indeksy i `CHECK` porównują je więc jako tekst, a procedury i wyzwalacze używają ich dopiero przy wykonaniu.
+- Najważniejsze reguły:
+  - aktor `SYSTEM` z `staff_id = NULL` w dzienniku audytu;
+  - jedno otwarte zgłoszenie automatyczne danego rodzaju (wstawiane przez `ON CONFLICT … DO NOTHING`), pilność z kategorii w `CHECK`, `RESOLVED` jako stan końcowy;
+  - wyzwalacz `scooters_status`: koniec rezerwacji albo przejazdu przy pilnym zgłoszeniu albo zadaniu daje `MAINTENANCE` z przyczyną i wpisem systemu `scooter.sent_to_service`. Wolną hulajnogę przełącza API (`fn_scooter_service_hold`), a po zmianie stanu odczytuje wynik, żeby nie dublować wpisu;
+  - przejścia zadań w wyzwalaczu; anulowanie zwraca części;
+  - magazyn przez cztery procedury z blokadą części, ruchy tylko do dopisywania;
+  - `fn_scooter_return_blockers` (powrót do floty), `fn_dashboard_attention` (pulpit);
+  - `end_mode`, `towing_fee`, rozliczenie i limit zwrotu z `TOWING_FEE`;
+  - pliki ze stanem, SHA-256 i znacznikiem usunięcia;
+  - powiadomienia z kodem szablonu, kanałem, stanem, kluczem idempotencji i treścią po renderowaniu; tokeny push z sesją; wersja szablonu zapisywana wyzwalaczem;
+  - Dyspozytor z `service.manage`.
+- 11 widoków list panelu i oś czasu zgłoszenia `v_ticket_timeline`.
+- Dane startowe:
+  - 8 części ze stanem przez `sp_part_receive`;
+  - 7 szablonów w wersji 1;
+  - przykładowe zgłoszenia i zadania na #0037–#0040 (#0038–#0040 w serwisie).
+- Stan bazy: 54 tabele, 42 widoki, 21 funkcji, 18 procedur.
+
+**Core i shared**
+- **Core:**
+  - zakończenie bez łączności (`canEndOffline`, `decideOfflineEnd`), akcja `END_UNCONFIRMED`;
+  - liczniki z limitem 30 min na odcinek bez łączności;
+  - progi baterii (`LOW` z cennika, `CRITICAL` 5% z limitem 10 km/h przez `desiredZoneControl`);
+  - ruch po zakończeniu, blokada hulajnogi bez przejazdu;
+  - odholowanie (`decideTowing`, pozycja `TOWING_FEE` w paragonie);
+  - zgłoszenia (walidacja, pilność, zgłoszenia automatyczne, decyzja o zmianie statusu i odpowiedzi);
+  - zadania, części i magazyn, powrót do floty;
+  - szablony ICU (walidacja z wierszem i znakiem, renderowanie `pl`, wybór wysyłki według preferencji i tokenów).
+- **Shared:**
+  - rejestr szablonów `NOTIFICATION_TEMPLATES` (kanał, parametry z typami, ścieżka w aplikacji, preferencja);
+  - schematy zgłoszeń, zadań, magazynu, plików i symulatora;
+  - kontrakt MQTT 1.3.0;
+  - zdarzenia Socket.IO zgłoszeń, zadań, powiadomień i symulatora;
+  - definicje zasobów list (`operations.ts`, `notifications.ts`).
+- Biblioteki w wersjach z ADR: `intl-messageformat` 12.1.5 z parserem 3.5.23 (core).
+
+**API**
+- **A: przejazd, pliki.**
+  - `POST /files` z nowym dekoratorem `@CustomerOrStaffAuth`: operator potrzebuje `tickets.manage` dla zdjęcia zgłoszenia albo `rentals.manage` dla zdjęcia parkowania;
+  - `GET /files/{id}?exp&sig` (`@Public`, podpis HMAC);
+  - zdjęcie parkowania, zakończenie offline z `POSITION_STALE` i `OUTSIDE_PARKING`, zdalne zakończenie z `collectTowingFee`;
+  - zadania `rental.offline-end-timeout`, `rental.offline-billing-stop`, `files.cleanup` (co godzinę), `files.retention` (raz na dobę);
+  - `@aws-sdk/client-s3` 3.1169.0 i `@fastify/multipart` 10.1.8.
+- **B: zgłoszenia, serwis, magazyn, pulpit.**
+  - moduł `operations`: klient (`POST /tickets`, `GET /me/tickets`);
+  - panel: zgłoszenia, zadania z „Moje zadania”, karta serwisowa hulajnogi, „Przywróć do floty”, „Wyłącz z ruchu”, magazyn z przyjęciem i korektą, lista plików, `GET /admin/dashboard/attention`;
+  - zwrot z `ticketId` (`TICKET_RENTAL_MISMATCH`);
+  - zgłoszenia automatyczne z telemetrii i z zakończenia przejazdu;
+  - pokoje `tickets` i `service`.
+- **C: powiadomienia, symulator.**
+  - tokeny push, szablony z podglądem, wersją i przywróceniem, listy wysłanych i tokenów;
+  - zadania `notification.send`, `notification.receipts` (15 min), `notifications.sweep` (co 5 min) i `rental.reservation-ending` (2 min przed końcem rezerwacji);
+  - kod SMS z szablonu `login_code`;
+  - `POST /admin/simulator/commands` (202) i `GET /admin/simulator/status`; pokój `simulator`;
+  - `expo-server-sdk` 8.0.0.
+
+  Wpięte kody: `ticket_received`, `ticket_status_changed` (cztery miejsca), `battery_low`, `ride_ended` (portfel przy zakończeniu, karta po paragonie), `payment_failed`, `reservation_ending`.
+- Kontrakty: `pnpm api:openapi`, Socket.IO 1.4.0, MQTT 1.3.0, kontrakt symulatora 1.0.0.
+
+**Symulator**
+- Kanał `simulator/control` z wynikiem na `simulator/control/result`. Wyniki są zapamiętane po `commandId`, bo QoS 1 może dostarczyć polecenie dwa razy.
+- Stan na `simulator/status` co 10 s, a co 2 s, gdy trwa scenariusz z postępem.
+- Scenariusze: rozłączenie i powrót z buforem trasy, milczenie, rozładowanie, jazda do strefy albo punktu, wjazd w strefę zakazu, przerwanie.
+- Jeden scenariusz na hulajnogę (`SCENARIO_ACTIVE`, `NO_SCENARIO`). Plik `control.json` i MQTT trafiają do tej samej obsługi, a wygrywa ostatnie polecenie.
+- Komenda `battery_swapped` ustawia baterię na 100% i przerywa rozładowanie.
+
+**Decyzje podjęte przy implementacji**
+- **Limit potwierdzenia komend** liczy się od `expires_at`, nie od `sent_at` (indeks `scooter_commands_pending_expiry_idx`). Inaczej `lock` przy zakończeniu bez łączności (10 min) dostałby `TIMEOUT` po 10 s.
+- **Komendy systemu** (`lock` hulajnogi bez przejazdu, `battery_swapped`) idą przez `CommandsService.sendSystem`, bez wpisu w dzienniku audytu.
+- **Adres odczytu pliku** jest względny (`/files/{id}?exp=…&sig=…`), a klienci doklejają adres API. Sekret podpisu pochodzi z `JWT_SECRET` z prefiksem `files:`.
+- **Zgłoszenie `OFFLINE`:**
+  - zadanie `tickets.offline-check` w kolejce `short` z kluczem singletonu na hulajnogę, planowane poza transakcją;
+  - planuje je tylko zmiana online → offline, nie powtórzony status po restarcie API.
+
+  `BATTERY_CRITICAL` i `OUT_OF_ZONE` powstają w transakcji zakończenia, przed zwolnieniem hulajnogi.
+- **Powrót do floty po `BATTERY_SWAP`** liczy przeszkody z prawdziwej telemetrii (pierwsza wersja zakładała baterię 100%, niezgodnie z ADR 0059; poprawione po przeglądzie, niżej). Hulajnoga z baterią poniżej progu zostaje w serwisie z przyczyną `BATTERY_BELOW_THRESHOLD` i wraca sama po odczycie nowej baterii. Otwarte pilne zgłoszenie bez zadania blokuje powrót (przeszkoda `URGENT_TICKET`).
+- **Bez `users.read`** widoki zgłoszeń i powiadomień nie mają imienia ani telefonu klienta (panel pokazuje „Klient”), a filtr i sortowanie po tych polach dają `403`.
+- **Socket.IO:** `notification.created` idzie po `SENT` i po `SKIPPED` z `NO_PUSH_TOKEN`, więc wersja web bez tokenu też dostaje baner.
+- **Powiadomienia:**
+  - `payload` to `{ params, path }`;
+  - API formatuje numery (R-51858, #0037, Z-1042) i kwoty (`formatPln`) przed renderowaniem;
+  - brak szablonu daje `TEMPLATE_MISSING` (503);
+  - `ride_ended` ma w rejestrze i w danych startowych parametry `towingFee` i `hasTowingFee` (ADR 0060 chce opłaty w powiadomieniu).
+- **Tokeny push:** wylogowanie usuwa tokeny rodziny sesji, a rotacja tokenu odświeżającego przenosi je na nową sesję.
+- **Symulator w API:**
+  - przy `SIMULATOR_CONTROL_ENABLED=false` punkty zwracają 404, a subskrypcja `FORBIDDEN`;
+  - brak publikacji w 5 s daje `SIMULATOR_UNAVAILABLE` (503);
+  - stan podaje 10 ostatnich poleceń z dziennika audytu; wyniki są tylko w pamięci API.
+- **Aplikacja:** `expo-notifications` ~58.1.9 z `expo install` (11 listopada, starsza niż 3 dni), a ADR 0058 sprawdzał ~58.1.8.
+
+**Panel**
+- **Nawigacja:**
+  - Pulpit;
+  - grupa Serwis: Zgłoszenia z licznikiem nowych, Zadania, Części;
+  - Powiadomienia w Konfiguracji;
+  - Symulator w „Analiza”, tylko z `simulator.manage` i przy włączonym sterowaniu;
+  - pozycje 36 px.
+
+  Jedno połączenie Socket.IO na kartę z pokojami (`lib/realtime.ts`).
+- **Ekrany:**
+  - zgłoszenia ze szczegółami i osią czasu;
+  - zadania z „Moje zadania”, nowym zadaniem i zakończeniem;
+  - części z przyjęciem, korektą i ruchami;
+  - karta hulajnogi z zakładkami Przegląd i Serwis, „Wyślij do serwisu”, „Przywróć do floty”, „Wyłącz z ruchu”; przyczyna stanu na liście floty;
+  - szablony z edytorem ICU, wysłane powiadomienia, tokeny push;
+  - symulator;
+  - okno zdalnego zakończenia z opłatą, karta „Zakończenie”, nowe zdarzenia na osi przejazdu, `TOWING_FEE` w księdze i paragonie;
+  - `/admin` jako pulpit „Wymaga uwagi” (bez `dashboard.read` przekierowanie na mapę);
+  - dziennik audytu z filtrem aktora.
+- Dług z iteracji 4: kolory warstw mapy floty poprawione. `pl.json` +1051 kluczy, usunięty `rentals.end.noParkingFee`.
+- **Odstępstwa od makiet:**
+  - bez „Eksportuj XLSX”, Raportów i Wydruków w nawigacji (iteracje 7–8);
+  - wspólna lista: „Wszystkie” zawsze pierwsze, domyślne „Otwarte” i „Do zrobienia” tylko przy pierwszej wizycie bez filtrów, nagłówków nie da się wyrównać do prawej;
+  - zgłoszenia: dodatkowe pole „Notatka wewnętrzna”; karta klienta bez salda i liczby przejazdów; bez `staff.read` lista przypisania to „ja” i bieżący przypisany, bez liczby zadań;
+  - karta hulajnogi: tylko zakładki Przegląd i Serwis, bez „Dzwonek” i „Zablokuj”, bez „km od ostatniego serwisu”, jeden render dla wszystkich miniatur, cel przewiezienia tylko strefa parkowania (bez punktu na mapie);
+  - okno zakończenia zadania: zdanie o zgłoszeniu warunkowe (panel nie wie, czy to ostatnie zadanie);
+  - szablony: bez „Porównaj”, szybkie liczby 1, 3, 5 i 22;
+  - symulator: bez „tempo 1×” i numeru przejazdu w scenariuszu, punkt celu wpisywany jako szerokość i długość;
+  - odholowanie: bez ulicy i odległości do strefy, bez stawki VAT w pozycji paragonu;
+  - pulpit: wyszukiwarka tylko przekierowuje, odnośnik krytycznej baterii przez filtr floty, odnośnik nieudanych płatności filtruje po `createdAt`, a baza liczy po `updated_at`.
+- **Build:** pierwszy `next build` kończy się kodem 1 tylko przez komunikat Next.js o znanej podatności, jak w iteracjach 4 i 5.
+
+**Aplikacja**
+- **Trasy:** `/zglos` (z podsumowania, z karty hulajnogi bez „Rozliczenie”, z Moich zgłoszeń ze „Zmień”), `/zglos/wyslane`, `/zgloszenia`, `/zgloszenie/[id]`, `/zdjecie/[id]`, `/powiadomienia`.
+- **Zdjęcie parkowania:** aparat z „Pomiń”, podgląd, błąd wysyłki, bez aparatu i w wersji web wybór pliku, wariant wymagany bez „Pomiń”.
+- **Zgoda na powiadomienia:** raz, przed pierwszą rezerwacją albo startem; w wersji web jej nie ma.
+- **Ekran jazdy:**
+  - offline z aktywnym „Zakończ”, odmowy `OUTSIDE_PARKING` i `POSITION_STALE`, zatrzymane naliczanie;
+  - bateria `LOW` i `CRITICAL` z „Prowadź do strefy”;
+  - zakończenie bez łączności i panel „Przejazd się kończy” na mapie.
+- **Powiadomienia:**
+  - token przy starcie, kanał `default`, usunięcie tokenu przy wylogowaniu;
+  - dotknięcie otwiera `data.path`, także po zimnym starcie; na ekranie jazdy ukryte;
+  - ustawienia z paskiem wyłączonych powiadomień;
+  - baner w wersji web na 6 s z `notification.created`.
+
+  Bez `projectId` z EAS aplikacja nie pobiera tokenu i nie zgłasza błędu.
+- Odholowanie w podsumowaniu, historii, portfelu i paragonie.
+- Dług z iteracji 5: usunięta obietnica e-maili w `profil/dane` i w rejestracji (`profile.lead`).
+- Zależności z `expo install`: `expo-notifications` ~58.1.9, `expo-image-picker` ~58.0.10, `expo-image-manipulator` ~58.0.16, wtyczki w `app.json`. `pl.json`: 706 → 880 kluczy.
+- **Odstępstwa od makiet:**
+  - `zgloszenie-szczegoly`: wiersze zwrotu i korekty paragonu dodał koordynator po zmianie API (niżej);
+  - baner bez zamykania gestem i bez oznaczania odczytu (brak punktu API);
+  - niska bateria podaje procent zamiast kilometrów;
+  - aparat bez latarki;
+  - ekrany bez makiety: arkusz „Zmień”, panel na mapie przy kończeniu bez łączności, wybór aparat albo galeria;
+  - „Płacisz do HH:MM” liczone z liczników;
+  - bez wejścia „zgłoś w trakcie jazdy” (D5) i wariantu potwierdzenia w trakcie przejazdu;
+  - kolejność komunikatów na ekranie jazdy: offline, zatrzymanie strefy, dojazd do strefy, chwilowy, bateria, wolna jazda.
+
+**Poprawki koordynatora**
+- **Zdjęcie parkowania w `ENDING`:** API przyjmuje je już w `ENDING` przy `CUSTOMER_OFFLINE`, bo klient nie czeka na blokadę (do 10 min). Aplikacja ma jeszcze obejście sprzed tej zmiany, do uproszczenia.
+- **Zwrot w zgłoszeniu klienta:** widok zgłoszenia klienta (`CustomerTicketView.refund`) podaje kwotę zwrotu i paragon korygujący, a ekran zgłoszenia w aplikacji pokazuje je w karcie „Odpowiedź”. Etykieta to „Zwrócono” zamiast „Zwrot do portfela” z makiety, bo zwrot za przejazd kartą wraca na kartę.
+- **„Poniżej minimum”:** core liczył `<=`, a lista magazynu (`v_spare_part_list`) `<`. Core liczy teraz `<`, jak lista. Starszy widok `v_low_stock_parts` z migracji 0002 liczy `<=` i zostaje (wykonanej migracji nie zmieniamy); ujednolicenie przy raporcie części w iteracji 8 (arc42 §11).
+
+**Poprawki po przeglądzie**
+
+Przegląd kodu iteracji 6 znalazł 16 błędów (A–P). Wszystkie potwierdziły się w kodzie poza M (opis niżej). Zmiany w bazie są w migracji `0009_operations_fixes.sql`, bo 0008 jest już wykonana.
+- **A. Hulajnoga odblokowana bez przejazdu w serwisie:**
+  - reguła `shouldLockIdleScooter` działa też w `MAINTENANCE` i `RETIRED`, bo zakończenie przejazdu może od razu założyć zadanie `RELOCATION` albo `BATTERY_SWAP`;
+  - wyjątek: operator odblokował hulajnogę z panelu. Liczy się ostatnia potwierdzona komenda `lock`/`unlock` bez przejazdu, nowsza niż koniec przejazdu. Panel wysyła `unlock` tylko w `MAINTENANCE`, a komenda z panelu zapisuje teraz `issued_by_staff`;
+  - po odrzuconej albo niepotwierdzonej blokadzie systemu kolejna próba najwcześniej po 5 min (`IDLE_LOCK_RETRY_MS`), bez pętli komend;
+  - zdalne zakończenie hulajnogi offline wysyła `lock` ważny 10 min, jak zakończenie klienta offline (`decideRemoteEnd` z `commandTtlMs`).
+- **B. Formularz floty a przyczyna stanu.** Zmiany stanu w PATCH i DELETE idą przez `fleetFormStatusChange` w core:
+  - `MAINTENANCE → AVAILABLE` według reguły powrotu do floty (`RETURN_TO_FLEET_BLOCKED`);
+  - `→ MAINTENANCE` z przyczyną z `fn_scooter_service_hold` albo `OTHER`;
+  - `→ RETIRED` (także DELETE) jak „Wyłącz z ruchu”: nie przy otwartych zadaniach, z powodem `OTHER`, bo formularz nie pyta o powód.
+
+  Wyzwalacz `scooters_status` (0009) dopasowuje przyczynę, gdy stan zmienia się bez jawnej przyczyny. `scooters_status_reason_matches` daje `VALIDATION_FAILED` zamiast błędu 500.
+- **C. Przywrócenie do floty z otwartym pilnym zgłoszeniem:** nowa przeszkoda `URGENT_TICKET` (pierwsza) w core, w `fn_scooter_return_blockers` i w shared. Okno zakończenia zadania pomija zgłoszenie, które to zakończenie rozwiąże.
+- **D. Szablon `login_code`:**
+  - parametry wymagane w rejestrze (`code`, `ticketNumber`, kwota w `payment_failed`); ich brak daje `TEMPLATE_MISSING_PARAM`;
+  - migracja 0009 wstawia szablony wszystkich kodów (`ON CONFLICT DO NOTHING`, wersja 1 z wyzwalacza);
+  - treść SMS renderuje się przed zapisem kodu, więc błąd szablonu nie zużywa limitu kodów.
+- **E. Wyścig przypięcia pliku:** stan przypięcia sprawdza osobna instrukcja po `FOR UPDATE`. Do tego unikalne indeksy `rentals_parking_photo_unique` i `ticket_photos_file_unique` (`FILE_ALREADY_ATTACHED`).
+- **F. Usuwanie pliku a przypięcie:** plik dostaje `DELETED` w transakcji z blokadą i ponownym sprawdzeniem warunku (`claimForDeletion`), a obiekt znika z magazynu po zatwierdzeniu. Dotyczy panelu, `files.cleanup` i `files.retention`. Błąd magazynu zostawia najwyżej osierocony obiekt, nigdy plik przypięty bez obiektu.
+- **G. Retencja:** pomija też zdjęcie parkowania przejazdu, który ma zgłoszenie (dowód w reklamacji).
+- **H. Podwójny push:** `notifications.claimed_at` i przejęcie wiersza jednym `UPDATE` przed wysyłką; ponowne przejęcie po 5 min, zwolnienie po błędzie. `notifications.sweep` ma `try/catch` na każdy wiersz.
+- **I. Wymiana baterii bez założenia 100%:**
+  - zakończenie `BATTERY_SWAP` liczy przeszkody z telemetrii;
+  - moduł Telemetria po zapisie partii z odczytem bieżącym przywraca hulajnogę z przyczyną `BATTERY_BELOW_THRESHOLD` (bez innych przeszkód) do floty z wpisem systemu `scooter.returned_to_fleet` (`reason: BATTERY_RECOVERED`);
+  - okno zakończenia w panelu mówi, że hulajnoga wróci po odczycie nowej baterii.
+- **J. Widoki zakończonych przejazdów:** stany końcowe (`ENDED`, `UNPAID`, `EXPIRED`, `UNLOCK_FAILED`) pokazują liczniki i kwotę z wiersza przejazdu (`rentalFigures` w core), nie przeliczone nowymi regułami.
+- **K. `MOVED_AFTER_END` po przewiezieniu przez serwis:** odczyty po zakończeniu liczą się do startu zadania serwisowego albo ręcznego przejścia do `MAINTENANCE` po zakończeniu. Przejście do serwisu w transakcji zakończenia granicy nie ustawia.
+- **L. Próg `LOW`:** liczy się poniżej `min_battery_pct` (start wymaga baterii co najmniej na progu), a `CRITICAL` zostaje na 5% i poniżej (pytanie 2: „przy 5% zwalnia”).
+- **M. Powtórzone `photoIds`:** znalezisko się nie potwierdziło. `uniquePhotos` odrzucał duplikaty przed pętlą (`VALIDATION_FAILED`, 400). Dopisany test i mapowanie `ticket_photos_pkey` na `FILE_ALREADY_ATTACHED`.
+- **N. Ręczne `RESOLVED` pilnego zgłoszenia:** ADR 0055 przewiduje automatyczny powrót tylko po ostatnim zadaniu. Hulajnoga zostaje więc w `MAINTENANCE`, ale z przyczyną z reguły powrotu (`reasonAfterUrgentTicketResolved`), a bez przeszkód z `OTHER`. Do tego wpis systemu `scooter.kept_in_service`. „Przywróć do floty” już przechodzi.
+- **O. Zdjęcia w widoku klienta:** tylko zdjęcia z `uploaded_by` klienta.
+- **P. Dane operatorów i płatności:**
+  - `ticket.updated` w pokoju klienta bez `assigneeId` (osobny komunikat `CustomerTicketUpdated` w kontrakcie Socket.IO);
+  - bez `payments.read` zgłoszenie nie ma kwoty zwrotów (`refundedAmount: null`) ani wpisów zwrotów na osi czasu, a filtr i sortowanie po kwocie dają `403`.
+- **Kolizja z przejazdami pokazowymi symulatora:** przy `SIM_RIDES_PER_HOUR > 0` symulator jedzie bez przejazdu w API, więc reguła z A blokuje taką hulajnogę przy pierwszym odczycie bieżącym (tak było już dla `AVAILABLE`, teraz także w serwisie). Przejazdy pokazowe mają sens tylko bez API albo na osobnym brokerze (uwaga w `CLAUDE.md`).
+- **Weryfikacja poprawek:** `pnpm lint` i `pnpm typecheck` czyste; testy core 176, shared 32, symulator 54, db 71, api 185. `pnpm db:migrate` i `pnpm db:pull` wykonane na bazie deweloperskiej.
+
+**Potrzebne zmiany odłożone**
+- **Panel (API i shared):**
+  - `statusReason` w `TicketAdminDetails`, statystyki klienta w zgłoszeniu;
+  - `scooter.sent_to_service` i `scooter.returned_to_fleet` w `v_ticket_timeline`;
+  - przebieg i „ostatnie zadanie” w `ServiceTaskDetails`;
+  - lista wykonawców bez `staff.read`;
+  - sortowanie po zgłaszającym mimo braku `users.read`;
+  - ulica, odległość do strefy i VAT przy odholowaniu;
+  - tempo i numer przejazdu w stanie symulatora;
+  - porównanie wersji szablonów;
+  - zdarzenie `payment.updated`.
+- **Aplikacja (API i shared):**
+  - punkt odczytu powiadomienia (baner i lista);
+  - chwila żądania zakończenia i zasięg w `RentalView`;
+  - `parkingPhotoRequired` w `RentalHistoryItem`;
+  - usunięcie obejścia zdjęcia w `ENDING`.
+
+**Weryfikacja**
+- Testy po etapach: core 172, shared 32, db 69, api 177, symulator 54. Nowe testy API:
+  - `rental-rules.e2e.test.ts`, `files.e2e.test.ts`;
+  - `tickets.e2e.test.ts`, `service.e2e.test.ts` (pomocnik `operations-helpers.ts`);
+  - `notifications.e2e.test.ts`, `simulator.e2e.test.ts`.
+
+  Końcowy przebieg po poprawkach z przeglądu (`pnpm lint && pnpm typecheck && pnpm test && pnpm build`): wszystko przechodzi; testy core 176, shared 32, symulator 54, db 71, api 185.
+- Panel: lint, typy i build przechodzą. Aplikacja: lint, typy i `expo export --platform web` (39 tras) przechodzą.
+
+**Niesprawdzone**
+- Panel i aplikacja w przeglądarce sprawdzone tylko częściowo (koordynator, API z buildu na 3001, panel z `next start` na 3006, wersja web aplikacji na 8082; konfiguracje `api-local`, `web-start`, `mobile-web-local` w `.claude/launch.json`):
+  - panel: pulpit „Wymaga uwagi”, lista zgłoszeń z panelem bocznym, „Utwórz zadanie” ze zgłoszenia, zadanie (rozpoczęcie, część z magazynu ze spadkiem stanu, okno zakończenia z przeszkodami powrotu i propozycją wymiany baterii), szablony powiadomień, lista „Wysłane” (powiadomienia `ticket_status_changed` pominięte bez tokenu);
+  - aplikacja: logowanie kodem z szablonu `login_code` (log API), „Moje zgłoszenia” i szczegóły zgłoszenia; poprawka: notka „Odpowiemy w powiadomieniu.” znika przy zgłoszeniu rozwiązanym bez odpowiedzi;
+  - `next dev` na 3002 z innej sesji przeładowywał się w pętli, dlatego panel z buildu.
+- Niesprawdzone w przeglądarce: symulator z panelu (symulator z innej sesji był offline po restarcie Dockera), zakończenie bez łączności, zdjęcie parkowania, baner w wersji web, zdalne zakończenie z opłatą za odholowanie.
+- Expo Push na urządzeniu (brak `projectId` i development build), aparat natywny.
+- Integracja z SeaweedFS poza testem, który działa przy dostępnym `S3_ENDPOINT`.
+
+**Sprawy dla autora**
+- Restart API na 3001 (`nest start --watch` z innej sesji), żeby działały nowe trasy.
+- `eas init` dla `projectId`, a dla prawdziwego push także development build i poświadczenia FCM i APNs.
+- Aktualizacja Next.js 16.4.4 (komunikat o podatności przy buildzie).
+- Konto Stripe w trybie testowym (bez zmian od iteracji 5).
+- Stawka VAT opłaty za odholowanie (może to być kara umowna bez VAT, ADR 0060).
+- Szablon `ride_ended` w istniejącej bazie deweloperskiej nie używa `towingFee` i `hasTowingFee`, bo dane startowe nie nadpisują szablonów. Treść do zmiany w panelu (Powiadomienia → Szablony) według `packages/db/src/seed.ts`.
+
+**Uwagi**
+- Agent panelu uruchomił `pkill -x cat` dla bieżącego użytkownika. Mogło to zamknąć procesy `cat` innych sesji; serwerów API, panelu i symulatora nikt nie restartował.

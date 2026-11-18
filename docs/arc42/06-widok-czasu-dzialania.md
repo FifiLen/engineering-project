@@ -4,7 +4,7 @@ Najważniejsze scenariusze. Pełne wersje graficzne znajdują się na kanwie pro
 
 ## 6.1. Maszyna stanów przejazdu
 
-Przejścia decyduje maszyna stanów w `packages/core`; każde przejście to jedna transakcja z blokadą wiersza hulajnogi i przejazdu ([ADR 0036](../adr/0036-proces-wypozyczenia-w-api.md)). Pauza i wznowienie nie mają stanu przejściowego: stan zmienia się dopiero po potwierdzeniu komendy, a na czas oczekiwania przejazd ma komendę w toku (najwyżej jedną, indeks `scooter_commands_one_pending_per_rental`). Od iteracji 5 odmowa obciążenia karty po zakończeniu przenosi przejazd z `ENDED` do `UNPAID`, a spłata wraca do `ENDED` ([ADR 0049](../adr/0049-rozliczenie-przejazdu.md) zmienia przejście z [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md)). `UNPAID` nie jest stanem otwartym: hulajnoga jest wolna od chwili `ENDED`.
+Przejścia decyduje maszyna stanów w `packages/core`; każde przejście to jedna transakcja z blokadą wiersza hulajnogi i przejazdu ([ADR 0036](../adr/0036-proces-wypozyczenia-w-api.md)). Pauza i wznowienie nie mają stanu przejściowego: stan zmienia się dopiero po potwierdzeniu komendy, a na czas oczekiwania przejazd ma komendę w toku (najwyżej jedną, indeks `scooter_commands_one_pending_per_rental`). Od iteracji 5 odmowa obciążenia karty po zakończeniu przenosi przejazd z `ENDED` do `UNPAID`, a spłata wraca do `ENDED` ([ADR 0049](../adr/0049-rozliczenie-przejazdu.md) zmienia przejście z [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md)). `UNPAID` nie jest stanem otwartym: hulajnoga jest wolna od chwili `ENDED`. Od iteracji 6 klient kończy przejazd także przy hulajnodze offline, a wtedy `ENDING` trwa do 10 min i kończy się `COMPLETE_END` albo `END_UNCONFIRMED` ([ADR 0056](../adr/0056-przejazd-bez-lacznosci-i-niska-bateria.md), §6.6). Koniec rezerwacji albo przejazdu przy otwartym pilnym zgłoszeniu albo zadaniu zwalnia hulajnogę do `MAINTENANCE` zamiast `AVAILABLE` (wyzwalacz `scooters_status`, [ADR 0055](../adr/0055-zgloszenia-i-proces-serwisowy.md)).
 
 ```mermaid
 stateDiagram-v2
@@ -16,11 +16,12 @@ stateDiagram-v2
     UNLOCKING --> UNLOCK_FAILED: odmowa albo brak ack w 10 s
     ACTIVE --> PAUSED: POST /pause, ack lock
     PAUSED --> ACTIVE: POST /resume, ack unlock
-    ACTIVE --> ENDING: POST /end w strefie parkowania
-    PAUSED --> ENDING: POST /end w strefie parkowania
+    ACTIVE --> ENDING: POST /end w strefie parkowania (offline: ostatnia pozycja do 120 s)
+    PAUSED --> ENDING: POST /end w strefie parkowania (offline: ostatnia pozycja do 120 s)
     ENDING --> ENDED: ack lock (kwota z wyceny, ADR 0042)
     ENDING --> ACTIVE: brak ack lock (LOCK_FAILED)
     ENDING --> PAUSED: brak ack lock przy kończeniu z pauzy
+    ENDING --> ENDED: offline: brak ack lock w 10 min (END_UNCONFIRMED, ADR 0056)
     ACTIVE --> ENDED: zdalne zakończenie (operator)
     PAUSED --> ENDED: zdalne zakończenie (operator)
     ENDING --> ENDED: zdalne zakończenie (operator)
@@ -102,7 +103,19 @@ Zakończenie liczy kwotę z wersji cennika przejazdu (każda rozpoczęta minuta 
 - **portfel:** wpis `RIDE_CHARGE` przez `sp_wallet_post` z blokadą portfela i paragon z pozycjami z wyceny ([ADR 0052](../adr/0052-paragony.md)); saldo może spaść poniżej zera, a ujemne saldo blokuje kolejny start;
 - **karta:** płatność `RIDE` w stanie `PENDING` i zadanie pg-boss `payment.charge-ride` po zatwierdzeniu; klient od razu widzi podsumowanie z „płatność w toku”.
 
-Zdjęcie parkowania przeszło do iteracji 6 (decyzja D2), więc w diagramie go nie ma.
+Od iteracji 6 ta sama transakcja `ENDED`:
+- zapisuje opłatę za odholowanie przy zdalnym zakończeniu poza strefą (wpis `TOWING_FEE` obok `RIDE_CHARGE` albo jedna płatność kartą na sumę, pozycja paragonu, [ADR 0060](../adr/0060-oplata-za-odholowanie.md));
+- zakłada zgłoszenie automatyczne `BATTERY_CRITICAL` z zadaniem `BATTERY_SWAP`, gdy bateria spadła poniżej 10%;
+- zwalnia hulajnogę do `MAINTENANCE`, gdy ma otwarte pilne zgłoszenie albo zadanie;
+- planuje powiadomienie `ride_ended` (portfel; przy karcie po udanej płatności, §6.10).
+
+Zdjęcie parkowania (pytanie 9 iteracji 6) jest krokiem po zakończeniu, więc diagram go nie pokazuje: aplikacja wysyła plik przez API, nie podpisanym adresem prosto do magazynu ([ADR 0057](../adr/0057-pliki-zdjecia.md) zmienia założenie z [ADR 0024](../adr/0024-magazyn-plikow-seaweedfs.md)):
+1. Aplikacja zmniejsza zdjęcie do 1600 px i koduje jako JPEG (`expo-image-manipulator`); wersja web wybiera plik.
+2. `POST /files` (`multipart/form-data`, cel `PARKING_PHOTO`): API sprawdza typ po sygnaturze, limit 10 MB, liczy SHA-256 i zapisuje obiekt w SeaweedFS przez port `FileStorage`.
+3. `POST /rentals/{id}/parking-photo { fileId }` przypina plik do przejazdu (właściciel, cel, plik nieprzypięty gdzie indziej).
+4. Widok przejazdu podaje adres `GET /files/{id}?exp=…&sig=…` z podpisem HMAC na 10 min, więc `Image` i `<img>` działają bez nagłówka `Authorization`.
+
+Przy zakończeniu bez łączności zdjęcie jest wymagane (`parkingPhotoRequired`), ale przejazd jest już rozliczony, więc API niczego nie blokuje. Zdjęcie dodaje się też w `ENDING` (blokada czeka na łączność). Nieprzypięte pliki usuwa po 24 h zadanie `files.cleanup`, a zdjęcia parkowania po 30 dniach `files.retention` (wiersz `files` zostaje ze stanem `DELETED`).
 
 ```mermaid
 sequenceDiagram
@@ -144,7 +157,7 @@ sequenceDiagram
     end
 ```
 
-Zdalne zakończenie przez operatora z uprawnieniem `rentals.manage` (decyzja D7) nie sprawdza strefy i nie czeka na blokadę: przejazd od razu przechodzi do `ENDED` z tym samym rozliczeniem, naliczanie kończy się w tej chwili (albo przy wcześniejszym żądaniu klienta), komenda `lock` idzie do hulajnogi, a powód trafia na oś czasu i do dziennika audytu w tej samej transakcji.
+Zdalne zakończenie przez operatora z uprawnieniem `rentals.manage` (decyzja D7) nie sprawdza strefy i nie czeka na blokadę: przejazd od razu przechodzi do `ENDED` z tym samym rozliczeniem, naliczanie kończy się w tej chwili (albo przy wcześniejszym żądaniu klienta), komenda `lock` idzie do hulajnogi, a powód trafia na oś czasu i do dziennika audytu w tej samej transakcji. Od iteracji 6, gdy ostatnia pozycja jest poza strefą parkowania, okno ma pole „Pobierz opłatę za odholowanie” (domyślnie zaznaczone, kwota z wersji cennika przejazdu), a system zawsze zakłada zgłoszenie `OUT_OF_ZONE` z zadaniem `RELOCATION` do najbliższej strefy parkowania, także bez opłaty.
 
 Zaległość (`UNPAID`) blokuje rezerwację i start (`PAYMENT_OVERDUE`). Spłata (`POST /rentals/{id}/pay`) z portfela to `RIDE_CHARGE` i `SETTLE_DEBT` w jednej transakcji, a kartą nowa płatność z udziałem klienta (może wymagać 3-D Secure) i `SETTLE_DEBT` po webhooku. Jedna płatność za przejazd w toku pilnuje indeks `payments_one_pending_per_rental`, więc spłata i ponowienie nie obciążą karty dwa razy.
 
@@ -177,22 +190,50 @@ Powtórzony webhook zwiększa tylko licznik dostarczeń, a zmiany statusu płatn
 
 ## 6.6. Utrata łączności z hulajnogą
 
+Od iteracji 6 według [ADR 0056](../adr/0056-przejazd-bez-lacznosci-i-niska-bateria.md), który zmienia [ADR 0042](../adr/0042-wycena-przejazdu.md) (naliczanie) i [ADR 0036](../adr/0036-proces-wypozyczenia-w-api.md) (czas w `ENDING`):
+- **Wykrycie:** Last Will daje `status offline`; przejazd dostaje `CONNECTION_LOST`, a `rental.updated` ma `scooterOnline: false` („Hulajnoga nie odpowiada”).
+- **Naliczanie trwa**, ale każdy odcinek bez łączności liczy się najwyżej 30 min (`rentalCounters` w core). Bez żądania klienta zadanie `rental.offline-billing-stop` po 30 min zapisuje `BILLING_STOPPED`; przejazd trafia na pulpit „Wymaga uwagi” i kończy go operator.
+- **Zgłoszenie:** zadanie `tickets.offline-check` po 5 min (singleton na hulajnogę) zakłada zgłoszenie automatyczne `OFFLINE`, jeśli hulajnoga nadal milczy. Po powrocie łączności zgłoszenie bez zadania zamyka się samo (wpis systemu `ticket.auto_closed`).
+- **Zakończenie przez klienta:** przy hulajnodze offline przechodzi, gdy ostatnia pozycja ma najwyżej 120 s i leży w strefie parkowania (`canEndOffline`; inaczej `POSITION_STALE` albo `OUTSIDE_PARKING`). Naliczanie kończy się przy żądaniu, `end_mode = CUSTOMER_OFFLINE`, `lock` ma `expiresAt` za 10 min, a zdjęcie parkowania jest wymagane.
+- **Wynik:** potwierdzona blokada daje `COMPLETE_END`. Brak potwierdzenia w 10 min (zadanie `rental.offline-end-timeout`), odrzucenie albo wygaśnięcie daje `END_UNCONFIRMED` (`end_mode = UNCONFIRMED`) z tą samą kwotą i zgłoszeniem `OFFLINE` w tej samej transakcji. `LOCK_FAILED` w tym trybie nie unieważnia żądania.
+- **Po powrocie łączności:** broker dostarcza `lock` z sesji trwałej. Hulajnoga bez przejazdu, która zgłasza się odblokowana, dostaje `lock` systemu bez `rental_id`. Zbuforowane punkty uzupełniają trasę, a ruch ponad 200 m po żądaniu zakończenia daje `MOVED_AFTER_END`; kwota się nie zmienia, o korekcie decyduje dyspozytor.
+
 ```mermaid
 sequenceDiagram
     autonumber
     participant H as Hulajnoga
     participant MQ as Broker MQTT
     participant API as Backend API
+    participant DB as PostgreSQL
     participant A as Aplikacja
     H->>MQ: CONNECT z Last Will (status offline)
     Note over H,MQ: utrata zasięgu, brak keep-alive
     MQ->>API: scooters/0087/status offline
-    API-->>A: connection_lost
-    H->>MQ: CONNECT, status online
-    H->>MQ: zbuforowane punkty trasy
-    MQ->>API: telemetria
-    API-->>A: connection_restored
+    API->>DB: CONNECTION_LOST, zadania tickets.offline-check (5 min) i rental.offline-billing-stop (30 min)
+    API-->>A: rental.updated (scooterOnline: false)
+    A->>API: POST /rentals/current/end
+    API->>DB: canEndOffline (core): pozycja do 120 s w strefie parkowania
+    alt pozycja stara albo poza strefą
+        API-->>A: 422 POSITION_STALE / OUTSIDE_PARKING
+    else warunek spełniony
+        API->>DB: END_REQUESTED (mode OFFLINE), ENDING, end_mode CUSTOMER_OFFLINE, lock (expiresAt +10 min), zadanie rental.offline-end-timeout
+        API-->>A: rental.updated (naliczanie zakończone, zdjęcie wymagane)
+        A->>API: POST /files, POST /rentals/ID/parking-photo
+    end
+    alt łączność wraca w 10 min
+        H->>MQ: CONNECT, status online, zbuforowane punkty trasy
+        MQ->>H: lock z sesji trwałej
+        H->>MQ: ack lock
+        MQ->>API: potwierdzenie, telemetria
+        API->>DB: COMPLETE_END, ENDED, rozliczenie, zamknięcie zgłoszenia OFFLINE bez zadania
+        Note over API,DB: ruch ponad 200 m po żądaniu: MOVED_AFTER_END
+    else brak potwierdzenia
+        API->>DB: END_UNCONFIRMED, ENDED (end_mode UNCONFIRMED), rozliczenie, zgłoszenie OFFLINE
+    end
+    API-->>A: rental.updated ENDED
 ```
+
+Niska bateria w jeździe (pytanie 2) idzie tą samą drogą co telemetria: próg `LOW` (minimalna bateria z cennika) zapisuje jedno `BATTERY_LOW` z `data.threshold` i planuje powiadomienie `battery_low`, a próg `CRITICAL` (5%) dokłada do uzgadniania komend stref limit 10 km/h (`desiredZoneControl` z `batteryCritical`).
 
 ## 6.7. Logowanie
 
@@ -268,3 +309,76 @@ sequenceDiagram
     API-->>P: fleet.command ACKED
     Note over API,DB: brak potwierdzenia w 10 s: SENT → TIMEOUT
 ```
+
+## 6.9. Proces serwisowy: od zgłoszenia do powrotu do floty
+
+Według [ADR 0055](../adr/0055-zgloszenia-i-proces-serwisowy.md). Reguły (walidacja zgłoszenia, pilność, przejścia, skutek dla hulajnogi) liczy core, a baza pilnuje tego, czego nie może obejść równoległa transakcja: indeks jednego otwartego zgłoszenia automatycznego danego rodzaju, wyzwalacze przejść zadań, procedury magazynu z blokadą wiersza części, `CHECK (stock_qty >= 0)`.
+- **Zgłoszenie:** klient (`POST /tickets`, kategorie, opis, do 3 zdjęć), system (`OFFLINE`, `BATTERY_CRITICAL`, `OUT_OF_ZONE`) albo operator. Hamulce, koło i kierownica są pilne: wolna hulajnoga przechodzi od razu do `MAINTENANCE` (przyczyna `URGENT_TICKET`), a w przejeździe po jego zakończeniu.
+- **Zadanie:** dyspozytor z `service.manage` zakłada je ze zgłoszenia („Utwórz zadanie”) albo z karty hulajnogi („Wyślij do serwisu”); zgłoszenie dostaje `AT_SERVICE`. Serwisant rozpoczyna (`OPEN → IN_PROGRESS`), dodaje części (`sp_task_use_part` zmniejsza stan od razu) i kończy z notatką.
+- **Zakończenie ostatniego zadania:** `returnToFleetBlockers` (core) i `fn_scooter_return_blockers` (baza) sprawdzają otwarte zadania, łączność i baterię co najmniej progu z cennika. Bez przeszkód hulajnoga wraca do `AVAILABLE` w tej samej transakcji (wpis systemu `scooter.returned_to_fleet`), inaczej zostaje w `MAINTENANCE` z przyczyną. Zgłoszenie dostaje `RESOLVED`, a klient powiadomienie.
+- **Wymiana baterii:** zakończenie `BATTERY_SWAP` wysyła komendę `battery_swapped` (kontrakt MQTT 1.3.0); symulator ustawia baterię na 100%, a powrót do floty zakłada baterię po wymianie.
+- **Anulowanie** zadania zwraca części ruchem `RETURN` (wyzwalacz `service_tasks_cancel_parts`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Aplikacja
+    participant API as Backend API
+    participant C as packages/core
+    participant DB as PostgreSQL
+    participant P as Panel
+    participant MQ as Broker MQTT
+    A->>API: POST /files (TICKET_PHOTO), POST /tickets (BRAKES, opis, photoIds)
+    API->>C: validateTicket: pilne
+    API->>DB: ticket NEW (Z-1042), zdjęcia, hulajnoga MAINTENANCE (URGENT_TICKET), audyt, notification ticket_received QUEUED
+    API-->>P: ticket.updated (pokój tickets)
+    P->>API: POST /admin/tickets/ID/assign, POST /admin/service-tasks (ticketId, REPAIR)
+    API->>DB: service_task OPEN, ticket AT_SERVICE, audyt
+    API-->>P: service-task.updated (pokój service), ticket.updated
+    P->>API: POST /admin/service-tasks/ID/start, …/parts (część, ilość)
+    API->>DB: IN_PROGRESS, sp_task_use_part (blokada części, ruch USE, stan − ilość)
+    P->>API: POST /admin/service-tasks/ID/complete (notatka)
+    API->>C: decideTaskComplete, returnToFleetBlockers
+    API->>DB: DONE, fn_scooter_return_blockers, hulajnoga AVAILABLE (wpis SYSTEM), ticket RESOLVED, notification ticket_status_changed QUEUED, COMMIT
+    opt zadanie BATTERY_SWAP
+        API->>MQ: cmd battery_swapped
+    end
+    API-->>A: ticket.updated (pokój user:ID), push po wysyłce (§6.10)
+```
+
+Oś czasu zgłoszenia i zadania (D6) to widok `v_ticket_timeline`: wpis o utworzeniu, wpisy dziennika audytu dla zgłoszenia i jego zadań (także wpisy systemu, `actor = SYSTEM`), zwroty powiązane przez `refunds.ticket_id` i wysłane powiadomienia. Reklamacja „Rozliczenie” nie zwraca pieniędzy sama: dyspozytor robi zwrot z okna przejazdu z `ticketId` ([ADR 0054](../adr/0054-zwroty-i-korekty-salda.md)), a odpowiedź dla klienta zapisuje przy zmianie statusu.
+
+## 6.10. Powiadomienie: od zdarzenia do wysyłki
+
+Według [ADR 0058](../adr/0058-powiadomienia-push-z-szablonow.md). Moduł, w którym zaszło zdarzenie (przejazd, płatność, zgłoszenie, rezerwacja), zapisuje wiersz `notifications` w stanie `QUEUED` w swojej transakcji, z kodem szablonu, parametrami, ścieżką otwarcia aplikacji i kluczem idempotencji (np. `ride_ended:{rentalId}`; unikalny `dedupe_key`). W tej samej transakcji planuje zadanie `notification.send`, więc wycofane zdarzenie nie wysyła nic.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as Moduł zdarzenia
+    participant DB as PostgreSQL
+    participant J as Zadanie notification.send
+    participant C as packages/core
+    participant G as PushGateway
+    participant A as Aplikacja
+    M->>DB: BEGIN, zmiana stanu, notifications QUEUED (dedupe_key), sendInTransaction, COMMIT
+    DB->>J: zadanie pg-boss
+    J->>DB: blokada wiersza, szablon (bieżąca wersja), preferencje, tokeny push
+    J->>C: notificationDelivery (preferencja, token), renderTemplate (ICU, pl)
+    alt wyłączona preferencja albo brak tokenu
+        J->>DB: SKIPPED (PREFERENCE_DISABLED / NO_PUSH_TOKEN)
+    else wysyłka
+        J->>G: tytuł, treść, data.path
+        alt atrapa (PUSH_PROVIDER=fake)
+            G-->>J: SENT, treść w logu API
+        else Expo Push
+            G-->>J: ticket Expo albo błąd
+        end
+        J->>DB: SENT (provider_ref, template_version) albo FAILED (error)
+    end
+    J-->>A: notification.created (pokój user:ID, po SENT i po SKIPPED z NO_PUSH_TOKEN)
+    Note over A: wersja web: baner 6 s, dotknięcie otwiera path, aplikacja natywna pomija zdarzenie
+    Note over J,G: Expo: notification.receipts po 15 min, DeviceNotRegistered usuwa token, notifications.sweep co 5 min ponawia QUEUED starsze niż 5 min
+```
+
+Zdarzenia i kody: `reservation_ending` (2 min przed końcem rezerwacji, preferencja `notify_reservation_end`), `ride_ended` (po rozliczeniu, preferencja `notify_receipts`), `payment_failed`, `battery_low`, `ticket_received`, `ticket_status_changed`. Kod SMS przy logowaniu renderuje szablon `login_code` (kanał `SMS`) tą samą ścieżką, ale bez kolejki. Szablon w kolejce renderuje się z wersji z chwili wysyłki.

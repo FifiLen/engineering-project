@@ -12,7 +12,10 @@ PostgreSQL 16 z PostGIS. Źródłem prawdy o schemacie są migracje w [`packages
 
 - `0007_payments.sql` (iteracja 5): klient u operatora płatności (`payment_customers`), zwroty (`refunds`), typ wpisu `PAYOUT` i powód korekty w księdze, zapis do księgi z blokadą portfela (`sp_wallet_post`) i wyzwalacz salda po operacji, karta przejazdu, jedna płatność za przejazd w toku, webhooki z wynikiem i liczbą dostarczeń, paragony z rodzajem, korektą, sposobem zapłaty i sprzedawcą, stawka VAT w wersji cennika, wersje cennika nieedytowalne z najwyżej jedną zaplanowaną, stan rozliczenia przejazdu w widoku, listy płatności w panelu i historia portfela ([ADR 0049](../adr/0049-rozliczenie-przejazdu.md)–[0054](../adr/0054-zwroty-i-korekty-salda.md)).
 
-Po migracji 0007 baza ma **52 tabele** (bez partycji telemetrii i bez schematu `pgboss` kolejki zadań, [ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)), **31 widoków**, **18 funkcji** i **14 procedur**; liczby sprawdza test w `packages/db/src/db.test.ts`. Kluczowe zasady opisują też [ADR 0010](../adr/0010-postgresql-postgis-drizzle.md), [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md), [ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md) i [ADR 0015](../adr/0015-wersjonowany-cennik.md).
+- `0008_operations.sql` (iteracja 6): zgłoszenia z numerem z sekwencji, rodzajem zgłoszenia automatycznego (jedno otwarte danego rodzaju na hulajnogę), odpowiedzią dla klienta z czasem odczytu i pilnością z kategorii; nowe kategorie `BILLING` i `OUT_OF_ZONE`; aktor `SYSTEM` w dzienniku audytu; przyczyna i czas zmiany stanu hulajnogi z wyzwalaczem `MAINTENANCE` po przejeździe; przejścia zadań serwisowych w bazie, cel przewiezienia i powód anulowania; ruchy magazynowe (`spare_part_movements`) przez procedury; powrót do floty (`fn_scooter_return_blockers`); tryb zakończenia przejazdu i opłata za odholowanie (`TOWING_FEE`) w rozliczeniu; stan, SHA-256 i usunięcie pliku bez usuwania wiersza; powiadomienia z kodem szablonu, kanałem, stanem wysyłki i kluczem idempotencji, tokeny push z sesją, wersje szablonów (`notification_template_versions`); komenda `BATTERY_SWAPPED`; `service.manage` dla Dyspozytora; widoki list panelu, oś czasu zgłoszenia i pulpit „Wymaga uwagi” ([ADR 0055](../adr/0055-zgloszenia-i-proces-serwisowy.md)–[0060](../adr/0060-oplata-za-odholowanie.md)).
+- `0009_operations_fixes.sql` (iteracja 6, poprawki po przeglądzie): wyzwalacz `scooters_status` dopasowuje przyczynę stanu do nowego stanu, gdy zmiana stanu nie podaje przyczyny (`OTHER` przy wejściu do `MAINTENANCE` albo `RETIRED` z niepasującą przyczyną albo bez niej); `fn_scooter_return_blockers` z przeszkodą `URGENT_TICKET` (otwarte pilne zgłoszenie); unikalne indeksy `rentals_parking_photo_unique` i `ticket_photos_file_unique` (plik przypięty w jednym miejscu) zamiast zwykłych z 0008; `notifications.claimed_at` (przejęcie przed wysyłką); szablony wszystkich kodów z rejestru, żeby baza po samym `db:migrate` wysyłała SMS z kodem logowania.
+
+Po migracji 0008 baza ma **54 tabele** (bez partycji telemetrii i bez schematu `pgboss` kolejki zadań, [ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)), **42 widoki**, **21 funkcji** i **18 procedur**; migracja 0009 tych liczb nie zmienia (zastępuje funkcje i indeksy, dodaje kolumnę). Liczby sprawdza test w `packages/db/src/db.test.ts`. Kluczowe zasady opisują też [ADR 0010](../adr/0010-postgresql-postgis-drizzle.md), [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md), [ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md) i [ADR 0015](../adr/0015-wersjonowany-cennik.md).
 
 ## Obszary
 
@@ -24,8 +27,8 @@ Po migracji 0007 baza ma **52 tabele** (bez partycji telemetrii i bez schematu `
 | Flota i strefy | `scooters`, `scooter_models`, `telemetry` (partycje dzienne), `scooter_commands`, `zones`, `scooter_zone_presence`, `scooter_zone_control` |
 | Płatności | `wallets`, `wallet_ledger`, `payments`, `payment_methods`, `payment_webhook_events`, `receipts`, `receipt_items` |
 | Operacje | `tickets`, `ticket_photos`, `files`, `notifications`, `audit_log` |
-| Serwis | `service_tasks`, `spare_parts`, `service_task_parts` |
-| Treści | `content_pages`, `content_page_versions`, `content_blocks`, `faq_items`, `news`, `notification_templates`, `media_assets` |
+| Serwis | `service_tasks`, `spare_parts`, `service_task_parts`, `spare_part_movements` (0008) |
+| Treści | `content_pages`, `content_page_versions`, `content_blocks`, `faq_items`, `news`, `notification_templates`, `notification_template_versions` (0008), `media_assets` |
 | Raporty i wydruki | `report_definitions`, `report_runs`, `document_templates`, `document_template_versions`, `generated_documents` |
 
 Konwencje: identyfikatory `uuid`, kwoty w groszach (`bigint`), czas `timestamptz` w UTC, geometria SRID 4326. Tabele edytowalne w panelu mają kolumnę `version` do blokady optymistycznej ([ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-panelu.md)); numery wersji biznesowych to `version_no` (dokumenty, szablony) albo `tariffs.version` (cennik).
@@ -66,6 +69,38 @@ erDiagram
     refunds |o--o{ wallet_ledger : "zwrot i zwrot salda"
     zones |o--o{ rentals : "strefa zakończenia"
 ```
+
+## Diagram relacji: operacje, serwis i powiadomienia (iteracja 6)
+
+```mermaid
+erDiagram
+    users ||--o{ tickets : "zgłasza"
+    scooters ||--o{ tickets : "dotyczą"
+    rentals |o--o{ tickets : "zgłoszenie z przejazdu"
+    staff |o--o{ tickets : "przypisany"
+    tickets ||--o{ ticket_photos : "zdjęcia (pozycja 1–3)"
+    files ||--o{ ticket_photos : "plik"
+    files |o--o{ rentals : "zdjęcie parkowania"
+    tickets |o--o{ refunds : "zwrot z reklamacji"
+    tickets |o--o{ service_tasks : "prowadzi do"
+    scooters ||--o{ service_tasks : "serwisowana"
+    zones |o--o{ service_tasks : "cel przewiezienia"
+    staff |o--o{ service_tasks : "wykonawca, anulował"
+    service_tasks ||--o{ service_task_parts : "zużywa"
+    spare_parts ||--o{ service_task_parts : "pozycja"
+    spare_parts ||--o{ spare_part_movements : "ruchy"
+    service_tasks |o--o{ spare_part_movements : "użycie i zwrot"
+    staff |o--o{ spare_part_movements : "operator"
+    users ||--o{ notifications : "otrzymuje"
+    rentals |o--o{ notifications : "dotyczy"
+    tickets |o--o{ notifications : "dotyczy"
+    notification_templates ||--o{ notification_template_versions : "wersje"
+    users ||--o{ push_tokens : "urządzenia"
+    sessions |o--o{ push_tokens : "sesja"
+    staff |o--o{ audit_log : "autor (NULL dla SYSTEM)"
+```
+
+Powiadomienie wskazuje szablon kodem (`template_code`) i wersją z chwili wysyłki, a nie kluczem obcym, bo kody wyznacza rejestr w `packages/shared` ([ADR 0058](../adr/0058-powiadomienia-push-z-szablonow.md)).
 
 ## Diagram relacji: panel (uprawnienia, treści, raporty, wydruki)
 
@@ -116,6 +151,16 @@ erDiagram
   - suma zwrotów nie większa niż zapłacona kwota przejazdu albo doładowania (`sp_record_refund` z blokadą: `REFUND_EXCEEDS_PAYMENT`); zwrot z powodem „inny” ma notatkę, zwrot salda nie ma przejazdu;
   - jeden paragon sprzedaży za przejazd (`receipts_one_sale_per_rental`); korekta ma kwotę ujemną i paragon korygowany, a suma paragonu i korekt nie jest ujemna (`sp_issue_receipt`: `RECEIPT_CORRECTION_EXCEEDS`);
   - wersji cennika nie zmienia się, a zaplanowana może być najwyżej jedna i dopóki jest, nie powstaje nowa (wyzwalacz `tariffs_rules`: `TARIFF_IMMUTABLE`, `TARIFF_ALREADY_SCHEDULED`); zakresy rezerwacji, wieku, salda i VAT w `CHECK`.
+- Operacje i serwis (0008):
+  - najwyżej jedno otwarte zgłoszenie automatyczne danego rodzaju na hulajnogę (`tickets_one_open_auto_per_scooter`); `RESOLVED` jest stanem końcowym, a data rozwiązania ustawia się sama (wyzwalacz `tickets_rules`: `INVALID_TICKET_TRANSITION`);
+  - pilność wynika z kategorii (hamulce, koło, kierownica); zgłoszenie automatyczne ma rodzaj i jego kategorię; klient nie zgłasza łączności ani „poza strefą”; reklamacja `BILLING` ma przejazd; odpowiedź dla klienta ma czas, a odczyt wymaga odpowiedzi (`CHECK` w `tickets`); zdjęcia zgłoszenia na pozycjach 1–3;
+  - przyczyna stanu hulajnogi pasuje do stanu (`MAINTENANCE` albo `RETIRED`); koniec rezerwacji albo przejazdu przy otwartym pilnym zgłoszeniu albo zadaniu daje `MAINTENANCE` z przyczyną i wpisem systemu w dzienniku audytu (wyzwalacz `scooters_status`); od 0009 zmiana stanu bez jawnej przyczyny dostaje przyczynę zgodną z nowym stanem (`OTHER` albo `NULL` poza serwisem), a jawna niezgodna przyczyna daje `VALIDATION_FAILED` (`scooters_status_reason_matches`);
+  - przejścia zadań serwisowych `OPEN → IN_PROGRESS → DONE`, `OPEN | IN_PROGRESS → CANCELLED`, notatka przy zakończeniu i powód przy anulowaniu (wyzwalacz `service_tasks_rules`: `INVALID_TASK_TRANSITION`, `TASK_RESULT_NOTE_REQUIRED`, `TASK_CANCEL_REASON_REQUIRED`); anulowanie zwraca części do magazynu (wyzwalacz `service_tasks_cancel_parts`);
+  - stan części zmienia się tylko razem z ruchem w procedurze z blokadą wiersza i nie spada poniżej zera (`PART_OUT_OF_STOCK`); ruchy magazynowe tylko do dopisywania (wyzwalacz `spare_part_movements_append_only`);
+  - wpis dziennika audytu ma operatora wtedy i tylko wtedy, gdy aktorem jest `STAFF` (`audit_log_actor_staff`);
+  - tryb zakończenia tylko w `ENDING`, `ENDED` i `UNPAID`, opłata za odholowanie tylko przy zdalnym zakończeniu; najwyżej jeden wpis obciążenia danego typu na przejazd (`wallet_ledger_one_fee_per_rental`: `RIDE_CHARGE`, `TOWING_FEE`);
+  - plik usunięty ma czas usunięcia (`files_deleted_at`), suma kontrolna to 64 znaki szesnastkowe; od 0009 plik jest zdjęciem parkowania najwyżej jednego przejazdu (`rentals_parking_photo_unique`) i zdjęciem najwyżej jednego zgłoszenia (`ticket_photos_file_unique`), naruszenie daje `FILE_ALREADY_ATTACHED`;
+  - jedno powiadomienie na klucz idempotencji (`dedupe_key` unikalny); od 0009 wysyłka przejmuje wiersz `QUEUED` przez `claimed_at` (ponowne przejęcie po 5 min), więc zadanie i `notifications.sweep` nie wyślą go dwa razy; `SENT` wymaga czasu wysłania, `FAILED` błędu; długość szablonu: tytuł 50, push 240, SMS 160 znaków; zmiana treści szablonu zapisuje wersję (wyzwalacz `notification_templates_version`).
 
 ## Widoki, funkcje i procedury
 
@@ -124,7 +169,7 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | Widok | Zastosowanie |
 |---|---|
 | `v_fleet_status` | lista floty: model, bieżący przejazd, strefa parkowania, otwarte zgłoszenia i zadania, przejazdy z 30 dni |
-| `v_rental_details` | lista i szczegóły przejazdów z użytkownikiem, hulajnogą, wersją cennika, strefą i płatnością; od 0005 także czas od odblokowania, flaga problemu (nieudane odblokowanie, hulajnoga offline, niepotwierdzona komenda) i komenda w toku |
+| `v_rental_details` | lista i szczegóły przejazdów z użytkownikiem, hulajnogą, wersją cennika, strefą i płatnością; od 0005 także czas od odblokowania, flaga problemu (nieudane odblokowanie, hulajnoga offline, niepotwierdzona komenda) i komenda w toku; od 0008 tryb zakończenia, opłata za odholowanie, zdjęcie parkowania (wymagane, usunięte), zatrzymanie naliczania i ruch po zakończeniu |
 | `v_rental_timeline` | oś czasu przejazdu: zdarzenia i komendy z wynikiem w jednej kolejności (panel, szczegóły) |
 | `v_user_rental_history` | historia przejazdów klienta w aplikacji (tylko przejazdy, które się odbyły) |
 | `v_user_ride_stats` | statystyki profilu: liczba przejazdów, dystans, czas w drodze |
@@ -139,21 +184,32 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `v_current_documents` | obowiązujące wersje regulaminu i innych dokumentów |
 | `v_published_news` | aktualności w okresie publikacji |
 | `v_low_stock_parts` | części poniżej stanu minimalnego |
-| `v_fleet_list` | lista floty i mapa w panelu: `v_fleet_status` ze statusem floty, współrzędnymi, zasięgiem modelu i wersją rekordu |
+| `v_fleet_list` | lista floty i mapa w panelu: `v_fleet_status` ze statusem floty, współrzędnymi, zasięgiem modelu i wersją rekordu; od 0008 z przyczyną i czasem zmiany stanu |
 | `v_scooter_models` | lista modeli z liczbą hulajnóg (wszystkich i nie wycofanych) |
 | `v_roles_overview` | lista ról z liczbą uprawnień i aktywnych operatorów |
 | `v_user_consents` | ostatnia zgoda klienta każdego rodzaju i to, czy dotyczy obowiązującej wersji dokumentu |
-| `v_audit_log` | dziennik audytu z nazwą i e-mailem operatora |
+| `v_audit_log` | dziennik audytu z nazwą i e-mailem operatora; od 0008 z aktorem (`STAFF`, `SYSTEM`) |
 | `v_zone_list` | lista stref w edytorze panelu: powierzchnia, liczba punktów, hulajnogi i przejazdy w strefie, użycie w przejazdach, autor zmiany (0006) |
 | `v_parking_occupancy` | zajętość aktywnych stref parkowania względem pojemności (0006) |
 | `v_payment_list` | płatności u operatora w panelu: klient, cel, metoda i karta, przejazd, suma zwrotów, paragon, liczba webhooków (0007) |
-| `v_wallet_ledger` | księga w panelu i historia portfela w aplikacji: przejazd, płatność, karta, powód, operator korekty, paragon (0007) |
+| `v_wallet_ledger` | księga w panelu i historia portfela w aplikacji: przejazd, płatność, karta, powód, operator korekty, paragon (0007); od 0008 paragon także przy `TOWING_FEE` |
 | `v_receipt_list` | paragony i korekty z VAT i netto (`fn_vat_from_gross`), przejazdem, kartą i dokumentem korygowanym (0007) |
 | `v_tariff_versions` | wersje cennika ze stanem z `valid_from` (obowiązuje, zaplanowana, archiwalna), końcem obowiązywania, autorem i liczbą przejazdów (0007) |
 | `v_payment_methods` | karty klientów ze stanem ważności (aktywna, wygasa, wygasła, usunięta) (0007) |
 | `v_payment_webhook_events` | webhooki operatora z wynikiem przetworzenia, liczbą dostarczeń i płatnością (0007) |
 | `v_refund_list` | zwroty za przejazdy i zwroty salda z operatorem, stanem u operatora i korektą paragonu (0007) |
 | `v_unpaid_rentals` | zaległości klientów: przejazdy `UNPAID` z kwotą, kartą, ostatnią odmową i liczbą prób (0007) |
+| `v_ticket_list` | zgłoszenia w panelu: hulajnoga, zgłaszający, przypisany, zdjęcia, otwarte i ostatnie zadanie, suma zwrotów, odpowiedź dla klienta (0008) |
+| `v_ticket_timeline` | oś czasu zgłoszenia (D6): utworzenie, wpisy dziennika audytu zgłoszenia i jego zadań (także systemu), zwroty i powiadomienia w jednej kolejności (0008) |
+| `v_service_task_list` | zadania serwisowe: hulajnoga, wykonawca, autor, zgłoszenie, cel przewiezienia, termin, liczba i koszt części (0008) |
+| `v_service_task_parts` | części w zadaniu z kosztem z chwili użycia i bieżącym stanem magazynu (0008) |
+| `v_spare_part_list` | magazyn: stan względem minimum (`<`), zużycie z 30 dni i ostatni ruch (0008) |
+| `v_spare_part_movements` | ruchy magazynowe z częścią, zadaniem, hulajnogą i operatorem (0008) |
+| `v_notification_templates` | szablony powiadomień z autorem zmiany, liczbą wersji, ostatnią wysyłką i liczbą wysłanych z 30 dni (0008) |
+| `v_notification_template_versions` | wersje szablonu do historii i przywrócenia w edytorze (0008) |
+| `v_notification_list` | wysłane powiadomienia ze stanem, błędem, klientem, przejazdem i zgłoszeniem (0008) |
+| `v_push_tokens` | tokeny push z klientem i stanem sesji (0008) |
+| `v_file_list` | pliki z autorem, stanem i miejscem użycia (przejazd albo zgłoszenie) (0008) |
 
 | Funkcja | Wynik |
 |---|---|
@@ -175,6 +231,11 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `fn_rental_paid_amount(rental_id)` | zapłacona kwota przejazdu: obciążenie portfela albo udana płatność kartą (0007) |
 | `fn_rental_settlement(rental_id)` | stan rozliczenia: `NONE`, `WALLET_PAID`, `CARD_PENDING`, `CARD_PAID`, `FAILED` (0007, ADR 0049) |
 | `fn_vat_from_gross(gross, rate)` | VAT „w stu” od brutto z zaokrągleniem połowy w górę; ta sama reguła co `vatFromGross` w core (0007, ADR 0052) |
+| `fn_scooter_service_hold(scooter_id)` | powód zatrzymania w serwisie: `URGENT_TICKET`, `SERVICE_TASK` albo `NULL` (0008, ADR 0055) |
+| `fn_scooter_return_blockers(scooter_id)` | przeszkody powrotu do floty: `URGENT_TICKET` (od 0009), `OPEN_TASKS`, `OFFLINE`, `BATTERY_BELOW_THRESHOLD`; ta sama reguła co `returnToFleetBlockers` w core (0008, test zgodności) |
+| `fn_dashboard_attention(critical_battery_pct)` | liczby pulpitu „Wymaga uwagi”: offline w przejeździe, zatrzymane naliczanie, krytyczna bateria, nowe pilne zgłoszenia bez przypisania, nieudane płatności z dziś, zaległości (0008, D1) |
+
+Od 0008 `fn_rental_paid_amount` i `fn_rental_settlement` liczą też wpis `TOWING_FEE`, więc limit zwrotu w `sp_record_refund` obejmuje opłatę za odholowanie.
 
 | Procedura | Działanie | Uruchamia |
 |---|---|---|
@@ -192,8 +253,12 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `sp_record_refund(user_id, rental_id, payment_id, source, amount, reason, note, staff_id, status, OUT refund_id)` | zwrot z blokadą przejazdu albo płatności; suma zwrotów nie większa niż zapłata (0007) | zwrot za przejazd i zwrot salda w panelu |
 | `sp_issue_receipt(user_id, kind, rental_id, payment_id, refund_id, corrects_receipt_id, payment_source, seller, items, OUT receipt_id, OUT receipt_number)` | paragon albo korekta z pozycjami, nabywca z chwili wystawienia, numer z sekwencji (0007) | rozliczenie przejazdu, spłata, udany zwrot |
 | `sp_delete_scheduled_tariff(tariff_id)` | usunięcie zaplanowanej wersji cennika przed jej datą, gdy żaden przejazd jej nie wskazuje (0007) | „Cennik i zasady” w panelu |
+| `sp_part_receive(part_id, quantity, unit_cost, document, staff_id, OUT movement_id, OUT stock_after)` | przyjęcie dostawy z blokadą części, opcjonalna nowa cena dla kolejnych użyć, ruch `RECEIPT` (0008) | „Przyjęcie dostawy” w magazynie, dane startowe |
+| `sp_part_adjust(part_id, new_quantity, reason, note, staff_id, OUT movement_id, OUT stock_after)` | korekta do stanu bezwzględnego z powodem, ruch `ADJUSTMENT`; bez zmiany `PART_ADJUST_NO_CHANGE` (0008) | „Korekta stanu” w magazynie |
+| `sp_task_use_part(task_id, part_id, quantity, staff_id, OUT line_quantity, OUT stock_after)` | użycie części w zadaniu w toku z kosztem z chwili użycia, ruch `USE`; `TASK_NOT_IN_PROGRESS`, `PART_INACTIVE`, `PART_OUT_OF_STOCK` (0008) | „Dodaj część” w zadaniu |
+| `sp_task_return_part(task_id, part_id, quantity, staff_id, OUT line_quantity, OUT stock_after)` | zwrot części z zadania (całej pozycji przy `NULL`), ruch `RETURN`; `PART_RETURN_EXCEEDS`, `TASK_PART_NOT_FOUND` (0008) | usunięcie pozycji z zadania |
 
-Wyzwalacz `trg_zone_rules` (0006) pilnuje reguł geometrii stref przy każdym zapisie. Wyzwalacz `trg_content_revision` zwiększa licznik `content_revision_seq` przy każdej zmianie w tabelach treści. Wyzwalacz `trg_user_wallet` (0005) zakłada portfel z saldem 0 przy każdym nowym kliencie. Wyzwalacze `trg_wallet_ledger_rules` i `trg_tariff_rules` (0007) pilnują księgi i wersji cennika.
+Wyzwalacz `trg_zone_rules` (0006) pilnuje reguł geometrii stref przy każdym zapisie. Wyzwalacz `trg_content_revision` zwiększa licznik `content_revision_seq` przy każdej zmianie w tabelach treści. Wyzwalacz `trg_user_wallet` (0005) zakłada portfel z saldem 0 przy każdym nowym kliencie. Wyzwalacze `trg_wallet_ledger_rules` i `trg_tariff_rules` (0007) pilnują księgi i wersji cennika. Od 0008: `trg_ticket_rules` (stan końcowy zgłoszenia), `trg_scooter_status` (czas zmiany, przyczyna, `MAINTENANCE` po przejeździe z wpisem systemu; od 0009 przyczyna zgodna z nowym stanem przy zmianie stanu bez przyczyny), `trg_service_task_rules` i `trg_service_task_cancel_parts` (przejścia zadań, zwrot części), `trg_spare_part_movements_append_only` i `trg_notification_template_version` (wersja szablonu przy zmianie treści).
 
 ## Operacje w panelu dla każdej tabeli
 
@@ -207,7 +272,7 @@ Realizacja wymagania 12 według [ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-p
 | `sessions` | techniczna | `sessions` (bez skrótu tokenu) | nie | nie | unieważnienie | `users.manage` |
 | `staff_sessions` | techniczna | sesje w karcie operatora (bez skrótu tokenu) | logowanie | nie | unieważnienie | `staff.manage` |
 | `staff_invitations` | proces | zaproszenie w karcie operatora | zaproszenie | ponowne wysłanie (nowy wiersz) | unieważnienie | `staff.manage` |
-| `push_tokens` | techniczna | `push_tokens` | nie | nie | tak | `users.manage` |
+| `push_tokens` | techniczna | `v_push_tokens` (od iteracji 6) | z aplikacji (`POST /me/push-tokens`) | nie | wylogowanie, `DeviceNotRegistered` (system) | `users.read` |
 | `saved_places` | encja klienta | `saved_places` | w aplikacji | w aplikacji | tak | `users.read`, `users.manage` |
 | `staff` | encja | `v_staff_overview` | zaproszenie | dane, role, reset TOTP | dezaktywacja | `staff.read`, `staff.manage` |
 | `permissions` | słownik z kodu | `permissions` | z katalogu w core | opis | nie | `roles.manage` |
@@ -233,20 +298,22 @@ Realizacja wymagania 12 według [ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-p
 | `refunds` | proces | `v_refund_list` | polecenia: zwrot za przejazd, zwrot salda (`sp_record_refund`) | stan u operatora (system) | nie | `payments.read`, `rentals.manage`, `wallet.adjust` |
 | `receipts` | tylko do dopisywania | `v_receipt_list` | system przy rozliczeniu i zwrocie (`sp_issue_receipt`) | nie | nie | `payments.read` |
 | `receipt_items` | tylko do dopisywania | szczegóły paragonu | system | nie | nie | `payments.read` |
-| `tickets` | encja | `v_ticket_queue`, `tickets` | tak (źródło `STAFF`) | status, wykonawca, pilność | zamknięcie (`RESOLVED`) | `tickets.read`, `tickets.manage` |
-| `ticket_photos` | encja | szczegóły zgłoszenia | tak | — | tak | `tickets.manage` |
-| `files` | techniczna | `files` | przez moduł, który używa pliku | nie | tak, jeśli nieużywany | uprawnienie modułu |
-| `notifications` | tylko do dopisywania | `notifications` | system | nie | nie | `users.read` |
-| `audit_log` | tylko do dopisywania | `v_audit_log` (filtry: operator, rodzaj obiektu, zakres czasu) | system, w transakcji zapisu | nie | nie | `audit.read` |
-| `service_tasks` | encja | `service_tasks` | tak | przejścia statusu, wykonawca | anulowanie (`CANCELLED`) | `service.read`, `service.manage` |
-| `spare_parts` | słownik | `spare_parts`, `v_low_stock_parts` | tak | tak | archiwizacja, jeśli używana | `service.manage` |
-| `service_task_parts` | encja | szczegóły zadania | tak | ilość | tak, dopóki zadanie otwarte | `service.manage` |
+| `tickets` | encja | `v_ticket_list` (od iteracji 6), oś czasu `v_ticket_timeline` | z aplikacji, system (automatyczne), operator (źródło `STAFF`) | przypisanie, status z odpowiedzią dla klienta, zadanie ze zgłoszenia | nie: `RESOLVED` jest stanem końcowym | `tickets.read`, `tickets.manage` |
+| `ticket_photos` | encja | szczegóły zgłoszenia | z aplikacji i z panelu (najwyżej 3) | — | tak, w panelu | `tickets.manage` |
+| `files` | techniczna | `v_file_list` (od iteracji 6) | `POST /files` z modułu, który używa pliku | nie | tak; nieprzypięte i po retencji usuwa system (`DELETED`) | `rentals.read`, `tickets.read` (według celu) |
+| `notifications` | tylko do dopisywania | `v_notification_list` (od iteracji 6) | system (zdarzenia) | nie | nie | `content.read`; dane klienta z `users.read` |
+| `audit_log` | tylko do dopisywania | `v_audit_log` (filtry: operator, aktor, rodzaj obiektu, zakres czasu) | system, w transakcji zapisu | nie | nie | `audit.read` |
+| `service_tasks` | encja | `v_service_task_list` (od iteracji 6), „Moje zadania” | ze zgłoszenia, z karty hulajnogi, system (wymiana baterii, przewiezienie) | przypisanie, rozpoczęcie, części, zakończenie z notatką | anulowanie (`CANCELLED`) z powodem | `service.read`, `service.manage` |
+| `spare_parts` | słownik | `v_spare_part_list` (od iteracji 6) | tak | dane i minimum; stan tylko przez przyjęcie i korektę (procedury) | archiwizacja, jeśli ma ruchy; usunięcie części bez historii | `service.read`, `service.manage` |
+| `service_task_parts` | encja | `v_service_task_parts` w szczegółach zadania | użycie części (`sp_task_use_part`) | nie | zwrot (`sp_task_return_part`), dopóki zadanie w toku | `service.manage` |
+| `spare_part_movements` | tylko do dopisywania | `v_spare_part_movements` (od iteracji 6) | przyjęcie, korekta, użycie i zwrot przez procedury | nie | nie | `service.read`, `service.manage` |
 | `content_pages` | słownik | `content_pages` | tak | tak | tak, jeśli bez opublikowanych wersji | `content.read`, `content.write` |
 | `content_page_versions` | wersjonowana | wersje dokumentu | nowa wersja | szkic; publikacja | archiwizacja | `content.write` |
 | `content_blocks` | słownik | `content_blocks` | tak | tak | tak | `content.write` |
 | `faq_items` | słownik | `faq_items` | tak | tak | tak | `content.write` |
 | `news` | słownik | `news` | tak | tak | tak | `content.write` |
-| `notification_templates` | słownik | `notification_templates` | nie (kody z kodu) | tak | nie | `content.write` |
+| `notification_templates` | słownik | `v_notification_templates` (od iteracji 6) | nie (kody z rejestru w `packages/shared`) | treść jako nowa wersja z podglądem i walidacją ICU | nie | `content.read`, `content.write` |
+| `notification_template_versions` | wersjonowana | historia w edytorze szablonu (`v_notification_template_versions`) | system przy zapisie treści | nie; przywrócenie to nowa wersja | nie | `content.read`, `content.write` |
 | `media_assets` | słownik | `media_assets` | tak | tak | tak, jeśli nieużywana | `content.write` |
 | `report_definitions` | słownik z kodu | `report_definitions` | z katalogu w core | nazwa, opis, aktywność | nie | `content.write` |
 | `report_runs` | proces | `report_runs` | uruchomienie raportu | nie | nie | `reports.<kod>` |
