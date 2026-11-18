@@ -88,6 +88,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
       '0007_payments.sql',
       '0008_operations.sql',
       '0009_operations_fixes.sql',
+      '0010_towing_fee_outside_vat.sql',
     ]);
     const second = await runMigrations(pool);
     expect(second.applied).toEqual([]);
@@ -1701,9 +1702,9 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     const items = JSON.stringify([
       { description: 'UNLOCK', quantity: 1, unitPrice: 300, vatRate: 23, amount: 300 },
       { description: 'RIDE_MINUTES', quantity: 12, unitPrice: 80, vatRate: 23, amount: 960 },
-      { description: 'TOWING_FEE', quantity: 1, unitPrice: 2000, vatRate: 23, amount: 2000 },
+      { description: 'TOWING_FEE', quantity: 1, unitPrice: 2000, vatRate: null, amount: 2000 },
     ]);
-    const sale = await pool.query<{ receipt_number: string }>(
+    const sale = await pool.query<{ receipt_id: string; receipt_number: string }>(
       `CALL sp_issue_receipt($1, 'SALE', $2, NULL, NULL, NULL, 'WALLET', '{}'::jsonb, $3::jsonb, NULL, NULL)`,
       [user, rental, items],
     );
@@ -1717,6 +1718,74 @@ describe.skipIf(!adminUrl)('baza danych', () => {
     ]);
     const total = await pool.query(`SELECT total_amount FROM receipts WHERE rental_id = $1`, [rental]);
     expect(total.rows[0]).toEqual({ total_amount: '3260' });
+
+    // Opłata poza VAT (0010, ADR 0061): VAT tylko od grupy 23% (1260 × 23/123 = 235,6…), stawka jedynej grupy z VAT.
+    const saleId = sale.rows[0]!.receipt_id;
+    const vat = async (id: string) =>
+      (
+        await pool.query(`SELECT total_amount, vat_amount, net_amount, vat_rate FROM v_receipt_list WHERE id = $1`, [
+          id,
+        ])
+      ).rows[0];
+    expect(await vat(saleId)).toEqual({
+      total_amount: '3260',
+      vat_amount: '236',
+      net_amount: '3024',
+      vat_rate: '23.00',
+    });
+    const correct = (lines: [number | null, number][]) =>
+      pool.query<{ receipt_id: string }>(
+        `CALL sp_issue_receipt($1, 'CORRECTION', $2, NULL, NULL, $3, 'WALLET', '{}'::jsonb, $4::jsonb, NULL, NULL)`,
+        [
+          user,
+          rental,
+          saleId,
+          JSON.stringify(
+            lines.map(([vatRate, amount]) => ({
+              description: 'REFUND',
+              quantity: 1,
+              unitPrice: amount,
+              vatRate,
+              amount,
+            })),
+          ),
+        ],
+      );
+    // Korekta z dwiema grupami: VAT od części z VAT (387 × 23/123 = 72,3…).
+    const split = (
+      await correct([
+        [23, -387],
+        [null, -613],
+      ])
+    ).rows[0]!.receipt_id;
+    expect(await vat(split)).toEqual({
+      total_amount: '-1000',
+      vat_amount: '-72',
+      net_amount: '-928',
+      vat_rate: '23.00',
+    });
+    // Korekta tylko poza VAT: bez stawki i bez VAT.
+    const outside = (await correct([[null, -100]])).rows[0]!.receipt_id;
+    expect(await vat(outside)).toEqual({ total_amount: '-100', vat_amount: '0', net_amount: '-100', vat_rate: null });
+    // Grupa poza VAT ma jeszcze 1287: więcej z niej nie, choć dokument ma 2160 do zwrotu; stawka spoza paragonu też nie.
+    expect(await domainCode(correct([[null, -1288]]))).toEqual({
+      code: 'RECEIPT_CORRECTION_EXCEEDS',
+      details: undefined,
+    });
+    expect(await domainCode(correct([[8, -10]]))).toEqual({ code: 'RECEIPT_CORRECTION_EXCEEDS', details: undefined });
+    await correct([
+      [23, -873],
+      [null, -1287],
+    ]);
+    const left = await pool.query(
+      `SELECT i.vat_rate, sum(i.amount)::bigint AS left FROM receipt_items i JOIN receipts r ON r.id = i.receipt_id
+       WHERE r.id = $1 OR r.corrects_receipt_id = $1 GROUP BY i.vat_rate ORDER BY i.vat_rate NULLS LAST`,
+      [saleId],
+    );
+    expect(left.rows).toEqual([
+      { vat_rate: '23.00', left: '0' },
+      { vat_rate: null, left: '0' },
+    ]);
 
     // Zdjęcie parkowania jest wymagane po zakończeniu bez łączności.
     await pool.query(`UPDATE rentals SET towing_fee = NULL, end_mode = 'CUSTOMER_OFFLINE' WHERE id = $1`, [rental]);

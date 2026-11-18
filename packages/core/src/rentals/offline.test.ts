@@ -280,7 +280,7 @@ describe('opłata za odholowanie (ADR 0060)', () => {
       description: 'TOWING_FEE',
       quantity: 1,
       unitPrice: 2000,
-      vatRate: 23,
+      vatRate: null,
       amount: 2000,
     });
     expect(rideReceiptItems(priceRental(tariff, counters), tariff, 23).map((i) => i.description)).toEqual([

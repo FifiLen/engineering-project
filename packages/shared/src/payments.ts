@@ -212,8 +212,16 @@ export interface ReceiptItemView {
   description: ReceiptItemCode;
   quantity: number;
   unitPrice: number;
-  vatRate: number;
+  /** Stawka VAT w procentach; `null` = nie podlega VAT (opłata za odholowanie jako kara umowna, ADR 0061). */
+  vatRate: number | null;
   amount: number;
+}
+
+/** Grupa stawek dokumentu (ADR 0061): suma brutto pozycji i VAT liczony od niej; poza VAT `vatRate: null`, `vat: 0`. */
+export interface ReceiptVatGroupView {
+  vatRate: number | null;
+  gross: number;
+  vat: number;
 }
 
 export interface ReceiptParty {
@@ -225,8 +233,12 @@ export interface ReceiptParty {
 
 export interface ReceiptView extends ReceiptSummary {
   items: ReceiptItemView[];
+  /** Stawka pozycji z VAT, gdy jest jedna; `null` przy kilku stawkach albo bez pozycji z VAT. */
   vatRate: number | null;
+  /** Suma VAT grup stawek. */
   vatAmount: number;
+  /** VAT w podziale na stawki w kolejności pozycji (ostatnia grupa poza VAT, jeśli jest). */
+  vatGroups: ReceiptVatGroupView[];
   netAmount: number;
   seller: ReceiptParty;
   buyer: ReceiptParty;
@@ -248,7 +260,7 @@ export interface TariffDetailsView {
   minuteRate: number;
   pauseMinuteRate: number;
   freeReservationMinutes: number;
-  /** Opłata za odholowanie przez serwis (pytanie 7). */
+  /** Opłata za odholowanie przez serwis (pytanie 7): kara umowna poza VAT (ADR 0061). */
   outOfZoneFee: number;
   minWalletBalance: number;
   minBatteryPct: number;

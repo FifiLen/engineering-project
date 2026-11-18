@@ -1309,3 +1309,29 @@ Przegląd kodu iteracji 6 znalazł 16 błędów (A–P). Wszystkie potwierdziły
 
 **Wypchnięcie (18 listopada 2026)**
 - Siedem commitów iteracji 6 (`20d0f1f`…`44315da`) na `main`; CI zielone na `44315da`.
+
+## Opłata za odholowanie jako kara umowna (18 listopada 2026)
+
+**Decyzja autora:** opłata za odholowanie może być karą umowną (art. 483 Kodeksu cywilnego), więc nie podlega VAT. ADR 0060 dawał jej stawkę VAT przejazdu i zostawiał to pytanie otwarte; rozstrzyga je [ADR 0061](adr/0061-oplata-za-odholowanie-jako-kara-umowna.md) (zmienia ADR 0060 i 0052). Księga, płatność kartą na całą kwotę i limit zwrotu zostają jak w ADR 0060.
+
+**Zmiany**
+- **Baza (migracja `0010_towing_fee_outside_vat.sql`):**
+  - `receipt_items.vat_rate` dopuszcza `NULL` („nie podlega VAT”, w dokumencie „np.”);
+  - `v_receipt_list` (te same kolumny co w 0007): `vat_amount` to suma VAT liczonego osobno dla każdej stawki (`fn_vat_from_gross` na sumie brutto grupy, `NULL` bez VAT), `vat_rate` to stawka pozycji z VAT, gdy jest jedna;
+  - `sp_issue_receipt` odrzuca korektę, po której któraś grupa stawek paragonu (sprzedaż plus wszystkie korekty) byłaby ujemna, także ze stawką spoza paragonu (`RECEIPT_CORRECTION_EXCEEDS`). Wcześniej pilnował tylko sumy dokumentu.
+  - Inne widoki i funkcje nie czytają `receipt_items.vat_rate` (sprawdzone w 0007–0009 i w repozytoriach); liczby tabel, widoków, funkcji i procedur bez zmian.
+- **Core:** `ReceiptItem.vatRate: number | null`; `rideReceiptItems` daje `TOWING_FEE` bez stawki; nowe `receiptVatGroups` (grupy w kolejności pierwszego wystąpienia stawki); `receiptTotals` sumuje VAT grup; `correctionItems(kwota, pozycje sprzedaży, wcześniejsze korekty)` dzieli zwrot proporcjonalnie do kwot pozostałych w grupach, zaokrąglenie połowa w górę, reszta do ostatniej grupy, jedna pozycja `REFUND` na grupę z niezerowym udziałem. Paragon z jedną stawką daje te same kwoty co wcześniej.
+- **Repozytorium i API:** `saleReceipt` blokuje paragon sprzedaży (`FOR UPDATE`) i zwraca kwoty pozycji i wcześniejszych korekt, więc równoległe korekty liczą udziały od aktualnych kwot; `issueCorrection` przekazuje je do `correctionItems`. Widok paragonu (klient i panel) ma `vatGroups` (`{ vatRate, gross, vat }`, kolejność pozycji), a `ReceiptItemView.vatRate` może być `null`. `pnpm api:openapi` bez zmian (odpowiedzi paragonu nie są w kontrakcie).
+- **Panel:** pozycja bez VAT ma opis „1 × 20,00 zł · VAT np.”, podsumowanie pokazuje VAT każdej stawki i wiersz „Nie podlega VAT (np.)” z kwotą brutto. Teksty: okno zdalnego zakończenia („jako karę umowną bez VAT”), podpowiedzi cennika i notka VAT w cenniku, podgląd cennika klienta.
+- **Aplikacja:** paragon jak w panelu (opis pozycji z „VAT np.”, VAT grupami, wiersz poza VAT), notka paragonu i cennik bez sugestii, że opłata zawiera VAT; usunięty klucz `receipt.vatNoRate`.
+- **Paragony sprzed zmiany** (odholowanie ze stawką przejazdu) zostają bez zmian; ich korekty liczą się jedną grupą 23% jak wcześniej.
+
+**Odstępstwa od makiet:** paragon w makietach `paragony-lista` i `paragon` ma jeden wiersz VAT; przy pozycji poza VAT dochodzi wiersz „Nie podlega VAT (np.)”, a opis pozycji ma „VAT np.” zamiast stawki. Lista paragonów nie pokazuje VAT, więc bez zmian.
+
+**Weryfikacja:** `pnpm db:migrate` i `pnpm db:pull` na bazie deweloperskiej (różnica schematu: `receipt_items.vat_rate` bez `notNull`, nowa treść `v_receipt_list`); `pnpm lint`, `pnpm typecheck`, `pnpm test` (core 181, shared 32, symulator 54, db 71, api 185) i `pnpm --filter @hulajnogi/web build` przechodzą. Nowe i zmienione testy: core (VAT grupami, korekta proporcjonalna, kolejne korekty, reszta groszowa, paragon sprzed zmiany), db (widok z grupą 23% i `NULL`, korekta tylko poza VAT, odrzucenie przekroczenia grupy i obcej stawki), api (zdalne zakończenie z opłatą z portfela i kartą: `TOWING_FEE` bez stawki, VAT tylko od przejazdu, zwrot częściowy i pełny z pozycjami korekty w dwóch grupach). Panelu i aplikacji nie oglądano w przeglądarce.
+
+**Po iteracji 6: sprawy autora (18 listopada 2026)**
+- Serwery deweloperskie zrestartowane z tej sesji: API (`nest start --watch`, 3001), symulator (strefy z API, 40 z 40 hulajnóg połączonych), panel (`next dev`, 3002). Konfiguracje `api` i `simulator` dopisane do `.claude/launch.json`.
+- Aktualizacja Next.js 16.4.4 → 16.4.6 (decyzja autora). Wersje do 16.4.4 mają dwie podatności średniej wagi w `use cache` (GHSA-vc7v-qv4w-wrv8, GHSA-mfr8-8qww-v76h; poprawka od 16.4.5). 16.4.6 ma 9 dni, build panelu przechodzi bez komunikatu o podatności.
+- Stawka VAT opłaty za odholowanie rozstrzygnięta: kara umowna poza VAT (ADR 0061, wpis wyżej).
+- `eas init` zostaje po stronie autora (interaktywne logowanie do konta Expo); Stripe na koniec projektu.

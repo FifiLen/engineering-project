@@ -369,7 +369,14 @@ describe.skipIf(!adminUrl)('API: przejazd bez łączności, bateria i odholowani
       await as('anna')({ method: 'GET', url: `/me/receipts/${customerView.settlement.receiptId}` })
     ).json<shared.ReceiptView>();
     expect(receipt.totalAmount).toBe(ended.price.total);
-    expect(receipt.items.at(-1)).toMatchObject({ description: 'TOWING_FEE', amount: 2000, vatRate: 23 });
+    // Opłata to kara umowna poza VAT (ADR 0061): VAT tylko od przejazdu.
+    expect(receipt.items.at(-1)).toMatchObject({ description: 'TOWING_FEE', amount: 2000, vatRate: null });
+    const rideVat = core.vatFromGross(rideAmount, 23);
+    expect(receipt).toMatchObject({ vatRate: 23, vatAmount: rideVat, netAmount: ended.price.total - rideVat });
+    expect(receipt.vatGroups).toEqual([
+      { vatRate: 23, gross: rideAmount, vat: rideVat },
+      { vatRate: null, gross: 2000, vat: 0 },
+    ]);
     const history = (await as('anna')({ method: 'GET', url: '/rentals' })).json<shared.RentalHistoryItem[]>();
     expect(history.find((h) => h.id === rental.id)).toMatchObject({ towingFee: 2000 });
 
@@ -386,12 +393,43 @@ describe.skipIf(!adminUrl)('API: przejazd bez łączności, bateria i odholowani
         url: `/admin/rentals/${rental.id}/refund`,
         payload: { amount, reason: 'SCOOTER_FAILURE' },
       });
+    const receiptOf = async (id: string) =>
+      (await as('anna')({ method: 'GET', url: `/me/receipts/${id}` })).json<shared.ReceiptView>();
+    const amounts = (items: readonly { vatRate: number | null; amount: number }[]) =>
+      items.map((i) => [i.vatRate, i.amount]);
     const partial = await refund(2000);
     expect(partial.statusCode).toBe(201);
     expect(partial.json<shared.RentalAdminDetails>().refundable).toBe(rideAmount);
+    // Korekta dzieli zwrot proporcjonalnie między przejazd z VAT i opłatę poza VAT, osobna pozycja na grupę.
+    const firstId = (await receiptOf(receipt.id)).corrections[0]!.id;
+    const first = await receiptOf(firstId);
+    const expectedFirst = core.correctionItems(2000, receipt.items);
+    expect(expectedFirst).toHaveLength(2);
+    expect(amounts(first.items)).toEqual(amounts(expectedFirst));
+    expect(first.items.every((i) => i.description === 'REFUND')).toBe(true);
+    expect(first).toMatchObject({
+      kind: 'CORRECTION',
+      totalAmount: -2000,
+      vatRate: 23,
+      vatAmount: core.vatFromGross(expectedFirst[0]!.amount, 23),
+    });
     const tooMuch = await refund(rideAmount + 1);
     expect(tooMuch.statusCode).toBe(422);
     expect(tooMuch.json().code).toBe('REFUND_EXCEEDS_PAYMENT');
+
+    // Pełny zwrot reszty liczy udziały od kwot po pierwszej korekcie i zeruje obie grupy stawek.
+    const full = await refund(rideAmount);
+    expect(full.statusCode).toBe(201);
+    expect(full.json<shared.RentalAdminDetails>().refundable).toBe(0);
+    const corrections = (await receiptOf(receipt.id)).corrections;
+    expect(corrections).toHaveLength(2);
+    const second = await receiptOf(corrections[1]!.id);
+    expect(amounts(second.items)).toEqual(amounts(core.correctionItems(rideAmount, receipt.items, first.items)));
+    const left = core.receiptVatGroups([...receipt.items, ...first.items, ...second.items]);
+    expect(left.map((g) => [g.vatRate, g.gross])).toEqual([
+      [23, 0],
+      [null, 0],
+    ]);
   });
 
   it('niska bateria: LOW z cennika i CRITICAL 5% raz na przejazd, limit 10 km/h, tylko odczyt bieżący', async () => {
@@ -507,8 +545,9 @@ describe.skipIf(!adminUrl)('API: przejazd bez łączności, bateria i odholowani
     const receipt = (
       await as('bartek')({ method: 'GET', url: `/me/receipts/${paid.settlement.receiptId}` })
     ).json<shared.ReceiptView>();
-    expect(receipt.items.map((i) => i.description)).toContain('TOWING_FEE');
+    expect(receipt.items.at(-1)).toMatchObject({ description: 'TOWING_FEE', amount: 2000, vatRate: null });
     expect(receipt.totalAmount).toBe(ended.price.total);
+    expect(receipt.vatAmount).toBe(core.vatFromGross(ended.price.total - 2000, 23));
 
     const tooMuch = await dispatcher({
       method: 'POST',

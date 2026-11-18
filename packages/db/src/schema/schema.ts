@@ -2350,7 +2350,7 @@ export const receiptItems = pgTable(
     quantity: numeric({ precision: 10, scale: 3 }).notNull(),
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
     unitPrice: bigint('unit_price', { mode: 'number' }).notNull(),
-    vatRate: numeric('vat_rate', { precision: 4, scale: 2 }).notNull(),
+    vatRate: numeric('vat_rate', { precision: 4, scale: 2 }),
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
     amount: bigint({ mode: 'number' }).notNull(),
   },
@@ -2803,6 +2803,37 @@ export const vPaymentList = pgView('v_payment_list', {
   sql`SELECT p.id, p.created_at, p.updated_at, p.status, p.purpose, p.method, p.amount, p.currency, p.provider, p.provider_payment_id, p.idempotency_key, p.failure_reason, p.failure_code, p.user_id, u.name AS user_name, u.phone AS user_phone, p.rental_id, r.number AS rental_number, p.payment_method_id, pm.brand AS card_brand, pm.last4 AS card_last4, ( SELECT COALESCE(sum(f.amount), 0::numeric)::bigint AS "coalesce" FROM refunds f WHERE f.payment_id = p.id AND f.status = 'SUCCEEDED'::refund_status) AS refunded_amount, rc.id AS receipt_id, rc.number AS receipt_number, ( SELECT count(*)::integer AS count FROM payment_webhook_events e WHERE e.payment_id = p.id) AS webhook_events FROM payments p JOIN users u ON u.id = p.user_id LEFT JOIN rentals r ON r.id = p.rental_id LEFT JOIN payment_methods pm ON pm.id = p.payment_method_id LEFT JOIN receipts rc ON rc.payment_id = p.id AND rc.kind = 'SALE'::receipt_kind`,
 );
 
+export const vReceiptList = pgView('v_receipt_list', {
+  id: uuid(),
+  number: text(),
+  kind: receiptKind(),
+  issuedAt: timestamp('issued_at', { withTimezone: true, mode: 'date' }),
+  userId: uuid('user_id'),
+  buyerName: text('buyer_name'),
+  buyerPhone: text('buyer_phone'),
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentalNumber: bigint('rental_number', { mode: 'number' }),
+  paymentId: uuid('payment_id'),
+  refundId: uuid('refund_id'),
+  paymentSource: paymentSource('payment_source'),
+  cardBrand: text('card_brand'),
+  cardLast4: char('card_last4', { length: 4 }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  totalAmount: bigint('total_amount', { mode: 'number' }),
+  currency: char({ length: 3 }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  vatAmount: bigint('vat_amount', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  netAmount: bigint('net_amount', { mode: 'number' }),
+  vatRate: numeric('vat_rate'),
+  correctsReceiptId: uuid('corrects_receipt_id'),
+  correctsNumber: text('corrects_number'),
+  corrections: integer(),
+}).as(
+  sql`SELECT rc.id, rc.number, rc.kind, rc.issued_at, rc.user_id, rc.buyer_name, rc.buyer_phone, rc.rental_id, r.number AS rental_number, rc.payment_id, rc.refund_id, rc.payment_source, pm.brand AS card_brand, pm.last4 AS card_last4, rc.total_amount, rc.currency, COALESCE(v.vat_amount, 0::bigint) AS vat_amount, rc.total_amount - COALESCE(v.vat_amount, 0::bigint) AS net_amount, v.vat_rate, rc.corrects_receipt_id, o.number AS corrects_number, ( SELECT count(*)::integer AS count FROM receipts c WHERE c.corrects_receipt_id = rc.id) AS corrections FROM receipts rc LEFT JOIN rentals r ON r.id = rc.rental_id LEFT JOIN payments p ON p.id = rc.payment_id LEFT JOIN payment_methods pm ON rc.payment_source = 'CARD'::payment_source AND pm.id = COALESCE(p.payment_method_id, r.payment_method_id) LEFT JOIN receipts o ON o.id = rc.corrects_receipt_id LEFT JOIN LATERAL ( SELECT CASE WHEN count(DISTINCT g.vat_rate) = 1 THEN max(g.vat_rate) ELSE NULL::numeric END AS vat_rate, sum(g.vat_amount)::bigint AS vat_amount FROM ( SELECT i.vat_rate, fn_vat_from_gross(sum(i.amount)::bigint, i.vat_rate) AS vat_amount FROM receipt_items i WHERE i.receipt_id = rc.id GROUP BY i.vat_rate) g) v ON true`,
+);
+
 export const vTariffVersions = pgView('v_tariff_versions', {
   id: uuid(),
   version: integer(),
@@ -2934,37 +2965,6 @@ export const vDailyRevenue = pgView('v_daily_revenue', {
   refunds: bigint({ mode: 'number' }),
 }).as(
   sql`WITH rides AS ( SELECT (rentals.ended_at AT TIME ZONE 'Europe/Warsaw'::text)::date AS day, count(*) AS rides, sum(rentals.total_amount)::bigint AS ride_revenue, sum(rentals.ride_seconds) AS ride_seconds FROM rentals WHERE (rentals.state = ANY (ARRAY['ENDED'::rental_state, 'UNPAID'::rental_state])) AND rentals.ended_at IS NOT NULL GROUP BY ((rentals.ended_at AT TIME ZONE 'Europe/Warsaw'::text)::date) ), topups AS ( SELECT (payments.created_at AT TIME ZONE 'Europe/Warsaw'::text)::date AS day, sum(payments.amount)::bigint AS topups FROM payments WHERE payments.purpose = 'TOPUP'::payment_purpose AND (payments.status = ANY (ARRAY['SUCCEEDED'::payment_status, 'REFUNDED'::payment_status])) GROUP BY ((payments.created_at AT TIME ZONE 'Europe/Warsaw'::text)::date) ), refunds AS ( SELECT (refunds_1.created_at AT TIME ZONE 'Europe/Warsaw'::text)::date AS day, sum(refunds_1.amount)::bigint AS refunds FROM public.refunds refunds_1 WHERE refunds_1.status = 'SUCCEEDED'::refund_status AND refunds_1.rental_id IS NOT NULL GROUP BY ((refunds_1.created_at AT TIME ZONE 'Europe/Warsaw'::text)::date) ) SELECT day, COALESCE(rides.rides, 0::bigint) AS rides, COALESCE(rides.ride_revenue, 0::bigint) AS ride_revenue, COALESCE(rides.ride_seconds, 0::bigint) AS ride_seconds, COALESCE(topups.topups, 0::bigint) AS topups, COALESCE(refunds.refunds, 0::bigint) AS refunds FROM rides FULL JOIN topups USING (day) FULL JOIN refunds USING (day)`,
-);
-
-export const vReceiptList = pgView('v_receipt_list', {
-  id: uuid(),
-  number: text(),
-  kind: receiptKind(),
-  issuedAt: timestamp('issued_at', { withTimezone: true, mode: 'date' }),
-  userId: uuid('user_id'),
-  buyerName: text('buyer_name'),
-  buyerPhone: text('buyer_phone'),
-  rentalId: uuid('rental_id'),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  rentalNumber: bigint('rental_number', { mode: 'number' }),
-  paymentId: uuid('payment_id'),
-  refundId: uuid('refund_id'),
-  paymentSource: paymentSource('payment_source'),
-  cardBrand: text('card_brand'),
-  cardLast4: char('card_last4', { length: 4 }),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  totalAmount: bigint('total_amount', { mode: 'number' }),
-  currency: char({ length: 3 }),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  vatAmount: bigint('vat_amount', { mode: 'number' }),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  netAmount: bigint('net_amount', { mode: 'number' }),
-  vatRate: numeric('vat_rate'),
-  correctsReceiptId: uuid('corrects_receipt_id'),
-  correctsNumber: text('corrects_number'),
-  corrections: integer(),
-}).as(
-  sql`SELECT rc.id, rc.number, rc.kind, rc.issued_at, rc.user_id, rc.buyer_name, rc.buyer_phone, rc.rental_id, r.number AS rental_number, rc.payment_id, rc.refund_id, rc.payment_source, pm.brand AS card_brand, pm.last4 AS card_last4, rc.total_amount, rc.currency, COALESCE(v.vat_amount, 0::bigint) AS vat_amount, rc.total_amount - COALESCE(v.vat_amount, 0::bigint) AS net_amount, v.vat_rate, rc.corrects_receipt_id, o.number AS corrects_number, ( SELECT count(*)::integer AS count FROM receipts c WHERE c.corrects_receipt_id = rc.id) AS corrections FROM receipts rc LEFT JOIN rentals r ON r.id = rc.rental_id LEFT JOIN payments p ON p.id = rc.payment_id LEFT JOIN payment_methods pm ON rc.payment_source = 'CARD'::payment_source AND pm.id = COALESCE(p.payment_method_id, r.payment_method_id) LEFT JOIN receipts o ON o.id = rc.corrects_receipt_id LEFT JOIN LATERAL ( SELECT max(i.vat_rate) AS vat_rate, fn_vat_from_gross(sum(i.amount)::bigint, max(i.vat_rate)) AS vat_amount FROM receipt_items i WHERE i.receipt_id = rc.id) v ON true`,
 );
 
 export const vRentalDetails = pgView('v_rental_details', {

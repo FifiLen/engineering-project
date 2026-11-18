@@ -37,7 +37,7 @@ Wymagania uczelni:
 - **Długi z poprzednich iteracji:**
   - kolory parkowania i wolnej jazdy w `map-layers.ts` mapy floty są odwrotne niż w makietach stref (iteracja 4);
   - plansza `profil-dane` obiecuje potwierdzenia płatności e-mailem, a D7 iteracji 5 wyklucza e-mail;
-  - aktualizacja Next.js 16.4.4 (komunikat o znanej podatności przy co drugim buildzie) czeka na decyzję autora;
+  - aktualizacja Next.js 16.4.4 (komunikat o znanej podatności przy co drugim buildzie) czekała na decyzję autora (zrobiona 18 listopada 2026: 16.4.6);
   - `disableSPM: true` we wtyczce Stripe w `app.json` do potwierdzenia przy development build.
 
 ## Warunek wstępny: decyzje i makiety
@@ -173,7 +173,7 @@ Autor przyjął wszystkie rekomendacje D1–D8 i odpowiedzi na pytania 1–12. W
 | 4. Pilność | Hamulce, koło i kierownica są pilne i od razu przełączają wolną hulajnogę na `MAINTENANCE` (w przejeździe po jego zakończeniu); pozostałe kategorie zostawiają decyzję dyspozytorowi. |
 | 5. Powrót do floty | Automatycznie po zakończeniu ostatniego otwartego zadania, gdy hulajnoga jest online i ma baterię co najmniej progu z cennika; inaczej zostaje w `MAINTENANCE` z przyczyną w panelu. |
 | 6. Reklamacje | Kategoria „Rozliczenie” w zgłoszeniu z przejazdu; dyspozytor odpowiada w zgłoszeniu i robi zwrot z okna z iteracji 5 (ADR 0054); odpowiedź trafia do klienta pushem. |
-| 7. Odholowanie | Przy zdalnym zakończeniu poza strefą operator zaznacza „Pobierz opłatę za odholowanie”; osobny wpis w portfelu (saldo może spaść poniżej zera), pozycja na paragonie przejazdu, zadanie `RELOCATION`. |
+| 7. Odholowanie | Przy zdalnym zakończeniu poza strefą operator zaznacza „Pobierz opłatę za odholowanie”; osobny wpis w portfelu (saldo może spaść poniżej zera), pozycja na paragonie przejazdu, zadanie `RELOCATION`. Dopisek 18 listopada 2026: opłata jest karą umowną poza VAT, pozycja paragonu bez stawki („np.”), VAT dokumentu liczony grupami stawek, a korekta dzieli zwrot proporcjonalnie między grupy ([ADR 0061](../adr/0061-oplata-za-odholowanie-jako-kara-umowna.md), migracja 0010). |
 | 8. Wymiana baterii | Zakończenie zadania `BATTERY_SWAP` wysyła komendę MQTT `battery_swapped` (kontrakt 1.3.0), a symulator ustawia baterię na 100%. |
 | 9. Zdjęcie parkowania | Opcjonalne po każdym zakończeniu („Pomiń”), wymagane po zakończeniu przy utracie łączności; przechowywane 30 dni, potem usuwane zadaniem, chyba że jest w zgłoszeniu. |
 | 10. Scenariusze symulatora | Rozłączenie i powrót hulajnogi, milczenie na komendy, rozładowanie do 5% w 30 s, `goto` do strefy albo punktu, wjazd w strefę zakazu; bez zmiany liczby hulajnóg i tempa w locie. |

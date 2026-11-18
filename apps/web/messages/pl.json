@@ -2084,7 +2084,7 @@
         "collect": "Pobierz opłatę za odholowanie",
         "fromTariff": "Z cennika w wersji {version}, z chwili startu przejazdu.",
         "charge": "Osobnym wpisem {fee} za odholowanie.",
-        "receipt": "Paragon przejazdu dostanie pozycję „Opłata za odholowanie”, {fee}.",
+        "receipt": "Paragon przejazdu dostanie pozycję „Opłata za odholowanie”, {fee}, jako karę umowną bez VAT.",
         "relocation": "Powstanie zgłoszenie „Poza strefą” i zadanie Przewiezienie dla {scooter}; do przewiezienia hulajnoga jest w serwisie.",
         "inParking": "Hulajnoga stoi w strefie parkowania: bez opłaty za odholowanie.",
         "none": "Bez opłaty za odholowanie.",
@@ -2471,6 +2471,7 @@
     "issued": "Wystawiono {date}",
     "times": "{count} × {price} · VAT {vat}%",
     "minutesTimes": "{count} min × {price} · VAT {vat}%",
+    "timesOutsideVat": "{count} × {price} · VAT np.",
     "taxId": "NIP {taxId}",
     "kind": {
       "SALE": "Potwierdzenie sprzedaży",
@@ -2488,8 +2489,8 @@
       "TOWING_FEE": "Opłata za odholowanie"
     },
     "net": "Netto",
-    "vat": "VAT",
     "vatRate": "VAT {rate}%",
+    "outsideVat": "Nie podlega VAT (np.)",
     "total": "Razem brutto",
     "paid": "Zapłacono",
     "refundedTo": "Zwrócono na",
@@ -2617,7 +2618,7 @@
       "unlockFee": "Pobierane raz, przy odblokowaniu",
       "minuteRate": "Za każdą rozpoczętą minutę",
       "pauseMinuteRate": "Za każdą rozpoczętą minutę pauzy",
-      "outOfZoneFee": "Za odholowanie hulajnogi przez serwis",
+      "outOfZoneFee": "Kara umowna za odholowanie przez serwis, bez VAT",
       "freeReservationMinutes": "Potem rezerwacja wygasa",
       "minWalletBalance": "Przy rezerwacji i starcie; nie dotyczy jazdy opłacanej kartą"
     },
@@ -2625,9 +2626,9 @@
       "unlockFee": "Pobierane raz, przy odblokowaniu",
       "minuteRate": "Za każdą rozpoczętą minutę",
       "pauseMinuteRate": "Za każdą rozpoczętą minutę pauzy",
-      "outOfZoneFee": "Za odholowanie hulajnogi przez serwis",
+      "outOfZoneFee": "Kara umowna za odholowanie przez serwis, bez VAT",
       "minWalletBalance": "Nie dotyczy jazdy opłacanej kartą",
-      "vatRate": "Ceny są brutto; stawka trafia na paragon"
+      "vatRate": "Ceny przejazdu są brutto; stawka trafia na paragon. Opłata za odholowanie jest poza VAT"
     },
     "short": {
       "unlockFee": "Odblokowanie",
@@ -2659,7 +2660,7 @@
       "pastDate": "Podaj datę i godzinę w przyszłości.",
       "server": "API odrzuciło tę wartość."
     },
-    "vatNote": "Ceny brutto z {vat} VAT. Limit prędkości w wolnej jeździe ustawia się w",
+    "vatNote": "Ceny przejazdu brutto z {vat} VAT; opłata za odholowanie to kara umowna poza VAT. Limit prędkości w wolnej jeździe ustawia się w",
     "zonesLink": "Strefach",
     "vatNoteEnd": ".",
     "delete": "Usuń wersję",
@@ -2683,7 +2684,7 @@
       "pauseHint": "Hulajnoga zablokowana i zarezerwowana dla Ciebie",
       "reservationHint": "Przez pierwsze {minutes} min",
       "free": "Bezpłatnie",
-      "towingHint": "Gdy hulajnoga zostanie odholowana",
+      "towingHint": "Kara umowna, gdy hulajnoga zostanie odholowana",
       "note": "Tak cennik zobaczą klienci w aplikacji.",
       "noteWithScheduled": "Tak cennik zobaczą klienci w aplikacji. Wersja {version} pokaże się sama od {date}.",
       "noteScheduled": "Tak klienci zobaczą cennik od {date}; do tej chwili aplikacja pokazuje obowiązującą wersję.",

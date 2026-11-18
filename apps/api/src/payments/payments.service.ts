@@ -569,7 +569,7 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  /** Paragon przejazdu z pozycjami z wyceny i stawką VAT z wersji cennika przejazdu (ADR 0052, ADR 0060). */
+  /** Paragon przejazdu z pozycjami z wyceny i stawką VAT z wersji cennika przejazdu; odholowanie poza VAT (ADR 0052, 0060, 0061). */
   private async issueRideReceipt(
     tx: DbExecutor,
     rental: SettlementRental,
@@ -596,7 +596,10 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
     });
   }
 
-  /** Korekta paragonu po udanym zwrocie za przejazd (ADR 0052). */
+  /**
+   * Korekta paragonu po udanym zwrocie za przejazd (ADR 0052): zwrot dzielony między grupy stawek paragonu
+   * proporcjonalnie do kwot pozostałych po wcześniejszych korektach (ADR 0061).
+   */
   async issueCorrection(tx: DbExecutor, refundId: string): Promise<void> {
     const repo = new DrizzlePaymentRepository(tx);
     const refund = (await repo.refund(refundId))!;
@@ -611,7 +614,7 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
       correctsReceiptId: sale.id,
       paymentSource: refund.source,
       seller: this.seller(),
-      items: correctionItems(refund.amount, sale.vatRate),
+      items: correctionItems(refund.amount, sale.items, sale.corrected),
     });
   }
 
@@ -896,6 +899,7 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
       items: receipt.items,
       vatRate: receipt.vatRate,
       vatAmount: receipt.vatAmount,
+      vatGroups: receipt.vatGroups,
       netAmount: receipt.netAmount,
       seller: receipt.seller,
       buyer: receipt.buyer,

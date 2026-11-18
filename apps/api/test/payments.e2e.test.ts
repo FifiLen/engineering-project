@@ -390,6 +390,9 @@ describe.skipIf(!adminUrl)('API: płatności (atrapa operatora)', () => {
       rentalNumber: ended.number,
     });
     expect(receipt.items.map((i) => i.description)).toEqual(['UNLOCK', 'RIDE_MINUTES']);
+    expect(receipt.vatGroups).toEqual([
+      { vatRate: 23, gross: ended.price.total, vat: core.vatFromGross(ended.price.total, 23) },
+    ]);
     const entry = (await me()({ method: 'GET', url: '/me/wallet?limit=1' })).json<shared.WalletView>().entries[0];
     expect(entry).toMatchObject({
       type: 'RIDE_CHARGE',

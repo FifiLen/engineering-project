@@ -222,8 +222,14 @@ function ReceiptSub({ receipt }: { receipt: ReceiptAdminDetails }) {
   );
 }
 
-/** Opis ilości pozycji: „24 min × 0,80 zł” dla minut, „1 × 3,00 zł” dla odblokowania. */
+/**
+ * Opis ilości pozycji: „24 min × 0,80 zł · VAT 23%” dla minut, „1 × 3,00 zł · VAT 23%” dla odblokowania,
+ * „1 × 20,00 zł · VAT np.” dla pozycji, która nie podlega VAT (opłata za odholowanie, ADR 0061).
+ */
 function itemQuantity(item: ReceiptItemView): string {
+  if (item.vatRate === null) {
+    return t('receipt.timesOutsideVat', { count: item.quantity, price: formatPln(item.unitPrice) });
+  }
   const minutes = item.description === 'RIDE_MINUTES' || item.description === 'PAUSE_MINUTES';
   return t(minutes ? 'receipt.minutesTimes' : 'receipt.times', {
     count: item.quantity,
@@ -294,12 +300,15 @@ export function ReceiptDocument({ receipt }: { receipt: ReceiptAdminDetails }) {
             <span className="muted">{t('receipt.net')}</span>
             <span className="num">{formatPln(receipt.netAmount)}</span>
           </div>
-          <div className="rc-sum">
-            <span className="muted">
-              {receipt.vatRate !== null ? t('receipt.vatRate', { rate: receipt.vatRate }) : t('receipt.vat')}
-            </span>
-            <span className="num">{formatPln(receipt.vatAmount)}</span>
-          </div>
+          {/* VAT osobno dla każdej stawki, a pozycje poza VAT jedną kwotą brutto (ADR 0061). */}
+          {receipt.vatGroups.map((group) => (
+            <div key={group.vatRate ?? 'outside'} className="rc-sum">
+              <span className="muted">
+                {group.vatRate !== null ? t('receipt.vatRate', { rate: group.vatRate }) : t('receipt.outsideVat')}
+              </span>
+              <span className="num">{formatPln(group.vatRate !== null ? group.vat : group.gross)}</span>
+            </div>
+          ))}
         </div>
         <div className="rc-total">
           <span>{t('receipt.total')}</span>

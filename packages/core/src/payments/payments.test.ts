@@ -11,7 +11,7 @@ import {
   shouldRetryRideCharge,
   type PaymentCheck,
 } from './payments.js';
-import { correctionItems, receiptTotals, rideReceiptItems, vatFromGross } from './receipts.js';
+import { correctionItems, receiptTotals, receiptVatGroups, rideReceiptItems, vatFromGross } from './receipts.js';
 import { decideRefund, ensureAdjustment, planPayout } from './refunds.js';
 import { ensureNoScheduledTariff, tariffChanges, validateTariffInput, type TariffInput } from './tariffs.js';
 
@@ -155,8 +155,92 @@ describe('paragon (ADR 0052)', () => {
       vatRate: 23,
       amount: 90,
     });
-    expect(correctionItems(500, 23)).toEqual([
+    expect(correctionItems(500, items)).toEqual([
       { description: 'REFUND', quantity: 1, unitPrice: -500, vatRate: 23, amount: -500 },
+    ]);
+  });
+});
+
+describe('paragon z pozycją poza VAT (ADR 0061)', () => {
+  const tariff = { unlockFee: 300, minuteRate: 80, pauseMinuteRate: 30 };
+  const price = { unlockFee: 300, rideMinutes: 12, rideAmount: 960, pauseMinutes: 0, pauseAmount: 0, total: 3260 };
+  const items = rideReceiptItems({ ...price, towingFee: 2000 }, tariff, 23);
+  const refund = (amount: number, vatRate: number | null) => ({ vatRate, amount: -amount });
+
+  it('opłata za odholowanie bez stawki, VAT tylko od przejazdu', () => {
+    expect(items.at(-1)).toEqual({
+      description: 'TOWING_FEE',
+      quantity: 1,
+      unitPrice: 2000,
+      vatRate: null,
+      amount: 2000,
+    });
+    expect(receiptVatGroups(items)).toEqual([
+      { vatRate: 23, gross: 1260, vat: 236 },
+      { vatRate: null, gross: 2000, vat: 0 },
+    ]);
+    expect(receiptTotals(items)).toEqual({ gross: 3260, vat: 236, net: 3024 });
+  });
+
+  it('VAT dokumentu to suma VAT grup, nie VAT od sumy', () => {
+    const mixed = [
+      { vatRate: 23, amount: 1001 },
+      { vatRate: 8, amount: 1001 },
+      { vatRate: 23, amount: 1001 },
+    ];
+    // 2002 × 23/123 = 374,37…; 1001 × 8/108 = 74,14…
+    expect(receiptVatGroups(mixed)).toEqual([
+      { vatRate: 23, gross: 2002, vat: 374 },
+      { vatRate: 8, gross: 1001, vat: 74 },
+    ]);
+    expect(receiptTotals(mixed)).toEqual({ gross: 3003, vat: 448, net: 2555 });
+    expect(receiptTotals([])).toEqual({ gross: 0, vat: 0, net: 0 });
+  });
+
+  it('korekta dzieli zwrot proporcjonalnie do kwot pozostałych w grupach, reszta do ostatniej grupy', () => {
+    // 1000 × 1260/3260 = 386,50… → 387; reszta 613 do opłaty.
+    expect(correctionItems(1000, items)).toEqual([
+      { description: 'REFUND', quantity: 1, unitPrice: -387, vatRate: 23, amount: -387 },
+      { description: 'REFUND', quantity: 1, unitPrice: -613, vatRate: null, amount: -613 },
+    ]);
+    // Pełny zwrot zeruje obie grupy.
+    expect(correctionItems(3260, items).map((i) => [i.vatRate, i.amount])).toEqual([
+      [23, -1260],
+      [null, -2000],
+    ]);
+    // Zwrot 1 gr: udział przejazdu 0,38… → 0, cały grosz w opłacie; bez pozycji z kwotą 0.
+    expect(correctionItems(1, items).map((i) => [i.vatRate, i.amount])).toEqual([[null, -1]]);
+    // Zwrot 3 gr: przejazd 1,15… → 1, reszta 2 gr do opłaty.
+    expect(correctionItems(3, items).map((i) => [i.vatRate, i.amount])).toEqual([
+      [23, -1],
+      [null, -2],
+    ]);
+  });
+
+  it('kolejny zwrot liczy udziały od kwot po wcześniejszych korektach', () => {
+    // Po zwrocie samej opłaty zostaje tylko przejazd.
+    expect(correctionItems(500, items, [refund(2000, null)]).map((i) => [i.vatRate, i.amount])).toEqual([[23, -500]]);
+    // Po korekcie 387 + 613 zostaje 873 i 1387: 1000 × 873/2260 = 386,28… → 386, reszta 614.
+    const first = correctionItems(1000, items);
+    const second = correctionItems(1000, items, first);
+    expect(second.map((i) => [i.vatRate, i.amount])).toEqual([
+      [23, -386],
+      [null, -614],
+    ]);
+    // Reszta po dwóch korektach zeruje obie grupy.
+    const rest = correctionItems(1260, items, [...first, ...second]);
+    expect(rest.map((i) => [i.vatRate, i.amount])).toEqual([
+      [23, -487],
+      [null, -773],
+    ]);
+    expect(receiptVatGroups([...items, ...first, ...second, ...rest]).map((g) => g.gross)).toEqual([0, 0]);
+  });
+
+  it('paragon sprzed zmiany (odholowanie ze stawką przejazdu) koryguje jedną pozycją jak dotąd', () => {
+    const legacy = items.map((i) => ({ ...i, vatRate: 23 }));
+    expect(receiptTotals(legacy)).toEqual({ gross: 3260, vat: 610, net: 2650 });
+    expect(correctionItems(1000, legacy, [refund(500, 23)])).toEqual([
+      { description: 'REFUND', quantity: 1, unitPrice: -1000, vatRate: 23, amount: -1000 },
     ]);
   });
 });

@@ -64,3 +64,4 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0058 | [Powiadomienia push z szablonów](0058-powiadomienia-push-z-szablonow.md) | zaakceptowana |
 | 0059 | [Symulator sterowany z panelu](0059-symulator-sterowany-z-panelu.md) | zaakceptowana |
 | 0060 | [Opłata za odholowanie](0060-oplata-za-odholowanie.md) | zaakceptowana |
+| 0061 | [Opłata za odholowanie jako kara umowna](0061-oplata-za-odholowanie-jako-kara-umowna.md) | zaakceptowana |

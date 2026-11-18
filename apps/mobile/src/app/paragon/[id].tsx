@@ -14,7 +14,8 @@ const vat = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 2 });
 
 /**
  * Paragon (makieta paragon, ADR 0052): niefiskalne potwierdzenie sprzedaży z pozycjami (tekst z kodu
- * pozycji), stawką VAT, netto, VAT i brutto, sposobem zapłaty, nabywcą i sprzedawcą z chwili wystawienia.
+ * pozycji), netto, VAT w podziale na stawki z pozycjami poza VAT jako „np.” (ADR 0061) i brutto, sposobem
+ * zapłaty, nabywcą i sprzedawcą z chwili wystawienia.
  * Korekta po zwrocie ma odwołanie do paragonu sprzedaży; paragon sprzedaży listę swoich korekt.
  */
 export default function ReceiptScreen() {
@@ -150,7 +151,10 @@ export default function ReceiptScreen() {
               <View style={{ gap: 2, flexShrink: 1 }}>
                 <Text style={{ fontSize: 15, color: theme.ink }}>{t.dynamic(`receipt.items.${item.description}`)}</Text>
                 <Text style={{ fontSize: 13, color: theme.muted }}>
-                  {t('receipt.quantity', { quantity: item.quantity, price: pln(item.unitPrice) })}
+                  {t(item.vatRate === null ? 'receipt.quantityOutsideVat' : 'receipt.quantity', {
+                    quantity: item.quantity,
+                    price: pln(item.unitPrice),
+                  })}
                 </Text>
               </View>
               <Text style={{ fontSize: 15, fontWeight: '500', color: theme.ink }}>{pln(item.amount)}</Text>
@@ -160,9 +164,11 @@ export default function ReceiptScreen() {
         {dashed('d3')}
         <View style={{ gap: 8 }}>
           {sum(t('receipt.net'), pln(receipt.netAmount))}
-          {sum(
-            receipt.vatRate !== null ? t('receipt.vat', { rate: vat.format(receipt.vatRate) }) : t('receipt.vatNoRate'),
-            pln(receipt.vatAmount),
+          {/* VAT osobno dla każdej stawki, a pozycje poza VAT jedną kwotą brutto (ADR 0061). */}
+          {receipt.vatGroups.map((group) =>
+            group.vatRate !== null
+              ? sum(t('receipt.vat', { rate: vat.format(group.vatRate) }), pln(group.vat))
+              : sum(t('receipt.outsideVat'), pln(group.gross)),
           )}
           {sum(t('receipt.gross'), pln(receipt.totalAmount), true)}
         </View>

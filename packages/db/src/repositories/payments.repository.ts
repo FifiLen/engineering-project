@@ -1,4 +1,11 @@
-import type { PaymentSource, PaymentStatus, ReceiptItem, RideSettlement, SavedCard } from '@hulajnogi/core';
+import type {
+  PaymentSource,
+  PaymentStatus,
+  ReceiptAmount,
+  ReceiptItem,
+  RideSettlement,
+  SavedCard,
+} from '@hulajnogi/core';
 import {
   paymentMethodsResource,
   paymentsResource,
@@ -903,11 +910,27 @@ export class DrizzlePaymentRepository {
     return { id: row!.receipt_id as string, number: row!.receipt_number as string };
   }
 
-  async saleReceipt(rentalId: string): Promise<{ id: string; vatRate: number } | null> {
+  /**
+   * Paragon sprzedaży przejazdu z kwotami pozycji i wcześniejszych korekt do podziału kolejnej korekty
+   * (`correctionItems`, ADR 0061). Blokuje paragon, więc równoległa korekta czeka i liczy od aktualnych kwot.
+   */
+  async saleReceipt(
+    rentalId: string,
+  ): Promise<{ id: string; items: ReceiptAmount[]; corrected: ReceiptAmount[] } | null> {
     const row = await this.one(sql`
-      SELECT r.id, (SELECT max(vat_rate) FROM receipt_items WHERE receipt_id = r.id) AS vat_rate
-      FROM receipts r WHERE r.rental_id = ${rentalId} AND r.kind = 'SALE'`);
-    return row ? { id: row.id as string, vatRate: Number(row.vat_rate) } : null;
+      SELECT r.id FROM receipts r WHERE r.rental_id = ${rentalId} AND r.kind = 'SALE' FOR UPDATE`);
+    if (!row) return null;
+    const rows = await this.rows(sql`
+      SELECT r.kind, i.vat_rate, i.amount
+      FROM receipt_items i JOIN receipts r ON r.id = i.receipt_id
+      WHERE r.id = ${row.id as string} OR r.corrects_receipt_id = ${row.id as string}
+      ORDER BY r.issued_at, r.number, i.line_no`);
+    const amount = (r: Row): ReceiptAmount => ({ vatRate: num(r.vat_rate), amount: Number(r.amount) });
+    return {
+      id: row.id as string,
+      items: rows.filter((r) => r.kind === 'SALE').map(amount),
+      corrected: rows.filter((r) => r.kind === 'CORRECTION').map(amount),
+    };
   }
 
   private toSummary(r: Row): ReceiptSummary {
@@ -938,10 +961,14 @@ export class DrizzlePaymentRepository {
       SELECT l.*, r.seller, r.buyer_name AS b_name, r.buyer_phone AS b_phone
       FROM v_receipt_list l JOIN receipts r ON r.id = l.id WHERE l.id = ${id}`);
     if (!row) return null;
-    const [items, corrections] = await Promise.all([
+    const [items, vatGroups, corrections] = await Promise.all([
       this.rows(sql`
         SELECT line_no, description, quantity, unit_price, vat_rate, amount FROM receipt_items
         WHERE receipt_id = ${id} ORDER BY line_no`),
+      // VAT grupami stawek jak w `v_receipt_list` (ADR 0061), w kolejności pierwszej pozycji grupy.
+      this.rows(sql`
+        SELECT vat_rate, sum(amount)::bigint AS gross, COALESCE(fn_vat_from_gross(sum(amount)::bigint, vat_rate), 0) AS vat
+        FROM receipt_items WHERE receipt_id = ${id} GROUP BY vat_rate ORDER BY min(line_no)`),
       this.rows(sql`
         SELECT id, number, kind, issued_at, rental_id, rental_number, total_amount, payment_source, card_brand, card_last4
         FROM v_receipt_list WHERE corrects_receipt_id = ${id} ORDER BY issued_at`),
@@ -957,11 +984,12 @@ export class DrizzlePaymentRepository {
         description: i.description as ReceiptItemCode,
         quantity: Number(i.quantity),
         unitPrice: Number(i.unit_price),
-        vatRate: Number(i.vat_rate),
+        vatRate: num(i.vat_rate),
         amount: Number(i.amount),
       })),
       vatRate: num(row.vat_rate),
       vatAmount: Number(row.vat_amount),
+      vatGroups: vatGroups.map((g) => ({ vatRate: num(g.vat_rate), gross: Number(g.gross), vat: Number(g.vat) })),
       netAmount: Number(row.net_amount),
       seller,
       buyer: { name: (row.b_name as string | null) ?? null, phone: (row.b_phone as string | null) ?? null },

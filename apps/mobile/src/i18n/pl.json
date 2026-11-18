@@ -916,9 +916,10 @@
     "distance": "Dystans",
     "corrects": "Koryguje",
     "quantity": "{quantity} × {price}",
+    "quantityOutsideVat": "{quantity} × {price} · VAT np.",
     "net": "Netto",
     "vat": "VAT {rate}%",
-    "vatNoRate": "VAT",
+    "outsideVat": "Nie podlega VAT (np.)",
     "gross": "Razem brutto",
     "paidWith": "Zapłacono z",
     "refundedTo": "Zwrot na",
@@ -927,7 +928,7 @@
     "seller": "Sprzedawca",
     "taxId": "NIP {taxId}",
     "corrections": "Korekty",
-    "note": "To potwierdzenie sprzedaży, a nie paragon fiskalny. Ceny zawierają VAT.",
+    "note": "To potwierdzenie sprzedaży, a nie paragon fiskalny. Ceny zawierają VAT, a pozycje oznaczone „np.” nie podlegają VAT.",
     "items": {
       "UNLOCK": "Odblokowanie",
       "RIDE_MINUTES": "Minuty jazdy",
@@ -1000,8 +1001,8 @@
     "reservationHint": "Przez pierwsze {minutes} min",
     "free": "Bezpłatnie",
     "outOfZone": "Parkowanie poza strefą",
-    "outOfZoneHint": "Gdy hulajnoga zostanie odholowana",
-    "vat": "Ceny zawierają {rate}% VAT. Do jazdy z portfela potrzebujesz co najmniej {minimum}.",
+    "outOfZoneHint": "Kara umowna, gdy hulajnoga zostanie odholowana",
+    "vat": "Ceny przejazdu zawierają {rate}% VAT; opłata za odholowanie to kara umowna bez VAT. Do jazdy z portfela potrzebujesz co najmniej {minimum}.",
     "footer": "Za czas jazdy płacisz za każdą rozpoczętą minutę."
   },
   "notifications": {

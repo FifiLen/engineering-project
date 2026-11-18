@@ -99,4 +99,4 @@ Do zrobienia:
 - Każdy punkt API deklaruje dostęp: `@Public()`, `@CustomerAuth()`, `@StaffAuth()`, `@CustomerOrStaffAuth()` (tylko `POST /files`) albo `@RequirePermission('…')` (ADR 0035); punkt bez deklaracji kończy się `403 PERMISSION_NOT_DECLARED`. Kod SMS w środowisku deweloperskim jest w logu API. Testy panelu: pomocnik `staffToken` w `apps/api/test/helpers.ts`.
 
 ## Otwarte decyzje
-Nazwa marki ([nazwa]); wartości biznesowe (ceny, czas rezerwacji, minimalne saldo, próg baterii, wiek, wysokość opłaty za odholowanie, ceny części zamiennych; w seedzie są wartości deweloperskie); stawka VAT (robocza 23%, także dla opłaty za odholowanie, do sprawdzenia przez autora; ADR 0060).
+Nazwa marki ([nazwa]); wartości biznesowe (ceny, czas rezerwacji, minimalne saldo, próg baterii, wiek, wysokość opłaty za odholowanie, ceny części zamiennych; w seedzie są wartości deweloperskie); stawka VAT przejazdu (robocza 23%, do sprawdzenia przez autora). Opłata za odholowanie to kara umowna poza VAT (pozycja paragonu bez stawki, ADR 0061); regulamin musi nazywać ją karą umowną za pozostawienie hulajnogi poza strefą, a ostateczną ocenę podatkową zostawiamy księgowości.

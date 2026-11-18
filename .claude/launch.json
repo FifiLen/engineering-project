@@ -16,6 +16,25 @@
       "port": 3002
     },
     {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@hulajnogi/api",
+        "dev"
+      ],
+      "port": 3001
+    },
+    {
+      "name": "simulator",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@hulajnogi/simulator",
+        "dev"
+      ]
+    },
+    {
       "name": "api-preview",
       "runtimeExecutable": "env",
       "runtimeArgs": [

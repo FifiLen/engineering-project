@@ -12,8 +12,8 @@ export interface ReceiptItem {
   quantity: number;
   /** Cena jednostkowa brutto w groszach. */
   unitPrice: number;
-  /** Stawka VAT w procentach (np. 23). */
-  vatRate: number;
+  /** Stawka VAT w procentach (np. 23); `null` to pozycja, która nie podlega VAT (kara umowna, ADR 0061). */
+  vatRate: number | null;
   /** Kwota brutto w groszach; ujemna w korekcie. */
   amount: number;
 }
@@ -31,8 +31,8 @@ export function vatFromGross(gross: number, vatRate: number): number {
 }
 
 /**
- * Pozycje paragonu przejazdu z wyceny (ADR 0042): odblokowanie, minuty jazdy, minuty pauzy, gdy były, i opłata
- * za odholowanie ze stawką VAT przejazdu, gdy ją pobrano (ADR 0060).
+ * Pozycje paragonu przejazdu z wyceny (ADR 0042): odblokowanie, minuty jazdy i minuty pauzy, gdy były, ze stawką
+ * VAT przejazdu oraz opłata za odholowanie, gdy ją pobrano (ADR 0060), jako kara umowna poza VAT (ADR 0061).
  */
 export function rideReceiptItems(
   price: Omit<RentalPrice, 'towingFee'> & { towingFee?: number },
@@ -63,16 +63,73 @@ export function rideReceiptItems(
       description: 'TOWING_FEE',
       quantity: 1,
       unitPrice: price.towingFee,
-      vatRate,
+      vatRate: null,
       amount: price.towingFee,
     });
   }
   return items;
 }
 
-/** Korekta po zwrocie (ADR 0052): jedna pozycja z kwotą ujemną i stawką paragonu pierwotnego. */
-export function correctionItems(refundAmount: number, vatRate: number): ReceiptItem[] {
-  return [{ description: 'REFUND', quantity: 1, unitPrice: -refundAmount, vatRate, amount: -refundAmount }];
+/** Kwota brutto pozycji z jej stawką: tyle potrzeba do VAT dokumentu i do podziału korekty. */
+export type ReceiptAmount = Pick<ReceiptItem, 'vatRate' | 'amount'>;
+
+export interface ReceiptVatGroup {
+  /** Stawka grupy; `null` to pozycje poza VAT. */
+  vatRate: number | null;
+  /** Suma brutto pozycji grupy w groszach. */
+  gross: number;
+  /** VAT grupy metodą „w stu” od sumy brutto grupy; 0 dla pozycji poza VAT. */
+  vat: number;
+}
+
+/**
+ * Grupy stawek dokumentu (ADR 0061) w kolejności pierwszego wystąpienia stawki: VAT liczony osobno dla każdej
+ * stawki od sumy brutto grupy, tak jak widok `v_receipt_list` w bazie.
+ */
+export function receiptVatGroups(items: readonly ReceiptAmount[]): ReceiptVatGroup[] {
+  const gross = new Map<number | null, number>();
+  for (const item of items) gross.set(item.vatRate, (gross.get(item.vatRate) ?? 0) + item.amount);
+  return [...gross].map(([vatRate, sum]) => ({
+    vatRate,
+    gross: sum,
+    vat: vatRate === null ? 0 : vatFromGross(sum, vatRate),
+  }));
+}
+
+/**
+ * Korekta po zwrocie (ADR 0052, ADR 0061): kwota zwrotu dzielona między grupy stawek paragonu proporcjonalnie
+ * do kwot pozostałych do zwrotu w każdej grupie (pozycje sprzedaży plus wcześniejsze korekty, które mają kwoty
+ * ujemne). Udział grupy zaokrąglony do grosza połowa w górę, reszta trafia do ostatniej grupy (kolejność stawek
+ * jak na paragonie). Każda grupa z niezerowym udziałem to osobna pozycja `REFUND` ze swoją stawką. Paragon z jedną
+ * stawką daje jedną pozycję jak dotąd. Zwrotu ponad pozostałą kwotę nie dzieli: odrzuca go baza
+ * (`RECEIPT_CORRECTION_EXCEEDS`).
+ */
+export function correctionItems(
+  refundAmount: number,
+  sale: readonly ReceiptAmount[],
+  corrected: readonly ReceiptAmount[] = [],
+): ReceiptItem[] {
+  const refund = (amount: number, vatRate: number | null): ReceiptItem => ({
+    description: 'REFUND',
+    quantity: 1,
+    unitPrice: -amount,
+    vatRate,
+    amount: -amount,
+  });
+  const groups = receiptVatGroups([...sale, ...corrected]).filter((g) => g.gross > 0);
+  const remaining = groups.reduce((sum, g) => sum + g.gross, 0);
+  if (!groups.length) return [refund(refundAmount, sale[0]?.vatRate ?? null)];
+  const items: ReceiptItem[] = [];
+  let left = refundAmount;
+  groups.forEach((group, i) => {
+    const share =
+      i === groups.length - 1
+        ? left
+        : Math.min(left, Math.floor((2 * refundAmount * group.gross + remaining) / (2 * remaining)));
+    left -= share;
+    if (share > 0) items.push(refund(share, group.vatRate));
+  });
+  return items;
 }
 
 export interface ReceiptTotals {
@@ -81,9 +138,9 @@ export interface ReceiptTotals {
   net: number;
 }
 
-/** Suma dokumentu z jedną stawką VAT; netto to brutto minus VAT. */
-export function receiptTotals(items: readonly ReceiptItem[]): ReceiptTotals {
+/** Suma dokumentu: VAT to suma VAT grup stawek (ADR 0061); netto to brutto minus VAT. */
+export function receiptTotals(items: readonly ReceiptAmount[]): ReceiptTotals {
   const gross = items.reduce((sum, item) => sum + item.amount, 0);
-  const vat = items.length ? vatFromGross(gross, items[0]!.vatRate) : 0;
+  const vat = receiptVatGroups(items).reduce((sum, g) => sum + g.vat, 0);
   return { gross, vat, net: gross - vat };
 }
