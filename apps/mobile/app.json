@@ -2,6 +2,7 @@
   "expo": {
     "name": "Hulajnogi",
     "slug": "hulajnogi",
+    "owner": "fifi3303",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -56,6 +57,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e64c7409-1996-4129-a210-874d7d9ad943"
+      }
     }
   }
 }

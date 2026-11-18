@@ -1335,3 +1335,4 @@ Przegląd kodu iteracji 6 znalazł 16 błędów (A–P). Wszystkie potwierdziły
 - Aktualizacja Next.js 16.4.4 → 16.4.6 (decyzja autora). Wersje do 16.4.4 mają dwie podatności średniej wagi w `use cache` (GHSA-vc7v-qv4w-wrv8, GHSA-mfr8-8qww-v76h; poprawka od 16.4.5). 16.4.6 ma 9 dni, build panelu przechodzi bez komunikatu o podatności.
 - Stawka VAT opłaty za odholowanie rozstrzygnięta: kara umowna poza VAT (ADR 0061, wpis wyżej).
 - `eas init` zostaje po stronie autora (interaktywne logowanie do konta Expo); Stripe na koniec projektu.
+- `eas init` (18 listopada 2026): projekt EAS `@fifi3303/hulajnogi` założony przez autora. Polecenie uruchomione w katalogu głównym utworzyło tam własny `app.json` z `projectId`; identyfikator i `owner` przeniesione do `apps/mobile/app.json`, a zbędny plik usunięty. `expo config` zwraca `projectId`, więc aplikacja może pobrać token push na development build (nadal potrzebne poświadczenia FCM i APNs).
