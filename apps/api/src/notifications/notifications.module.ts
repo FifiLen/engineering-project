@@ -10,6 +10,7 @@ import {
 } from './notifications.controller.js';
 import { NotificationsService } from './notifications.service.js';
 import { PUSH_GATEWAY, type PushGateway } from './push-gateway.js';
+import { NotificationDataExport } from './notification-data-export.js';
 
 /** Bramka push z konfiguracji (D2): atrapa domyślnie, Expo Push po skonfigurowaniu projektu EAS przez autora. */
 export function createPushGateway(config: AppConfig): PushGateway {
@@ -30,6 +31,7 @@ export function createPushGateway(config: AppConfig): PushGateway {
     { provide: PUSH_GATEWAY, inject: [CONFIG], useFactory: createPushGateway },
     NotificationTemplatesService,
     NotificationsService,
+    NotificationDataExport,
   ],
   exports: [NotificationsService, NotificationTemplatesService, PUSH_GATEWAY],
 })

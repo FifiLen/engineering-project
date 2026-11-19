@@ -25,6 +25,7 @@ import type {
 } from '@hulajnogi/shared';
 import { Injectable } from '@nestjs/common';
 import { AuditedTransaction } from '../audit/audited-transaction.js';
+import { ContentPublisher } from '../content/content-publisher.service.js';
 import { returnCheck } from '../operations/operations.service.js';
 
 /**
@@ -36,6 +37,7 @@ export class ScootersService {
   constructor(
     private readonly scooters: DrizzleScooterRepository,
     private readonly transaction: AuditedTransaction,
+    private readonly publisher: ContentPublisher,
   ) {}
 
   list(query: ListQuery): Promise<ListResponse<ScooterListItem>> {
@@ -87,6 +89,10 @@ export class ScootersService {
         entityId: id,
         data: { changes: diff, version: [version, version + 1] },
       });
+      // Strona `/h/{numer}` pokazuje model i znika po wycofaniu (ADR 0065).
+      if (changes.modelId !== undefined || changes.status !== undefined) {
+        await this.publisher.revalidateSite(tx, ['scooters']);
+      }
     });
     return this.details(id);
   }
@@ -112,6 +118,7 @@ export class ScootersService {
           entityId: id,
           data: { changes: { status: [state.status, 'RETIRED'], statusReason: [status.before, status.reason] } },
         });
+        await this.publisher.revalidateSite(tx, ['scooters']);
       }
       return { outcome: 'RETIRED' } as const;
     });

@@ -80,10 +80,23 @@ const envSchema = z.object({
    * `/admin/simulator/*` zwracają 404, a API nie subskrybuje tematów symulatora.
    */
   SIMULATOR_CONTROL_ENABLED: optional(booleanFlag),
-  /** Dane sprzedawcy na paragonie (ADR 0052); w trybie deweloperskim nawiasy jak w makietach. */
-  SELLER_NAME: z.string().default('[dane sprzedawcy]'),
-  SELLER_ADDRESS: optional(z.string()),
-  SELLER_TAX_ID: optional(z.string()),
+  /**
+   * Odświeżanie strony na żądanie (ADR 0065, D2): zadanie `site.revalidate` woła `POST {SITE_REVALIDATE_URL}`
+   * (Route Handler `/api/revalidate` w apps/web) z sekretem w nagłówku `Authorization`. Puste wyłącza wywołanie
+   * (testy, CI); strona odświeża się wtedy sama po 5 min. Dane sprzedawcy na paragonie pochodzą z danych firmy
+   * w bazie (ADR 0062), więc zmiennych `SELLER_*` już nie ma.
+   */
+  SITE_REVALIDATE_URL: optional(z.url()),
+  SITE_REVALIDATE_SECRET: optional(z.string().min(32)),
+  /**
+   * Silnik dokumentów (ADR 0066): Gotenberg (LibreOffice i Chromium za HTTP, port tylko na pętli zwrotnej) albo
+   * atrapa w testach API (DOCX naprawdę z docxtemplater, PDF stały). Wybór jak `PAYMENT_PROVIDER`; atrapa nie
+   * działa w produkcji.
+   */
+  DOCUMENT_RENDERER: z.enum(['gotenberg', 'fake']).default('gotenberg'),
+  GOTENBERG_URL: z.url().default('http://localhost:3010'),
+  /** Limit klienta HTTP konwersji; po nim `RENDER_TIMEOUT` (Gotenberg ma własny `API_TIMEOUT=30s`). */
+  GOTENBERG_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(30_000),
 });
 
 /**
@@ -121,9 +134,17 @@ export function loadConfig(env: NodeJS.ProcessEnv | Record<string, unknown> = pr
     throw new Error('Nieprawidłowa konfiguracja: w produkcji wymagane są JWT_SECRET i TOTP_ENCRYPTION_KEY');
   }
   checkPaymentConfig(data);
+  if (data.SITE_REVALIDATE_URL && !data.SITE_REVALIDATE_SECRET) {
+    throw new Error(
+      'Nieprawidłowa konfiguracja: SITE_REVALIDATE_URL wymaga SITE_REVALIDATE_SECRET (co najmniej 32 znaki)',
+    );
+  }
   const s3Access = data.S3_ACCESS_KEY as string | undefined;
   const s3Secret = data.S3_SECRET_KEY as string | undefined;
   if (data.NODE_ENV === 'production') {
+    if (data.DOCUMENT_RENDERER === 'fake') {
+      throw new Error('Nieprawidłowa konfiguracja: atrapa silnika dokumentów nie działa w produkcji');
+    }
     if (data.FILE_STORAGE === 'memory') {
       throw new Error('Nieprawidłowa konfiguracja: magazyn plików w pamięci nie działa w produkcji');
     }

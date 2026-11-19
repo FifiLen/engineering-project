@@ -176,6 +176,148 @@
         ]
       }
     },
+    "/admin/company": {
+      "get": {
+        "operationId": "CompanyController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Dane firmy: sprzedawca na paragonach, kontakt pomocy, dane rejestrowe",
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "patch": {
+        "operationId": "CompanyController_update",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zapis częściowy z blokadą wersji; NIP i REGON z sumą kontrolną, KRS z sądem (422 CONTENT_VALIDATION_FAILED); paragony kopiują dane w chwili wystawienia",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/company/history": {
+      "get": {
+        "operationId": "CompanyController_history",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/content-blocks": {
+      "get": {
+        "operationId": "ContentBlocksController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Bloki treści według wzorca listy z licznikami sekcji (elementy, opublikowane, szkice)",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/content-sections": {
+      "get": {
+        "operationId": "ContentSectionsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Sekcje z rejestru w jego kolejności ze stanem nagłówka i licznikami elementów",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/content-sections/{key}": {
+      "get": {
+        "operationId": "ContentSectionsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Sekcja w edytorze: nagłówek (blok pojedynczy) i elementy w kolejności pozycji",
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "put": {
+        "operationId": "ContentSectionsController_save",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zapis sekcji jednym żądaniem (blokada wersji nagłówka): kolejność elementów z tablicy, element bez id nowy, brakujący usunięty; 422 CONTENT_VALIDATION_FAILED z details.issues[] (pole, wiersz, kolumna), CONTENT_SECTION_REQUIRED, CONTENT_DELETE_PUBLISHED",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/content-sections/{key}/history": {
+      "get": {
+        "operationId": "ContentSectionsController_history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Historia sekcji z dziennika audytu z pełnym stanem po zmianie (do „Przywróć”)",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
     "/admin/dashboard/attention": {
       "get": {
         "operationId": "DashboardController_attention",
@@ -188,6 +330,660 @@
         "summary": "Grupy „Wymaga uwagi” z liczbami i do 4 pozycji; grupa tylko z uprawnieniem listy docelowej (rentals.read, scooters.read, tickets.read, payments.read)",
         "tags": [
           "panel: pulpit"
+        ]
+      }
+    },
+    "/admin/data-exports": {
+      "get": {
+        "operationId": "AdminDataExportsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zlecenia eksportu danych klientów według wzorca listy (stan, daty, rozmiar)",
+        "tags": [
+          "panel: użytkownicy"
+        ]
+      }
+    },
+    "/admin/document-templates": {
+      "get": {
+        "operationId": "DocumentTemplatesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Szablony wydruków według wzorca listy z aktywną wersją, liczbą wersji i ostatnim wydrukiem",
+        "tags": [
+          "panel: wydruki"
+        ]
+      },
+      "post": {
+        "operationId": "DocumentTemplatesController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Nowy szablon rodzaju z katalogu (bez wersji); nazwa unikalna w rodzaju (409 ALREADY_EXISTS)",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-templates/{id}": {
+      "get": {
+        "operationId": "DocumentTemplatesController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Szablon z wersjami (ACTIVE, ARCHIVED, PENDING), polami i ostrzeżeniami",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-templates/{id}/default": {
+      "post": {
+        "operationId": "DocumentTemplatesController_setDefault",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Szablon domyślny rodzaju (409 TEMPLATE_NO_ACTIVE_VERSION, TEMPLATE_INACTIVE)",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-templates/{id}/versions": {
+      "post": {
+        "operationId": "DocumentTemplatesController_upload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "description": "DOCX do 5 MB (bez makr, bez .dotx i .docm)",
+                    "format": "binary",
+                    "type": "string"
+                  },
+                  "note": {
+                    "maxLength": 300,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Wgranie wersji (201, stan PENDING): archiwum (TEMPLATE_NOT_DOCX, TEMPLATE_MACROS 415; TEMPLATE_TOO_LARGE, TEMPLATE_TOO_LARGE_UNPACKED 413), znaczniki względem katalogu i próbne wypełnienie (422 TEMPLATE_INVALID z details.issues[]: code, tag, place, suggestion, available, loop)",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-templates/{id}/versions/{versionId}": {
+      "delete": {
+        "operationId": "DocumentTemplatesController_removeVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie wersji „Do aktywacji” (409 TEMPLATE_VERSION_IN_USE dla aktywnej i archiwalnej)",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-templates/{id}/versions/{versionId}/activate": {
+      "post": {
+        "operationId": "DocumentTemplatesController_activate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Aktywacja wersji albo „Przywróć” starszej (bez kopiowania pliku); działa od kolejnych wydruków",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-templates/{id}/versions/{versionId}/file": {
+      "get": {
+        "operationId": "DocumentTemplatesController_file",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "„Pobierz aktywną” i pobranie dowolnej wersji: adres z podpisem na 10 min",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-templates/{id}/versions/{versionId}/preview.pdf": {
+      "get": {
+        "operationId": "DocumentTemplatesController_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Podgląd PDF na danych przykładowych (synchronicznie, limit 30 s; zapamiętany przy wersji); RENDER_TIMEOUT 504, RENDERER_UNAVAILABLE 503, RENDER_FAILED 502",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-types": {
+      "get": {
+        "operationId": "DocumentTypesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Rodzaje dokumentów z parametrami, szablonami i widocznością „Drukuj” dla operatora",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-types/{type}/fields": {
+      "get": {
+        "operationId": "DocumentTypesController_fields",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Pola i pętle rodzaju dla autora szablonu (ścieżka, etykieta, typ, przykład, dane klienta)",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-types/{type}/fields.docx": {
+      "get": {
+        "operationId": "DocumentTypesController_fieldsDocx",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "„Lista pól (DOCX)” z szablonu systemowego lista-pol.docx",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/documents": {
+      "post": {
+        "operationId": "AdminDocumentsController_print",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "„Drukuj” (202, zadanie document.generate): rodzaj, obiekt, szablon (domyślny bez templateId), format, parametry z katalogu; FORBIDDEN bez uprawnienia odczytu rodzaju, DOCUMENT_PARAM_INVALID 400, DOCUMENT_TYPE_NOT_PRINTABLE 422, TEMPLATE_NOT_ACTIVE 409; wynik w document.ready (pokój staff:{id}) albo GET /admin/documents/{id}",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/documents/{id}": {
+      "get": {
+        "operationId": "AdminDocumentsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Stan wydruku z adresami plików (podpis 10 min); zapas dla document.ready, odpytywanie co 2 s",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/documents/{id}/retry": {
+      "post": {
+        "operationId": "AdminDocumentsController_retry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "„Spróbuj ponownie” (błąd) albo „Wygeneruj ponownie” (pliki usunięte): nowy wiersz z retry_of z bieżących danych i aktywnej wersji; 409 DOCUMENT_NOT_RETRYABLE",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/faq-categories": {
+      "get": {
+        "operationId": "FaqCategoriesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "post": {
+        "operationId": "FaqCategoriesController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/faq-categories/{id}": {
+      "delete": {
+        "operationId": "FaqCategoriesController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie kategorii bez pytań (FAQ_CATEGORY_NOT_EMPTY)",
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "get": {
+        "operationId": "FaqCategoriesController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "patch": {
+        "operationId": "FaqCategoriesController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/faq-categories/{id}/history": {
+      "get": {
+        "operationId": "FaqCategoriesController_history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/faq-categories/order": {
+      "put": {
+        "operationId": "FaqCategoriesController_reorder",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Kolejność wszystkich kategorii z wersjami (ORDER_MISMATCH, CONFLICT)",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/faq-items": {
+      "get": {
+        "operationId": "FaqItemsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "post": {
+        "operationId": "FaqItemsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Nowe pytanie na końcu kategorii; nazwa kategorii, której nie ma, tworzy kategorię",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/faq-items/{id}": {
+      "delete": {
+        "operationId": "FaqItemsController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie szkicu albo pytania z archiwum (CONTENT_DELETE_PUBLISHED)",
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "get": {
+        "operationId": "FaqItemsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "patch": {
+        "operationId": "FaqItemsController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/faq-items/{id}/history": {
+      "get": {
+        "operationId": "FaqItemsController_history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/faq-items/order": {
+      "put": {
+        "operationId": "FaqItemsController_reorder",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Kolejność pytań jednej kategorii z wersjami wszystkich pytań (ORDER_MISMATCH, CONFLICT)",
+        "tags": [
+          "panel: treści"
         ]
       }
     },
@@ -241,6 +1037,21 @@
         },
         "tags": [
           "panel: flota"
+        ]
+      }
+    },
+    "/admin/generated-documents": {
+      "get": {
+        "operationId": "GeneratedDocumentsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Wygenerowane dokumenty według wzorca listy (liczniki stanów, filtry rodzaju, stanu, formatu i zlecającego); q z 8 znaków szuka identyfikatora ze stopki",
+        "tags": [
+          "panel: wydruki"
         ]
       }
     },
@@ -413,6 +1224,265 @@
           }
         },
         "summary": "Publikacja: wersja obowiązuje od razu, klienci akceptują ją ponownie",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/media": {
+      "get": {
+        "operationId": "MediaController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Grafiki według wzorca listy; „Używane” usages.gte=1, „Nieużywane” usages.lte=0",
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "post": {
+        "operationId": "MediaController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Grafika z pliku wysłanego przez POST /files (purpose=MEDIA): klucz niezmienny (MEDIA_KEY_RESERVED, MEDIA_KEY_TAKEN), tekst alternatywny 3–250 znaków",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/media/{id}": {
+      "delete": {
+        "operationId": "MediaController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie grafiki nieużytej i niesystemowej (MEDIA_IN_USE z miejscami, MEDIA_SYSTEM)",
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "get": {
+        "operationId": "MediaController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Grafika z miejscami użycia (bloki sekcji, aktualności, modele)",
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "patch": {
+        "operationId": "MediaController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Nazwa, tekst alternatywny i podpis (działają wszędzie, gdzie grafika jest użyta)",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/media/{id}/file": {
+      "post": {
+        "operationId": "MediaController_replaceFile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "„Zastąp plik”: ten sam identyfikator i użycia, nowy adres z SHA-256; MEDIA_TOO_NARROW przy sekcji z minimalną szerokością",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/media/{id}/history": {
+      "get": {
+        "operationId": "MediaController_history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/news": {
+      "get": {
+        "operationId": "NewsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "post": {
+        "operationId": "NewsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Nowa aktualność; slug z tytułu (unikalny), publikacja bez daty „od” od razu, granice w przyszłości planują content.news-boundary",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/news/{id}": {
+      "delete": {
+        "operationId": "NewsController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "get": {
+        "operationId": "NewsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "panel: treści"
+        ]
+      },
+      "patch": {
+        "operationId": "NewsController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zapis z blokadą wersji; slug po pierwszej publikacji się nie zmienia (NEWS_SLUG_LOCKED)",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/news/{id}/history": {
+      "get": {
+        "operationId": "NewsController_history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
         "tags": [
           "panel: treści"
         ]
@@ -2594,6 +3664,34 @@
         ]
       }
     },
+    "/content/{client}": {
+      "get": {
+        "operationId": "PublicContentController_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client",
+            "required": true,
+            "schema": {
+              "enum": [
+                "web",
+                "mobile"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PublicContent"
+          }
+        },
+        "summary": "Treści klienta (web albo mobile) jedną odpowiedzią z jednej migawki bazy: opublikowane sekcje z elementami, FAQ, dane firmy, grafiki systemowe, dla strony aktywne modele; ETag \"content-{skrót treści}\" (pole hash), If-None-Match daje 304",
+        "tags": [
+          "treści"
+        ]
+      }
+    },
     "/files": {
       "post": {
         "operationId": "FilesController_upload",
@@ -2604,14 +3702,15 @@
               "schema": {
                 "properties": {
                   "file": {
-                    "description": "image/jpeg, image/png, image/webp; najwyżej 10 MB",
+                    "description": "image/jpeg, image/png, image/webp; najwyżej 10 MB, grafika biblioteki (MEDIA) 5 MB i 8000 px",
                     "format": "binary",
                     "type": "string"
                   },
                   "purpose": {
                     "enum": [
                       "PARKING_PHOTO",
-                      "TICKET_PHOTO"
+                      "TICKET_PHOTO",
+                      "MEDIA"
                     ],
                     "type": "string"
                   }
@@ -2631,7 +3730,7 @@
             "description": ""
           }
         },
-        "summary": "Wysyłka zdjęcia (201): klient albo operator z uprawnieniem do celu; typ po sygnaturze (JPEG, PNG, WebP), limit 10 MB; FILE_TOO_LARGE (413), FILE_TYPE_NOT_ALLOWED (415)",
+        "summary": "Wysyłka zdjęcia (201): klient albo operator z uprawnieniem do celu; typ po sygnaturze (JPEG, PNG, WebP), limit 10 MB; MEDIA tylko operator z content.write, 5 MB, wymiary w odpowiedzi i ostrzeżenie powyżej 2560 px (ADR 0064); FILE_TOO_LARGE (413), FILE_TYPE_NOT_ALLOWED (415), IMAGE_UNREADABLE i IMAGE_DIMENSIONS_TOO_LARGE (422)",
         "tags": [
           "pliki"
         ]
@@ -2667,7 +3766,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Stan backendu i bazy danych"
+            "description": "Stan backendu i bazy danych; `documents` to stan silnika dokumentów (nie zmienia stanu API, ADR 0066)"
           }
         },
         "tags": [
@@ -2696,6 +3795,62 @@
         "summary": "Obowiązująca wersja dokumentu (regulamin, polityka prywatności, zasady jazdy)",
         "tags": [
           "aplikacja: konto"
+        ]
+      }
+    },
+    "/legal/{slug}/versions": {
+      "get": {
+        "operationId": "PublicContentController_legalVersions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Wersje dokumentu prawnego: obowiązująca i archiwalne z datą końca obowiązywania",
+        "tags": [
+          "treści"
+        ]
+      }
+    },
+    "/legal/{slug}/versions/{versionNo}": {
+      "get": {
+        "operationId": "PublicContentController_legalVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionNo",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Treść wersji opublikowanej albo archiwalnej (wersja robocza daje 404)",
+        "tags": [
+          "treści"
         ]
       }
     },
@@ -2751,6 +3906,60 @@
         "summary": "Akceptacja nowych wersji dokumentów",
         "tags": [
           "aplikacja: konto"
+        ]
+      }
+    },
+    "/me/data-exports": {
+      "post": {
+        "operationId": "CustomerDataExportController_request",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Zlecenie eksportu danych (202, zadanie data-export.generate): najwyżej raz na 24 h, nieudane się nie liczą; 429 DATA_EXPORT_LIMIT z details.nextAllowedAt, 409 DATA_EXPORT_IN_PROGRESS; wynik w data-export.ready (pokój user:{id})",
+        "tags": [
+          "aplikacja: dane klienta"
+        ]
+      }
+    },
+    "/me/data-exports/latest": {
+      "get": {
+        "operationId": "CustomerDataExportController_latest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Ostatnie zlecenie (stan, rozmiar, expiresAt) i nextAllowedAt; gotowy i ważny plik ma adres z podpisem na 10 min (dane-RRRR-MM-DD.json)",
+        "tags": [
+          "aplikacja: dane klienta"
+        ]
+      }
+    },
+    "/me/documents/{id}": {
+      "get": {
+        "operationId": "CustomerDocumentsController_document",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Stan własnego wydruku i adres PDF z podpisem na 10 min (aplikacja pyta co 2 s bez Socket.IO)",
+        "tags": [
+          "aplikacja: dokumenty"
         ]
       }
     },
@@ -2934,6 +4143,30 @@
         ]
       }
     },
+    "/me/receipts/{id}/pdf": {
+      "post": {
+        "operationId": "CustomerDocumentsController_receiptPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "PDF własnego paragonu albo korekty: 200 z gotowym albo trwającym wydrukiem tej wersji szablonu, 202 z nowym zadaniem; wynik w document.ready (pokój user:{id}) albo GET /me/documents/{id}",
+        "tags": [
+          "aplikacja: dokumenty"
+        ]
+      }
+    },
     "/me/registration": {
       "post": {
         "operationId": "CustomerAuthController_register",
@@ -3014,6 +4247,77 @@
         "summary": "Doładowanie kartą albo BLIK-iem: płatność PENDING i PaymentIntent; potwierdza aplikacja, saldo rośnie po webhooku",
         "tags": [
           "aplikacja: płatności"
+        ]
+      }
+    },
+    "/media/{id}/{file}": {
+      "get": {
+        "operationId": "PublicMediaController_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "file",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Grafika pod adresem /media/{id}/{sha256}.{ext}: Cache-Control immutable na rok i ETag z sumą; starsza suma daje 308 na bieżący adres, nieznana grafika 404",
+        "tags": [
+          "treści"
+        ]
+      }
+    },
+    "/news": {
+      "get": {
+        "operationId": "PublicContentController_news",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Opublikowane aktualności od najnowszej (bez zaplanowanych i wygasłych), po 12 na stronę",
+        "tags": [
+          "treści"
+        ]
+      }
+    },
+    "/news/{slug}": {
+      "get": {
+        "operationId": "PublicContentController_article",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Opublikowana aktualność; zaplanowana, wygasła albo nieznana daje 404",
+        "tags": [
+          "treści"
         ]
       }
     },
@@ -3141,6 +4445,30 @@
         "summary": "Miejsca z obszaru działania z zapasem 1 km (5 wyników); 503 PLACES_UNAVAILABLE bez usługi",
         "tags": [
           "aplikacja: mapa"
+        ]
+      }
+    },
+    "/public/scooters/{number}": {
+      "get": {
+        "operationId": "PublicContentController_scooter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Strona /h/{numer}: numer i model ze zdjęciem; wycofana albo nieznana daje 404, bez dostępności, baterii i położenia",
+        "tags": [
+          "treści"
         ]
       }
     },

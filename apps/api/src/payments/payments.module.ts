@@ -8,6 +8,7 @@ import { FakePaymentProvider } from './provider/fake-payment-provider.js';
 import { PAYMENT_PROVIDER, type PaymentProvider } from './provider/payment-provider.js';
 import { StripePaymentProvider } from './provider/stripe-payment-provider.js';
 import { TariffsService } from './tariffs.service.js';
+import { PaymentDataExport } from './payment-data-export.js';
 
 /** Operator płatności z konfiguracji (D1): atrapa domyślnie, Stripe po wpisaniu kluczy testowych. */
 export function createPaymentProvider(config: AppConfig): PaymentProvider {
@@ -42,6 +43,7 @@ export function createPaymentProvider(config: AppConfig): PaymentProvider {
     PaymentsService,
     AdminPaymentsService,
     TariffsService,
+    PaymentDataExport,
   ],
   exports: [PaymentsService, AdminPaymentsService, PAYMENT_PROVIDER],
 })

@@ -8,12 +8,13 @@ import { AdminRentalsController } from './admin-rentals.controller.js';
 import { AdminRentalsService } from './admin-rentals.service.js';
 import { CustomerAccountController, RentalsController } from './rentals.controller.js';
 import { RentalsService } from './rentals.service.js';
+import { RentalDataExport } from './rental-data-export.js';
 
 /** Moduł Wypożyczenia: rezerwacja, przejazd, komendy przejazdu, rozliczenie przy zakończeniu, przejazdy w panelu (ADR 0036, ADR 0049). */
 @Module({
   imports: [FleetModule, GeoModule, PaymentsModule, FilesModule, OperationsModule],
   controllers: [RentalsController, CustomerAccountController, AdminRentalsController],
-  providers: [RentalsService, AdminRentalsService],
+  providers: [RentalsService, AdminRentalsService, RentalDataExport],
   exports: [RentalsService],
 })
 export class RentalsModule {}

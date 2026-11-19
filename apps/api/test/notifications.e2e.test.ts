@@ -571,7 +571,8 @@ describe.skipIf(!process.env.DATABASE_URL)('API: powiadomienia', () => {
     });
     expect(list.statusCode).toBe(200);
     const items = list.json<shared.ListResponse<shared.NotificationTemplateListItem>>().items;
-    expect(items).toHaveLength(6);
+    // Sześć szablonów push z iteracji 6 i `data_export_ready` (eksport danych klienta, ADR 0069, migracja 0011).
+    expect(items).toHaveLength(7);
     const battery = items.find((t) => t.code === 'battery_low')!;
     expect(battery).toMatchObject({ version: 1, versions: 1, lastSentAt: expect.any(String) });
     expect((await ctx.staff.technician({ method: 'GET', url: '/admin/notification-templates' })).statusCode).toBe(403);
@@ -1048,16 +1049,14 @@ describe.skipIf(!process.env.DATABASE_URL)('API: powiadomienia', () => {
 
     // Przerwana wysyłka (przejęcie bez wyniku): sweep czeka 5 min od przejęcia, potem wysyła.
     const second = await endedRental(customers.anna.id);
-    await app
-      .get<Database>(DB)
-      .transaction((tx) =>
-        notifications().batteryLow(tx, {
-          rentalId: second,
-          userId: customers.anna.id,
-          scooterNumber: 4,
-          batteryPct: 9,
-        }),
-      );
+    await app.get<Database>(DB).transaction((tx) =>
+      notifications().batteryLow(tx, {
+        rentalId: second,
+        userId: customers.anna.id,
+        scooterNumber: 4,
+        batteryPct: 9,
+      }),
+    );
     discardJobs();
     await ctx.pool.query(
       `UPDATE notifications SET created_at = now() - interval '10 minutes', claimed_at = now() - interval '1 minute'

@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Zdarzenia na żywo (Socket.IO)
-  version: 1.4.0
+  version: 1.6.1
   description: |
     Kontrakt zdarzeń Socket.IO między backendem a panelem operatora i aplikacją (ADR 0012).
     Operacje opisane z perspektywy backendu. Typy w kodzie: packages/shared/src/realtime.ts.
@@ -12,7 +12,8 @@ info:
     * Zdarzenia przychodzą w kolejności wysłania; klient stosuje je po kolei.
     * Od iteracji 2 dołączenie do pokoju fleet wymaga zalogowanego operatora z uprawnieniem scooters.read.
     * Połączenie wymaga tokenu dostępowego w `auth.token` (ADR 0035): operatora albo klienta.
-      Klient trafia do pokoju user:{id} od razu po połączeniu, bez osobnej subskrypcji.
+      Klient trafia do pokoju user:{id}, a operator do pokoju staff:{id} od razu po połączeniu, bez osobnej
+      subskrypcji.
     * Dołączenie do pokoju operatora odpowiada potwierdzeniem (ack) { ok: true } albo
       { ok: false, code: UNAUTHENTICATED | FORBIDDEN } (SubscribeAck).
 
@@ -35,6 +36,19 @@ info:
       rental.updated ma pola zakończenia bez łączności, zdjęcia parkowania, zatrzymania naliczania,
       progu baterii i opłaty za odholowanie (price.towingFee); CommandView zna RELEASE_STOP
       i BATTERY_SWAPPED.
+    * 1.5.0 (iteracja 7, ADR 0062): zdarzenie content.updated do wszystkich połączonych po zatwierdzeniu
+      zmiany treści (sekcje, FAQ, aktualności, media, dane firmy, dokumenty prawne, modele) i na granicy
+      publikacji aktualności; aplikacja pobiera GET /content/mobile z If-None-Match, gdy rewizja jest wyższa.
+      Strona dostaje odświeżenie wywołaniem HTTP (site.revalidate, ADR 0065), nie przez Socket.IO.
+    * 1.6.0 (iteracja 7, ADR 0066, 0068, 0069): pokój operatora staff:{id}, do którego gniazdo operatora
+      dołącza przy połączeniu (bez subskrypcji), ze zdarzeniem document.ready po stanie końcowym jego wydruku;
+      document.ready także w pokoju user:{id} (paragon PDF klienta) i data-export.ready w pokoju user:{id}
+      po przygotowaniu albo błędzie eksportu danych. Adresy plików mają podpis HMAC na 10 min (ADR 0057).
+      notification.created zna kod data_export_ready. ADR 0066 i 0069 zapowiadały te zdarzenia w 1.5.0;
+      tę wersję zajęło wcześniej content.updated, więc trafiły do 1.6.0.
+    * 1.6.1 (poprawki po przeglądzie iteracji 7): bez zmiany ładunku. Po content.updated aplikacja zawsze
+      wysyła żądanie warunkowe GET /content/mobile (bez porównywania rewizji): licznik rośnie już w niezatwierdzonej
+      transakcji, a ETag odpowiedzi to skrót treści (pole hash), więc 304 albo ten sam skrót nic nie zmienia.
 
 servers:
   lokalny:
@@ -68,6 +82,12 @@ channels:
     messages:
       changed:
         $ref: '#/components/messages/ZonesChanged'
+  content:
+    address: null
+    description: Wszyscy połączeni (panel i aplikacja); zmiana treści po zatwierdzeniu zapisu (ADR 0062)
+    messages:
+      updated:
+        $ref: '#/components/messages/ContentUpdated'
   user:
     address: user:{userId}
     description: Pokój klienta; zmiany jego przejazdów, portfela, zgłoszeń i powiadomień na wszystkich urządzeniach
@@ -83,6 +103,20 @@ channels:
         $ref: '#/components/messages/CustomerTicketUpdated'
       notificationCreated:
         $ref: '#/components/messages/NotificationCreated'
+      documentReady:
+        $ref: '#/components/messages/DocumentReady'
+      dataExportReady:
+        $ref: '#/components/messages/DataExportReady'
+
+  staff:
+    address: staff:{staffId}
+    description: Pokój operatora; jego wydruki w stanie końcowym (ADR 0066). Gniazdo operatora dołącza przy połączeniu.
+    parameters:
+      staffId:
+        description: Identyfikator operatora z tokenu dostępowego
+    messages:
+      documentReady:
+        $ref: '#/components/messages/DocumentReady'
 
   tickets:
     address: tickets
@@ -159,6 +193,27 @@ operations:
     summary: 'notification.created: powiadomienie po wysyłce (SENT) albo pominięte z braku tokenu (SKIPPED, NO_PUSH_TOKEN); wersja web pokazuje baner, aplikacja natywna pomija'
     messages:
       - $ref: '#/channels/user/messages/notificationCreated'
+  sendDocumentReadyToStaff:
+    action: send
+    channel:
+      $ref: '#/channels/staff'
+    summary: 'document.ready: wydruk operatora gotowy (SUCCEEDED) albo nieudany (FAILED z errorCode; przy błędzie PDF zostaje DOCX)'
+    messages:
+      - $ref: '#/channels/staff/messages/documentReady'
+  sendDocumentReadyToUser:
+    action: send
+    channel:
+      $ref: '#/channels/user'
+    summary: 'document.ready: paragon PDF klienta gotowy albo nieudany (POST /me/receipts/{id}/pdf)'
+    messages:
+      - $ref: '#/channels/user/messages/documentReady'
+  sendDataExportReady:
+    action: send
+    channel:
+      $ref: '#/channels/user'
+    summary: 'data-export.ready: eksport danych klienta gotowy (rozmiar, ważność 7 dni) albo nieudany; adres pliku z GET /me/data-exports/latest'
+    messages:
+      - $ref: '#/channels/user/messages/dataExportReady'
   receiveTicketsSubscribe:
     action: receive
     channel:
@@ -215,6 +270,13 @@ operations:
     summary: 'zones.changed: identyfikatory zmienionych stref; geometrie pobiera się przez GET /zones albo GET /admin/zones'
     messages:
       - $ref: '#/channels/zones/messages/changed'
+  sendContentUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/content'
+    summary: 'content.updated: rewizja treści (fn_content_revision) i klienci, których dotyczy zmiana'
+    messages:
+      - $ref: '#/channels/content/messages/updated'
   receiveSubscribe:
     action: receive
     channel:
@@ -473,6 +535,7 @@ components:
                 ticket_received,
                 ticket_status_changed,
                 login_code,
+                data_export_ready,
               ]
           title: { type: [string, 'null'] }
           body: { type: string }
@@ -536,7 +599,89 @@ components:
         properties:
           zoneIds: { type: array, items: { type: string, format: uuid } }
           at: { type: string, format: date-time }
+    ContentUpdated:
+      name: content.updated
+      payload:
+        description: >-
+          ContentUpdated z packages/shared/src/realtime.ts; licznik wspólny dla strony i aplikacji. Klient po
+          zdarzeniu pobiera treść żądaniem warunkowym; o świeżości decyduje skrót treści, nie rewizja.
+        type: object
+        required: [revision, clients, at]
+        properties:
+          revision: { type: integer, minimum: 0 }
+          clients: { type: array, items: { type: string, enum: [WEB, MOBILE, ADMIN] } }
+          at: { type: string, format: date-time }
+    DocumentReady:
+      name: document.ready
+      payload:
+        description: DocumentReady z packages/shared/src/realtime.ts (ADR 0066)
+        type: object
+        required: [id, documentType, status, format, files]
+        properties:
+          id: { type: string, format: uuid }
+          documentType:
+            type: string
+            enum:
+              [
+                RENTAL_CONFIRMATION,
+                SERVICE_PROTOCOL,
+                SCOOTER_CARD,
+                INCIDENT_REPORT,
+                WALLET_ADJUSTMENT,
+                RECEIPT,
+                SCOOTER_LABEL,
+              ]
+          status: { type: string, enum: [SUCCEEDED, FAILED] }
+          format: { type: string, enum: [DOCX, PDF] }
+          errorCode:
+            type: string
+            description: 'Tylko przy FAILED: RENDER_TIMEOUT, RENDERER_UNAVAILABLE, RENDER_FAILED, TEMPLATE_RENDER_FAILED, DOCUMENT_SOURCE_NOT_FOUND'
+          files:
+            type: object
+            description: Pliki dostępne do pobrania; przy błędzie PDF zostaje DOCX
+            properties:
+              docx: { $ref: '#/components/schemas/DocumentFileLink' }
+              pdf: { $ref: '#/components/schemas/DocumentFileLink' }
+      examples:
+        - name: protokol-gotowy
+          payload:
+            id: 7f3a2c91-4b5d-4e6f-8a9b-0c1d2e3f4a5b
+            documentType: SERVICE_PROTOCOL
+            status: SUCCEEDED
+            format: PDF
+            files:
+              docx:
+                url: /files/0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e?exp=1795040000&sig=abc
+                urlExpiresAt: '2026-11-18T14:32:00.000Z'
+                fileName: S-1037-protokol-serwisowy.docx
+                sizeBytes: 41230
+              pdf:
+                url: /files/1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f?exp=1795040000&sig=def
+                urlExpiresAt: '2026-11-18T14:32:00.000Z'
+                fileName: S-1037-protokol-serwisowy.pdf
+                sizeBytes: 88412
+    DataExportReady:
+      name: data-export.ready
+      payload:
+        description: DataExportReady z packages/shared/src/realtime.ts (ADR 0069)
+        type: object
+        required: [id, status, state, sizeBytes, expiresAt]
+        properties:
+          id: { type: string, format: uuid }
+          status: { type: string, enum: [SUCCEEDED, FAILED] }
+          state: { type: string, enum: [SUCCEEDED, FAILED] }
+          sizeBytes: { type: [integer, 'null'] }
+          expiresAt: { type: [string, 'null'], format: date-time, description: 'Ważność pliku: 7 dni od przygotowania' }
   schemas:
+    DocumentFileLink:
+      type: object
+      description: Plik wydruku z adresem z podpisem HMAC na 10 min (ADR 0057)
+      required: [url, urlExpiresAt, fileName, sizeBytes]
+      properties:
+        url: { type: string, description: 'Adres względny /files/{id}?exp&sig; klient dokleja adres API' }
+        urlExpiresAt: { type: string, format: date-time }
+        fileName: { type: string }
+        sizeBytes: { type: integer }
     RentalState:
       type: string
       description: Stan przejazdu (ADR 0013, maszyna stanów w core)

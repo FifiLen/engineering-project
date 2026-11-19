@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
-import { runMigrations, seedDatabase, type PlacesFile } from '@hulajnogi/db';
+import { NEWS_BOUNDARY_SINGLETON_SECONDS } from '@hulajnogi/core';
+import { runMigrations, seedDatabase, type Database, type PlacesFile } from '@hulajnogi/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -8,6 +9,8 @@ import { createApp } from '../src/bootstrap.js';
 import { loadConfig } from '../src/config.js';
 import { fundWallet } from './helpers.js';
 import { RentalsService } from '../src/rentals/rentals.service.js';
+import { DB } from '../src/database/database.module.js';
+import { JOBS, JobsService, workerOptions } from '../src/jobs/jobs.service.js';
 
 const adminUrl = process.env.DATABASE_URL;
 const dbName = `hulajnogi_jobs_api_${randomUUID().slice(0, 8)}`;
@@ -60,6 +63,10 @@ describe.skipIf(!adminUrl)('API: zadania w tle (pg-boss)', () => {
     expect(schedules.rows.map((r) => r.name)).toEqual([
       'auth.purge',
       'commands.timeout-sweep',
+      'data-exports.purge',
+      'data-exports.sweep',
+      'documents.retention',
+      'documents.sweep',
       'files.cleanup',
       'files.retention',
       'notifications.sweep',
@@ -68,6 +75,34 @@ describe.skipIf(!adminUrl)('API: zadania w tle (pg-boss)', () => {
       'telemetry.partitions',
       'telemetry.purge',
     ]);
+  });
+
+  it('kolejki z ponowieniami pobierają po jednym zadaniu (błąd jednego nie kończy partii)', () => {
+    expect(workerOptions(JOBS.dataExportGenerate)).toMatchObject({ batchSize: 1 });
+    expect(workerOptions(JOBS.documentGenerate)).toMatchObject({ batchSize: 1, localConcurrency: 2 });
+    expect(workerOptions(JOBS.notificationSend)).toMatchObject({ batchSize: 5 });
+  });
+
+  it('granica aktualności: dubel w oknie singletonu odrzucony, startAfter zostaje granicą (kolejka standard)', async () => {
+    const jobs = app.get(JobsService);
+    const db = app.get<Database>(DB);
+    const at = new Date(Date.now() + 3 * 3600_000);
+    const key = `news:${randomUUID()}:from:${at.toISOString()}`;
+    for (let i = 0; i < 2; i++) {
+      await db.transaction((tx) =>
+        jobs.sendInTransaction(tx, JOBS.newsBoundary, { boundary: 'from', at: at.toISOString() }, at, {
+          singletonKey: key,
+          singletonSeconds: NEWS_BOUNDARY_SINGLETON_SECONDS,
+          singletonNextSlot: false,
+        }),
+      );
+    }
+    const rows = await pool.query<{ start_after: Date }>(
+      `SELECT start_after FROM pgboss.job WHERE name = 'content.news-boundary' AND singleton_key = $1`,
+      [key],
+    );
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0]!.start_after.getTime()).toBe(at.getTime());
   });
 
   it('bez potwierdzenia odblokowania zadanie pg-boss kończy przejazd jako UNLOCK_FAILED', async () => {

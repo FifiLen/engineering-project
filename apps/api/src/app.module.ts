@@ -2,7 +2,10 @@ import { type DynamicModule, Module } from '@nestjs/common';
 import { AccessModule } from './access/access.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CONFIG, type AppConfig } from './config.js';
+import { ContentModule } from './content/content.module.js';
 import { DatabaseModule } from './database/database.module.js';
+import { DataExportModule } from './data-export/data-export.module.js';
+import { DocumentsModule } from './documents/documents.module.js';
 import { FilesModule } from './files/files.module.js';
 import { FleetModule } from './fleet/fleet.module.js';
 import { HealthController } from './health/health.controller.js';
@@ -32,6 +35,9 @@ export class AppModule {
         MqttModule,
         RealtimeModule,
         FilesModule,
+        ContentModule,
+        DocumentsModule,
+        DataExportModule,
         ZonesModule,
         FleetModule,
         OperationsModule,

@@ -37,12 +37,18 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
   async function customer(phone: string): Promise<shared.CustomerSession> {
     await app.inject({ method: 'POST', url: '/auth/otp', payload: { phone } });
     const code = /(\d{6})/.exec(app.get(LoggingSmsGateway).sent.at(-1)!.text)![1];
-    const session = (await app.inject({ method: 'POST', url: '/auth/otp/verify', payload: { phone, code } })).json<shared.CustomerSession>();
+    const session = (
+      await app.inject({ method: 'POST', url: '/auth/otp/verify', payload: { phone, code } })
+    ).json<shared.CustomerSession>();
     await app.inject({
       method: 'POST',
       url: '/me/registration',
       headers: { authorization: `Bearer ${session.accessToken}` },
-      payload: { name: 'Anna Kowalczyk', ageConfirmed: true, acceptedVersionIds: session.me.pendingDocuments.map((d) => d.versionId) },
+      payload: {
+        name: 'Anna Kowalczyk',
+        ageConfirmed: true,
+        acceptedVersionIds: session.me.pendingDocuments.map((d) => d.versionId),
+      },
     });
     return session;
   }
@@ -62,12 +68,23 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
       staff: [{ email: 'd@test.local', name: 'Marta Wiśniewska', role: 'Dyspozytor', passwordHash: 'x' }],
       documents: [
         { slug: 'regulamin', name: 'Regulamin', consentType: 'TERMS', title: 'Regulamin', bodyMd: 'Wersja 1' },
-        { slug: 'polityka-prywatnosci', name: 'Polityka', consentType: 'PRIVACY', title: 'Polityka', bodyMd: 'Wersja 1' },
+        {
+          slug: 'polityka-prywatnosci',
+          name: 'Polityka',
+          consentType: 'PRIVACY',
+          title: 'Polityka',
+          bodyMd: 'Wersja 1',
+        },
       ],
     });
     app = await createApp(
-      loadConfig({ NODE_ENV: 'test', DATABASE_URL: url.toString(), MQTT_ENABLED: 'false',
-        JOBS_ENABLED: 'false', PANEL_URL: 'http://panel.test' }),
+      loadConfig({
+        NODE_ENV: 'test',
+        DATABASE_URL: url.toString(),
+        MQTT_ENABLED: 'false',
+        JOBS_ENABLED: 'false',
+        PANEL_URL: 'http://panel.test',
+      }),
       { logger: false },
     );
     await app.init();
@@ -85,17 +102,35 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
 
   it('zapisy floty z iteracji 1 mają autora w dzienniku i historię rekordu', async () => {
     const scooterId = (await pool.query<{ id: string }>('SELECT id FROM scooters WHERE number = 1')).rows[0]!.id;
-    const edited = await adminApi({ method: 'PATCH', url: `/admin/scooters/${scooterId}`, payload: { version: 1, firmware: 'v2.4.2' } });
+    const edited = await adminApi({
+      method: 'PATCH',
+      url: `/admin/scooters/${scooterId}`,
+      payload: { version: 1, firmware: 'v2.4.2' },
+    });
     expect(edited.statusCode).toBe(200);
-    await adminApi({ method: 'PATCH', url: `/admin/scooters/${scooterId}`, payload: { version: 2, status: 'MAINTENANCE' } });
-    const history = (await adminApi({ method: 'GET', url: `/admin/scooters/${scooterId}/history` })).json<shared.AuditLogDetails[]>();
+    await adminApi({
+      method: 'PATCH',
+      url: `/admin/scooters/${scooterId}`,
+      payload: { version: 2, status: 'MAINTENANCE' },
+    });
+    const history = (await adminApi({ method: 'GET', url: `/admin/scooters/${scooterId}/history` })).json<
+      shared.AuditLogDetails[]
+    >();
     expect(history.map((h) => [h.action, h.staffName, h.data.changes])).toEqual([
       // Formularz floty zapisuje przyczynę serwisu (`OTHER`) razem ze stanem (ADR 0055).
-      ['scooter.status_changed', 'Piotr Mazur', { status: ['AVAILABLE', 'MAINTENANCE'], statusReason: [null, 'OTHER'] }],
+      [
+        'scooter.status_changed',
+        'Piotr Mazur',
+        { status: ['AVAILABLE', 'MAINTENANCE'], statusReason: [null, 'OTHER'] },
+      ],
       ['scooter.updated', 'Piotr Mazur', { firmware: ['v2.4.1', 'v2.4.2'] }],
     ]);
     // Konflikt wersji nie zostawia wpisu: zmiana i wpis są w jednej transakcji.
-    const stale = await adminApi({ method: 'PATCH', url: `/admin/scooters/${scooterId}`, payload: { version: 1, firmware: 'x' } });
+    const stale = await adminApi({
+      method: 'PATCH',
+      url: `/admin/scooters/${scooterId}`,
+      payload: { version: 1, firmware: 'x' },
+    });
     expect(stale.statusCode).toBe(409);
     expect((await adminApi({ method: 'GET', url: `/admin/scooters/${scooterId}/history` })).json()).toHaveLength(2);
   });
@@ -112,14 +147,30 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
       expect(res.statusCode).toBe(201);
       const body = res.json<shared.StaffInvitationResult>();
       expect(body.invitationUrl).toMatch(/^http:\/\/panel\.test\/admin\/aktywacja\?token=[\w-]{43}$/);
-      expect(body.staff).toMatchObject({ email: 'kamil.nowak@operator.pl', status: 'INVITED', roles: ['Dyspozytor'], sessions: [] });
+      expect(body.staff).toMatchObject({
+        email: 'kamil.nowak@operator.pl',
+        status: 'INVITED',
+        roles: ['Dyspozytor'],
+        sessions: [],
+      });
       invitedId = body.staff.id;
 
-      const duplicate = await adminApi({ method: 'POST', url: '/admin/staff', payload: { email: 'kamil.nowak@operator.pl', name: 'Kamil N', roleIds: [await roleId('Dyspozytor')] } });
+      const duplicate = await adminApi({
+        method: 'POST',
+        url: '/admin/staff',
+        payload: { email: 'kamil.nowak@operator.pl', name: 'Kamil N', roleIds: [await roleId('Dyspozytor')] },
+      });
       expect(duplicate.json()).toMatchObject({ code: 'ALREADY_EXISTS', details: { field: 'email' } });
-      const list = await adminApi({ method: 'GET', url: `/admin/staff?status=INVITED&roleIds=${await roleId('Dyspozytor')}` });
+      const list = await adminApi({
+        method: 'GET',
+        url: `/admin/staff?status=INVITED&roleIds=${await roleId('Dyspozytor')}`,
+      });
       expect(list.json().items.map((s: shared.StaffListItem) => s.email)).toEqual(['kamil.nowak@operator.pl']);
-      const resent = await adminApi({ method: 'POST', url: `/admin/staff/${invitedId}/invitation`, payload: { version: 1 } });
+      const resent = await adminApi({
+        method: 'POST',
+        url: `/admin/staff/${invitedId}/invitation`,
+        payload: { version: 1 },
+      });
       expect(resent.json<shared.StaffInvitationResult>().invitationUrl).not.toBe(body.invitationUrl);
     });
 
@@ -130,10 +181,19 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
         payload: { version: 1, roleIds: [await roleId('Dyspozytor'), await roleId('Serwisant')] },
       });
       expect(res.json()).toMatchObject({ roles: ['Dyspozytor', 'Serwisant'], version: 2 });
-      const history = (await adminApi({ method: 'GET', url: `/admin/staff/${invitedId}/history` })).json<shared.AuditLogDetails[]>();
-      expect(history[0]).toMatchObject({ action: 'staff.roles_changed', data: { changes: { roles: [['Dyspozytor'], ['Dyspozytor', 'Serwisant']] } } });
+      const history = (await adminApi({ method: 'GET', url: `/admin/staff/${invitedId}/history` })).json<
+        shared.AuditLogDetails[]
+      >();
+      expect(history[0]).toMatchObject({
+        action: 'staff.roles_changed',
+        data: { changes: { roles: [['Dyspozytor'], ['Dyspozytor', 'Serwisant']] } },
+      });
 
-      const own = await adminApi({ method: 'PATCH', url: `/admin/staff/${adminId}`, payload: { version: 1, roleIds: [await roleId('Serwisant')] } });
+      const own = await adminApi({
+        method: 'PATCH',
+        url: `/admin/staff/${adminId}`,
+        payload: { version: 1, roleIds: [await roleId('Serwisant')] },
+      });
       expect(own.json()).toMatchObject({ code: 'CANNOT_CHANGE_OWN_ROLES' });
       const self = await adminApi({ method: 'DELETE', url: `/admin/staff/${adminId}?version=1` });
       expect(self.json()).toMatchObject({ code: 'CANNOT_DEACTIVATE_SELF' });
@@ -144,7 +204,9 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
       expect((await dispatcher({ method: 'GET', url: '/admin/scooters' })).statusCode).toBe(200);
       const res = await adminApi({ method: 'DELETE', url: `/admin/staff/${await idOf('d@test.local')}?version=1` });
       expect(res.json()).toEqual({ outcome: 'ARCHIVED' });
-      expect((await dispatcher({ method: 'GET', url: '/admin/scooters' })).json()).toMatchObject({ details: { reason: 'STAFF_INACTIVE' } });
+      expect((await dispatcher({ method: 'GET', url: '/admin/scooters' })).json()).toMatchObject({
+        details: { reason: 'STAFF_INACTIVE' },
+      });
     });
 
     it('macierz uprawnień: rola własna, wersja rekordu, nieznane uprawnienie, usuwanie', async () => {
@@ -152,27 +214,50 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
       const created = await adminApi({
         method: 'POST',
         url: '/admin/roles',
-        payload: { name: 'Kadry', description: 'Zaproszenia i dezaktywacje', permissions: ['staff.read', 'staff.manage'] },
+        payload: {
+          name: 'Kadry',
+          description: 'Zaproszenia i dezaktywacje',
+          permissions: ['staff.read', 'staff.manage'],
+        },
       });
       expect(created.json()).toMatchObject({ name: 'Kadry', permissions: ['staff.manage', 'staff.read'], staff: [] });
       const id = created.json<shared.RoleDetails>().id;
       const version = created.json<shared.RoleDetails>().version;
 
-      const unknown = await adminApi({ method: 'PATCH', url: `/admin/roles/${id}`, payload: { version, permissions: ['staff.fire'] } });
+      const unknown = await adminApi({
+        method: 'PATCH',
+        url: `/admin/roles/${id}`,
+        payload: { version, permissions: ['staff.fire'] },
+      });
       expect(unknown.statusCode).toBe(400);
       const updated = await adminApi({
         method: 'PATCH',
         url: `/admin/roles/${id}`,
         payload: { version, permissions: ['staff.read', 'staff.manage', 'audit.read'] },
       });
-      expect(updated.json()).toMatchObject({ permissions: ['audit.read', 'staff.manage', 'staff.read'], permissionsCount: 3 });
-      const stale = await adminApi({ method: 'PATCH', url: `/admin/roles/${id}`, payload: { version, name: 'Kadry stare' } });
+      expect(updated.json()).toMatchObject({
+        permissions: ['audit.read', 'staff.manage', 'staff.read'],
+        permissionsCount: 3,
+      });
+      const stale = await adminApi({
+        method: 'PATCH',
+        url: `/admin/roles/${id}`,
+        payload: { version, name: 'Kadry stare' },
+      });
       expect(stale.json()).toMatchObject({ code: 'CONFLICT' });
-      const history = (await adminApi({ method: 'GET', url: `/admin/roles/${id}/history` })).json<shared.AuditLogDetails[]>();
-      expect(history[0]).toMatchObject({ action: 'role.permissions_changed', data: { permissions: { added: ['audit.read'], removed: [] } } });
+      const history = (await adminApi({ method: 'GET', url: `/admin/roles/${id}/history` })).json<
+        shared.AuditLogDetails[]
+      >();
+      expect(history[0]).toMatchObject({
+        action: 'role.permissions_changed',
+        data: { permissions: { added: ['audit.read'], removed: [] } },
+      });
 
       // Systemowa jest tylko rola Administrator (migracja 0002); Serwisant ma operatora z poprzedniego testu.
-      const system = await adminApi({ method: 'DELETE', url: `/admin/roles/${await roleId('Administrator')}?version=1` });
+      const system = await adminApi({
+        method: 'DELETE',
+        url: `/admin/roles/${await roleId('Administrator')}?version=1`,
+      });
       expect(system.json()).toMatchObject({ code: 'ROLE_SYSTEM' });
       const inUse = await adminApi({ method: 'DELETE', url: `/admin/roles/${await roleId('Serwisant')}?version=1` });
       expect(inUse.json()).toMatchObject({ code: 'ROLE_IN_USE', details: { staffCount: 1 } });
@@ -181,7 +266,9 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
     });
 
     it('nie da się zostawić panelu bez operatora z roles.manage: ani przez macierz, ani przez dezaktywację', async () => {
-      const adminRole = (await adminApi({ method: 'GET', url: `/admin/roles/${await roleId('Administrator')}` })).json<shared.RoleDetails>();
+      const adminRole = (
+        await adminApi({ method: 'GET', url: `/admin/roles/${await roleId('Administrator')}` })
+      ).json<shared.RoleDetails>();
       const matrix = await adminApi({
         method: 'PATCH',
         url: `/admin/roles/${adminRole.id}`,
@@ -191,13 +278,18 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
       expect(matrix.json()).toMatchObject({ code: 'LAST_ROLE_MANAGER' });
 
       // Operator kadr ma staff.manage, ale nie roles.manage: dezaktywacja jedynego administratora jest odrzucana.
-      const hr = await adminApi({ method: 'POST', url: '/admin/roles', payload: { name: 'Kadry 2', permissions: ['staff.read', 'staff.manage'] } });
+      const hr = await adminApi({
+        method: 'POST',
+        url: '/admin/roles',
+        payload: { name: 'Kadry 2', permissions: ['staff.read', 'staff.manage'] },
+      });
       const { rows } = await pool.query<{ id: string }>(
         `INSERT INTO staff (email, name, password_hash) VALUES ('kadry@test.local', 'Kadry', 'x') RETURNING id`,
       );
       await pool.query('INSERT INTO staff_roles (staff_id, role_id) VALUES ($1, $2)', [rows[0]!.id, hr.json().id]);
       const hrApi = asStaff(app, staffToken(app, rows[0]!.id));
-      const version = (await adminApi({ method: 'GET', url: `/admin/staff/${adminId}` })).json<shared.StaffDetails>().version;
+      const version = (await adminApi({ method: 'GET', url: `/admin/staff/${adminId}` })).json<shared.StaffDetails>()
+        .version;
       const lastAdmin = await hrApi({ method: 'DELETE', url: `/admin/staff/${adminId}?version=${version}` });
       expect(lastAdmin.json()).toMatchObject({ code: 'LAST_ROLE_MANAGER' });
     });
@@ -206,8 +298,12 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
   describe('klienci, dokumenty i dziennik audytu', () => {
     it('blokada wylogowuje klienta, powód widzi klient, notatka jest tylko w dzienniku', async () => {
       const session = await customer('+48512000111');
-      const users = (await adminApi({ method: 'GET', url: '/admin/users?q=512000111' })).json<shared.ListResponse<shared.UserListItem>>();
-      expect(users.items).toEqual([expect.objectContaining({ name: 'Anna Kowalczyk', status: 'ACTIVE', activeSessions: 1 })]);
+      const users = (await adminApi({ method: 'GET', url: '/admin/users?q=512000111' })).json<
+        shared.ListResponse<shared.UserListItem>
+      >();
+      expect(users.items).toEqual([
+        expect.objectContaining({ name: 'Anna Kowalczyk', status: 'ACTIVE', activeSessions: 1 }),
+      ]);
       const id = users.items[0]!.id;
       const details = (await adminApi({ method: 'GET', url: `/admin/users/${id}` })).json<shared.UserDetails>();
       expect(details.consents.map((c) => [c.type, c.isCurrent])).toEqual([
@@ -222,55 +318,139 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
         payload: { version: details.version, reason: 'UNPAID_BALANCE', note: 'Płatność odrzucona trzykrotnie' },
       });
       expect(blocked.json()).toMatchObject({ status: 'BLOCKED', blockedReason: 'UNPAID_BALANCE', sessions: [] });
-      const refresh = await app.inject({ method: 'POST', url: '/auth/refresh', payload: { refreshToken: session.refreshToken } });
+      const refresh = await app.inject({
+        method: 'POST',
+        url: '/auth/refresh',
+        payload: { refreshToken: session.refreshToken },
+      });
       expect(refresh.json()).toMatchObject({ details: { reason: 'SESSION_REVOKED' } });
-      const me = await app.inject({ method: 'GET', url: '/me', headers: { authorization: `Bearer ${session.accessToken}` } });
+      const me = await app.inject({
+        method: 'GET',
+        url: '/me',
+        headers: { authorization: `Bearer ${session.accessToken}` },
+      });
       expect(me.json()).toMatchObject({ status: 'BLOCKED', blockedReason: 'UNPAID_BALANCE', nextStep: 'BLOCKED' });
 
       const audit = await adminApi({ method: 'GET', url: `/admin/audit-log?entityType=user&entityId=${id}` });
-      const entry = (await adminApi({ method: 'GET', url: `/admin/audit-log/${audit.json().items[0].id}` })).json<shared.AuditLogDetails>();
-      expect(entry).toMatchObject({ action: 'user.blocked', data: { reason: 'UNPAID_BALANCE', note: 'Płatność odrzucona trzykrotnie', sessionsRevoked: 1 } });
+      const entry = (
+        await adminApi({ method: 'GET', url: `/admin/audit-log/${audit.json().items[0].id}` })
+      ).json<shared.AuditLogDetails>();
+      expect(entry).toMatchObject({
+        action: 'user.blocked',
+        data: { reason: 'UNPAID_BALANCE', note: 'Płatność odrzucona trzykrotnie', sessionsRevoked: 1 },
+      });
 
-      const again = await adminApi({ method: 'POST', url: `/admin/users/${id}/block`, payload: { version: details.version + 1, reason: 'TERMS_VIOLATION' } });
+      const again = await adminApi({
+        method: 'POST',
+        url: `/admin/users/${id}/block`,
+        payload: { version: details.version + 1, reason: 'TERMS_VIOLATION' },
+      });
       expect(again.json()).toMatchObject({ code: 'ALREADY_BLOCKED' });
-      const unblocked = await adminApi({ method: 'POST', url: `/admin/users/${id}/unblock`, payload: { version: details.version + 1 } });
+      const unblocked = await adminApi({
+        method: 'POST',
+        url: `/admin/users/${id}/unblock`,
+        payload: { version: details.version + 1 },
+      });
       expect(unblocked.json()).toMatchObject({ status: 'ACTIVE', blockedReason: null });
     });
 
     it('nowa wersja regulaminu: wersja robocza, „najważniejsze zmiany”, publikacja i ponowna akceptacja', async () => {
       const session = await customer('+48512000222');
-      const docs = (await adminApi({ method: 'GET', url: '/admin/legal-documents' })).json<shared.LegalDocumentSummary[]>();
+      const docs = (await adminApi({ method: 'GET', url: '/admin/legal-documents' })).json<
+        shared.LegalDocumentSummary[]
+      >();
       const terms = docs.find((d) => d.slug === 'regulamin')!;
-      const draft = (await adminApi({ method: 'POST', url: `/admin/legal-documents/${terms.id}/drafts` })).json<shared.DocumentVersionDetails>();
+      const draft = (
+        await adminApi({ method: 'POST', url: `/admin/legal-documents/${terms.id}/drafts` })
+      ).json<shared.DocumentVersionDetails>();
       expect(draft).toMatchObject({ versionNo: 2, status: 'DRAFT', bodyMd: 'Wersja 1' });
-      expect((await adminApi({ method: 'POST', url: `/admin/legal-documents/${terms.id}/drafts` })).json()).toMatchObject({ code: 'DRAFT_EXISTS' });
+      expect(
+        (await adminApi({ method: 'POST', url: `/admin/legal-documents/${terms.id}/drafts` })).json(),
+      ).toMatchObject({ code: 'DRAFT_EXISTS' });
 
-      await adminApi({ method: 'PATCH', url: `/admin/legal-documents/versions/${draft.id}`, payload: { bodyMd: 'Wersja 2' } });
+      expect(draft.version).toBe(1);
+      const edited = await adminApi({
+        method: 'PATCH',
+        url: `/admin/legal-documents/versions/${draft.id}`,
+        payload: { version: 1, bodyMd: 'Wersja 2' },
+      });
+      expect(edited.json()).toMatchObject({ version: 2, bodyMd: 'Wersja 2' });
+      // Blokada optymistyczna wersji roboczej (ADR 0062): zapis ze starą wersją nie nadpisuje zmian.
+      const stale = await adminApi({
+        method: 'PATCH',
+        url: `/admin/legal-documents/versions/${draft.id}`,
+        payload: { version: 1, bodyMd: 'Stara' },
+      });
+      expect(stale.statusCode).toBe(409);
+      expect(stale.json()).toMatchObject({ code: 'CONFLICT', details: { currentVersion: 2 } });
+      // Markdown dokumentu w profilu `document` (ADR 0063): błąd z wierszem i kolumną blokuje zapis.
+      const invalid = await adminApi({
+        method: 'PATCH',
+        url: `/admin/legal-documents/versions/${draft.id}`,
+        payload: { version: 2, bodyMd: 'Tekst\n\n<br> po HTML' },
+      });
+      expect(invalid.statusCode).toBe(422);
+      expect(invalid.json()).toMatchObject({
+        code: 'CONTENT_VALIDATION_FAILED',
+        details: { issues: [{ field: 'bodyMd', code: 'MD_HTML', line: 3, column: 1 }] },
+      });
       const noSummary = await adminApi({ method: 'POST', url: `/admin/legal-documents/versions/${draft.id}/publish` });
       expect(noSummary.json()).toMatchObject({ code: 'VALIDATION_FAILED', details: { fields: ['changeSummary'] } });
-      await adminApi({ method: 'PATCH', url: `/admin/legal-documents/versions/${draft.id}`, payload: { changeSummary: 'Nowe zasady parkowania' } });
+      await adminApi({
+        method: 'PATCH',
+        url: `/admin/legal-documents/versions/${draft.id}`,
+        payload: { version: 2, changeSummary: 'Nowe zasady parkowania' },
+      });
       const published = await adminApi({ method: 'POST', url: `/admin/legal-documents/versions/${draft.id}/publish` });
       expect(published.json<shared.LegalDocumentDetails>().versions.map((v) => [v.versionNo, v.status])).toEqual([
         [2, 'PUBLISHED'],
         [1, 'ARCHIVED'],
       ]);
-      const locked = await adminApi({ method: 'PATCH', url: `/admin/legal-documents/versions/${draft.id}`, payload: { title: 'X' } });
+      const locked = await adminApi({
+        method: 'PATCH',
+        url: `/admin/legal-documents/versions/${draft.id}`,
+        payload: { version: 3, title: 'X' },
+      });
       expect(locked.json()).toMatchObject({ code: 'DOCUMENT_VERSION_LOCKED' });
 
       const auth = { authorization: `Bearer ${session.accessToken}` };
       const me = (await app.inject({ method: 'GET', url: '/me', headers: auth })).json<shared.MeResponse>();
-      expect(me).toMatchObject({ nextStep: 'CONSENTS', pendingDocuments: [{ slug: 'regulamin', versionNo: 2, changeSummary: 'Nowe zasady parkowania' }] });
-      const accepted = await app.inject({ method: 'POST', url: '/me/consents', headers: auth, payload: { acceptedVersionIds: [draft.id] } });
+      expect(me).toMatchObject({
+        nextStep: 'CONSENTS',
+        pendingDocuments: [{ slug: 'regulamin', versionNo: 2, changeSummary: 'Nowe zasady parkowania' }],
+      });
+      const accepted = await app.inject({
+        method: 'POST',
+        url: '/me/consents',
+        headers: auth,
+        payload: { acceptedVersionIds: [draft.id] },
+      });
       expect(accepted.json()).toMatchObject({ nextStep: 'READY', pendingDocuments: [] });
-      const versions = (await adminApi({ method: 'GET', url: `/admin/legal-documents/${terms.id}` })).json<shared.LegalDocumentDetails>().versions;
+      const versions = (
+        await adminApi({ method: 'GET', url: `/admin/legal-documents/${terms.id}` })
+      ).json<shared.LegalDocumentDetails>().versions;
       expect(versions[0]).toMatchObject({ versionNo: 2, acceptances: 1 });
     });
 
     it('dziennik audytu wymaga audit.read i ma liczniki rodzajów obiektów', async () => {
       const list = await adminApi({ method: 'GET', url: '/admin/audit-log?facets=entityType&sort=-createdAt' });
       expect(list.statusCode).toBe(200);
-      expect(Object.keys(list.json().facets.entityType).sort()).toEqual(['legal_document', 'role', 'scooter', 'staff', 'user']);
-      const service = await asStaff(app, staffToken(app, await idOf('kadry@test.local')))({ method: 'GET', url: '/admin/users' });
+      // Wpisy systemu z danych startowych treści (migracja 0011, ADR 0062): historia zaczyna się od „Dane startowe”.
+      expect(Object.keys(list.json().facets.entityType).sort()).toEqual([
+        'company_profile',
+        'content_block',
+        'faq_item',
+        'legal_document',
+        'news',
+        'role',
+        'scooter',
+        'staff',
+        'user',
+      ]);
+      const service = await asStaff(
+        app,
+        staffToken(app, await idOf('kadry@test.local')),
+      )({ method: 'GET', url: '/admin/users' });
       expect(service.json()).toMatchObject({ code: 'FORBIDDEN', details: { permission: 'users.read' } });
     });
   });

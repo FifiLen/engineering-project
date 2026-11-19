@@ -4,7 +4,8 @@ import {
   FILE_MAX_BYTES,
   fileSignatureQuerySchema,
   fileUploadFieldsSchema,
-  UPLOAD_FILE_PURPOSES,
+  staffFileUploadFieldsSchema,
+  STAFF_UPLOAD_FILE_PURPOSES,
   filesResource,
   type FileSignatureQuery,
   type FileView,
@@ -28,6 +29,9 @@ import { ListQueryPipe } from '../common/list-query.pipe.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { FilesService } from './files.service.js';
 
+/** Cele plików pobieranych z nazwą pliku (`Content-Disposition`). */
+const DOWNLOAD_PURPOSES = new Set(['DOCUMENT_TEMPLATE', 'GENERATED_DOCUMENT', 'DATA_EXPORT']);
+
 /** Limity parsera `multipart/form-data` (rejestracja w `bootstrap.ts`): jeden plik, pole `purpose`. */
 export const MULTIPART_LIMITS = { fileSize: FILE_MAX_BYTES, files: 1, fields: 4, fieldSize: 1024, parts: 6 };
 
@@ -45,14 +49,18 @@ export class FilesController {
       type: 'object',
       required: ['purpose', 'file'],
       properties: {
-        purpose: { type: 'string', enum: [...UPLOAD_FILE_PURPOSES] },
-        file: { type: 'string', format: 'binary', description: `${FILE_CONTENT_TYPES.join(', ')}; najwyżej 10 MB` },
+        purpose: { type: 'string', enum: [...STAFF_UPLOAD_FILE_PURPOSES] },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: `${FILE_CONTENT_TYPES.join(', ')}; najwyżej 10 MB, grafika biblioteki (MEDIA) 5 MB i 8000 px`,
+        },
       },
     },
   })
   @ApiOperation({
     summary:
-      'Wysyłka zdjęcia (201): klient albo operator z uprawnieniem do celu; typ po sygnaturze (JPEG, PNG, WebP), limit 10 MB; FILE_TOO_LARGE (413), FILE_TYPE_NOT_ALLOWED (415)',
+      'Wysyłka zdjęcia (201): klient albo operator z uprawnieniem do celu; typ po sygnaturze (JPEG, PNG, WebP), limit 10 MB; MEDIA tylko operator z content.write, 5 MB, wymiary w odpowiedzi i ostrzeżenie powyżej 2560 px (ADR 0064); FILE_TOO_LARGE (413), FILE_TYPE_NOT_ALLOWED (415), IMAGE_UNREADABLE i IMAGE_DIMENSIONS_TOO_LARGE (422)',
   })
   async upload(
     @CurrentPrincipal() principal: Principal,
@@ -80,7 +88,10 @@ export class FilesController {
     } catch (error) {
       throw new ApiError(HttpStatus.BAD_REQUEST, 'VALIDATION_ERROR', (error as Error).message);
     }
-    const parsed = fileUploadFieldsSchema.safeParse(fields);
+    // Cel `MEDIA` (biblioteka mediów) wysyła tylko operator; klient zna tylko cele swoich zdjęć.
+    const parsed = (principal.kind === 'staff' ? staffFileUploadFieldsSchema : fileUploadFieldsSchema).safeParse(
+      fields,
+    );
     if (!parsed.success || !file) {
       throw new ApiError(
         HttpStatus.BAD_REQUEST,
@@ -110,6 +121,14 @@ export class FilesController {
       .header('content-type', object.contentType)
       .header('cache-control', 'private, max-age=600')
       .header('x-content-type-options', 'nosniff');
+    // Wydruki, szablony i eksport danych pobiera się jako plik z nazwą (ADR 0067–0069); eksportu z danymi
+    // osobowymi nie zapisuje pamięć podręczna.
+    if (DOWNLOAD_PURPOSES.has(object.purpose) && object.originalName) {
+      const name = object.originalName.replace(/[^\w.-]+/g, '_');
+      const disposition = object.contentType === 'application/pdf' ? 'inline' : 'attachment';
+      void reply.header('content-disposition', `${disposition}; filename="${name}"`);
+    }
+    if (object.purpose === 'DATA_EXPORT') void reply.header('cache-control', 'private, no-store');
     if (object.sizeBytes !== null) void reply.header('content-length', String(object.sizeBytes));
     await reply.send(object.body);
   }

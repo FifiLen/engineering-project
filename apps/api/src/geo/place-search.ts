@@ -74,6 +74,33 @@ export class PlaceSearch {
     }
   }
 
+  /**
+   * Odwrotne wyszukiwanie adresu (`/reverse`, ADR 0068): początek i koniec przejazdu na potwierdzeniu. Limit 3 s,
+   * a błąd albo brak wyniku daje `null` (dokument podaje wtedy strefę i współrzędne), więc wydruk nie zależy
+   * od dostępności Photon.
+   */
+  async reverse(point: GeoPoint): Promise<string | null> {
+    const url = new URL('/reverse', this.config.PHOTON_URL);
+    url.searchParams.set('lat', point.lat.toFixed(6));
+    url.searchParams.set('lon', point.lon.toFixed(6));
+    url.searchParams.set('lang', 'default');
+    url.searchParams.set('limit', '1');
+    try {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': USER_AGENT },
+        signal: AbortSignal.timeout(PHOTON_TIMEOUT_MS),
+      });
+      if (!response.ok) return null;
+      const feature = ((await response.json()) as { features?: PhotonFeature[] }).features?.[0];
+      if (!feature) return null;
+      const p = feature.properties;
+      const street = p.street ? [p.street, p.housenumber].filter(Boolean).join(' ') : (p.name ?? null);
+      return [street, p.city].filter(Boolean).join(', ') || null;
+    } catch {
+      return null;
+    }
+  }
+
   private remember(key: string, places: Omit<PlaceResult, 'distanceM'>[]): void {
     if (this.cache.size >= CACHE_MAX) this.cache.delete(this.cache.keys().next().value!);
     this.cache.set(key, { at: Date.now(), places });

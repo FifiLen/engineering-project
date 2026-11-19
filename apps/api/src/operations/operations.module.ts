@@ -13,6 +13,7 @@ import { ServiceTasksService } from './service-tasks.service.js';
 import { SparePartsService } from './spare-parts.service.js';
 import { AdminTicketsController, CustomerTicketsController } from './tickets.controller.js';
 import { TicketsService } from './tickets.service.js';
+import { TicketDataExport } from './ticket-data-export.js';
 
 /**
  * Moduł Operacje (ADR 0055): zgłoszenia, zadania serwisowe, magazyn części, stan hulajnogi w serwisie i pulpit
@@ -29,7 +30,14 @@ import { TicketsService } from './tickets.service.js';
     SparePartsController,
     DashboardController,
   ],
-  providers: [OperationsService, TicketsService, ServiceTasksService, SparePartsService, DashboardService],
+  providers: [
+    OperationsService,
+    TicketsService,
+    ServiceTasksService,
+    SparePartsService,
+    DashboardService,
+    TicketDataExport,
+  ],
   exports: [OperationsService, TicketsService],
 })
 export class OperationsModule {}

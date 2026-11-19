@@ -7,6 +7,7 @@ import { LegalDocumentsService } from './legal-documents.service.js';
 import { RolesService } from './roles.service.js';
 import { StaffService } from './staff.service.js';
 import { UsersService } from './users.service.js';
+import { AccountDataExport } from './account-data-export.js';
 
 /**
  * Moduł Dostęp w panelu (ADR 0028): operatorzy, role, klienci, dziennik audytu i dokumenty prawne.
@@ -15,7 +16,15 @@ import { UsersService } from './users.service.js';
 @Global()
 @Module({
   controllers: [StaffController, RolesController, AuditLogController, UsersController, LegalDocumentsController],
-  providers: [AuditedTransaction, EntityHistory, StaffService, RolesService, UsersService, LegalDocumentsService],
+  providers: [
+    AuditedTransaction,
+    EntityHistory,
+    StaffService,
+    RolesService,
+    UsersService,
+    LegalDocumentsService,
+    AccountDataExport,
+  ],
   exports: [AuditedTransaction, EntityHistory],
 })
 export class AccessModule {}

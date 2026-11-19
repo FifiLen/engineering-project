@@ -94,6 +94,44 @@ services:
     volumes:
       - ./osrm:/osrm
 
+  # Silnik dokumentów: DOCX i HTML na PDF (ADR 0066). Obraz z czcionką Inter budujemy z infra/gotenberg.
+  # Port tylko na pętli zwrotnej, bo API w środowisku deweloperskim działa poza Compose.
+  gotenberg:
+    build: ./gotenberg
+    image: hulajnogi-gotenberg:9.5.1-inter4.1
+    ports:
+      - '127.0.0.1:${GOTENBERG_PORT:-3010}:3000'
+    mem_limit: 1536m
+    environment:
+      API_TIMEOUT: 30s
+      API_BODY_LIMIT: 20MB
+      # Silnik nie pobiera i nie wysyła niczego na wskazany adres.
+      API_DISABLE_DOWNLOAD_FROM: 'true'
+      WEBHOOK_DISABLE: 'true'
+      # Tylko konwersja, bez tras i etapów przetwarzania PDF.
+      PDF_DISABLE_ROUTES: 'true'
+      PDF_DISABLE_STAGES: 'true'
+      # Strona ładuje tylko pliki wysłane razem z nią; dokument nie wysyła żadnych żądań.
+      CHROMIUM_DISABLE_JAVASCRIPT: 'true'
+      CHROMIUM_DENY_PRIVATE_IPS: 'true'
+      CHROMIUM_DENY_PUBLIC_IPS: 'true'
+      LIBREOFFICE_DENY_PRIVATE_IPS: 'true'
+      LIBREOFFICE_DENY_PUBLIC_IPS: 'true'
+      # Silniki startują od razu, więc /health mówi prawdę od początku.
+      LIBREOFFICE_AUTO_START: 'true'
+      CHROMIUM_AUTO_START: 'true'
+      # Przeciążenie daje 429 zamiast serii przekroczeń czasu.
+      LIBREOFFICE_MAX_QUEUE_SIZE: '10'
+      CHROMIUM_MAX_QUEUE_SIZE: '10'
+      # 9.5.1 nie ma limitów pamięci silników: miękki limit procesu Go poniżej mem_limit.
+      GOMEMLIMIT: 1200MiB
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 volumes:
   postgres-data:
   mosquitto-data:

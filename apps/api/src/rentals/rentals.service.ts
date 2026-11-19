@@ -461,7 +461,8 @@ export class RentalsService implements OnModuleInit {
 
   /**
    * Usunięcie konta (pytanie 7 w iteracji 3, pytanie 9 w iteracji 5): bez otwartego przejazdu, bez zaległości,
-   * bez płatności i zwrotów w toku i z saldem 0; dane osobowe znika `sp_anonymize_user`.
+   * bez płatności i zwrotów w toku i z saldem 0; dane osobowe znika `sp_anonymize_user`, a pliki eksportu danych
+   * zadanie `data-exports.purge`.
    */
   async deleteAccount(userId: string): Promise<void> {
     await this.transaction(async (repo) => {
@@ -473,6 +474,9 @@ export class RentalsService implements OnModuleInit {
       });
       await repo.anonymizeUser(userId);
     });
+    // Pliki gotowych eksportów danych usuwa zadanie od razu po zatwierdzeniu (ADR 0069); zlecenie w toku zamknęła
+    // procedura `sp_anonymize_user` w tej samej transakcji.
+    await this.jobs.send(JOBS.dataExportsPurge, { userId }, { startAfter: new Date() });
   }
 
   // --- Zdarzenia z hulajnogi i zadania w tle ---------------------------------------------------

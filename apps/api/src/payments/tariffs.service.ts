@@ -3,14 +3,19 @@ import { type Database, DrizzleTariffRepository, tariffValues } from '@hulajnogi
 import type { ListQuery, NewTariff, TariffDetailsView, TariffVersionItem } from '@hulajnogi/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { AuditedTransaction } from '../audit/audited-transaction.js';
+import { ContentPublisher } from '../content/content-publisher.service.js';
 import { DB } from '../database/database.module.js';
 
-/** Wersje cennika (ADR 0053): obowiązująca dla klienta, nowa wersja i usunięcie zaplanowanej w panelu. */
+/**
+ * Wersje cennika (ADR 0053): obowiązująca dla klienta, nowa wersja i usunięcie zaplanowanej w panelu. Cennik jest na
+ * stronie, więc zmiana odświeża tag `tariff` (ADR 0065); wersja na przyszłą datę pojawi się po czasie zapasowym.
+ */
 @Injectable()
 export class TariffsService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audited: AuditedTransaction,
+    private readonly publisher: ContentPublisher,
   ) {}
 
   async current(): Promise<TariffDetailsView> {
@@ -55,6 +60,7 @@ export class TariffsService {
           changes: tariffChanges(current ? tariffValues(current) : null, tariffValues(tariff)),
         },
       });
+      await this.publisher.revalidateSite(tx, ['tariff']);
       return created;
     });
     return this.item(id);
@@ -73,6 +79,7 @@ export class TariffsService {
         entityId: id,
         data: { version: tariff.version, validFrom: tariff.validFrom },
       });
+      await this.publisher.revalidateSite(tx, ['tariff']);
     });
   }
 }

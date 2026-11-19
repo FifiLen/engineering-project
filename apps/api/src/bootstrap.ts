@@ -30,10 +30,12 @@ export async function createApp(
     .filter(Boolean);
   app.enableCors({
     origin: config.NODE_ENV === 'production' ? origins : [...origins, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/],
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     // Ciasteczko sesji panelu (ADR 0035) wymaga poświadczeń w żądaniach z innego portu.
     credentials: true,
-    allowedHeaders: ['content-type', 'authorization'],
+    allowedHeaders: ['content-type', 'authorization', 'if-none-match'],
+    // ETag treści publicznych (ADR 0062): aplikacja w przeglądarce czyta go przy żądaniu warunkowym.
+    exposedHeaders: ['etag'],
   });
 
   SwaggerModule.setup('docs', app, () => buildOpenApiDocument(app));

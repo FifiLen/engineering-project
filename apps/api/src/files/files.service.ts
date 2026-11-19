@@ -2,14 +2,17 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto
 import {
   DomainError,
   ensureFileAttachable,
+  ensureMediaUpload,
   ensureUpload,
   FILE_UNATTACHED_TTL_MS,
   FILE_URL_TTL_MS,
   fileStorageKey,
   notFound,
   PARKING_PHOTO_RETENTION_MS,
+  stripImageMetadata,
   uploadPermission,
-  type UploadFilePurpose,
+  type MediaUploadWarning,
+  type StaffUploadFilePurpose,
 } from '@hulajnogi/core';
 import {
   type Database,
@@ -29,7 +32,7 @@ import { FILE_STORAGE, S3FileStorage, type FileStorage, type StoredObject } from
 
 /** Plik z wysyłki `multipart/form-data` po odczycie pola `file` (najwyżej limit + 1 bajt). */
 export interface UploadedFile {
-  purpose: UploadFilePurpose;
+  purpose: StaffUploadFilePurpose;
   data: Buffer;
   /** Strumień przekroczył limit rozmiaru i został ucięty. */
   truncated: boolean;
@@ -70,32 +73,52 @@ export class FilesService implements OnModuleInit, OnApplicationShutdown {
     if (this.storage instanceof S3FileStorage) this.storage.close();
   }
 
-  /** `POST /files`: klient wysyła własne zdjęcie, operator z uprawnieniem do celu (ADR 0057). */
+  /**
+   * `POST /files`: klient wysyła własne zdjęcie, operator z uprawnieniem do celu (ADR 0057). Grafika biblioteki
+   * mediów (`MEDIA`, `content.write`) ma limit 5 MB, wymiary z nagłówka do 8000 px i ostrzeżenie powyżej 2560 px
+   * (ADR 0064); wymiary zapisują się w `files`.
+   */
   async upload(principal: Principal, file: UploadedFile): Promise<FileView> {
     if (principal.kind === 'staff') {
       (await this.staffPermissions.get(principal.staffId)).permissions.require(uploadPermission(file.purpose));
+    } else if (file.purpose === 'MEDIA') {
+      throw new DomainError('FORBIDDEN', { permission: uploadPermission('MEDIA') });
     }
-    const contentType = ensureUpload({
-      sizeBytes: file.data.length,
-      head: file.data.subarray(0, 16),
-      truncated: file.truncated,
-    });
+    let image: { width: number; height: number; warnings: MediaUploadWarning[] } | null = null;
+    let contentType: FileContentType;
+    let data: Uint8Array = file.data;
+    if (file.purpose === 'MEDIA') {
+      const media = ensureMediaUpload({ bytes: file.data, sizeBytes: file.data.length, truncated: file.truncated });
+      contentType = media.contentType;
+      image = { width: media.width, height: media.height, warnings: media.warnings };
+      // Grafika biblioteki ma publiczny adres: bez EXIF (GPS, aparat), XMP, IPTC i tekstów PNG; suma i rozmiar
+      // liczą się z oczyszczonego pliku.
+      data = stripImageMetadata(file.data, contentType);
+    } else {
+      contentType = ensureUpload({
+        sizeBytes: file.data.length,
+        head: file.data.subarray(0, 16),
+        truncated: file.truncated,
+      });
+    }
     const id = randomUUID();
     const storageKey = fileStorageKey({ purpose: file.purpose, id, contentType, at: new Date() });
-    await this.storage.put(storageKey, file.data, contentType);
+    await this.storage.put(storageKey, Buffer.from(data.buffer, data.byteOffset, data.length), contentType);
     try {
       const record = await new DrizzleFileRepository(this.db).insert({
         id,
         storageKey,
         purpose: file.purpose,
         contentType,
-        sizeBytes: file.data.length,
-        sha256: createHash('sha256').update(file.data).digest('hex'),
+        sizeBytes: data.length,
+        sha256: createHash('sha256').update(data).digest('hex'),
         originalName: file.filename?.slice(0, 255) ?? null,
         uploadedBy: principal.kind === 'customer' ? principal.userId : null,
         uploadedByStaff: principal.kind === 'staff' ? principal.staffId : null,
+        width: image?.width ?? null,
+        height: image?.height ?? null,
       });
-      return this.view(record);
+      return image ? { ...this.view(record), warnings: image.warnings } : this.view(record);
     } catch (error) {
       // Bez wiersza w bazie obiekt byłby nieosiągalny: usuwamy go od razu zamiast czekać na sprzątanie.
       await this.storage.delete(storageKey).catch(() => undefined);
@@ -115,6 +138,7 @@ export class FilesService implements OnModuleInit, OnApplicationShutdown {
       url: signed?.url ?? null,
       urlExpiresAt: signed?.expiresAt.toISOString() ?? null,
       createdAt: file.createdAt.toISOString(),
+      ...(file.width !== null ? { width: file.width, height: file.height } : {}),
     };
   }
 
@@ -135,7 +159,12 @@ export class FilesService implements OnModuleInit, OnApplicationShutdown {
   }
 
   /** `GET /files/{id}`: podpis i ważność, potem strumień z magazynu; usunięty obiekt to 410. */
-  async read(id: string, exp: number, sig: string, now = new Date()): Promise<StoredObject & { contentType: string }> {
+  async read(
+    id: string,
+    exp: number,
+    sig: string,
+    now = new Date(),
+  ): Promise<StoredObject & { contentType: string; purpose: string; originalName: string | null }> {
     const expected = Buffer.from(this.signature(id, exp));
     const given = Buffer.from(sig);
     if (expected.length !== given.length || !timingSafeEqual(expected, given)) {
@@ -147,7 +176,7 @@ export class FilesService implements OnModuleInit, OnApplicationShutdown {
     if (file.status !== 'READY') throw new DomainError('FILE_DELETED', { fileId: id });
     const object = await this.storage.get(file.storageKey);
     if (!object) throw notFound('file', id);
-    return { ...object, contentType: file.contentType };
+    return { ...object, contentType: file.contentType, purpose: file.purpose, originalName: file.originalName };
   }
 
   /** Warunek przypięcia w transakcji rekordu (blokada wiersza pliku): właściciel, cel, plik wolny. */
@@ -155,7 +184,7 @@ export class FilesService implements OnModuleInit, OnApplicationShutdown {
     tx: DbExecutor,
     fileId: string,
     owner: { userId?: string; staffId?: string },
-    purpose: UploadFilePurpose,
+    purpose: StaffUploadFilePurpose,
   ): Promise<void> {
     ensureFileAttachable(await new DrizzleFileRepository(tx).lockAttachable(fileId), owner, purpose, fileId);
   }
@@ -192,7 +221,9 @@ export class FilesService implements OnModuleInit, OnApplicationShutdown {
     const repo = new DrizzleFileRepository(this.db);
     const file = await repo.find(id);
     if (!file) throw notFound('file', id);
-    (await this.staffPermissions.get(staffId)).permissions.require(uploadPermission(file.purpose as UploadFilePurpose));
+    (await this.staffPermissions.get(staffId)).permissions.require(
+      uploadPermission(file.purpose as StaffUploadFilePurpose),
+    );
     const claim = await this.db.transaction((tx) => new DrizzleFileRepository(tx).claimForDeletion(id, 'UNATTACHED'));
     if (claim && 'attached' in claim) throw new DomainError('FILE_ATTACHED', { fileId: id });
     if (claim) await this.deleteObject(claim.claimed);
@@ -234,8 +265,22 @@ export class FilesService implements OnModuleInit, OnApplicationShutdown {
     return deleted;
   }
 
+  /**
+   * Plik zwolniony w transakcji wywołującego (np. usunięta grafika biblioteki): oznaczenie `DELETED` z blokadą,
+   * jeśli nic go już nie wskazuje. Obiekt usuwa `deleteObject` po zatwierdzeniu.
+   */
+  async claimReleased(tx: DbExecutor, fileId: string): Promise<FileRecord | null> {
+    const claim = await new DrizzleFileRepository(tx).claimForDeletion(fileId, 'UNATTACHED');
+    return claim && 'claimed' in claim ? claim.claimed : null;
+  }
+
+  /** Strumień obiektu pliku (publiczny odczyt grafik biblioteki mediów, ADR 0064). */
+  readObject(storageKey: string): Promise<StoredObject | null> {
+    return this.storage.get(storageKey);
+  }
+
   /** Obiekt pliku oznaczonego już `DELETED`; błąd magazynu tylko w logu (wiersz i klucze obce zostają). */
-  private async deleteObject(file: FileRecord): Promise<void> {
+  async deleteObject(file: FileRecord): Promise<void> {
     try {
       await this.storage.delete(file.storageKey);
     } catch (error) {

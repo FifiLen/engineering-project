@@ -47,6 +47,7 @@ import type {
 } from '@hulajnogi/shared';
 import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
 import { CONFIG, type AppConfig } from '../config.js';
+import { COMPANY_PROFILE, type CompanyProfileProvider } from '../content/company.service.js';
 import { DB } from '../database/database.module.js';
 import { JOBS, JobsService } from '../jobs/jobs.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -99,6 +100,7 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
     private readonly jobs: JobsService,
     private readonly gateway: FleetGateway,
     private readonly notifications: NotificationsService,
+    @Inject(COMPANY_PROFILE) private readonly company: CompanyProfileProvider,
   ) {}
 
   onModuleInit(): void {
@@ -126,13 +128,12 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
     };
   }
 
-  /** Dane sprzedawcy z chwili wystawienia paragonu (ADR 0052). */
-  seller(): ReceiptParty {
-    return {
-      name: this.config.SELLER_NAME,
-      address: (this.config.SELLER_ADDRESS as string | undefined) ?? null,
-      taxId: (this.config.SELLER_TAX_ID as string | undefined) ?? null,
-    };
+  /**
+   * Dane sprzedawcy z chwili wystawienia paragonu (ADR 0052): z danych firmy modułu Treści przez port
+   * `CompanyProfileProvider` (ADR 0062), w transakcji wystawienia; paragon kopiuje je do `receipts.seller`.
+   */
+  seller(executor: DbExecutor): Promise<ReceiptParty> {
+    return this.company.seller(executor);
   }
 
   // --- Portfel ------------------------------------------------------------------------------------
@@ -591,7 +592,7 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
       refundId: null,
       correctsReceiptId: null,
       paymentSource: source,
-      seller: this.seller(),
+      seller: await this.seller(tx),
       items: rideReceiptItems(price, tariff, tariff.vatRate),
     });
   }
@@ -613,7 +614,7 @@ export class PaymentsService implements OnModuleInit, OnApplicationShutdown {
       refundId,
       correctsReceiptId: sale.id,
       paymentSource: refund.source,
-      seller: this.seller(),
+      seller: await this.seller(tx),
       items: correctionItems(refund.amount, sale.items, sale.corrected),
     });
   }

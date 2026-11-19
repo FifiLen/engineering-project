@@ -1,7 +1,11 @@
 import {
+  DomainError,
   ensureCanStartDraft,
   ensureDraftEditable,
+  ensureNoContentIssues,
   ensurePublishable,
+  ensureVersion,
+  markdownIssues,
   nextVersionNo,
   notFound,
 } from '@hulajnogi/core';
@@ -14,7 +18,12 @@ import type {
 } from '@hulajnogi/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { AuditedTransaction } from '../audit/audited-transaction.js';
+import { ContentPublisher } from '../content/content-publisher.service.js';
+import { CONTENT_RULES } from '../content/content-rules.js';
 import { DB } from '../database/database.module.js';
+
+/** Limit treści dokumentu prawnego (jak `documentDraftUpdateSchema`); błędy Markdown w profilu `document` (ADR 0063). */
+const DOCUMENT_BODY_MAX = 100_000;
 
 /**
  * Dokumenty prawne z wersjami (ADR 0027): wersja robocza, edycja, publikacja. Opublikowanej wersji nie
@@ -25,6 +34,7 @@ export class LegalDocumentsService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly transaction: AuditedTransaction,
+    private readonly publisher: ContentPublisher,
   ) {}
 
   list(): Promise<LegalDocumentSummary[]> {
@@ -75,19 +85,43 @@ export class LegalDocumentsService {
     return this.version(id);
   }
 
-  async updateDraft(actorId: string, versionId: string, changes: DocumentDraftUpdate): Promise<DocumentVersionDetails> {
+  /**
+   * Zapis wersji roboczej z blokadą optymistyczną (`version`, dług z iteracji 2) i walidacją Markdown w profilu
+   * `document` (`422 CONTENT_VALIDATION_FAILED` z wierszem i kolumną, ADR 0063).
+   */
+  async updateDraft(
+    actorId: string,
+    versionId: string,
+    { version: expectedVersion, ...changes }: DocumentDraftUpdate,
+  ): Promise<DocumentVersionDetails> {
     await this.transaction.run(actorId, async ({ tx, audit }) => {
       const repo = new DrizzleLegalDocumentRepository(tx);
-      const version = await repo.findVersion(versionId);
+      const version = await repo.findVersion(versionId, { lock: true });
       if (!version) throw notFound('documentVersion', versionId);
       ensureDraftEditable(version);
-      await repo.updateDraft(versionId, changes);
+      ensureVersion(expectedVersion, version.version);
+      if (changes.bodyMd !== undefined) {
+        ensureNoContentIssues(
+          markdownIssues(
+            changes.bodyMd,
+            { max: DOCUMENT_BODY_MAX, required: false, profile: 'document' },
+            { item: null, field: 'bodyMd' },
+            CONTENT_RULES,
+          ),
+        );
+      }
+      if (!(await repo.updateDraft(versionId, expectedVersion, changes))) {
+        throw new DomainError('CONFLICT', { expectedVersion, currentVersion: version.version });
+      }
       // Treść dokumentu jest długa: w dzienniku tylko nazwy zmienionych pól.
       await audit({
         action: 'legal_document.draft_updated',
         entityType: 'legal_document',
         entityId: version.pageId,
-        data: { versionNo: version.versionNo, fields: Object.keys(changes).filter((k) => changes[k as keyof DocumentDraftUpdate] !== undefined) },
+        data: {
+          versionNo: version.versionNo,
+          fields: Object.keys(changes).filter((k) => changes[k as keyof typeof changes] !== undefined),
+        },
       });
     });
     return this.version(versionId);
@@ -107,8 +141,11 @@ export class LegalDocumentsService {
         entityId: doc.id,
         data: { versionNo: version.versionNo, previousVersionNo: doc.published?.versionNo ?? null },
       });
+      // Dokument na stronie (`/regulamin`, wersje archiwalne) i w aplikacji (ADR 0065).
+      await this.publisher.changed(tx, ['WEB', 'MOBILE']);
       return doc.id;
     });
+    await this.publisher.notify(['WEB', 'MOBILE']);
     return this.details(documentId);
   }
 

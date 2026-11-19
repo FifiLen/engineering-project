@@ -89,6 +89,60 @@ const DOMAIN_STATUS: Record<string, HttpStatus> = {
   TEMPLATE_MISSING: HttpStatus.SERVICE_UNAVAILABLE,
   // Symulator (ADR 0059): broker nie przyjął polecenia.
   SIMULATOR_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  // Treści (ADR 0062, ADR 0063): treść niezgodna z rejestrem sekcji, Markdown z wierszem i kolumną, adres przycisku
+  // i ikona spoza listy to 422; usunięcie opublikowanego wpisu, zablokowany slug, kategoria z pytaniami, nieaktualna
+  // kolejność i zajęta pozycja to konflikty stanu (409, domyślnie).
+  CONTENT_VALIDATION_FAILED: HttpStatus.UNPROCESSABLE_ENTITY,
+  CONTENT_SECTION_REQUIRED: HttpStatus.UNPROCESSABLE_ENTITY,
+  CONTENT_LINK_SCHEME: HttpStatus.UNPROCESSABLE_ENTITY,
+  CONTENT_ICON_UNKNOWN: HttpStatus.UNPROCESSABLE_ENTITY,
+  FAQ_NOT_VISIBLE: HttpStatus.UNPROCESSABLE_ENTITY,
+  CONTENT_DELETE_PUBLISHED: HttpStatus.CONFLICT,
+  NEWS_SLUG_LOCKED: HttpStatus.CONFLICT,
+  FAQ_CATEGORY_NOT_EMPTY: HttpStatus.CONFLICT,
+  ORDER_MISMATCH: HttpStatus.CONFLICT,
+  CONTENT_POSITION_TAKEN: HttpStatus.CONFLICT,
+  COMPANY_PROFILE_REQUIRED: HttpStatus.CONFLICT,
+  // Biblioteka mediów (ADR 0064): obraz nieczytelny, za duży albo za wąski i klucz zarezerwowany to 422; grafika
+  // używana, systemowa, klucz zajęty albo niezmienny to konflikty stanu.
+  IMAGE_UNREADABLE: HttpStatus.UNPROCESSABLE_ENTITY,
+  IMAGE_DIMENSIONS_TOO_LARGE: HttpStatus.UNPROCESSABLE_ENTITY,
+  MEDIA_TOO_NARROW: HttpStatus.UNPROCESSABLE_ENTITY,
+  MEDIA_KEY_RESERVED: HttpStatus.UNPROCESSABLE_ENTITY,
+  MEDIA_FILE_INVALID: HttpStatus.UNPROCESSABLE_ENTITY,
+  MEDIA_KEY_TAKEN: HttpStatus.CONFLICT,
+  MEDIA_KEY_IMMUTABLE: HttpStatus.CONFLICT,
+  MEDIA_IN_USE: HttpStatus.CONFLICT,
+  MEDIA_SYSTEM: HttpStatus.CONFLICT,
+  // Szablony wydruków i wydruki (ADR 0066–0068): plik szablonu (typ, rozmiar, makra) jak przy plikach, parametry
+  // wydruku 400, rodzaj albo format niedostępny 422, stan szablonu i wersji to konflikty (409).
+  TEMPLATE_NOT_DOCX: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+  TEMPLATE_MACROS: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+  TEMPLATE_TOO_LARGE: HttpStatus.PAYLOAD_TOO_LARGE,
+  TEMPLATE_TOO_LARGE_UNPACKED: HttpStatus.PAYLOAD_TOO_LARGE,
+  TEMPLATE_FILE_INVALID: HttpStatus.UNPROCESSABLE_ENTITY,
+  DOCUMENT_PARAM_INVALID: HttpStatus.BAD_REQUEST,
+  DOCUMENT_TYPE_NOT_PRINTABLE: HttpStatus.UNPROCESSABLE_ENTITY,
+  DOCUMENT_FORMAT_NOT_ALLOWED: HttpStatus.UNPROCESSABLE_ENTITY,
+  TEMPLATE_NOT_ACTIVE: HttpStatus.CONFLICT,
+  TEMPLATE_INACTIVE: HttpStatus.CONFLICT,
+  TEMPLATE_NO_ACTIVE_VERSION: HttpStatus.CONFLICT,
+  TEMPLATE_VERSION_IMMUTABLE: HttpStatus.CONFLICT,
+  TEMPLATE_VERSION_NOT_PENDING: HttpStatus.CONFLICT,
+  TEMPLATE_VERSION_IN_USE: HttpStatus.CONFLICT,
+  TEMPLATE_ALREADY_ACTIVE: HttpStatus.CONFLICT,
+  TEMPLATE_ALREADY_DEFAULT: HttpStatus.CONFLICT,
+  DOCUMENT_NOT_RETRYABLE: HttpStatus.CONFLICT,
+  // Walidacja wgranej wersji z `details.issues[]` (ADR 0067) i błędy silnika przy synchronicznym podglądzie PDF:
+  // przekroczony czas 504, silnik niedostępny 503, odrzucona konwersja 502, wypełnienie szablonu 422.
+  TEMPLATE_INVALID: HttpStatus.UNPROCESSABLE_ENTITY,
+  TEMPLATE_RENDER_FAILED: HttpStatus.UNPROCESSABLE_ENTITY,
+  RENDER_TIMEOUT: HttpStatus.GATEWAY_TIMEOUT,
+  RENDERER_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  RENDER_FAILED: HttpStatus.BAD_GATEWAY,
+  // Eksport danych klienta (ADR 0069): limit zleceń to 429 z `details.nextAllowedAt`, zlecenie w toku 409.
+  DATA_EXPORT_LIMIT: HttpStatus.TOO_MANY_REQUESTS,
+  DATA_EXPORT_IN_PROGRESS: HttpStatus.CONFLICT,
 };
 
 @Catch()
