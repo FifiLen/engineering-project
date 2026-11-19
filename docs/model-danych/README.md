@@ -15,8 +15,10 @@ PostgreSQL 16 z PostGIS. Źródłem prawdy o schemacie są migracje w [`packages
 - `0008_operations.sql` (iteracja 6): zgłoszenia z numerem z sekwencji, rodzajem zgłoszenia automatycznego (jedno otwarte danego rodzaju na hulajnogę), odpowiedzią dla klienta z czasem odczytu i pilnością z kategorii; nowe kategorie `BILLING` i `OUT_OF_ZONE`; aktor `SYSTEM` w dzienniku audytu; przyczyna i czas zmiany stanu hulajnogi z wyzwalaczem `MAINTENANCE` po przejeździe; przejścia zadań serwisowych w bazie, cel przewiezienia i powód anulowania; ruchy magazynowe (`spare_part_movements`) przez procedury; powrót do floty (`fn_scooter_return_blockers`); tryb zakończenia przejazdu i opłata za odholowanie (`TOWING_FEE`) w rozliczeniu; stan, SHA-256 i usunięcie pliku bez usuwania wiersza; powiadomienia z kodem szablonu, kanałem, stanem wysyłki i kluczem idempotencji, tokeny push z sesją, wersje szablonów (`notification_template_versions`); komenda `BATTERY_SWAPPED`; `service.manage` dla Dyspozytora; widoki list panelu, oś czasu zgłoszenia i pulpit „Wymaga uwagi” ([ADR 0055](../adr/0055-zgloszenia-i-proces-serwisowy.md)–[0060](../adr/0060-oplata-za-odholowanie.md)).
 - `0009_operations_fixes.sql` (iteracja 6, poprawki po przeglądzie): wyzwalacz `scooters_status` dopasowuje przyczynę stanu do nowego stanu, gdy zmiana stanu nie podaje przyczyny (`OTHER` przy wejściu do `MAINTENANCE` albo `RETIRED` z niepasującą przyczyną albo bez niej); `fn_scooter_return_blockers` z przeszkodą `URGENT_TICKET` (otwarte pilne zgłoszenie); unikalne indeksy `rentals_parking_photo_unique` i `ticket_photos_file_unique` (plik przypięty w jednym miejscu) zamiast zwykłych z 0008; `notifications.claimed_at` (przejęcie przed wysyłką); szablony wszystkich kodów z rejestru, żeby baza po samym `db:migrate` wysyłała SMS z kodem logowania.
 - `0010_towing_fee_outside_vat.sql` (iteracja 6, [ADR 0061](../adr/0061-oplata-za-odholowanie-jako-kara-umowna.md)): opłata za odholowanie jako kara umowna poza VAT. `receipt_items.vat_rate` dopuszcza `NULL` („nie podlega VAT”, w dokumencie „np.”); `v_receipt_list` liczy `vat_amount` osobno dla każdej stawki (`fn_vat_from_gross` na sumie brutto grupy, pozycje `NULL` bez VAT), a `vat_rate` to stawka pozycji z VAT, gdy jest jedna; `sp_issue_receipt` odrzuca korektę, po której któraś grupa stawek paragonu (sprzedaż plus korekty) byłaby ujemna, także korektę ze stawką spoza paragonu (`RECEIPT_CORRECTION_EXCEEDS`). Paragony sprzed migracji zostają bez zmian.
+- `0011_content_documents.sql` (iteracja 7, [ADR 0062](../adr/0062-modul-tresci-sekcje-publikacja-dane-firmy.md)–[0069](../adr/0069-eksport-danych-klienta.md)): bloki treści jako sekcje z rejestru w `packages/shared` (klucz sekcji z pozycją, unikalność `(key, position)` odroczona, ikona z zamkniętej listy, prefiks klucza według klienta, dozwolone schematy adresu przycisku); kategorie FAQ (`faq_categories`) z kolejnością i widocznością pytań na stronie i w aplikacji; aktualności z wymaganą zajawką, czasem pierwszej publikacji, slugiem niezmiennym po niej i stanem z dat (`fn_news_state`); dane firmy w jednym wierszu (`company_profile`, zamiast `SELLER_*`, z polami rejestrowymi); opublikowanego bloku, pytania ani aktualności nie da się usunąć; biblioteka mediów z nazwą, flagą grafiki systemowej (`scooter.*`), wymiarami pliku (`files.width`, `height`), kluczem niezmiennym, kluczami obcymi `RESTRICT` i publicznym adresem z sumą (`fn_media_path`); licznik treści także przy kategoriach FAQ, danych firmy i modelach, `sp_content_bump_revision` dla granic aktualności; blokada optymistyczna wersji roboczej dokumentu prawnego (`content_page_versions.version`); wersje szablonów DOCX z autorem i czasem aktywacji, ostrzeżeniami, rozmiarami i podglądem PDF, niezmienne po wgraniu, aktywacja i przywrócenie (`sp_document_template_activate`), szablon domyślny (`sp_document_template_set_default`); wydruki z formatem, etykietą obiektu, czasem startu, kodem błędu, retencją plików, ponowieniem (`retry_of`) i naklejką QR bez szablonu (`SCOOTER_LABEL`), ponowne użycie paragonu PDF klienta (`generated_documents_receipt_reuse`); eksport danych klienta (`data_exports`, cel pliku `DATA_EXPORT`, limit raz na dobę w `sp_data_export_request`, `fn_data_export_next_allowed_at`, zamknięcie zlecenia przy anonimizacji); uprawnienie `company.write` i rola Redaktor; szablon powiadomienia `data_export_ready`; widoki publiczne treści, widoki list panelu i widoki danych wydruków `v_doc_*`. Nowe wartości typów (`SCOOTER_LABEL`, `DATA_EXPORT`) w ograniczeniach i widokach porównywane jako tekst, jak w 0008.
+- `0012_iteration7_fixes.sql` (iteracja 7, poprawki po przeglądzie): `generated_documents.customer_data_visible` (`boolean NOT NULL DEFAULT false`, zapisywane przy wypełnieniu szablonu: plik ma dane klienta bez maskowania; pobranie, szczegóły i ponowienie takiego wydruku wymagają `users.read`, [ADR 0068](../adr/0068-wydruki-w-procesach.md)), wiersze sprzed migracji rodzajów z polami klienta dostają `true`; `v_generated_documents` z nową kolumną na końcu; `CHECK content_blocks_cta_url` z wzorcem `ALLOWED_HREF_PATTERN` (bez ukośnika wstecznego, znaków sterujących i ponad 2000 znaków, zgodność z `isAllowedHref` sprawdza test bazy); indeksy częściowe `generated_documents_open_idx (created_at)` i `data_exports_open_idx (requested_at)` dla wierszy `QUEUED`/`RUNNING` (zadania porządkowe `documents.sweep` i `data-exports.sweep` kończą porzucone po restarcie API). Liczby tabel, widoków, funkcji i procedur się nie zmieniają.
 
-Po migracji 0008 baza ma **54 tabele** (bez partycji telemetrii i bez schematu `pgboss` kolejki zadań, [ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)), **42 widoki**, **21 funkcji** i **18 procedur**; migracje 0009 i 0010 tych liczb nie zmieniają (zastępują funkcje, procedurę, widok i indeksy, dodają kolumnę, zdejmują `NOT NULL`). Liczby sprawdza test w `packages/db/src/db.test.ts`. Kluczowe zasady opisują też [ADR 0010](../adr/0010-postgresql-postgis-drizzle.md), [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md), [ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md) i [ADR 0015](../adr/0015-wersjonowany-cennik.md).
+Po migracji 0011 baza ma **57 tabel** (bez partycji telemetrii i bez schematu `pgboss` kolejki zadań, [ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)), **64 widoki**, **24 funkcje** i **22 procedury** (stan po 0008: 54 tabele, 42 widoki, 21 funkcji, 18 procedur; migracje 0009, 0010 i 0012 tych liczb nie zmieniają, bo zastępują funkcje, procedurę, widoki i ograniczenia, dodają kolumny i indeksy). Migracja 0011 dodaje 3 tabele (`faq_categories`, `company_profile`, `data_exports`), 22 widoki, 3 funkcje i 4 procedury. Liczby sprawdza test w `packages/db/src/db.test.ts`. Kluczowe zasady opisują też [ADR 0010](../adr/0010-postgresql-postgis-drizzle.md), [ADR 0013](../adr/0013-rezerwacja-jako-stan-przejazdu.md), [ADR 0014](../adr/0014-kwoty-w-groszach-portfel-ksiega.md) i [ADR 0015](../adr/0015-wersjonowany-cennik.md).
 
 ## Obszary
 
@@ -29,8 +31,8 @@ Po migracji 0008 baza ma **54 tabele** (bez partycji telemetrii i bez schematu `
 | Płatności | `wallets`, `wallet_ledger`, `payments`, `payment_methods`, `payment_webhook_events`, `receipts`, `receipt_items` |
 | Operacje | `tickets`, `ticket_photos`, `files`, `notifications`, `audit_log` |
 | Serwis | `service_tasks`, `spare_parts`, `service_task_parts`, `spare_part_movements` (0008) |
-| Treści | `content_pages`, `content_page_versions`, `content_blocks`, `faq_items`, `news`, `notification_templates`, `notification_template_versions` (0008), `media_assets` |
-| Raporty i wydruki | `report_definitions`, `report_runs`, `document_templates`, `document_template_versions`, `generated_documents` |
+| Treści | `content_pages`, `content_page_versions`, `content_blocks`, `faq_categories` (0011), `faq_items`, `news`, `notification_templates`, `notification_template_versions` (0008), `media_assets`, `company_profile` (0011) |
+| Raporty, wydruki i eksport | `report_definitions`, `report_runs`, `document_templates`, `document_template_versions`, `generated_documents`, `data_exports` (0011) |
 
 Konwencje: identyfikatory `uuid`, kwoty w groszach (`bigint`), czas `timestamptz` w UTC, geometria SRID 4326. Tabele edytowalne w panelu mają kolumnę `version` do blokady optymistycznej ([ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-panelu.md)); numery wersji biznesowych to `version_no` (dokumenty, szablony) albo `tariffs.version` (cennik).
 
@@ -127,6 +129,33 @@ erDiagram
     files |o--o{ report_runs : "eksport"
 ```
 
+## Diagram relacji: treści, dokumenty i eksport (iteracja 7)
+
+```mermaid
+erDiagram
+    files ||--o| media_assets : "plik grafiki"
+    media_assets |o--o{ content_blocks : "grafika"
+    media_assets |o--o{ news : "grafika"
+    media_assets |o--o{ scooter_models : "zdjęcie modelu"
+    faq_categories ||--o{ faq_items : "pytania"
+    staff |o--o{ content_blocks : "autor zmiany"
+    staff |o--o| company_profile : "autor zmiany"
+    content_pages ||--o{ content_page_versions : "wersje"
+    document_templates ||--o{ document_template_versions : "wersje"
+    files ||--o| document_template_versions : "plik DOCX"
+    files |o--o| document_template_versions : "podgląd PDF"
+    staff |o--o{ document_template_versions : "wgrał, aktywował"
+    document_template_versions |o--o{ generated_documents : "użyta do"
+    generated_documents |o--o{ generated_documents : "ponowienie"
+    files |o--o| generated_documents : "DOCX, PDF"
+    staff |o--o{ generated_documents : "zlecił"
+    users |o--o{ generated_documents : "paragon PDF"
+    users ||--o{ data_exports : "zlecił"
+    files |o--o| data_exports : "plik JSON"
+```
+
+`company_profile` ma jeden wiersz (klucz `boolean`, wyzwalacz blokuje usunięcie). `content_blocks.key` to klucz sekcji z rejestru, nie klucz obcy. `generated_documents.entity_ref` wskazuje obiekt bez klucza obcego (przejazd, zadanie, hulajnoga, zgłoszenie, paragon, wpis księgi), a `template_version_id` jest pusty tylko dla naklejki QR. Dane wydruków czytają widoki `v_doc_*` z tabel przejazdów, serwisu, floty, zgłoszeń i płatności.
+
 ## Reguły pilnowane przez bazę
 
 - Jeden otwarty przejazd na hulajnogę i na użytkownika (`rentals_one_open_per_scooter`, `rentals_one_open_per_user`).
@@ -162,6 +191,15 @@ erDiagram
   - tryb zakończenia tylko w `ENDING`, `ENDED` i `UNPAID`, opłata za odholowanie tylko przy zdalnym zakończeniu; najwyżej jeden wpis obciążenia danego typu na przejazd (`wallet_ledger_one_fee_per_rental`: `RIDE_CHARGE`, `TOWING_FEE`);
   - plik usunięty ma czas usunięcia (`files_deleted_at`), suma kontrolna to 64 znaki szesnastkowe; od 0009 plik jest zdjęciem parkowania najwyżej jednego przejazdu (`rentals_parking_photo_unique`) i zdjęciem najwyżej jednego zgłoszenia (`ticket_photos_file_unique`), naruszenie daje `FILE_ALREADY_ATTACHED`;
   - jedno powiadomienie na klucz idempotencji (`dedupe_key` unikalny); od 0009 wysyłka przejmuje wiersz `QUEUED` przez `claimed_at` (ponowne przejęcie po 5 min), więc zadanie i `notifications.sweep` nie wyślą go dwa razy; `SENT` wymaga czasu wysłania, `FAILED` błędu; długość szablonu: tytuł 50, push 240, SMS 160 znaków; zmiana treści szablonu zapisuje wersję (wyzwalacz `notification_templates_version`).
+- Treści i wydruki (0011, 0012):
+  - jedna pozycja w sekcji (`content_blocks_key_position`, odroczona do końca transakcji, więc zmiana kolejności to seria `UPDATE`); pozycja 0 to blok pojedynczy albo nagłówek, ikona tylko przy elemencie listy i z zamkniętej listy, klucz zaczyna się od klienta (`web.`, `mobile.`, `admin.`), element listy ma treść; adres przycisku według `ALLOWED_HREF_PATTERN` (od 0012: bez ukośnika wstecznego i znaków sterujących, do 2000 znaków);
+  - opublikowanego bloku, pytania FAQ ani aktualności nie da się usunąć (`CONTENT_DELETE_PUBLISHED`); kategoria FAQ z unikalną nazwą bez względu na wielkość liter, z pytaniami nie do usunięcia; pytanie widoczne na stronie albo w aplikacji (`faq_items_visible_somewhere`);
+  - aktualność ma zajawkę 1–280 znaków, opublikowana ma czas pierwszej publikacji, a od niej slug się nie zmienia (`NEWS_SLUG_LOCKED`);
+  - jeden wiersz danych firmy, adres cały albo pusty, wiersza nie da się usunąć;
+  - grafika: klucz niezmienny (`MEDIA_KEY_IMMUTABLE`), plik celu `MEDIA` w stanie `READY` z wymiarami (`MEDIA_FILE_INVALID`), grafika systemowa to dokładnie klucz `scooter.*` i nie da się jej usunąć (`MEDIA_SYSTEM`), użytej grafiki nie usunie klucz obcy `RESTRICT`; plik ma oba wymiary albo żaden (`files_dimensions`);
+  - wersja szablonu ma plik celu `DOCUMENT_TEMPLATE`, a plik, pola i rozmiary się nie zmieniają (`TEMPLATE_VERSION_IMMUTABLE`); usunąć można tylko wersję nigdy nieaktywowaną (`TEMPLATE_VERSION_NOT_PENDING`); aktywna wersja ma czas aktywacji; szablon domyślny wymaga aktywnej wersji i aktywnego szablonu (`TEMPLATE_NO_ACTIVE_VERSION`, `TEMPLATE_INACTIVE`); rodzaj `SCOOTER_LABEL` nie ma szablonu;
+  - wydruk: wersja szablonu pusta tylko dla naklejki, naklejka tylko w PDF, DOCX bez pliku PDF, zakończony sukcesem ma plik formatu, nieudany kod błędu, czas zakończenia przy stanie końcowym, usunięcie plików po zakończeniu; najwyżej jeden gotowy albo trwający paragon PDF klienta na wersję szablonu (`generated_documents_receipt_reuse`); od 0012 `customer_data_visible`;
+  - eksport danych: jedno zlecenie w toku na klienta (`data_exports_one_open`), gotowy ma plik i termin ważności, nieudany kod błędu; limit 24 h od ostatniego zlecenia innego niż nieudane w `sp_data_export_request` z blokadą klienta (`DATA_EXPORT_LIMIT`).
 
 ## Widoki, funkcje i procedury
 
@@ -183,7 +221,7 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `v_scooter_reliability` | raport awaryjności: zgłoszenia, zadania, średni czas naprawy, koszt części |
 | `v_user_activity` | lista klientów i raport użytkowników: przejazdy, wydatki, saldo, blokada, aktywne sesje, ostatnia aktywność |
 | `v_current_documents` | obowiązujące wersje regulaminu i innych dokumentów |
-| `v_published_news` | aktualności w okresie publikacji |
+| `v_published_news` | aktualności w okresie publikacji; od 0011 z grafiką z biblioteki i datami zmian |
 | `v_low_stock_parts` | części poniżej stanu minimalnego |
 | `v_fleet_list` | lista floty i mapa w panelu: `v_fleet_status` ze statusem floty, współrzędnymi, zasięgiem modelu i wersją rekordu; od 0008 z przyczyną i czasem zmiany stanu |
 | `v_scooter_models` | lista modeli z liczbą hulajnóg (wszystkich i nie wycofanych) |
@@ -211,6 +249,28 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `v_notification_list` | wysłane powiadomienia ze stanem, błędem, klientem, przejazdem i zgłoszeniem (0008) |
 | `v_push_tokens` | tokeny push z klientem i stanem sesji (0008) |
 | `v_file_list` | pliki z autorem, stanem i miejscem użycia (przejazd albo zgłoszenie) (0008) |
+| `v_public_media` | grafiki biblioteki z publicznym adresem względnym (`fn_media_path`) i wymiarami (0011) |
+| `v_public_content_blocks` | opublikowane bloki klienta z grafiką; element listy tylko przy opublikowanym nagłówku sekcji (`GET /content/{client}`, 0011) |
+| `v_public_faq` | opublikowane pytania z kolejnością kategorii i widocznością na stronie i w aplikacji (0011) |
+| `v_company_public` | dane firmy dla stopki strony, Pomocy w aplikacji i wydruków, adres w jednym wierszu (0011) |
+| `v_public_document_versions` | obowiązujące i archiwalne wersje dokumentów prawnych z końcem obowiązywania (strona `/{slug}/wersja/{n}`, 0011) |
+| `v_public_scooters` | numer i model ze zdjęciem hulajnogi niewycofanej, bez stanu floty (strona `/h/{numer}`, 0011) |
+| `v_content_blocks` | bloki treści z grafiką, autorem i licznikami sekcji (elementy, opublikowane, szkice) (0011) |
+| `v_faq_categories` | kategorie FAQ z liczbą pytań (0011) |
+| `v_faq_list` | pytania FAQ z kategorią i jej kolejnością (0011) |
+| `v_news_list` | aktualności ze stanem z dat (`fn_news_state`) i grafiką (0011) |
+| `v_media_list` | biblioteka mediów: plik, wymiary, adres, liczba użyć, autor zmiany (0011) |
+| `v_media_usages` | miejsca użycia grafiki: blok sekcji, aktualność, model (szczegóły i `MEDIA_IN_USE`, 0011) |
+| `v_document_templates` | szablony wydruków z aktywną wersją, liczbą wersji i ostatnim wydrukiem (0011) |
+| `v_document_template_versions` | wersje szablonu ze stanem `ACTIVE`, `ARCHIVED`, `PENDING` (0011) |
+| `v_generated_documents` | wygenerowane dokumenty ze stanem (z `DELETED` po retencji), szablonem z wersją albo układem wbudowanym, zlecającym i czasem trwania (0011); od 0012 z `customer_data_visible` |
+| `v_data_exports` | eksporty danych klientów ze stanem (z `EXPIRED` i `DELETED`), tylko do odczytu z `users.read` (0011) |
+| `v_doc_receipt` | dane wydruku paragonu i korekty: sprzedawca i nabywca z chwili wystawienia, pozycje, grupy VAT, dokument korygowany (0011) |
+| `v_doc_rental` | dane potwierdzenia przejazdu: czasy, dystans, kwoty z rozliczeniem, cennik z chwili startu, strefy i współrzędne, oś czasu (0011) |
+| `v_doc_service_task` | dane protokołu zadania: części z kosztem, notatka, wykonawca, zgłoszenie, skutek dla hulajnogi, wpisy dziennika (0011) |
+| `v_doc_scooter` | dane karty hulajnogi: model, przebieg, przejazdy, zadania i zgłoszenia od najnowszych (0011) |
+| `v_doc_ticket` | dane raportu zdarzenia: przebieg z osi czasu, odpowiedź, zdjęcia jako liczba i daty (0011, bez szablonu startowego) |
+| `v_doc_wallet_adjustment` | dane potwierdzenia korekty salda: wpis księgi z saldem przed i po, operator, powód (0011, bez szablonu startowego) |
 
 | Funkcja | Wynik |
 |---|---|
@@ -220,7 +280,7 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `fn_staff_has_permission(staff_id, code)` | czy operator ma uprawnienie |
 | `fn_rental_distance_m(rental_id)` | długość trasy z telemetrii w metrach |
 | `fn_rental_route(rental_id)` | trasa przejazdu z telemetrii (`LineString`), zapisywana w `rentals.route` przy zakończeniu |
-| `fn_content_revision()` | licznik zmian treści (ETag) |
+| `fn_content_revision()` | licznik zmian treści (rewizja w `content.updated`; od poprawek iteracji 7 `ETag` to skrót treści) |
 | `fn_low_battery_threshold()` | próg niskiej baterii: minimalna bateria do wypożyczenia z obowiązującej wersji cennika |
 | `fn_fleet_status(status, online, battery_pct, threshold)` | status floty dla operatora; ta sama reguła co `deriveFleetStatus` w `packages/core` (zgodność sprawdza test bazy) |
 | `fn_user_pending_documents(user_id)` | obowiązujące dokumenty ze zgodą, których aktualnej wersji klient nie zaakceptował (z „najważniejszymi zmianami”) |
@@ -235,13 +295,16 @@ Podział pracy między bazą a `packages/core` opisuje [ADR 0026](../adr/0026-lo
 | `fn_scooter_service_hold(scooter_id)` | powód zatrzymania w serwisie: `URGENT_TICKET`, `SERVICE_TASK` albo `NULL` (0008, ADR 0055) |
 | `fn_scooter_return_blockers(scooter_id)` | przeszkody powrotu do floty: `URGENT_TICKET` (od 0009), `OPEN_TASKS`, `OFFLINE`, `BATTERY_BELOW_THRESHOLD`; ta sama reguła co `returnToFleetBlockers` w core (0008, test zgodności) |
 | `fn_dashboard_attention(critical_battery_pct)` | liczby pulpitu „Wymaga uwagi”: offline w przejeździe, zatrzymane naliczanie, krytyczna bateria, nowe pilne zgłoszenia bez przypisania, nieudane płatności z dziś, zaległości (0008, D1) |
+| `fn_media_path(media_id, sha256, content_type)` | publiczny adres grafiki `/media/{id}/{sha256}.{ext}` (0011, ADR 0064) |
+| `fn_news_state(status, publish_from, publish_to, at)` | stan aktualności `DRAFT`, `SCHEDULED`, `PUBLISHED`, `EXPIRED`, `ARCHIVED`; ta sama reguła co `newsState` w core (0011) |
+| `fn_data_export_next_allowed_at(user_id)` | najwcześniejszy czas kolejnego zlecenia eksportu danych (24 h od ostatniego zlecenia, nieudane się nie liczą); ta sama reguła co `dataExportNextAllowedAt` w core (0011, ADR 0069) |
 
 Od 0008 `fn_rental_paid_amount` i `fn_rental_settlement` liczą też wpis `TOWING_FEE`, więc limit zwrotu w `sp_record_refund` obejmuje opłatę za odholowanie.
 
 | Procedura | Działanie | Uruchamia |
 |---|---|---|
 | `sp_expire_reservations(OUT expired_count)` | `RESERVED → EXPIRED`, zdarzenie na osi czasu, zwolnienie hulajnogi | narzędzie bazy; aplikacja wygasza rezerwacje zadaniem pg-boss przez repozytorium, żeby klient i panel dostali zdarzenie ([ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)) |
-| `sp_anonymize_user(user_id)` | usunięcie danych osobowych; odmowa przy otwartym przejeździe i (od 0005) przy saldzie różnym od 0 | `DELETE /me` w aplikacji, panel |
+| `sp_anonymize_user(user_id)` | usunięcie danych osobowych; odmowa przy otwartym przejeździe i (od 0005) przy saldzie różnym od 0; od 0011 zamyka eksport danych w toku (`FAILED`, `ACCOUNT_DELETED`) | `DELETE /me` w aplikacji, panel |
 | `sp_ensure_telemetry_partitions(from, days, OUT created_count)` | dzienne partycje telemetrii (UTC) z przeniesieniem wierszy z partycji domyślnej | moduł Telemetria przy starcie API i zadanie cykliczne pg-boss `telemetry.partitions` (7 dni naprzód) |
 | `sp_purge_telemetry(keep_days, OUT dropped_count)` | retencja telemetrii | zadanie cykliczne pg-boss |
 | `sp_purge_expired_otp(OUT deleted_count)` | usunięcie przeterminowanych kodów SMS | zadanie cykliczne pg-boss `auth.purge` |
@@ -258,8 +321,12 @@ Od 0008 `fn_rental_paid_amount` i `fn_rental_settlement` liczą też wpis `TOWIN
 | `sp_part_adjust(part_id, new_quantity, reason, note, staff_id, OUT movement_id, OUT stock_after)` | korekta do stanu bezwzględnego z powodem, ruch `ADJUSTMENT`; bez zmiany `PART_ADJUST_NO_CHANGE` (0008) | „Korekta stanu” w magazynie |
 | `sp_task_use_part(task_id, part_id, quantity, staff_id, OUT line_quantity, OUT stock_after)` | użycie części w zadaniu w toku z kosztem z chwili użycia, ruch `USE`; `TASK_NOT_IN_PROGRESS`, `PART_INACTIVE`, `PART_OUT_OF_STOCK` (0008) | „Dodaj część” w zadaniu |
 | `sp_task_return_part(task_id, part_id, quantity, staff_id, OUT line_quantity, OUT stock_after)` | zwrot części z zadania (całej pozycji przy `NULL`), ruch `RETURN`; `PART_RETURN_EXCEEDS`, `TASK_PART_NOT_FOUND` (0008) | usunięcie pozycji z zadania |
+| `sp_content_bump_revision()` | zwiększenie licznika treści bez zmiany wiersza (0011) | zadanie `content.news-boundary` na granicy publikacji aktualności |
+| `sp_document_template_activate(version_id, staff_id)` | aktywacja wersji szablonu z blokadą szablonu (także „Przywróć” starszej wersji bez kopiowania pliku); poprzednia aktywna staje się archiwalna (0011) | Wydruki → szablon w panelu |
+| `sp_document_template_set_default(template_id)` | szablon domyślny rodzaju z blokadą szablonów rodzaju; `TEMPLATE_INACTIVE`, `TEMPLATE_NO_ACTIVE_VERSION`, `TEMPLATE_NOT_FOUND` (0011) | Wydruki → szablon w panelu, seed |
+| `sp_data_export_request(user_id, OUT export_id)` | zlecenie eksportu danych z blokadą klienta; `DATA_EXPORT_LIMIT` z `nextAllowedAt` w szczegółach (0011, ADR 0069) | `POST /me/data-exports` |
 
-Wyzwalacz `trg_zone_rules` (0006) pilnuje reguł geometrii stref przy każdym zapisie. Wyzwalacz `trg_content_revision` zwiększa licznik `content_revision_seq` przy każdej zmianie w tabelach treści. Wyzwalacz `trg_user_wallet` (0005) zakłada portfel z saldem 0 przy każdym nowym kliencie. Wyzwalacze `trg_wallet_ledger_rules` i `trg_tariff_rules` (0007) pilnują księgi i wersji cennika. Od 0008: `trg_ticket_rules` (stan końcowy zgłoszenia), `trg_scooter_status` (czas zmiany, przyczyna, `MAINTENANCE` po przejeździe z wpisem systemu; od 0009 przyczyna zgodna z nowym stanem przy zmianie stanu bez przyczyny), `trg_service_task_rules` i `trg_service_task_cancel_parts` (przejścia zadań, zwrot części), `trg_spare_part_movements_append_only` i `trg_notification_template_version` (wersja szablonu przy zmianie treści).
+Wyzwalacz `trg_zone_rules` (0006) pilnuje reguł geometrii stref przy każdym zapisie. Wyzwalacz `trg_content_revision` zwiększa licznik `content_revision_seq` przy każdej zmianie w tabelach treści. Wyzwalacz `trg_user_wallet` (0005) zakłada portfel z saldem 0 przy każdym nowym kliencie. Wyzwalacze `trg_wallet_ledger_rules` i `trg_tariff_rules` (0007) pilnują księgi i wersji cennika. Od 0008: `trg_ticket_rules` (stan końcowy zgłoszenia), `trg_scooter_status` (czas zmiany, przyczyna, `MAINTENANCE` po przejeździe z wpisem systemu; od 0009 przyczyna zgodna z nowym stanem przy zmianie stanu bez przyczyny), `trg_service_task_rules` i `trg_service_task_cancel_parts` (przejścia zadań, zwrot części), `trg_spare_part_movements_append_only` i `trg_notification_template_version` (wersja szablonu przy zmianie treści). Od 0011: `media_assets_rules` (klucz, plik, grafika systemowa), `content_blocks_delete_rules`, `faq_items_delete_rules` i `news_delete_rules` (bez usuwania opublikowanych), `news_rules` (pierwsza publikacja, stały slug), `company_profile_keep`, `document_template_versions_rules` (plik, niezmienność, usunięcie tylko `PENDING`), a `trg_content_revision` także na `faq_categories`, `company_profile` i `scooter_models`.
 
 ## Operacje w panelu dla każdej tabeli
 
@@ -308,16 +375,19 @@ Realizacja wymagania 12 według [ADR 0031](../adr/0031-wzorzec-widoku-tabeli-w-p
 | `spare_parts` | słownik | `v_spare_part_list` (od iteracji 6) | tak | dane i minimum; stan tylko przez przyjęcie i korektę (procedury) | archiwizacja, jeśli ma ruchy; usunięcie części bez historii | `service.read`, `service.manage` |
 | `service_task_parts` | encja | `v_service_task_parts` w szczegółach zadania | użycie części (`sp_task_use_part`) | nie | zwrot (`sp_task_return_part`), dopóki zadanie w toku | `service.manage` |
 | `spare_part_movements` | tylko do dopisywania | `v_spare_part_movements` (od iteracji 6) | przyjęcie, korekta, użycie i zwrot przez procedury | nie | nie | `service.read`, `service.manage` |
-| `content_pages` | słownik | `content_pages` | tak | tak | tak, jeśli bez opublikowanych wersji | `content.read`, `content.write` |
-| `content_page_versions` | wersjonowana | wersje dokumentu | nowa wersja | szkic; publikacja | archiwizacja | `content.write` |
-| `content_blocks` | słownik | `content_blocks` | tak | tak | tak | `content.write` |
-| `faq_items` | słownik | `faq_items` | tak | tak | tak | `content.write` |
-| `news` | słownik | `news` | tak | tak | tak | `content.write` |
+| `content_pages` | słownik | `content_pages` (Treści → Dokumenty prawne) | tak | tak | tak, jeśli bez opublikowanych wersji | `content.read`, `content.write` |
+| `content_page_versions` | wersjonowana | wersje dokumentu | nowa wersja | szkic z blokadą optymistyczną (od 0011); publikacja | archiwizacja | `content.write` |
+| `content_blocks` | słownik | `v_content_blocks` (od iteracji 7, grupy według klienta i sekcji) | element sekcji-listy w zapisie sekcji (sekcji nie tworzy się, D1) | sekcja z elementami i kolejnością, status, „Przywróć” z historii | element szkicu albo archiwum w zapisie sekcji | `content.read`, `content.write` |
+| `faq_categories` | słownik | `v_faq_categories` (od iteracji 7) | tak, także z nazwy w pytaniu | nazwa, kolejność | tylko pusta | `content.read`, `content.write` |
+| `faq_items` | słownik | `v_faq_list` (od iteracji 7) | tak | treść, kategoria, widoczność, status, kolejność | szkic albo archiwum | `content.read`, `content.write` |
+| `news` | słownik | `v_news_list` (od iteracji 7, stan z dat) | tak | treść, daty, grafika, status; slug do pierwszej publikacji | szkic albo archiwum | `content.read`, `content.write` |
 | `notification_templates` | słownik | `v_notification_templates` (od iteracji 6) | nie (kody z rejestru w `packages/shared`) | treść jako nowa wersja z podglądem i walidacją ICU | nie | `content.read`, `content.write` |
 | `notification_template_versions` | wersjonowana | historia w edytorze szablonu (`v_notification_template_versions`) | system przy zapisie treści | nie; przywrócenie to nowa wersja | nie | `content.read`, `content.write` |
-| `media_assets` | słownik | `media_assets` | tak | tak | tak, jeśli nieużywana | `content.write` |
+| `media_assets` | słownik | `v_media_list` (od iteracji 7), użycia `v_media_usages` | wysyłka z tekstem alternatywnym | opis, „Zastąp plik” | tak, jeśli nieużywana i nie systemowa | `content.read`, `content.write` |
+| `company_profile` | encja (jeden wiersz) | formularz Treści → Dane firmy (od iteracji 7) | nie (wiersz z migracji) | tak | nie | `content.read`, `company.write` |
 | `report_definitions` | słownik z kodu | `report_definitions` | z katalogu w core | nazwa, opis, aktywność | nie | `content.write` |
 | `report_runs` | proces | `report_runs` | uruchomienie raportu | nie | nie | `reports.<kod>` |
-| `document_templates` | słownik | `document_templates` | tak | tak | dezaktywacja | `templates.read`, `templates.write` |
-| `document_template_versions` | wersjonowana | wersje szablonu | wgranie nowej wersji | aktywacja | nie | `templates.write` |
-| `generated_documents` | proces | `generated_documents` | wygenerowanie wydruku | nie | nie | `documents.generate` |
+| `document_templates` | słownik | `v_document_templates` (od iteracji 7) | tak | domyślny rodzaju (`sp_document_template_set_default`); nazwy i opisu API jeszcze nie zmienia | nie (dezaktywacja odłożona) | `templates.read`, `templates.write` |
+| `document_template_versions` | wersjonowana | `v_document_template_versions` w szczegółach szablonu | wgranie z walidacją i podglądem PDF | aktywacja i przywrócenie (`sp_document_template_activate`) | tylko `PENDING` | `templates.read`, `templates.write` |
+| `generated_documents` | proces | `v_generated_documents` (od iteracji 7, Wydruki → Wygenerowane) | „Drukuj” na karcie obiektu, paragon PDF w aplikacji | „Ponów”, „Wygeneruj ponownie” (nowy wiersz) | nie; pliki usuwa retencja po 30 dniach | `documents.generate` z odczytem rodzaju; z danymi klienta `users.read` |
+| `data_exports` | proces | `v_data_exports` (od iteracji 7, karta klienta) | „Pobierz moje dane” w aplikacji | nie | nie; pliki usuwa `data-exports.purge` | `users.read` |

@@ -43,6 +43,10 @@ Socket.IO z pokojami: `user:{id}` dla aplikacji klienta (dołącza od razu po po
 - zdarzenia `ticket.updated` (panel i zgłaszający klient), `service-task.updated`, `simulator.status`, `simulator.result`, a w pokoju klienta `notification.created`;
 - panel trzyma jedno połączenie na kartę i dołącza do pokoi potrzebnych na ekranie (`apps/web/lib/realtime.ts`).
 
+Od iteracji 7 ([kontrakt Socket.IO 1.6.1](../kontrakty/asyncapi-realtime.yaml)):
+- `content.updated` do wszystkich połączonych po zatwierdzeniu zmiany treści i na granicy publikacji aktualności; klient po nim zawsze pyta warunkowo (`If-None-Match`), bo o świeżości decyduje skrót treści, nie rewizja;
+- pokój operatora `staff:{id}` (dołączenie przy połączeniu, bez subskrypcji) z `document.ready`; ten sam `document.ready` i `data-export.ready` w pokoju `user:{id}`.
+
 ## 8.8. Obsługa błędów
 API zwraca błędy w jednym formacie: kod maszynowy (np. `OUTSIDE_PARKING`), komunikat i szczegóły. Klienci reagują na kod, nie na treść komunikatu.
 
@@ -50,10 +54,13 @@ API zwraca błędy w jednym formacie: kod maszynowy (np. `OUTSIDE_PARKING`), kom
 Logi strukturalne w JSON z identyfikatorem żądania, przejazdu i komendy. Metryki symulatora i brokera (wiadomości na sekundę, opóźnienie komend) są widoczne w panelu.
 
 ## 8.10. Prywatność
-Pełne numery kart nie trafiają do systemu. Usunięcie konta anonimizuje dane osobowe, przejazdy i płatności zostają ze względów księgowych. Telemetria starsza niż 90 dni jest usuwana razem z partycjami, a wygasłe sesje, zaproszenia i kody SMS 30 dni po wygaśnięciu (zadania pg-boss, [ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)). Usunięcie konta wymaga braku otwartego przejazdu i salda 0. Od iteracji 6 zdjęcia parkowania są usuwane z magazynu po 30 dniach, chyba że są w zgłoszeniu (§8.12), a tokeny push znikają z sesją klienta (wylogowanie, usunięcie wygasłej rodziny sesji).
+Pełne numery kart nie trafiają do systemu. Usunięcie konta anonimizuje dane osobowe, przejazdy i płatności zostają ze względów księgowych. Telemetria starsza niż 90 dni jest usuwana razem z partycjami, a wygasłe sesje, zaproszenia i kody SMS 30 dni po wygaśnięciu (zadania pg-boss, [ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)). Usunięcie konta wymaga braku otwartego przejazdu i salda 0. Od iteracji 6 zdjęcia parkowania są usuwane z magazynu po 30 dniach, chyba że są w zgłoszeniu (§8.12), a tokeny push znikają z sesją klienta (wylogowanie, usunięcie wygasłej rodziny sesji). Od iteracji 7:
+- klient pobiera swoje dane jako JSON („Pobierz moje dane”, raz na 24 h, plik ważny 7 dni, zdjęcia tylko jako metadane, [ADR 0069](../adr/0069-eksport-danych-klienta.md));
+- grafiki biblioteki tracą przy wysyłce metadane (EXIF z położeniem, XMP, komentarze), bo są publiczne (§8.15);
+- pliki wydruków znikają po 30 dniach, a wiersz `generated_documents` zostaje jako ślad (kto, kiedy, z której wersji szablonu).
 
 ## 8.11. Język interfejsu
-Interfejs po polsku. Etykiety interfejsu (przyciski, pola, menu, komunikaty błędów) są wydzielone do plików tłumaczeń, żeby dodanie kolejnego języka nie wymagało zmian w kodzie; w komponentach są tylko klucze. Mechanizm: wspólny tłumacz z `packages/shared` na `intl-messageformat` (format ICU, polskie liczebniki), pliki `apps/web/messages/pl.json` i `apps/mobile/src/i18n/pl.json`, reguła lintera zakazująca tekstów w JSX ([ADR 0032](../adr/0032-etykiety-w-plikach-tlumaczen.md)). Treści merytoryczne (regulamin, FAQ, aktualności, bloki strony i ekranów powitalnych, szablony powiadomień, grafiki) są w bazie i edytuje je operator w panelu ([ADR 0027](../adr/0027-tresci-sterowane-z-panelu.md)). Od iteracji 6 w bazie są też wszystkie teksty powiadomień push i kodu SMS (§8.13), więc API nie ma tekstów dla klienta na sztywno.
+Interfejs po polsku. Etykiety interfejsu (przyciski, pola, menu, komunikaty błędów) są wydzielone do plików tłumaczeń, żeby dodanie kolejnego języka nie wymagało zmian w kodzie; w komponentach są tylko klucze. Mechanizm: wspólny tłumacz z `packages/shared` na `intl-messageformat` (format ICU, polskie liczebniki), pliki `apps/web/messages/pl.json` i `apps/mobile/src/i18n/pl.json`, reguła lintera zakazująca tekstów w JSX ([ADR 0032](../adr/0032-etykiety-w-plikach-tlumaczen.md)). Treści merytoryczne (regulamin, FAQ, aktualności, bloki strony i ekranów powitalnych, szablony powiadomień, grafiki) są w bazie i edytuje je operator w panelu ([ADR 0027](../adr/0027-tresci-sterowane-z-panelu.md)). Od iteracji 6 w bazie są też wszystkie teksty powiadomień push i kodu SMS (§8.13), więc API nie ma tekstów dla klienta na sztywno. Od iteracji 7 z bazy są też bloki strony i ekranów aplikacji (ekran startowy, zasady przed jazdą, Pomoc), FAQ, aktualności, grafiki (także rendery hulajnogi), dane firmy (kontakt pomocy, dane sprzedawcy) i teksty wydruków z szablonów DOCX (§8.14–8.17); w plikach tłumaczeń zostają etykiety.
 
 ## 8.12. Pliki
 Od iteracji 6 ([ADR 0057](../adr/0057-pliki-zdjecia.md), zmienia podpisany adres z [ADR 0024](../adr/0024-magazyn-plikow-seaweedfs.md)):
@@ -61,6 +68,7 @@ Od iteracji 6 ([ADR 0057](../adr/0057-pliki-zdjecia.md), zmienia podpisany adres
 - **Magazyn za portem `FileStorage`:** SeaweedFS przez API S3 (`FILE_STORAGE=s3`, `forcePathStyle`) albo pamięć procesu w testach (`memory`, w produkcji zatrzymuje start). Magazyn jest tylko w sieci wewnętrznej, bez CORS.
 - **Przypięcie:** plik `READY` jest niczyj, dopóki nie trafi do przejazdu (`POST /rentals/{id}/parking-photo`) albo zgłoszenia (`photoIds`, najwyżej 3, `ticket_photos.position`). API sprawdza właściciela, cel i to, że plik nie jest przypięty gdzie indziej.
 - **Odczyt:** widoki API podają adres `/files/{id}?exp=…&sig=…` z podpisem HMAC na 10 min, wystawiony tylko temu, kto ma dostęp do rekordu (właściciel, `rentals.read`, `tickets.read`). Klienci doklejają adres API; `<img>` i `Image` działają bez nagłówków.
+- **Wyjątek od iteracji 7:** grafiki biblioteki (`MEDIA`) mają publiczny adres z sumą SHA-256 (§8.15); szablony, wydruki i eksport danych zostają przy podpisie, z nazwą pliku w `Content-Disposition`.
 - **Retencja:** `files.cleanup` co godzinę usuwa pliki nieprzypięte po 24 h, a `files.retention` raz na dobę zdjęcia parkowania po 30 dniach spoza zgłoszeń. Wiersz zostaje ze stanem `DELETED`, więc klucze obce przejazdów i zgłoszeń są nienaruszone.
 
 ## 8.13. Powiadomienia
@@ -71,3 +79,33 @@ Od iteracji 6 ([ADR 0058](../adr/0058-powiadomienia-push-z-szablonow.md)):
 - **Preferencje:** `notify_reservation_end` dotyczy `reservation_ending`, `notify_receipts` dotyczy `ride_ended`; niska bateria, nieudana płatność i zgłoszenia idą zawsze. Wynik bez wysyłki to `SKIPPED` z powodem.
 - **Tokeny:** `POST /me/push-tokens` robi upsert po tokenie z sesją i `last_seen_at` (token z innego konta przechodzi do nowego), wylogowanie usuwa tokeny rodziny sesji, `DeviceNotRegistered` usuwa token.
 - **Aplikacja:** zgoda raz, przy pierwszej rezerwacji albo starcie; dotknięcie otwiera ekran z `data.path` (także po zimnym starcie); na ekranie jazdy powiadomienie jest ukryte. Wersja web nie ma tokenu, więc pokazuje baner z `notification.created`.
+
+## 8.14. Treści i Markdown
+Od iteracji 7 ([ADR 0062](../adr/0062-modul-tresci-sekcje-publikacja-dane-firmy.md), [ADR 0063](../adr/0063-markdown-w-tresciach.md)):
+- **Rejestr sekcji** (`CONTENT_SECTIONS` w `packages/shared`, 16 sekcji) wyznacza klucze, klienta, rodzaj (blok albo sekcja-lista z limitem elementów), profil Markdown i minimalną szerokość grafiki (hero 760 px, [ADR 0070](../adr/0070-minimalna-szerokosc-grafiki-hero.md)). Panel edytuje treść i elementy, nie tworzy sekcji, bo kod renderuje konkretne miejsca.
+- **Publikacja:** bloki, FAQ i aktualności mają szkic, publikację i archiwum; zmiana opublikowanego wpisu działa od zapisu, a historia jest w dzienniku audytu (pełny stan przed i po) z „Przywróć”. Stan aktualności (zaplanowana, opublikowana, wygasła) liczą core (`newsState`) i baza (`fn_news_state`) tą samą regułą.
+- **Markdown bez HTML:** jeden własny parser podzbioru (`parseMarkdown` w `packages/shared`, profile `inline`, `faq`, `document`) daje drzewo węzłów, a panel, strona i aplikacja renderują je komponentami React i React Native, bez `dangerouslySetInnerHTML`, więc bez sanityzacji. HTML, obrazy, tabele, kod i zagnieżdżone listy to błąd zapisu z wierszem i kolumną.
+- **Odnośniki** tylko `https:`, `mailto:`, `tel:`, ścieżka `/…` i kotwica `#…` (`isAllowedHref`); baza ma ten sam wzorzec w `CHECK` adresu przycisku, a strona pokazuje przycisk tylko przy `isAllowedHref`.
+- **Odczyt:** `GET /content/{client}` zwraca wszystkie opublikowane treści klienta jedną odpowiedzią (sekcje, FAQ, dane firmy, grafiki systemowe, na stronie modele) z `ETag` ze skrótu SHA-256 i `Cache-Control: no-cache`. Strona trzyma ją w Data Cache Next.js z tagami (`content`, `tariff`, `scooters`), a aplikacja w Async Storage; bez sieci przy pierwszym uruchomieniu aplikacja pokazuje „Brak internetu”, a rendery hulajnogi bierze z kopii w paczce.
+
+## 8.15. Media publiczne
+Od iteracji 7 ([ADR 0064](../adr/0064-biblioteka-mediow.md), zmienia [ADR 0057](../adr/0057-pliki-zdjecia.md) dla celu `MEDIA`):
+- wysyłka `POST /files` z celem `MEDIA` tylko z `content.write`: JPEG, PNG, WebP do 5 MB i 8000 px (ostrzeżenie powyżej 2560 px), wymiary z nagłówka w core, bez skalowania na serwerze; core usuwa metadane (`stripImageMetadata`), a suma SHA-256 i rozmiar liczą się z oczyszczonego pliku;
+- adres `GET /media/{id}/{sha256}.{ext}` z `Cache-Control: public, max-age=31536000, immutable`; „Zastąp plik” zachowuje identyfikator grafiki i jej użycia, ale daje nowy adres, a starszy skrót odpowiada `308` na bieżący;
+- grafiki systemowe (`scooter.*`) są tylko do odczytu i nie da się ich usunąć; użytą grafikę chronią klucze obce `RESTRICT` (`MEDIA_IN_USE` z listą miejsc z `v_media_usages`);
+- grafiki są dostępne dla każdego, kto zna adres, bo są publikowane na stronie; w bibliotece nie trzyma się materiałów wewnętrznych.
+
+## 8.16. Wydruki i dane klienta
+Od iteracji 7 ([ADR 0068](../adr/0068-wydruki-w-procesach.md)):
+- **Dane wydruku** pochodzą z widoków `v_doc_*` (wiersz na obiekt, kwoty w groszach, czas UTC), a buduje je katalog rodzajów w core (`DOCUMENT_CATALOG`, `buildDocumentData`) z formatowaniem kwot i dat przed wstawieniem. Stopka `{document.footer}` podaje identyfikator wydruku, szablon z wersją, datę i operatora; dokument nosi numer obiektu, bez własnej numeracji.
+- **Maskowanie:** zlecający bez `users.read` dostaje w pliku „Klient” zamiast imienia, nazwiska i telefonu. Maskowanie jest wypalone w pliku, więc wiersz pamięta `customer_data_visible` (migracja 0012). Szczegóły z adresami plików, pobranie i ponowienie takiego wiersza wymagają `users.read` od każdego operatora, także zlecającego; lista pokazuje go bez „Pobierz”.
+- **Klient** pobiera tylko własny paragon (`POST /me/receipts/{id}/pdf`, `GET /me/documents/{id}`); gotowy PDF tej samej wersji szablonu jest używany ponownie.
+- **Widoczność:** „Wydruki” w panelu z `templates.read` albo `documents.generate`; bez `templates.read` operator widzi tylko Wygenerowane i rodzaje, które może drukować.
+
+## 8.17. Szablony DOCX
+Od iteracji 7 ([ADR 0067](../adr/0067-szablony-wydrukow-docx.md)):
+- **Składnia:** docxtemplater 3.71.1 z `paragraphLoop` i własnym parserem ścieżek z kropką bez wyrażeń: pola `{task.number}`, pętle `{#parts}…{/parts}`, warunki `{#hasParts}…{/hasParts}` i `{^…}`. Nowa potrzeba formatowania to zmiana katalogu w core, nie wyrażenie w szablonie.
+- **Wgranie:** core rozpoznaje DOCX po zawartości (ZIP z `word/document.xml`, bez `.docm` i makr), pilnuje rozmiaru pliku i rozmiaru po rozpakowaniu (API rozpakowuje z `maxOutputLength`, ochrona przed bombą ZIP). Inspekcja czyta wszystkie części, które docxtemplater szablonuje (także komentarze, ustawienia, `docProps`, diagramy), i wszystkie elementy tekstu (`w:t`, `m:t`, `a:t`…), a znaczniki porównuje z katalogiem pól (nieznane pole, pętla, pole poza pętlą, zły typ).
+- **Ochrona przy wypełnianiu:** `{@…}` (surowy XML) i zmiana ograniczników są zabronione także przy wydruku: moduł `templateGuardModule` kończy wydruk błędem `TEMPLATE_RENDER_FAILED`, a zmiana ograniczników jest wyłączona, więc i wersja wgrana wcześniej nie wstawi surowego XML.
+- **Wersje:** wersji się nie zmienia; stany `PENDING` (do aktywacji, można usunąć), `ACTIVE` i `ARCHIVED` (kiedyś aktywna). Aktywacja i „Przywróć” to `sp_document_template_activate` z blokadą szablonu, bez kopiowania pliku; wydruki wskazują swoją wersję.
+- **Szablony startowe** (`packages/db/seed/templates/*.docx`) odtwarza powtarzalnie `build.mjs`, a `manifest.json` zapisuje pola w tym samym formacie co inspekcja API (`parts[].sku`). Seed podmienia aktywną wersję startową, gdy suma pliku się zmieni, a wersji wgranych przez operatora nie rusza. Nota firmy jest w stopce, żeby wydruk z danymi przykładowymi mieścił się na jednej stronie.

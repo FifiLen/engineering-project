@@ -1336,3 +1336,316 @@ Przegląd kodu iteracji 6 znalazł 16 błędów (A–P). Wszystkie potwierdziły
 - Stawka VAT opłaty za odholowanie rozstrzygnięta: kara umowna poza VAT (ADR 0061, wpis wyżej).
 - `eas init` zostaje po stronie autora (interaktywne logowanie do konta Expo); Stripe na koniec projektu.
 - `eas init` (18 listopada 2026): projekt EAS `@fifi3303/hulajnogi` założony przez autora. Polecenie uruchomione w katalogu głównym utworzyło tam własny `app.json` z `projectId`; identyfikator i `owner` przeniesione do `apps/mobile/app.json`, a zbędny plik usunięty. `expo config` zwraca `projectId`, więc aplikacja może pobrać token push na development build (nadal potrzebne poświadczenia FCM i APNs).
+
+## Plan iteracji 7: treści i wydruki (18 listopada 2026)
+
+Plan: [iteracja 7](iteracje/iteracja-07-tresci-wydruki.md). Etap planowania, bez kodu i bez makiet.
+
+**Co powstało**
+- Plan iteracji 7. Cel: bloki treści w sekcjach strony i aplikacji, FAQ, aktualności z planowaną publikacją, biblioteka mediów i dane firmy w panelu; strona promocyjna z treści z bazy (z dokumentami, aktualnościami i `/h/{numer}`); szablony DOCX z wersjami, walidacją i aktywacją, wydruki DOCX i PDF z kart przejazdu, zadania, hulajnogi i paragonu, paragon PDF w aplikacji; Gotenberg i port `DocumentRenderer`. Granica z iteracją 8 (raporty, ExcelJS, eksport list), zakres migracji 0011, kolejność kroków i scenariusz demo w 10 krokach.
+- Stan wyjściowy spisany z kodu i migracji:
+  - tabele treści, mediów, szablonów i wygenerowanych dokumentów istnieją od migracji 0002, ale są puste i nie mają punktów API (poza dokumentami prawnymi z iteracji 2);
+  - `fn_content_revision()` jest, ale `ETag` treści i zdarzenia `content.updated` nie ma;
+  - strona promocyjna to szkielet z dwoma tekstami z `messages/pl.json`.
+- 12 brakujących makiet w czterech katalogach: `28-panel-tresci`, `29-panel-wydruki`, `30-strona-tresci`, `31-mobile-tresci`.
+- 8 ADR-ów do napisania (0062–0069; 0069 tylko, jeśli eksport danych zostanie w zakresie), 14 pytań do autora i 8 decyzji z rekomendacją (D1–D8), lista sprawdzeń przed ADR-ami.
+
+**Wnioski z przeglądu kodu, migracji i makiet**
+- **Kod QR na naklejce a ADR 0030.** ADR 0041 zapowiada naklejkę z kodem QR jako wydruk z szablonu, a ADR 0030 wyklucza obrazy zmienne w DOCX (moduł obrazów docxtemplater jest płatny). D5 proponuje naklejkę jako PDF z HTML przez Chromium w Gotenbergu.
+- **Podpisane adresy plików a cache.** Adres odczytu z ADR 0057 jest ważny 10 min, a strona z cache i aplikacja z pamięcią treści potrzebują stałych adresów grafik. D3 proponuje publiczne adresy dla celu `MEDIA` (zmiana ADR 0057 w tej części).
+- **Build w CI bez API.** `pnpm build` w CI buduje panel bez działającego API, więc strona czytająca treści z API nie może wymagać ich w czasie budowania (D2, ADR 0065).
+- **Wersja Gotenberga.** ADR 0029 zakłada linię 9.x; przed ADR 0066 trzeba sprawdzić, która linia jest aktualna. Gotenberga nie ma jeszcze w `infra/`.
+- **Dwa parsery Markdown** (podgląd w panelu i `components/markdown.tsx` w aplikacji) obsługują różne podzbiory składni; strona byłaby trzecim. ADR 0063 proponuje jeden parser do drzewa elementów w `packages/shared`, bez HTML, więc bez sanityzacji.
+- **Eksport danych klienta** nie pasuje do `generated_documents`, bo `template_version_id` jest `NOT NULL`; pytanie 14 i migracja 0011 rozstrzygają formę.
+- **Dane sprzedawcy** są w konfiguracji API (`SELLER_*`), a kontakt pomocy i marka w `pl.json` aplikacji jako wartości w nawiasach; pytanie 13 proponuje tabelę danych firmy.
+- **Seed z plikami.** Media i szablony startowe wymagają zapisu w SeaweedFS przez seed (dziś seed pisze tylko do bazy); testy API czytają szablony z repozytorium do pamięci.
+- **Treści w aplikacji bez sieci.** ADR 0027 zakłada pamięć treści na urządzeniu, a aplikacja nie ma modułu do jej przechowania ani modułów do pobrania i udostępnienia PDF.
+- **Makiety:** zakładki Treści (Bloki treści, FAQ, Aktualności, Media) i pozycja „Wydruki” w nawigacji są na planszach od iteracji 2, ale bez ekranów. Strona `14-strona` nie ma aktualności, stron dokumentów ani `/h/{numer}`. `konto-zasady` ma ikony przy zasadach, a implementacja numery.
+- **Uprawnienia:** zapis treści ma tylko Administrator (Dyspozytor ma `content.read`); pytanie 6 proponuje rolę Redaktor.
+- **Drobna niespójność poza zakresem:** `eclipse-mosquitto:2` i `postgis/postgis:16-3.4` w `infra/` to tagi ruchome, choć `CLAUDE.md` mówi o przypiętych obrazach.
+
+**Do zrobienia przed implementacją**
+- Odpowiedzi autora na pytania 1–14 i decyzje D1–D8.
+- Makiety brakujących stanów w czterech katalogach.
+- Sprawdzenia przed ADR-ami (wersje starsze niż 3 dni): Gotenberg (tag, arm64, Inter, blokada zasobów zewnętrznych), docxtemplater (wersja, licencja, ESM, moduł inspekcji, darmowe moduły obrazów), parser Markdown, cache i odświeżanie w Next.js 16.4.6, moduły Expo z `expo install`.
+- ADR 0062–0069.
+
+**Odpowiedzi autora (18 listopada 2026)**
+- Wszystkie rekomendacje: pytania 1–14 i decyzje D1–D8 ([tabela w planie](iteracje/iteracja-07-tresci-wydruki.md#odpowiedzi-autora-18-listopada-2026)).
+- Cztery wydruki z szablonem startowym (paragon z korektą, potwierdzenie przejazdu, protokół serwisowy, karta hulajnogi), nowa rola „Redaktor”, „Pobierz moje dane” w tej iteracji (ADR 0069 powstaje), naklejka QR jako PDF z HTML.
+
+**Makiety (18 listopada 2026)**
+- 30 plansz w [`28-panel-tresci`, `29-panel-wydruki`, `30-strona-tresci` i `31-mobile-tresci`](projekt/README.md#panel-operatora-treści-i-wydruki-iteracja-7):
+  - 9 plansz treści w panelu (bloki, edycja bloku, sekcja-lista, FAQ, aktualności, media, wysyłka, wybór grafiki, dane firmy) i 6 wydruków (szablony, wersje z walidacją i podglądem, błędy wgrania, okno „Drukuj”, wygenerowane, naklejka QR);
+  - 7 plansz strony (dokument na komputerze i telefonie, aktualności, artykuł, `/h/{numer}` na komputerze i telefonie, 404) i 8 aplikacji (Pomoc, Pomoc bez sieci, paragon PDF w trzech stanach, „Pobierz moje dane” w trzech stanach).
+
+  Spis ekranów: 172. Plansze przygotowało dwóch agentów równolegle, a PNG wyrenderował Chrome headless. Wszystkie PNG obejrzane. Poprawka po przeglądzie: pytanie FAQ na `pomoc-offline` mówiło o przycisku „Zakończ bez łączności”, którego aplikacja nie ma (przy hulajnodze offline działa zwykłe „Zakończ”).
+- **Luki i decyzje do ADR-ów** (lista w planie, sekcja „Do rozstrzygnięcia w ADR 0062–0069”): ikona elementu sekcji-listy, kolejność kategorii FAQ, `generated_documents` dla naklejki i eksportu, publiczne wersje dokumentów prawnych, publiczny odczyt hulajnogi dla `/h/{numer}`, rozdzielenie uprawnień Redaktora (szablony powiadomień, dane firmy), KRS i REGON, miejsce błędu w DOCX bez numeru strony.
+- **Sprzeczności ze starszymi planszami:** `18-panel-dostep/dostep-dokumenty` ma pięć zakładek Treści bez „Dane firmy”; `14-strona` ma w stopce „Zgłoś usterkę” i „Kontakt” zamiast danych pomocy oraz nawigację bez „Aktualności”; `24-mobile-platnosci/paragon` zapowiadał ikonę pobierania w nagłówku (jest przycisk u dołu); `06-mobile-profil/profil` — „Pomoc i zgłoszenia” otwiera teraz Pomoc.
+
+**ADR 0062–0069 (18 listopada 2026, zaakceptowane przez autora)**
+- **Sprawdzone przed pisaniem** (wersje starsze niż 3 dni):
+  - **Gotenberg** (Docker Hub, GitHub Releases, kod wydania, dokumentacja 9.x):
+    - linia 8 skończyła się na 8.40.0 (5 listopada), a 9.0.0 wyszła tego samego dnia (silnik PDF litho, LibreOffice przez LibreOfficeKit). Wydania wychodzą co 1–2 dni: 9.6.0, 9.7.0 i 9.8.0 (16–18 listopada) są za świeże;
+    - wybrana **9.5.1** (14 listopada): indeks `sha256:a0f596c2…e2c8`, `amd64` i `arm64`, około 640 MB;
+    - trasy `/forms/libreoffice/convert` i `/forms/chromium/convert/html`, `/health` bez uwierzytelnienia, `API_TIMEOUT` 30 s z kolejką;
+    - blokada ruchu wychodzącego: `*_DENY_PRIVATE_IPS`, `*_DENY_PUBLIC_IPS`, `CHROMIUM_DISABLE_JAVASCRIPT`, `API_DISABLE_DOWNLOAD_FROM`, `WEBHOOK_DISABLE`, `PDF_DISABLE_ROUTES`;
+    - limitów pamięci silników nie ma w 9.5.1 (od 9.6.0);
+    - obraz bez Inter, działa jako UID 1001. Inter 4.1 (16 listopada 2024, OFL 1.1).
+  - **docxtemplater 3.71.1** (15 października, MIT, CommonJS z `export =`, `@xmldom/xmldom` 0.9.12) i **pizzip 3.3.0** (21 września, MIT albo GPL-3.0, `pako` ^2.1.0). Sprawdzone w kodzie pakietów, bez uruchamiania (tryb automatyczny odmówił wykonania pobranego kodu, więc zachowanie potwierdzi test w kroku 6):
+    - `InspectModule` jest w darmowym pakiecie (`docxtemplater/js/inspect-module.js`);
+    - błędy to `TemplateError` z `multi_error` i polami `id`, `explanation`, `xtag`, `offset` (w tekście części) i `file`;
+    - znaczniki rozbite przez Worda w akapicie łączy lekser;
+    - parser domyślny nie zna kropki, a `expressions.js` wymaga `angular-expressions` (wykonuje wyrażenia);
+    - pizzip nie limituje rozmiaru po rozpakowaniu;
+    - moduły obrazów, QR i położenia błędów są płatne, a `docxtemplater-image-module-free` 1.1.1 jest z 2019 r. i zależy od `xmldom` 0.1.27.
+  - **Markdown:** `marked` 18.2.0 (18.2.1 z 16 listopada za świeża), `mdast-util-from-markdown` 2.1.0 z `micromark` 4.0.3, `markdown-it` 15.0.3. Sanityzacja byłaby potrzebna tylko przy HTML (`dompurify` 3.4.18, `sanitize-html` 2.18.2 z Node ≥ 22.12).
+  - **Next.js 16.4.6** (dokumentacja w `node_modules/next/dist/docs`):
+    - `revalidateTag(tag, profile)`: forma z jednym argumentem jest przestarzała, z Route Handlera `{ expire: 0 }`, a `updateTag` tylko w Server Actions;
+    - `cacheTag` wymaga `cacheComponents: true` dla całej aplikacji (z `<Activity>` i zasadami prerenderu także w panelu);
+    - w modelu bez Cache Components `fetch` z dodatnim `revalidate` zostaje w Data Cache przy renderowaniu dynamicznym;
+    - `next/image` z API na `localhost` wymaga `dangerouslyAllowLocalIP` (ostrzeżenie SSRF); `sharp` 0.35.5 jest zainstalowany.
+  - **Expo SDK 58** (`bundledNativeModules.json`, Expo 58.0.23): `expo-file-system` ~58.0.13, `expo-sharing` ~58.0.22, `expo-sqlite` ~58.0.15 (w wersji web wymaga WASM i nagłówków COOP/COEP), `@react-native-async-storage/async-storage` 2.2.0. `minimumReleaseAge: 4320` w `pnpm-workspace.yaml` pilnuje wieku wersji w zakresach `~`.
+  - **Pozostałe:** `image-size` 2.1.0 (6 listopada) jako alternatywa własnego odczytu wymiarów; `qrcode` 1.5.4 jest już w panelu.
+- **0062 Moduł treści:**
+  - rejestr sekcji w `packages/shared` z rodzajem, limitami, profilem Markdown, minimalną szerokością grafiki i sekcjami wymaganymi;
+  - `content_blocks.key` jako klucz sekcji z `position` (unikalność odroczona) i ikoną z zamkniętej listy (`CHECK`);
+  - tabela `faq_categories` z kolejnością i przełączniki strona i aplikacja; `news.lead` wymagany, a stan aktualności liczy widok;
+  - historia z dziennika audytu z pełnym stanem przed zmianą i po niej i „Przywróć” jako nowa wersja; blokada optymistyczna także w wersji roboczej dokumentu;
+  - `company_profile` zamiast `SELLER_*`, z KRS, REGON, sądem i kapitałem jako polami opcjonalnymi w stopce (paragon bez zmian);
+  - nowe `company.write` tylko dla Administratora; szablony powiadomień zostają przy `content.write`, bo `login_code` chroni parametr wymagany;
+  - rola Redaktor, a jej pulpit ma grupę „Treści”;
+  - `GET /content/{client}` z `ETag` i `content.updated`; pamięć w aplikacji w Async Storage;
+  - przy pierwszym uruchomieniu bez sieci ekran „Brak internetu”, bez kopii kontaktu w paczce.
+- **0063 Markdown:**
+  - własny parser podzbioru w `packages/shared` do drzewa, bez zależności i bez HTML (więc bez sanityzacji);
+  - profile `inline`, `faq` i `document`; błędy z wierszem i kolumną, a błędny wiersz pominięty w podglądzie;
+  - odnośniki tylko `https:`, `mailto:`, `tel:`, `/…` i `#…`;
+  - kotwice bez znaków diakrytycznych (NFKD i `ł → l`); renderery osobne dla React DOM i React Native.
+- **0064 Media:**
+  - `POST /files` z `MEDIA` do 5 MB i `content.write`; typ po sygnaturze i wymiary z nagłówka w core (bez `image-size`), limit 8000 px;
+  - klucze systemowe `scooter.*` z flagą `is_system`; usunięcie tylko nieużytej grafiki;
+  - „Zastąp plik” zachowuje identyfikator; minimalna szerokość według sekcji;
+  - publiczny `GET /media/{id}/{sha256}.{ext}` z `immutable` i `308` dla starszej sumy (zmienia ADR 0057 dla `MEDIA`);
+  - rendery z kopią w paczce tylko na pierwsze uruchomienie bez sieci.
+- **0065 Strona:**
+  - Data Cache `fetch` z tagami (`content`, `tariff`, `scooters`) i `connection()` zamiast Cache Components, bo te zmieniałyby panel;
+  - `POST /api/revalidate` z sekretem i `revalidateTag(tag, { expire: 0 })`, zadanie API `site.revalidate` po zatwierdzeniu, czas zapasowy 5 min; build bez API;
+  - publiczne wersje dokumentów `/{slug}/wersja/{n}`, bez osobnej daty wejścia w życie;
+  - `/h/{numer}` z publicznym `GET /public/scooters/{number}` (tylko numer i model);
+  - „Mam aplikację” jako `hulajnogi://hulajnoga/{numer}` (`APP_SCOOTER_LINK`);
+  - zwykłe `<img>` z wymiarami, `sitemap.ts`, `robots.ts`, `web.meta`; bez ciasteczek.
+- **0066 Gotenberg:**
+  - własny `Dockerfile` na bazie 9.5.1 z Inter 4.1, port tylko na pętli zwrotnej (`GOTENBERG_PORT`, domyślnie 3010), `mem_limit`;
+  - port `DocumentRenderer` (`fillDocx`, `docxToPdf`, `htmlToPdf`) z adapterem Gotenberga i atrapą;
+  - kody `RENDER_TIMEOUT`, `RENDERER_UNAVAILABLE`, `RENDER_FAILED`;
+  - zadanie `document.generate` (DOCX zawsze, przy błędzie PDF zostaje DOCX), `document.ready` z pokojem `staff:{id}`;
+  - retencja `documents.retention` po 30 dniach.
+- **0067 Szablony DOCX:**
+  - własny parser ścieżek z kropką bez wyrażeń; `{@raw}` zabronione;
+  - formatowanie w katalogu w core; katalog pól dla panelu z API (bez kopii w `packages/shared`);
+  - ochrona przed bombą ZIP: katalog centralny w core i `inflateRawSync` z `maxOutputLength` w API; odrzucenie `.docm`;
+  - miejsce błędu jako część, tabela, wiersz, kolumna albo akapit, **bez numeru strony** (odstępstwo od planszy `wydruki-wgranie-bledy`);
+  - stany `PENDING`, `ACTIVE`, `ARCHIVED`, aktywacja i przywrócenie procedurą bez kopiowania pliku;
+  - podgląd PDF synchroniczny z pamięcią wyniku; lista pól DOCX z systemowego szablonu.
+- **0068 Wydruki:**
+  - siedem rodzajów z widokami `v_doc_*`, w tym `SCOOTER_LABEL`;
+  - „Drukuj” wymaga `documents.generate` i uprawnienia odczytu rodzaju, a bez `users.read` klient to „Klient”;
+  - stopka `{document.footer}`; adres przejazdu z Photon `/reverse` z zapasem;
+  - paragon PDF klienta używany ponownie dzięki indeksowi częściowemu; aplikacja zapisuje przez `expo-file-system` i udostępnia przez `expo-sharing`, wersja web otwiera kartę;
+  - naklejka z HTML z SVG z `qrcode`, z tekstem z sekcji `admin.scooter-label`;
+  - `template_version_id` puste tylko dla naklejki (`CHECK` na tekście rodzaju, bo nowej wartości typu nie wolno użyć w tej samej transakcji);
+  - „Wydruki” widoczne z `templates.read` albo `documents.generate`.
+- **0069 Eksport danych:**
+  - osobna tabela `data_exports` i cel pliku `DATA_EXPORT`;
+  - limit 24 h w procedurze z blokadą i w core (test zgodności); jedno zlecenie w toku;
+  - `429 DATA_EXPORT_LIMIT` z `nextAllowedAt`;
+  - porty eksportu modułów i JSON ze schematem w `packages/shared`;
+  - zdjęcia tylko jako metadane;
+  - powiadomienie `data_export_ready` i zdarzenie `data-export.ready`; plik ważny 7 dni, usuwany zadaniem `data-exports.purge` i przy usunięciu konta.
+- **Odstępstwa od planu i makiet do akceptacji:**
+  - sekcja `web.meta` ponad 10 sekcji z planszy;
+  - bez osobnego `GET /faq` (FAQ jest w `GET /content/{client}`);
+  - katalog pól wydruków z API zamiast kopii w `packages/shared`;
+  - bez numeru strony w błędach szablonu;
+  - pola rejestrowe w danych firmy spoza planszy `tresci-dane-firmy`.
+
+## Iteracja 7: implementacja (19 listopada 2026)
+
+Plan: [iteracja 7](iteracje/iteracja-07-tresci-wydruki.md), decyzje w [ADR 0062–0070](adr/README.md). Pracowali agenci etapami, każdy z raportem dla następnych: baza, core i shared, API w dwóch częściach (treści; silnik dokumentów, szablony, wydruki i eksport danych), a na końcu równolegle panel i strona (treści), panel (wydruki) i aplikacja (treści; paragon PDF i eksport), każdy w swoim katalogu. Potem przegląd kodu w dwóch częściach (treści i strona; wydruki i eksport) i etap poprawek (niżej). Koordynator przeglądał raporty, dopisywał poprawki między etapami i domyka weryfikację.
+
+**Baza (migracja 0011)**
+- Nowe wartości typów: `document_type` `SCOOTER_LABEL`, `file_purpose` `DATA_EXPORT`; nowy typ `document_format` (`DOCX`, `PDF`). Nowych wartości nie wolno użyć w transakcji, która je dodaje, więc `CHECK` i widoki porównują je jako tekst (jak w 0008).
+- Uprawnienie `company.write` (tylko Administrator) i rola Redaktor (`content.read`, `content.write`, `templates.read`, `dashboard.read`).
+- Nowe tabele `faq_categories`, `company_profile` (jeden wiersz z wartościami w nawiasach) i `data_exports`.
+- Zmiany tabel z 0002:
+  - `content_blocks`: klucz sekcji z pozycją (unikalność odroczona), ikona z 12 wartości, prefiks klucza według klienta, schemat adresu przycisku;
+  - `faq_items` z kategorią i widocznością na stronie i w aplikacji; `news` z wymaganą zajawką i czasem pierwszej publikacji;
+  - `media_assets` z nazwą, flagą grafiki systemowej i limitami tekstów, `files.width` i `height`, klucze obce grafik `RESTRICT`;
+  - `content_page_versions.version` (blokada optymistyczna wersji roboczej, dług z iteracji 2);
+  - `document_template_versions` z aktywacją (czas, autor), ostrzeżeniami, rozmiarami i podglądem PDF; `generated_documents` z formatem, etykietą obiektu, startem, kodem błędu, usunięciem plików i ponowieniem.
+- Reguły w wyzwalaczach: niezmienny klucz i poprawny plik grafiki, grafika systemowa bez usunięcia, opublikowany wpis bez usunięcia, stały slug po pierwszej publikacji, wiersz danych firmy bez usunięcia, niezmienne wersje szablonów; licznik treści także przy kategoriach FAQ, danych firmy i modelach.
+- Procedury `sp_document_template_activate`, `sp_document_template_set_default`, `sp_data_export_request`, `sp_content_bump_revision`; funkcje `fn_media_path`, `fn_news_state`, `fn_data_export_next_allowed_at`; `sp_anonymize_user` zamyka eksport w toku.
+- 22 widoki: 6 publicznych (treści, FAQ, media, dane firmy, wersje dokumentów prawnych, hulajnoga dla `/h/{numer}`), 10 list panelu i 6 danych wydruków `v_doc_*` (wiersz na obiekt, listy jako `jsonb`, grosze i UTC bez formatowania).
+- Dane startowe: 28 bloków (wszystkie sekcje poza `mobile.notice`), 4 kategorie i 16 pytań FAQ, 3 aktualności, 5 grafik (4 systemowe `scooter.*`), 4 szablony aktywne i domyślne, dokument „Polityka cookies”, szablon powiadomienia `data_export_ready`. Seed zapisuje pliki przez port `SeedFileStorage` (`@aws-sdk/client-s3` 3.1169.0 jako zależność deweloperska `packages/db`), więc wymaga SeaweedFS.
+- Szablony startowe DOCX (`packages/db/seed/templates/`): paragon, potwierdzenie przejazdu, protokół serwisowy, karta hulajnogi i systemowa lista pól, z powtarzalnym `build.mjs` bez zależności i `manifest.json`.
+- Stan bazy: 57 tabel, 64 widoki, 24 funkcje, 22 procedury (test bazy).
+- **Zmiana wykonanej migracji:** agent etapu bazy poprawiał migrację 0011 już wykonaną na lokalnej bazie (jeszcze bez commita) i ręcznie zaktualizował jej sumę kontrolną w `schema_migrations` lokalnej bazy. Schemat sprawdził `pg_dump` porównany z bazą zbudowaną od zera, więc baza deweloperska odpowiada plikowi 0011. To odstępstwo od zasady „wykonanej migracji nie zmieniamy”; migracja nie trafiła do repozytorium ani na inną bazę. Dalsze poprawki (po przeglądzie) są już w nowej migracji 0012.
+
+**Core i shared**
+- **Shared:**
+  - parser Markdown `parseMarkdown` (profile `inline`, `faq`, `document`) do drzewa węzłów z błędami z wierszem i kolumną, `isAllowedHref`, kotwice i spis treści; zastępuje parsery panelu i aplikacji;
+  - rejestr sekcji `CONTENT_SECTIONS` (16 sekcji), ikony, klucze grafik systemowych, `HERO_MIN_WIDTH`;
+  - schematy treści, FAQ, aktualności, mediów i danych firmy, widoki publiczne (`PublicContent`), rodzaje i formaty dokumentów, schemat eksportu danych (`schemaVersion` 1);
+  - zdarzenia `content.updated`, `document.ready`, `data-export.ready`, pokój `staff:{id}`; kod powiadomienia `data_export_ready`; definicje zasobów list (`admin/content.ts`, `admin/documents.ts`).
+- **Core:**
+  - treści: walidacja bloku i sekcji z rejestru, plan elementów sekcji, przejścia statusu, kolejność, stan i granice aktualności, NIP i REGON, sprzedawca z danych firmy; parser Markdown przychodzi z kontekstu, nie z importu;
+  - media: typ po sygnaturze i wymiary JPEG, PNG i WebP (z orientacją EXIF), limity, reguły usunięcia, szerokości, klucza i zastąpienia, publiczny adres;
+  - dokumenty: port `DocumentRenderer`, lekser znaczników i walidacja względem katalogu, inspekcja archiwum DOCX (rozmiar, rozpakowanie, makra), katalog `DOCUMENT_CATALOG` (6 rodzajów z polami, pętlami, parametrami, uprawnieniem odczytu, budową danych i danymi przykładowymi), maskowanie klienta, stopka, nazwa pliku, reguły wydruku, ponownego użycia paragonu, retencji i ponowienia, dane naklejki;
+  - eksport danych: limit 24 h, stan, nazwa pliku, `buildDataExport`, port `DataExportContributor`.
+
+**API: treści**
+- Moduł `content` (sekcje, FAQ, aktualności, media, dane firmy, treści publiczne) z repozytoriami `content.repository.ts` i `media.repository.ts`:
+  - panel: sekcje (`PUT /admin/content-sections/{key}` z całą sekcją i historią), FAQ i kategorie z kolejnością (`PUT …/order`), aktualności, media z „Zastąp plik”, dane firmy (`PATCH /admin/company` z `company.write`), dokumenty prawne z `version`, model hulajnogi ze zdjęciem z biblioteki;
+  - publiczne (`@Public`): `GET /content/{web|mobile}` z `ETag` i `304`, `GET /media/{id}/{sha256}.{ext}` (`immutable`, `308` dla starszej sumy), `GET /news`, `GET /news/{slug}`, `GET /legal/{slug}/versions` i `…/versions/{n}`, `GET /public/scooters/{number}`;
+  - `POST /files` z celem `MEDIA` (operator z `content.write`, 5 MB, do 8000 px, ostrzeżenie powyżej 2560 px).
+- Zadania `site.revalidate` (`POST {SITE_REVALIDATE_URL}` z sekretem, tagi `content`, `tariff`, `scooters`, singleton na tag, 3 ponowienia) i `content.news-boundary`; `sendInTransaction` przyjmuje opcje singletonu i ponowień. `content.updated` po zatwierdzeniu.
+- `SELLER_*` usunięte: paragon bierze dane sprzedawcy z `company_profile` w transakcji wystawienia (`CompanyProfileProvider`). `files.cleanup` nie usuwa plików przypiętych do grafik i wersji szablonów.
+- Kontrakty: `openapi.json` odtworzony, Socket.IO 1.5.0.
+
+**API: dokumenty i eksport danych**
+- Infrastruktura: `infra/gotenberg/Dockerfile` na `gotenberg/gotenberg:9.5.1` (skrót `sha256`) z Inter 4.1 (5 krojów i `OFL.txt`), usługa w `infra/docker-compose.yml` na `127.0.0.1:${GOTENBERG_PORT:-3010}`, `mem_limit` 1536 MB, `GOMEMLIMIT` 1200 MiB, healthcheck; 16 zmiennych blokujących z ADR 0066 sprawdzonych na żywym kontenerze.
+- Konfiguracja: `DOCUMENT_RENDERER=gotenberg|fake` (`fake` w produkcji zatrzymuje start), `GOTENBERG_URL`, `GOTENBERG_TIMEOUT_MS`, `GOTENBERG_PORT`.
+- Moduł `documents`:
+  - szablony: lista, nowy szablon, wgranie wersji z walidacją (`422 TEMPLATE_INVALID` z miejscem, `413`, `415`), aktywacja i „Przywróć”, szablon domyślny, usunięcie wersji `PENDING`, pobranie pliku, podgląd PDF zapamiętany jako plik `DOCUMENT_TEMPLATE`;
+  - rodzaje dokumentów z polem `printable`, lista pól i lista pól DOCX;
+  - wydruki: `POST /admin/documents` (`202`), szczegóły, ponowienie, lista Wygenerowanych (wyszukiwanie po 8 znakach identyfikatora ze stopki);
+  - klient: `POST /me/receipts/{id}/pdf` (`200` ponowne użycie, `202` nowy), `GET /me/documents/{id}`;
+  - adaptery `GotenbergRenderer` i atrapa, `docx-engine.ts` (docxtemplater z `paragraphLoop` i parserem ścieżek), naklejka QR z HTML.
+- Moduł `data-export`: `POST /me/data-exports` (`202`, `429 DATA_EXPORT_LIMIT` z `nextAllowedAt`), `GET /me/data-exports/latest`, `GET /admin/data-exports` (`users.read`); porty eksportu w modułach Dostęp, Wypożyczenia, Płatności, Operacje i Powiadomienia (`DataExportRegistry`), zapytania w `packages/db/src/repositories/data-export-sources.ts`.
+- Zadania: `document.generate` (współbieżność 2, limit 120 s, 2 ponowienia tylko dla `RENDERER_UNAVAILABLE`), `documents.retention` (03:30 UTC), `data-export.generate`, `data-exports.purge` (03:45 UTC, także po usunięciu konta).
+- `GET /health` z `documents: up|down`; `GET /files/{id}` z `Content-Disposition` dla szablonów, wydruków i eksportu (eksport `private, no-store`).
+- Socket.IO 1.6.0: operator dołącza do `staff:{id}` przy połączeniu; `document.ready` do `staff:{id}` albo `user:{id}`, `data-export.ready` do `user:{id}`.
+- Zależności w wersjach z ADR: `docxtemplater` 3.71.1, `pizzip` 3.3.0, `qrcode` 1.5.4, `@xmldom/xmldom` 0.9.12, `@types/qrcode` 1.5.6.
+
+**Strona promocyjna (`apps/web`)**
+- `/` z sekcji `web.*` (także `web.meta` i `web.notice`), cennika i modelu; `/[slug]` i `/[slug]/wersja/[n]` dla regulaminu, polityki prywatności, zasad jazdy i polityki cookies (bieżąca wersja pod adresem wersji przekierowuje `307`); `/aktualnosci?strona=`, `/aktualnosci/[slug]`; `/h/[number]` (`/h/7` → `308` `/h/0007`, zły numer `404`); `error.tsx`, `not-found.tsx`, `sitemap.ts`, `robots.ts`; `POST /api/revalidate` (bez sekretu `401`).
+- `lib/site/api.ts` tylko na serwerze: `connection()`, `fetch` z tagami `content`, `tariff`, `scooters`, `revalidate` 300 s, limit 5 s; zwykłe `<img>` z wymiarami. Trasy strony są dynamiczne, panel statyczny, a build przechodzi bez API.
+- `APP_SCOOTER_LINK` i `API_INTERNAL_URL` w `.env.example`. Klucze `marketing.*` i `meta.description` usunięte z `messages/pl.json`.
+
+**Panel**
+- **Treści** (`/admin/tresci`): zakładki Dokumenty prawne (podgląd `MarkdownView` ze wspólnego parsera), Bloki treści (lista i edytor sekcji `/bloki/[key]` z podglądem i historią), FAQ, Aktualności (z `/aktualnosci/nowy`), Media, Dane firmy; okno wyboru grafiki; zdjęcie modelu z biblioteki w formularzu modelu; grupa „Treści” na pulpicie (liczby z zasobów list).
+- **Wydruki** w Analizie (z `templates.read` albo `documents.generate`; bez `templates.read` od razu Wygenerowane): `/admin/wydruki` (szablony według rodzajów, „Nowy szablon”, „Instrukcja i lista pól”, „Wgraj szablon”), `/admin/wydruki/szablony/[id]` (wersje ze stanami, walidacja, podgląd PDF, „Pola (n)”, aktywacja i przywrócenie, wgranie z notatką i oknem błędów), `/admin/wydruki/wygenerowane` (domyślnie zlecający operator, „Pobierz”, „Ponów”, „Wygeneruj ponownie”, odświeżanie po `document.ready`).
+- „Drukuj” (`components/admin/prints/print-dialog.tsx`) na zadaniu, przejeździe, hulajnodze, zgłoszeniu, paragonie i wpisach korekty i zwrotu w portfelu, tylko dla rodzaju z `printable`; naklejka QR (`label-dialog.tsx`); karta „Eksporty danych” na profilu klienta (`users.read`).
+- `lib/api.ts` (`apiBlob`, `fileUrl`), `lib/realtime.ts` (`documentReady`), `NEXT_PUBLIC_SITE_URL` z `PUBLIC_SITE_URL`. `pl.json`: 2743 → 3850 kluczy (`site.*`, `content.*`, `prints.*`, `dashboard.content.*`, zasoby, błędy).
+
+**Aplikacja**
+- Pamięć treści `src/lib/content.tsx`: Async Storage 2.2.0 (w wersji web `localStorage`), najpierw pamięć, potem sieć z `If-None-Match`; odświeżanie przy powrocie na pierwszy plan, po `content.updated`, po ponownym połączeniu gniazda i przy wejściu na Pomoc.
+- Ekrany:
+  - `/witaj` z sekcji `mobile.start` (tytuł, wstęp, render); bez treści i sieci „Brak internetu” ze „Spróbuj ponownie”;
+  - `/zasady` z sekcji-listy `mobile.rules` z ikonami (bez opublikowanej sekcji od razu mapa);
+  - nowa `/pomoc`: Moje zgłoszenia z nową odpowiedzią, wstęp, FAQ po kategoriach, kontakt z danych firmy, tryb bez sieci z czasem pobrania; „Pomoc i zgłoszenia” w profilu otwiera Pomoc;
+  - kontakt z danych firmy także na ekranie jazdy, przy zdjęciu, blokadzie konta i danych osobowych;
+  - `/paragon/[id]` z „Pobierz PDF” (arkusz „PDF gotowy” z „Udostępnij” i „Otwórz”, błąd ze „Spróbuj ponownie”);
+  - nowe `/profil/moje-dane` (pusty, przygotowanie, gotowy, błąd, wygasły) i wiersz „Pobierz moje dane” w ustawieniach.
+- `components/markdown.tsx` na wspólnym parserze (także dokumenty prawne); rendery z grafik systemowych, kopia z paczki tylko bez treści w pamięci albo przy błędzie wczytania.
+- Zależności z `expo install`: `@react-native-async-storage/async-storage` 2.2.0, `expo-file-system` ~58.0.13, `expo-sharing` ~58.0.22 (zainstalowana 58.0.23 z 11 listopada) z wtyczką w `app.json`. `pl.json`: 884 → 941 kluczy; usunięte teksty merytoryczne (`start.headline`, `start.lead`, `rules.title`, `rules.lead`, kontakt pomocy na ekranie blokady).
+
+**Decyzje podjęte przy implementacji**
+- **Grafika hero:** minimum 760 px zamiast 1200 px (decyzja autora, [ADR 0070](adr/0070-minimalna-szerokosc-grafiki-hero.md)), bo rendery w repozytorium mają 767–922 px.
+- **Bez `InspectModule` docxtemplater:** moduł wymaga `lodash`, którego nie ma w zależnościach pakietu. Znaczniki czyta lekser z core, a miejsce błędu wylicza `@xmldom/xmldom`.
+- **Dane wydruków:** przyczyna korekty paragonu zostaje pusta (`v_doc_receipt` nie ma powodu zwrotu), bateria i łączność na karcie hulajnogi z `v_fleet_status`, trasa w eksporcie do 300 punktów. Teksty wyliczeń na wydrukach są w `apps/api/src/documents/document-labels.ts` (kopia z `pl.json` panelu), a tekst naklejki w sekcji `admin.scooter-label`.
+- **Szablony startowe** przepisane po etapie API wydruków na pola z katalogu core; usunięte elementy spoza katalogu (stawki cennika, zapłacono i zwrócono, dane modelu i statystyki na karcie, „Lp.”, opis zadania, kolumna „Kto”). Seed podmienia aktywną wersję startową, gdy suma SHA-256 pliku się zmieni (wpis `document_template.starter_updated`), a wersji operatora nie rusza.
+- **`entityId` wydruku** to `uuid` albo liczba (wpis księgi portfela).
+- **Strona 404 spoza tras** ma stopkę bez danych firmy: odczyt API w głównym `not-found` zrobiłby panel dynamicznym.
+- **`content.updated`** dostaje tylko zalogowana aplikacja (gniazdo wymaga tokenu, ADR 0062); niezalogowana odświeża treść przy powrocie na pierwszy plan.
+
+**Odstępstwa od makiet**
+- **Panel, treści:** panel ma stały tytuł karty przeglądarki (`title.absolute`), bez szablonu tytułu strony; sekcja „Dane rejestrowe” (KRS, REGON, sąd, kapitał) spoza planszy `tresci-dane-firmy` (zgodnie z ADR 0062).
+- **Panel, wydruki:**
+  - stany okna „Drukuj” w miejscu formularza zamiast kart obok;
+  - wyszukiwarka Wygenerowanych w pasku filtrów, domyślny filtr „Zlecający”;
+  - okno wgrania z polem „Co się zmieniło”, „…” w wierszu szablonu otwiera kartę;
+  - „W dokumencie” z liczbami tylko dla zadania; podgląd naklejki w panelu różni się od PDF;
+  - błąd szablonu bez numeru strony (ADR 0067).
+- **Strona:** sekcja stref bez grafiki (rysunek ozdobny), sekcja aplikacji bez makiety telefonu, aktualność bez grafiki na szarym tle, lista aktualności na wspólnym wzorcu, `/h/{numer}` na telefonie z renderem nad numerem i bez „Jak ruszyć”, data „do” wersji dokumentu to publikacja następnej wersji.
+- **Aplikacja:**
+  - ikony zasad z planszy panelu (nie z `konto-zasady`), ikona `scan` bez planszy, ikona „pobierz” dorysowana, ikony listy zawartości eksportu z zestawu aplikacji;
+  - wstęp `mobile.help` między zgłoszeniami a FAQ, kolor odpowiedzi FAQ `theme.ink`;
+  - `mobile.notice` niewyświetlana (brak makiety);
+  - pasek przycisku paragonu jako stopka `PageScreen` bez gradientu, podtytuł arkusza 15 px;
+  - karty błędu i wygaśnięcia eksportu bez plansz (teksty własne); wersja web przy zablokowanym oknie pokazuje arkusz z „Otwórz”.
+
+**Poprawki koordynatora**
+- **Grafika hero:** `HERO_MIN_WIDTH` 760 px w `packages/shared` po decyzji autora (ADR 0070); render 857 px przypięty w danych startowych do hero spełnia regułę.
+- **CORS w API:** dodane `PUT` w metodach, `if-none-match` w nagłówkach żądania i `exposedHeaders: etag`. Panel zapisuje sekcje i kolejność FAQ przez `PUT`, a wersja web aplikacji czyta `ETag`.
+- **Ścieżka `data_export_ready`:** `/profil/moje-dane` zamiast `/profil/dane` z ADR 0069 (to ekran „Dane osobowe”). Odstępstwo od ADR 0069.
+- **Szablony startowe:** po etapie API wydruków na polach z katalogu core, a po przeglądzie (D6, D7) z notą firmy w stopce i ścieżkami pól pętli w formacie `parts[].sku`. W bazie deweloperskiej aktywne wersje startowe: paragon v3, potwierdzenie przejazdu v3, protokół serwisowy v4, karta hulajnogi v3.
+- **Migracja 0011:** zmiana wykonanej lokalnie migracji z ręczną poprawką sumy kontrolnej (opis w części „Baza”).
+
+**Poprawki po przeglądzie iteracji 7 (18 listopada 2026)**
+
+Migracja `0012_iteration7_fixes.sql` (0011 bez zmian), `pnpm db:pull` z ręczną poprawką klas operatorów w nowych indeksach z 0011 (`content_blocks_client_idx`, `faq_items_category_idx`, `generated_documents_user_idx`, `generated_documents_receipt_reuse`), szablony startowe odtworzone i podmienione przez `pnpm db:seed`, `openapi.json` odtworzony, `asyncapi-realtime.yaml` 1.6.1 (bez zmiany ładunku).
+
+- **D1 (dane klienta w cudzym wydruku):** maskowanie jest wypalone w pliku według zlecającego, więc wiersz pamięta `customer_data_visible` (zapis przy wypełnieniu szablonu, `documentShowsCustomerData` w core). `ensureCanDownloadDocument` wymaga dla takiego wiersza `users.read` od każdego operatora (także zlecającego): szczegóły z adresami plików, pobranie i ponowienie dają 404; lista zostawia wiersz z flagą `customerDataVisible`, a panel zamiast „Pobierz”/„Ponów” pokazuje „Dane klienta” z podpowiedzią. `document.ready` bez adresów, gdy zlecający stracił `users.read`. Test e2e „Serwisant nie pobiera wydruku Dyspozytora z danymi klienta” (z `docrev/e2e/leak.test.ts`) i testy reguły w core.
+- **D2 (miejsca podstawiania poza `w:t`):** inspekcja czyta listę części z docxtemplater (`templatedFiles`, po typie zawartości: także nagłówek pod inną nazwą, komentarze, ustawienia, `docProps`, diagramy) i wszystkie elementy tekstu z `tagsXmlTextArray` (`m:t`, `a:t`, `dc:title`, `vt:lpstr`…). Przy wypełnianiu moduł `templateGuardModule` przejmuje `{@…}` i kończy wydruk `TEMPLATE_RENDER_FAILED` (`raw_xml_tag`), a zmiana ograniczników jest wyłączona (`syntax.changeDelimiterPrefix: null`), więc także wersja wgrana wcześniej nie wstawi surowego XML. Testy z `docrev/raw.test.ts` i `math.test.ts` w `documents-engine.test.ts`.
+- **D3 (RUNNING na zawsze po restarcie API):** ponowienie zadania przejmuje wiersz `RUNNING` starszy niż limit czasu zadania pg-boss (`DOCUMENT_JOB_EXPIRE_MS` 120 s, `DATA_EXPORT_JOB_EXPIRE_MS` 300 s, te same stałe w opcjach kolejek), a nowe zadania porządkowe `documents.sweep` i `data-exports.sweep` (co 5 min) kończą wiersze w kolejce albo w toku dłużej niż 15 min (wydruk, `RENDER_TIMEOUT` z `document.ready`) albo 30 min (eksport, `DATA_EXPORT_FAILED` z `data-export.ready`). Eksport przestaje blokować klienta (`data_exports_one_open`), paragon klienta powstaje od nowa, retencja widzi `finished_at`. Testy core i e2e.
+- **D4 (retencja najwyżej 200 wierszy):** `documents.retention` i `data-exports.purge` przechodzą partie po 200 do wyczerpania kandydatów (partia bez usunięcia kończy przebieg). Test e2e z 205 wygasłymi plikami eksportu.
+- **D5 (partia 5 w `data-export.generate`):** kolejki z ponowieniami mają `batchSize: 1` (`workerOptions` w `JobsService`), test w `jobs.e2e.test.ts`.
+- **D6 (protokół na dwie strony):** nota firmy przeniesiona do stopki (`footer1.xml` nad `{document.footer}`, na każdej stronie) zamiast ostatniego akapitu treści po pustym akapicie; lista pól jej nie ma. Szablony odtworzone (`build.mjs`), seed podmienił aktywne wersje startowe. Sprawdzone na Gotenbergu 9.5.1 (`http://localhost:3010`): paragon, potwierdzenie przejazdu, protokół serwisowy (wcześniej 2 strony) i karta hulajnogi z danymi przykładowymi mają po 1 stronie; test w `gotenberg.integration.test.ts` liczy strony PDF.
+- **D7 (zapis pól wersji startowej):** `build.mjs` zapisuje w `manifest.json` ścieżki jak inspekcja API (`parts[].sku`, warunek w pętli z zakresem pętli, posortowane), więc seed zapisuje w `document_template_versions.fields` ten sam format co wgranie przez API. Test zgodności: pola z manifestu = `usedFields` z `inspectTemplate` dla każdego pliku startowego. Starsze wersje startowe w bazie zostają w dawnym zapisie (wersje są niezmienne).
+- **C1 (ETag nowszy niż dane):** `GET /content/{client}` czyta wszystko w jednej transakcji `REPEATABLE READ` tylko do odczytu, a `ETag` to `"content-{hash}"` ze skrótu SHA-256 treści (pole `hash` odpowiedzi, bez `revision`). Aplikacja zapisuje skrót, po każdym `content.updated` wysyła żądanie warunkowe bez porównywania rewizji, a ten sam skrót nie przerysowuje ekranów. Test e2e: zmiana w niezatwierdzonej transakcji podbija licznik, ale ETag i `304` zostają.
+- **C2 (dublujące się `content.news-boundary`):** zadanie ma okno singletonu doby bez przesuwania do następnego okna (`singletonNextSlot: false`, `startAfter` zostaje granicą) i czas granicy w danych; obsługa pomija granicę, która już nie obowiązuje (`isNewsBoundaryCurrent`). Poprawiony komentarz w `core/content/news.ts`. Testy core, e2e i na prawdziwym pg-boss (jeden wiersz w `pgboss.job`).
+- **C3 (adres przycisku):** `CHECK content_blocks_cta_url` z wzorcem `ALLOWED_HREF_PATTERN` (bez ukośnika wstecznego i znaków sterujących, do 2000 znaków); strona pokazuje przycisk hero, komunikatu i sklepu tylko przy `isAllowedHref`. Test bazy porównuje CHECK z `isAllowedHref` (m.in. `/\evil.com`).
+- **C4 (EXIF w grafikach biblioteki):** `stripImageMetadata` w core usuwa z JPEG APP1 (EXIF, XMP), APP13, komentarze, inne APPn i dane po EOI (zostaje JFIF, ICC i Adobe, orientacja w minimalnym APP1), z PNG `eXIf`/`tEXt`/`iTXt`/`zTXt`/`tIME` i dane po `IEND`, z WebP `EXIF`/`XMP ` z flagami `VP8X`; suma SHA-256 i rozmiar z oczyszczonego pliku. Testy core i e2e.
+- **C5 (wyścig minimalnej szerokości):** `widths()` blokuje wiersze grafik `FOR SHARE OF m`, więc „Zastąp plik” (`FOR UPDATE`) czeka na zapis sekcji. Test bazy z dwoma połączeniami.
+- **C6 (grafika modelu a `/h/{numer}`):** zmiana opisu albo pliku grafiki użytej przez model planuje też `site.revalidate` z tagiem `scooters`. Test e2e.
+- **C7 („Przywróć” sekcji a `CONTENT_DELETE_PUBLISHED`):** edytor dokłada elementy opublikowane dziś, których nie ma w przywracanej wersji, jako archiwalne i mówi o tym w komunikacie (`content.history.archivedOnRestore`).
+
+**Potrzebne zmiany odłożone**
+- **API i shared (dla panelu):**
+  - liczba pól aktywnej wersji i wydruki z 30 dni w `v_document_templates` (dziś osobne zapytania na szablon);
+  - etykiety parametrów i opis szablonu w `DocumentTypeView`;
+  - punkt pulpitu dla grupy „Treści” (dziś liczby z zasobów list);
+  - edycja nazwy i opisu oraz dezaktywacja szablonu wydruku (z macierzy operacji, bez punktu API);
+  - przyczyna korekty paragonu w `v_doc_receipt`.
+- **Aplikacja:** komunikat `mobile.notice` (makieta i ekran); godziny pomocy w danych startowych zaczynają się wielką literą („Pomoc odpowiada Codziennie …”), do poprawy w tekście albo w danych.
+- **Eksport danych:** zdjęcia tylko jako metadane (ADR 0069); pełne pliki zdjęć po ocenie prawnej autora.
+- Odłożone zmiany z iteracji 6 (D7) bez zmian.
+
+**Weryfikacja**
+- Testy po etapach: db 85 → 86, core 291, shared 136, api 211 (treści) → 242 (dokumenty i eksport). Nowe testy API:
+  - `content.e2e.test.ts` (22), `media.e2e.test.ts` (4), pomocnik `content-helpers.ts`;
+  - `documents-engine.test.ts` (10), `templates.e2e.test.ts` (7), `documents.e2e.test.ts` (8), `data-export.e2e.test.ts` (4), pomocnik `document-context.ts`;
+  - `gotenberg.integration.test.ts` (2), uruchamia się tylko przy odpowiadającym `GOTENBERG_URL`, więc w CI bez Gotenberga jest pomijany.
+- Po poprawkach z przeglądu (`pnpm test`, 8 zadań turbo): core 299, shared 136, symulator 54, db 87, api 257. `pnpm --filter @hulajnogi/web build` przechodzi. Panel i aplikacja po swoich etapach: lint, typy, build panelu i `expo export --platform web` przechodzą.
+- Końcowy przebieg po poprawkach (koordynator, 19 listopada 2026): `pnpm lint && pnpm typecheck && pnpm test && pnpm build` przechodzi; testy core 299, shared 136, symulator 54, db 87, api 257. Zielone CI: do uzupełnienia przy wypchnięciu.
+- Koordynator w przeglądarce na serwerach deweloperskich (API `nest start --watch` na 3001, symulator, `next dev` na 3002): strona główna z treści z bazy, lista bloków treści, ekran Wydruki z czterema szablonami (aktywne wersje startowe po poprawkach) i dwoma rodzajami bez szablonu; przez API zapis sekcji `web.hero` z grafiką startową 857 px przechodzi przy progu 760 px (ADR 0070).
+- W przeglądarce (API z buildu na 3001 `api-local`, panel z `next start` na 3006 `web-start`, aplikacja web na 8082 `mobile-web-local`, Gotenberg na 3010):
+  - strona: główna, `/regulamin` z wersjami (bieżąca `/regulamin/wersja/1` → `307`), aktualności, `/h/7` → `/h/0007`, `/h/99999` → 404, 404, `sitemap.xml`, `robots.txt`, `/api/revalidate` bez sekretu `401`; kolejne żądania strony nie wołają API (cache);
+  - panel, treści: lista bloków, edytor hero z błędem Markdown, wybór grafiki (760 px), sekcja-lista `mobile.rules`, FAQ (szkic, „Przywróć”, zapis), aktualności, media, dane firmy, dokumenty prawne, model ze zdjęciem; po przebudowie API zapis sekcji (`PUT`, 200 dwa razy) i kolejność FAQ (`PUT …/order`, 200);
+  - panel, wydruki (Administrator): lista szablonów, podgląd PDF w `<object>`, wgranie błędnego DOCX (422, okno „Szablon ma 2 błędy” z miejscem „Akapit 1: …”) i poprawnego (nowa wersja „Do aktywacji”), aktywacja i „Przywróć”, „Drukuj” protokołu zadania (gotowe 88 KB, stopka z identyfikatorem i wersją, `document.ready` w `staff:{id}`), naklejka QR #0001 (A4, 6 sztuk, 58 KB), Wygenerowane z wyszukiwaniem po 8 znakach, „Drukuj” na przejeździe, karta „Eksporty danych” na profilu klienta;
+  - aplikacja: `/witaj`, `/zasady`, `/pomoc` z siecią i bez, pierwsze uruchomienie bez sieci, `/cennik`; `curl` z `If-None-Match` → `304`; eksport danych (`202`, przygotowanie, gotowy 16 KB, limit „Nowy plik zlecisz jutro od …”, wiersz w ustawieniach); paragon PDF (`202`, gotowy 76 KB z Gotenberga, ponowne użycie `200`, brak sieci ze „Spróbuj ponownie”, arkusz z „Otwórz” przy zablokowanym `window.open`).
+- Gotenberg 9.5.1: szablony startowe z danymi przykładowymi mają po 1 stronie (po poprawce D6), polskie znaki i osadzony Inter (test integracyjny).
+
+**Niesprawdzone**
+- Aplikacja natywna: pamięć treści w Async Storage, pobranie (`File.downloadFileAsync`), `Sharing.shareAsync`, `File.preview`, odnośnik `hulajnogi://hulajnoga/{numer}` z `/h/{numer}`.
+- Panel w przeglądarce: stan „Błąd” wydruku, „Ponów” i „Wygeneruj ponownie”, wydruk paragonu i korekty salda (brak danych w bazie deweloperskiej), drugi zapis kolejności FAQ, pulpit Redaktora (brak konta), `/api/revalidate` z poprawnym sekretem (odświeżenie strony na żądanie po zapisie w panelu).
+- Aplikacja w przeglądarce: `content.updated` na żywo, błąd zadania PDF po stronie serwera, `429` przez interfejs, dotknięcie powiadomienia `data_export_ready`.
+- Poprawki po przeglądzie (C1, C7, D1 w panelu i aplikacji) sprawdzone testami i buildem, bez zapisu o ponownym przeklikaniu w przeglądarce.
+
+**Sprawy dla autora**
+- Wypchnięcie iteracji 7 i zielone CI.
+- `pnpm infra:up` (buduje obraz Gotenberga) i `pnpm db:migrate`, `pnpm db:seed` w innych środowiskach; seed wymaga SeaweedFS.
+- `SITE_REVALIDATE_URL` i `SITE_REVALIDATE_SECRET` w `.env`, żeby strona odświeżała się zaraz po zapisie w panelu (bez nich po 5 min).
+- Prawdziwe dane firmy w panelu (Treści → Dane firmy): w bazie deweloperskiej adres i NIP są puste.
+- Konto z rolą Redaktor do demo (Operatorzy → „Zaproś operatora”).
+- Decyzja, czy Redaktor może publikować dokumenty prawne (ADR 0062: dziś tak, z ponowną akceptacją u klientów), i ocena eksportu danych bez zdjęć (ADR 0069).
+- Szersze rendery hero, jeśli próg ma wrócić do 1200 px (ADR 0070).
+- Development build aplikacji (bez zmian od iteracji 3), konto Stripe w trybie testowym (bez zmian).
+
+**Uwagi**
+- Dane testowe w bazie deweloperskiej po sprawdzeniach w przeglądarce:
+  - agent aplikacji wstawił i usunął paragon testowy `PAR/2026/000001`: sekwencja numerów paragonów jest przesunięta o 1, a plik PDF i wiersz `files` zostały;
+  - klient testowy z danych startowych ma gotowy eksport danych (limit 24 h);
+  - Protokół serwisowy ma archiwalną testową wersję 3, nagłówek sekcji `admin.scooter-label` ma wersję rekordu 3 (dwa zapisy z treścią wersji 1), a operator testowy 3 wydruki.

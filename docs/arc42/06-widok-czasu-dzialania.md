@@ -382,3 +382,117 @@ sequenceDiagram
 ```
 
 Zdarzenia i kody: `reservation_ending` (2 min przed końcem rezerwacji, preferencja `notify_reservation_end`), `ride_ended` (po rozliczeniu, preferencja `notify_receipts`), `payment_failed`, `battery_low`, `ticket_received`, `ticket_status_changed`. Kod SMS przy logowaniu renderuje szablon `login_code` (kanał `SMS`) tą samą ścieżką, ale bez kolejki. Szablon w kolejce renderuje się z wersji z chwili wysyłki.
+
+## 6.11. Zapis sekcji treści i odświeżenie strony
+
+Według [ADR 0062](../adr/0062-modul-tresci-sekcje-publikacja-dane-firmy.md) i [ADR 0065](../adr/0065-strona-promocyjna-z-tresci.md). Reguły sekcji (wymagane pola, limity, liczba elementów, profil Markdown, ikony, minimalna szerokość grafiki) liczy core z rejestrem sekcji z `packages/shared`. Baza pilnuje odroczonej unikalności pozycji w sekcji, schematu adresu przycisku (`CHECK` zgodny z `isAllowedHref`, od migracji 0012) i zakazu usunięcia opublikowanego wpisu.
+- **Zapis:** panel wysyła całą sekcję (`PUT /admin/content-sections/{key}`) z wersją nagłówka do blokady optymistycznej. Kolejność to kolejność tablicy, element bez `id` jest nowy, a brakujący jest usuwany; opublikowany element trzeba najpierw przenieść do archiwum (`CONTENT_DELETE_PUBLISHED`). Błąd Markdown daje `422 CONTENT_VALIDATION_FAILED` z wierszem i kolumną.
+- **Historia:** jeden wpis dziennika audytu na zapis sekcji, z pełnym stanem przed zmianą i po niej. „Przywróć” wczytuje wpis do edytora, a zapis tworzy nową wersję.
+- **Strona:** zadanie `site.revalidate` powstaje w transakcji zapisu, tylko dla sekcji strony i przy niepustym `SITE_REVALIDATE_URL`. Route Handler strony sprawdza sekret i unieważnia tag. Bez wywołania strona pokazuje zmianę najpóźniej po 5 min (`revalidate` żądań do API).
+- **Aplikacja:** zalogowana aplikacja dostaje `content.updated` i zawsze wysyła żądanie warunkowe. `GET /content/{client}` czyta treść w jednej transakcji `REPEATABLE READ`, a `ETag` to skrót SHA-256 odpowiedzi, nie licznik zmian (poprawka C1 po przeglądzie). Bez sieci aplikacja pokazuje treść z Async Storage.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Panel
+    participant API as Backend API
+    participant C as packages/core
+    participant DB as PostgreSQL
+    participant J as Zadanie site.revalidate
+    participant S as Strona (Next.js)
+    participant A as Aplikacja
+    P->>API: PUT /admin/content-sections/web.hero (version, header, items)
+    API->>C: ensureSectionSave (rejestr, Markdown, szerokość grafiki), planSectionItems
+    API->>DB: BEGIN, grafiki FOR SHARE, zapis bloków, audit_log przed i po, licznik treści, sendInTransaction site.revalidate (tag content), COMMIT
+    API-->>P: 200, sekcja z nową wersją
+    API-->>A: content.updated (revision, clients, at)
+    DB->>J: zadanie pg-boss (singleton site:content, 3 ponowienia)
+    J->>S: POST /api/revalidate (Bearer SITE_REVALIDATE_SECRET, tags content)
+    S->>S: revalidateTag content z expire 0
+    Note over S: następne żądanie strony pobiera GET /content/web z API (fetch z tagiem, zapas 300 s)
+    A->>API: GET /content/mobile z If-None-Match
+    alt ten sam skrót treści
+        API-->>A: 304
+    else nowa treść
+        API-->>A: 200 z nowym ETag, zapis w pamięci telefonu
+    end
+```
+
+Granice publikacji aktualności (`publish_from`, `publish_to`) planuje zadanie `content.news-boundary`: zwiększa licznik treści (`sp_content_bump_revision`), odświeża tag `content` i wysyła `content.updated`, a granicę, która już nie obowiązuje, pomija. Zmiana cennika odświeża tag `tariff`, a zmiana modelu albo jego grafiki tag `scooters` (strona `/h/{numer}`).
+
+## 6.12. Wydruk: od „Drukuj” do `document.ready`
+
+Według [ADR 0066](../adr/0066-silnik-dokumentow-gotenberg-i-zadania.md)–[0068](../adr/0068-wydruki-w-procesach.md). „Drukuj” na karcie zadania, przejazdu, hulajnogi, zgłoszenia, paragonu albo wpisu portfela jest widoczne tylko dla rodzaju z aktywnym szablonem (`printable` w `GET /admin/document-types`). Uprawnienia: `documents.generate` i odczyt rodzaju (`ensureCanPrint`). Bez `users.read` dane klienta w pliku są zamaskowane („Klient”), a wiersz z danymi klienta pobierze tylko operator z `users.read` (`customer_data_visible`, §8.16).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Panel
+    participant API as Backend API
+    participant C as packages/core
+    participant DB as PostgreSQL
+    participant J as Zadanie document.generate
+    participant R as DocumentRenderer (Gotenberg)
+    participant FS as SeaweedFS
+    P->>API: POST /admin/documents (SERVICE_PROTOCOL, entityId, templateId, format PDF, params)
+    API->>C: ensureCanPrint, selectTemplate (wskazany albo domyślny, aktywna wersja), resolveDocumentParams
+    API->>DB: generated_documents QUEUED (wersja szablonu, entity_label), sendInTransaction document.generate, COMMIT
+    API-->>P: 202 z identyfikatorem wydruku
+    DB->>J: zadanie pg-boss (localConcurrency 2, expire 120 s)
+    J->>DB: blokada wiersza, RUNNING, dane z v_doc_service_task
+    J->>C: buildDocumentData (maskowanie klienta, stopka z id i wersją szablonu, formatowanie kwot i dat)
+    J->>R: fillDocx (docxtemplater, parser ścieżek z kropką, templateGuardModule)
+    J->>FS: plik DOCX (GENERATED_DOCUMENT), customer_data_visible
+    J->>R: docxToPdf (LibreOffice)
+    alt PDF gotowy
+        J->>FS: plik PDF
+        J->>DB: SUCCEEDED
+    else RENDERER_UNAVAILABLE
+        J->>DB: QUEUED, ponowienie zadania (najwyżej 2)
+    else inny błąd
+        J->>DB: FAILED z kodem błędu, DOCX zostaje
+    end
+    J-->>P: document.ready (pokój staff:ID, adresy z podpisem na 10 min)
+    P->>API: GET /files/ID z podpisem
+    Note over P: zapas: odpytywanie GET /admin/documents/ID, wydruk widać też w Wydruki, Wygenerowane
+```
+
+- **Naklejka z kodem QR** (`SCOOTER_LABEL`) nie ma szablonu: zadanie składa HTML z SVG z `qrcode` i tekstem z sekcji `admin.scooter-label`, a Gotenberg zamienia go na PDF przez Chromium (`htmlToPdf`).
+- **Paragon PDF klienta:** `POST /me/receipts/{id}/pdf` zwraca `200` z gotowym plikiem tej samej wersji szablonu (indeks częściowy `generated_documents_receipt_reuse`) albo `202` z nowym wydrukiem; `document.ready` trafia do pokoju `user:{id}`, a aplikacja odpytuje `GET /me/documents/{id}` co 2 s jako zapas.
+- **Ponowienie:** „Ponów” i „Wygeneruj ponownie” tworzą nowy wiersz z `retry_of`, z bieżących danych i aktywnej wersji szablonu.
+- **Porządek:** `documents.retention` (03:30 UTC) usuwa pliki po 30 dniach (stan `DELETED`, wiersz zostaje), a `documents.sweep` co 5 min kończy wydruki porzucone po restarcie API (`RENDER_TIMEOUT` po 15 min z `document.ready`).
+
+Zmiana szablonu przechodzi te same kroki co wydruk, ale bez zadania: wgranie (`POST /admin/document-templates/{id}/versions`) sprawdza archiwum (rozmiar, rozpakowanie z limitem, makra) i znaczniki we wszystkich częściach szablonowanych przez docxtemplater względem katalogu pól z core. Błąd daje `422 TEMPLATE_INVALID` z miejscem (część, tabela, wiersz, kolumna, akapit, bez numeru strony), a poprawna wersja ma stan `PENDING`. Podgląd PDF na danych przykładowych jest synchroniczny i zapamiętany, a „Aktywuj” i „Przywróć” wołają `sp_document_template_activate`.
+
+## 6.13. Eksport danych klienta
+
+Według [ADR 0069](../adr/0069-eksport-danych-klienta.md). Limit (jedno zlecenie na 24 h, nieudane się nie liczy, jedno zlecenie w toku) pilnuje procedura z blokadą klienta, a core liczy to samo dla odpowiedzi API (`dataExportNextAllowedAt`, test zgodności z `fn_data_export_next_allowed_at`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Aplikacja
+    participant API as Backend API
+    participant DB as PostgreSQL
+    participant J as Zadanie data-export.generate
+    participant M as Porty eksportu modułów
+    participant FS as SeaweedFS
+    A->>API: POST /me/data-exports
+    API->>DB: BEGIN, CALL sp_data_export_request (limit 24 h, jedno w toku), sendInTransaction data-export.generate, COMMIT
+    alt limit
+        API-->>A: 429 DATA_EXPORT_LIMIT (nextAllowedAt)
+    else przyjęte
+        API-->>A: 202, zlecenie QUEUED
+    end
+    DB->>J: zadanie pg-boss (batchSize 1, 2 ponowienia)
+    J->>DB: RUNNING
+    J->>M: exportForUser (konto i zgody, przejazdy z trasą do 300 punktów, portfel i paragony, zgłoszenia, powiadomienia)
+    J->>J: buildDataExport, dataExportSchema (schemaVersion 1)
+    J->>FS: plik DATA_EXPORT (JSON)
+    J->>DB: BEGIN, SUCCEEDED z expires_at po 7 dniach, notifications data_export_ready QUEUED, COMMIT
+    J-->>A: data-export.ready (pokój user:ID), push po wysyłce (6.10)
+    A->>API: GET /me/data-exports/latest
+    API-->>A: stan i adres z podpisem na 10 min (Cache-Control private, no-store)
+```
+
+Zdjęcia trafiają do pliku tylko jako metadane. `data-exports.purge` (03:45 UTC) usuwa wygasłe pliki, a usunięcie konta zamyka zlecenie w toku (`sp_anonymize_user`: `FAILED`, `ACCOUNT_DELETED`) i usuwa pliki klienta. `data-exports.sweep` co 5 min kończy zlecenia porzucone po restarcie API (`DATA_EXPORT_FAILED` po 30 min z `data-export.ready`).

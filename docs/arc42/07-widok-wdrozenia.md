@@ -2,7 +2,13 @@
 
 ## 7.1. Środowisko deweloperskie
 
-Docker Compose uruchamia: PostgreSQL z PostGIS, Mosquitto, SeaweedFS (magazyn zgodny z S3), OSRM (wycinek województwa śląskiego z Geofabrik). Backend, aplikacja webowa i symulator działają lokalnie w trybie deweloperskim. Aplikacja mobilna działa w Expo na telefonie lub emulatorze.
+Docker Compose uruchamia: PostgreSQL z PostGIS, Mosquitto, SeaweedFS (magazyn zgodny z S3), OSRM (wycinek województwa śląskiego z Geofabrik), od iteracji 7 Gotenberg. Backend, aplikacja webowa i symulator działają lokalnie w trybie deweloperskim. Aplikacja mobilna działa w Expo na telefonie lub emulatorze.
+
+Gotenberg ([ADR 0066](../adr/0066-silnik-dokumentow-gotenberg-i-zadania.md)):
+- obraz budowany z `infra/gotenberg/Dockerfile` na `gotenberg/gotenberg:9.5.1` (przypięty skrótem `sha256`) z czcionką Inter 4.1 (`infra/gotenberg/fonts/inter/`); pierwszy `pnpm infra:up` buduje warstwę czcionek;
+- port tylko na pętli zwrotnej: `127.0.0.1:${GOTENBERG_PORT:-3010}` → 3000 w kontenerze, bo API w środowisku deweloperskim działa poza Compose (`GOTENBERG_URL=http://localhost:3010`);
+- `mem_limit` 1536 MB, limit żądania 30 s, healthcheck `/health`; zmienne blokują pobieranie i wysyłanie czegokolwiek przez silnik (`API_DISABLE_DOWNLOAD_FROM`, `WEBHOOK_DISABLE`, blokada adresów prywatnych i publicznych, Chromium bez JavaScriptu) i trasy przetwarzania PDF;
+- API wybiera silnik zmienną `DOCUMENT_RENDERER`: `gotenberg` (domyślnie) albo `fake` (stały PDF w testach API; w produkcji zatrzymuje start). Stan silnika podaje `GET /health` (`documents: up|down`).
 
 SMS-y w tym środowisku nie są wysyłane, kod trafia do logów backendu.
 
@@ -19,6 +25,7 @@ flowchart TB
         MQ["Mosquitto"]
         FS[("SeaweedFS (S3)")]
         OSRM["OSRM"]
+        GOT["Gotenberg"]
     end
     Internet --> C
     C --> API
@@ -29,7 +36,11 @@ flowchart TB
     API --> FS
     API --> OSRM
     SIM --> OSRM
+    API --> GOT
+    API --> WEB
 ```
+
+W środowisku demonstracyjnym Gotenberg jest tylko w sieci wewnętrznej Compose (bez portu na zewnątrz), a API woła `POST /api/revalidate` strony po adresie wewnętrznym (`SITE_REVALIDATE_URL`); strona czyta API po `API_INTERNAL_URL`.
 
 ## 7.3. Ciągła integracja
 
