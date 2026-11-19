@@ -1,23 +1,36 @@
 /**
- * Hulajnoga na ekranach: render według wariantu (docs/projekt/rendery), suwak odblokowania (makieta
+ * Hulajnoga na ekranach: render według wariantu z biblioteki mediów (ADR 0064), suwak odblokowania (makieta
  * produkt-hulajnoga) i układ ekranu oczekiwania na hulajnogę (odblokowywanie, wznawianie, kończenie).
  */
-import type { ScooterVariant } from '@hulajnogi/shared';
+import type { ScooterVariant, SystemMediaKey } from '@hulajnogi/shared';
 import { Image } from 'expo-image';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Animated, PanResponder, Text, View, type ImageStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { mediaUrl, useContent } from '../lib/content';
 import { Icon } from './icons';
 import { useTheme } from './ui';
 
-const RENDERS = {
-  GRAFIT: require('../../assets/images/rendery/hulajnoga-grafit-trzy.png'),
-  BETON: require('../../assets/images/rendery/hulajnoga-beton-trzy.png'),
-  KOBALT: require('../../assets/images/rendery/hulajnoga-kobalt-trzy.png'),
-  side: require('../../assets/images/rendery/hulajnoga-grafit-bok.png'),
-} as const;
+/**
+ * Kopie renderów w paczce (wyjątek z ADR 0064): tylko gdy aplikacja nie ma jeszcze treści w pamięci (pierwsze
+ * uruchomienie bez sieci) albo grafika z biblioteki nie wczytała się (brak sieci i brak pliku w pamięci dyskowej).
+ * Przy zmianie renderu w bibliotece kopie aktualizuje się ręcznie z `docs/projekt/rendery`.
+ */
+const BUNDLED = {
+  'scooter.grafit.trzy': require('../../assets/images/rendery/hulajnoga-grafit-trzy.png'),
+  'scooter.beton.trzy': require('../../assets/images/rendery/hulajnoga-beton-trzy.png'),
+  'scooter.kobalt.trzy': require('../../assets/images/rendery/hulajnoga-kobalt-trzy.png'),
+  'scooter.grafit.bok': require('../../assets/images/rendery/hulajnoga-grafit-bok.png'),
+} as const satisfies Record<SystemMediaKey, number>;
 
-/** Widok trzy czwarte według wariantu; widok z boku tylko dla Grafitu (jedyny render z boku). */
+/** Klucz grafiki systemowej: widok trzy czwarte według wariantu, z boku tylko Grafit (jedyny render z boku). */
+const renderKey = (variant: ScooterVariant, side?: boolean): SystemMediaKey =>
+  side && variant === 'GRAFIT' ? 'scooter.grafit.bok' : (`scooter.${variant.toLowerCase()}.trzy` as SystemMediaKey);
+
+/**
+ * Render hulajnogi z biblioteki mediów (`systemMedia` z `GET /content/mobile`, ADR 0064). Adres zawiera sumę
+ * SHA-256, więc `expo-image` trzyma plik w pamięci dyskowej i pokazuje go także bez sieci.
+ */
 export function ScooterRender({
   variant,
   side,
@@ -31,12 +44,18 @@ export function ScooterRender({
   dimmed?: boolean;
   label: string;
 }) {
-  const source = side && variant === 'GRAFIT' ? RENDERS.side : RENDERS[variant];
+  const key = renderKey(variant, side);
+  const media = useContent().content?.systemMedia[key];
+  const uri = media ? mediaUrl(media) : null;
+  const [failed, setFailed] = useState<string | null>(null);
+  const source = uri && failed !== uri ? { uri } : BUNDLED[key];
   return (
     <Image
       source={source}
       style={[style, dimmed ? { opacity: 0.45 } : null]}
       contentFit="contain"
+      cachePolicy="memory-disk"
+      onError={() => uri && setFailed(uri)}
       accessibilityLabel={label}
       accessible
     />

@@ -1,13 +1,15 @@
-import type { MeResponse, NotificationPreferences, ProfileSummary } from '@hulajnogi/shared';
+import type { DataExportLatest, MeResponse, NotificationPreferences, ProfileSummary } from '@hulajnogi/shared';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppState, Platform, Pressable, Text, View } from 'react-native';
 import { Icon } from '../../components/icons';
 import { ListGroup, ListRow, PageScreen, SectionLabel, Segmented, ToggleRow } from '../../components/list';
 import { ErrorBox, useTheme } from '../../components/ui';
 import { t } from '../../i18n';
 import { api, errorMessage } from '../../lib/api';
+import { useDataExportEvents } from '../../lib/documents';
+import { dateShort } from '../../lib/format';
 import { useNotifications } from '../../lib/notifications';
 import { THEME_MODES, usePreferences } from '../../lib/preferences';
 import { useSession } from '../../lib/session';
@@ -17,7 +19,8 @@ import { useSession } from '../../lib/session';
  * powiadomienia w bazie (`PATCH /me/notifications`), „Promocje” to zgoda marketingowa (`PATCH /me`), motyw
  * i strefy na mapie na urządzeniu. Gdy system nie pozwala na powiadomienia (stan sprawdzany przy otwarciu
  * i powrocie z tła), pasek ostrzeżenia z ustawieniami telefonu albo oknem zgody; preferencje zostają
- * edytowalne, bo są zapisane na koncie. „Pobierz moje dane” wejdzie w iteracji 7 (D8).
+ * edytowalne, bo są zapisane na koncie. „Pobierz moje dane” (iteracja 7, ADR 0069; ukryte w D8 iteracji 3) ma
+ * podpis stanu ostatniego zlecenia: „Gotowy do 25.11” albo „Przygotowujemy…”, odświeżany po `data-export.ready`.
  */
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -26,6 +29,15 @@ export default function SettingsScreen() {
   const { themeMode, setThemeMode, showZones, setShowZones } = usePreferences();
   const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dataExport, setDataExport] = useState<DataExportLatest | null>(null);
+
+  const loadDataExport = useCallback(() => {
+    api<DataExportLatest>('/me/data-exports/latest')
+      .then(setDataExport)
+      .catch(() => undefined);
+  }, []);
+  useEffect(loadDataExport, [loadDataExport]);
+  useDataExportEvents(loadDataExport);
 
   useEffect(() => {
     void refreshPermission();
@@ -66,7 +78,10 @@ export default function SettingsScreen() {
   }
 
   return (
-    <PageScreen title={t('settings.title')} onBack={() => (router.canGoBack() ? router.back() : router.replace('/profil'))}>
+    <PageScreen
+      title={t('settings.title')}
+      onBack={() => (router.canGoBack() ? router.back() : router.replace('/profil'))}
+    >
       {error && <ErrorBox message={error} />}
       <SectionLabel>{t('settings.notifications')}</SectionLabel>
       {Platform.OS !== 'web' && (permission === 'denied' || permission === 'undetermined') && (
@@ -105,7 +120,11 @@ export default function SettingsScreen() {
           disabled={!prefs}
           onChange={(v) => prefs && void savePrefs({ ...prefs, receipts: v })}
         />
-        <ToggleRow label={t('settings.promotions')} value={me?.marketingConsent ?? false} onChange={(v) => void saveMarketing(v)} />
+        <ToggleRow
+          label={t('settings.promotions')}
+          value={me?.marketingConsent ?? false}
+          onChange={(v) => void saveMarketing(v)}
+        />
       </ListGroup>
       <Text style={{ fontSize: 13, lineHeight: 19, color: theme.muted, marginHorizontal: 4, marginTop: -12 }}>
         {t('settings.alwaysSent')}
@@ -129,8 +148,22 @@ export default function SettingsScreen() {
       <SectionLabel>{t('settings.account')}</SectionLabel>
       <ListGroup>
         <ListRow first label={t('settings.personal')} onPress={() => router.push('/profil/dane')} />
+        <ListRow
+          label={t('settings.dataExport')}
+          value={dataExportStatus(dataExport)}
+          onPress={() => router.push('/profil/moje-dane')}
+        />
         <ListRow label={t('settings.delete')} danger chevron={false} onPress={() => router.push('/profil/usun')} />
       </ListGroup>
     </PageScreen>
   );
+}
+
+/** Podpis wiersza „Pobierz moje dane”: gotowy plik z datą ważności albo zlecenie w toku. */
+function dataExportStatus(latest: DataExportLatest | null): string | undefined {
+  const exp = latest?.export;
+  if (exp?.state === 'SUCCEEDED' && exp.expiresAt)
+    return t('settings.dataExportReady', { date: dateShort(exp.expiresAt) });
+  if (exp?.state === 'QUEUED' || exp?.state === 'RUNNING') return t('settings.dataExportPreparing');
+  return undefined;
 }

@@ -14,6 +14,8 @@ import {
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { ApiError, api, API_URL, getAccessToken, refreshTokens } from './api';
+import { notifyContentUpdated } from './content';
+import { notifyDataExportReady, notifyDocumentReady } from './documents';
 import { notifyNotificationCreated } from './notifications';
 import { useSession } from './session';
 import { notifyTicketUpdated } from './tickets';
@@ -219,6 +221,9 @@ function RentalState({ enabled, children }: { enabled: boolean; children: ReactN
         notifyZonesChanged();
         notifyWalletUpdated(null);
         notifyTicketUpdated(null);
+        notifyContentUpdated(null);
+        notifyDocumentReady(null);
+        notifyDataExportReady(null);
       }
       reconnect = true;
     });
@@ -227,6 +232,9 @@ function RentalState({ enabled, children }: { enabled: boolean; children: ReactN
     socket.on('wallet.updated', notifyWalletUpdated);
     socket.on('ticket.updated', notifyTicketUpdated);
     socket.on('notification.created', notifyNotificationCreated);
+    socket.on('content.updated', notifyContentUpdated);
+    socket.on('document.ready', notifyDocumentReady);
+    socket.on('data-export.ready', notifyDataExportReady);
     socket.on('disconnect', (reason) => {
       // Serwer rozłącza po wygaśnięciu tokenu: nowy token i ponowne połączenie.
       if (reason === 'io server disconnect') void refreshTokens().then((ok) => ok && socket.connect());

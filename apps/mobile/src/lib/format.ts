@@ -92,7 +92,8 @@ export function around(iso: string, now = new Date()): string {
 export const monthName = (iso: string): string => t.dynamic(`dates.months.${new Date(iso).getMonth()}`);
 
 /** Dystans łączny w profilu: od 10 km bez części dziesiętnej („61 km”). */
-export const totalDistance = (m: number): string => (m >= 10000 ? t('units.km', { value: Math.round(m / 1000) }) : distance(m));
+export const totalDistance = (m: number): string =>
+  m >= 10000 ? t('units.km', { value: Math.round(m / 1000) }) : distance(m);
 
 const shortDayMonth = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'short' });
 
@@ -124,4 +125,37 @@ export function dayWord(iso: string, now = new Date()): string {
   if (sameDay(d, now)) return t('dates.todayWord');
   if (sameDay(d, yesterday)) return t('dates.yesterdayWord');
   return shortDayMonth.format(d);
+}
+
+const dayMonthNumeric = new Intl.DateTimeFormat('pl-PL', { day: '2-digit', month: '2-digit' });
+
+/** „25.11” (podpis stanu eksportu danych w ustawieniach). */
+export const dateShort = (iso: string): string => dayMonthNumeric.format(new Date(iso));
+
+/** „dziś o 14:32”, „wczoraj o 9:05”, „16 listopada o 14:32” (czas zlecenia eksportu danych). */
+export function dayAt(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const hm = time.format(d);
+  if (sameDay(d, now)) return t('dates.atToday', { time: hm });
+  if (sameDay(d, yesterday)) return t('dates.atYesterday', { time: hm });
+  return t('dates.atDay', { day: dayMonth.format(d), time: hm });
+}
+
+/** „dziś od 18:00”, „jutro od 14:32”, „20 listopada od 14:32” (kolejne zlecenie eksportu danych). */
+export function dayFrom(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const hm = time.format(d);
+  if (sameDay(d, now)) return t('dates.fromToday', { time: hm });
+  if (sameDay(d, tomorrow)) return t('dates.fromTomorrow', { time: hm });
+  return t('dates.fromDay', { day: dayMonth.format(d), time: hm });
+}
+
+/** Rozmiar pliku: „48 KB” (co najmniej 1 KB), od 1 MB „1,2 MB”. */
+export function fileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return t('units.kb', { value: Math.max(1, Math.round(bytes / 1024)) });
+  return t('units.mb', { value: decimal1.format(bytes / (1024 * 1024)) });
 }

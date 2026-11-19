@@ -2,12 +2,16 @@ import type { ReceiptView, RentalView } from '@hulajnogi/shared';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActionButton, StatusCard } from '../../components/document';
 import { PageScreen } from '../../components/list';
 import { Group, Note } from '../../components/payment';
+import { AlertHeader, BottomSheet, SheetText } from '../../components/sheet';
 import { ErrorBox, useTheme } from '../../components/ui';
 import { t } from '../../i18n';
 import { api, errorMessage, formatPhone } from '../../lib/api';
-import { dateNumeric, km, pln, scooterNo, timeOnly } from '../../lib/format';
+import { openInBrowser, previewFile, shareFile } from '../../lib/download';
+import { dateNumeric, fileSize, km, pln, scooterNo, timeOnly } from '../../lib/format';
+import { useReceiptPdf } from '../../lib/receipt-pdf';
 import { cardTitle } from '../../lib/wallet';
 
 const vat = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 2 });
@@ -17,6 +21,7 @@ const vat = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 2 });
  * pozycji), netto, VAT w podziale na stawki z pozycjami poza VAT jako „np.” (ADR 0061) i brutto, sposobem
  * zapłaty, nabywcą i sprzedawcą z chwili wystawienia.
  * Korekta po zwrocie ma odwołanie do paragonu sprzedaży; paragon sprzedaży listę swoich korekt.
+ * „Pobierz PDF” u dołu ekranu (ADR 0068, plansze paragon-pdf*) działa tak samo dla paragonu i korekty.
  */
 export default function ReceiptScreen() {
   const theme = useTheme();
@@ -24,6 +29,7 @@ export default function ReceiptScreen() {
   const [receipt, setReceipt] = useState<ReceiptView | null>(null);
   const [rental, setRental] = useState<RentalView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pdf = useReceiptPdf(id);
   const back = () => (router.canGoBack() ? router.back() : router.replace('/portfel'));
 
   useEffect(() => {
@@ -105,8 +111,32 @@ export default function ReceiptScreen() {
     .filter(Boolean)
     .join(', ');
 
+  const pdfState = pdf.state;
+  const footer = (
+    <>
+      {pdfState.kind === 'error' && (
+        <StatusCard compact icon="alert" tone="danger" title={t('receipt.pdf.errorTitle')}>
+          {pdfState.offline ? t('receipt.pdf.offlineLead') : t('receipt.pdf.errorLead')}
+        </StatusCard>
+      )}
+      <ActionButton
+        kind="secondary"
+        icon={pdfState.kind === 'error' ? 'retry' : 'download'}
+        label={
+          pdfState.kind === 'busy'
+            ? t('receipt.pdf.preparing')
+            : pdfState.kind === 'error'
+              ? t('common.retry')
+              : t('receipt.pdf.download')
+        }
+        busy={pdfState.kind === 'busy'}
+        onPress={() => void pdf.start()}
+      />
+    </>
+  );
+
   return (
-    <PageScreen title={t('receipt.title')} onBack={back}>
+    <PageScreen title={t('receipt.title')} onBack={back} footer={footer}>
       <Group style={{ padding: 20 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <View style={{ gap: 2, flexShrink: 1 }}>
@@ -208,6 +238,51 @@ export default function ReceiptScreen() {
         </View>
       )}
       <Note>{t('receipt.note')}</Note>
+      <BottomSheet visible={pdfState.kind === 'ready'} onClose={pdf.close}>
+        {pdfState.kind === 'ready' && (
+          <>
+            <AlertHeader
+              icon="file"
+              tone="accent"
+              title={t('receipt.pdf.readyTitle')}
+              subtitle={t('receipt.pdf.readyMeta', { name: pdfState.name, size: fileSize(pdfState.sizeBytes) })}
+            />
+            <SheetText style={{ marginTop: 14 }}>
+              {pdfState.file ? t('receipt.pdf.readyLead') : t('receipt.pdf.readyLeadWeb')}
+            </SheetText>
+            <View style={{ gap: 10, marginTop: 20 }}>
+              {pdfState.file ? (
+                <>
+                  <ActionButton
+                    icon="share"
+                    label={t('receipt.pdf.share')}
+                    onPress={() =>
+                      pdfState.file &&
+                      void shareFile(
+                        pdfState.file,
+                        'pdf',
+                        t('receipt.pdf.shareTitle', { number: receipt.number }),
+                      ).catch(() => undefined)
+                    }
+                  />
+                  <ActionButton
+                    kind="secondary"
+                    label={t('receipt.pdf.open')}
+                    onPress={() => pdfState.file && void previewFile(pdfState.file, 'pdf').catch(() => undefined)}
+                  />
+                </>
+              ) : (
+                <ActionButton
+                  label={t('receipt.pdf.open')}
+                  onPress={() => {
+                    if (pdfState.link && openInBrowser(pdfState.link.url)) pdf.close();
+                  }}
+                />
+              )}
+            </View>
+          </>
+        )}
+      </BottomSheet>
     </PageScreen>
   );
 }

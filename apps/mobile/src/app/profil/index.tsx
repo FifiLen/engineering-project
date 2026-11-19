@@ -13,7 +13,7 @@ import { useWallet } from '../../lib/wallet';
 
 /**
  * Profil (makieta profil): statystyki przejazdów, portfel z saldem na żywo (`wallet.updated`), historia,
- * metody płatności (od iteracji 5), cennik, ustawienia, „Pomoc i zgłoszenia” (moje zgłoszenia, iteracja 6),
+ * metody płatności (od iteracji 5), cennik, ustawienia, „Pomoc i zgłoszenia” (ekran Pomoc, iteracja 7),
  * dokumenty i wylogowanie.
  */
 export default function ProfileScreen() {
@@ -68,7 +68,7 @@ export default function ProfileScreen() {
       </ListGroup>
       <ListGroup>
         <ListRow first icon="sliders" label={t('account.settings')} onPress={() => router.push('/profil/ustawienia')} />
-        <ListRow icon="help" label={t('account.help')} onPress={() => router.push('/zgloszenia')} />
+        <ListRow icon="help" label={t('account.help')} onPress={() => router.push('/pomoc')} />
         <ListRow icon="document" label={t('account.tariff')} onPress={() => router.push('/cennik')} />
         <ListRow icon="document" label={t('account.terms')} onPress={() => doc('regulamin')} />
         <ListRow icon="document" label={t('account.privacy')} onPress={() => doc('polityka-prywatnosci')} />

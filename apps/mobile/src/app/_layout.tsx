@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { NotificationBanner } from '../components/notification-banner';
 import { useTheme } from '../components/ui';
+import { ContentProvider } from '../lib/content';
 import { LocationProvider } from '../lib/location';
 import { MapIntentProvider } from '../lib/map-intent';
 import { NotificationsProvider } from '../lib/notifications';
@@ -53,21 +54,23 @@ function Shell() {
 export default function RootLayout() {
   return (
     <PreferencesProvider>
-      <SessionProvider>
-        <NotificationsProvider>
-          <PaymentsProvider>
-            <WalletProvider>
-              <LocationProvider>
-                <RentalProvider>
-                  <MapIntentProvider>
-                    <Shell />
-                  </MapIntentProvider>
-                </RentalProvider>
-              </LocationProvider>
-            </WalletProvider>
-          </PaymentsProvider>
-        </NotificationsProvider>
-      </SessionProvider>
+      <ContentProvider>
+        <SessionProvider>
+          <NotificationsProvider>
+            <PaymentsProvider>
+              <WalletProvider>
+                <LocationProvider>
+                  <RentalProvider>
+                    <MapIntentProvider>
+                      <Shell />
+                    </MapIntentProvider>
+                  </RentalProvider>
+                </LocationProvider>
+              </WalletProvider>
+            </PaymentsProvider>
+          </NotificationsProvider>
+        </SessionProvider>
+      </ContentProvider>
     </PreferencesProvider>
   );
 }

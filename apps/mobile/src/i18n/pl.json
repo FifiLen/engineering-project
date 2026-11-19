@@ -1,8 +1,6 @@
 {
   "brand": "[nazwa]",
   "start": {
-    "headline": "Hulajnoga zawsze blisko.",
-    "lead": "Znajdź ją na mapie, zeskanuj kod i ruszaj.",
     "createAccount": "Utwórz konto",
     "signIn": "Zaloguj się"
   },
@@ -56,8 +54,6 @@
     "submit": "Zakończ rejestrację"
   },
   "rules": {
-    "title": "Zanim ruszysz",
-    "lead": "Zasady, które chronią Ciebie i innych na drodze.",
     "understood": "Rozumiem"
   },
   "consents": {
@@ -81,10 +77,7 @@
       "UNPAID_BALANCE": "zaległa płatność",
       "SUSPECTED_ABUSE": "podejrzenie nadużycia"
     },
-    "email": "[e-mail pomocy]",
     "emailHint": "odpowiadamy w ciągu doby",
-    "phone": "[telefon pomocy]",
-    "phoneHint": "pon.–pt. 8:00–18:00",
     "phoneNote": "Podaj numer telefonu, na który jest założone konto: {phone}.",
     "check": "Sprawdź ponownie",
     "signOut": "Wyloguj się"
@@ -158,7 +151,9 @@
     "TICKET_CATEGORY_NOT_ALLOWED": "Rozliczenie zgłosisz tylko z przejazdu.",
     "TICKET_DESCRIPTION_REQUIRED": "Opisz problem: przy rozliczeniu i „Inne” opis jest wymagany.",
     "TICKET_RENTAL_REQUIRED": "Rozliczenie zgłosisz tylko z przejazdu.",
-    "TICKET_TOO_MANY_PHOTOS": "Możesz dodać najwyżej 3 zdjęcia."
+    "TICKET_TOO_MANY_PHOTOS": "Możesz dodać najwyżej 3 zdjęcia.",
+    "DATA_EXPORT_LIMIT": "Nowy plik możesz zlecić raz na dobę.",
+    "DATA_EXPORT_IN_PROGRESS": "Plik jest już przygotowywany."
   },
   "units": {
     "m": "{value} m",
@@ -170,7 +165,9 @@
     "zl": "zł",
     "amount": "{amount} zł",
     "plusAmount": "+{amount} zł",
-    "minusAmount": "−{amount} zł"
+    "minusAmount": "−{amount} zł",
+    "kb": "{value} KB",
+    "mb": "{value} MB"
   },
   "dates": {
     "today": "Dziś, {time}",
@@ -211,7 +208,13 @@
     "yesterdayShort": "wczoraj {time}",
     "dayShort": "{day} {time}",
     "todayWord": "dziś",
-    "yesterdayWord": "wczoraj"
+    "yesterdayWord": "wczoraj",
+    "atToday": "dziś o {time}",
+    "atYesterday": "wczoraj o {time}",
+    "atDay": "{day} o {time}",
+    "fromToday": "dziś od {time}",
+    "fromTomorrow": "jutro od {time}",
+    "fromDay": "{day} od {time}"
   },
   "variants": {
     "GRAFIT": "Grafit",
@@ -417,7 +420,7 @@
     "pause": "Pauza",
     "end": "Zakończ",
     "retry": "Spróbuj ponownie",
-    "help": "Nadal nie działa? Zadzwoń: {phone}",
+    "helpPrefix": "Nadal nie działa? Zadzwoń: ",
     "map": "Mapa z trasą trwającego przejazdu",
     "battery": "Bateria hulajnogi: {value}%",
     "unlocking": {
@@ -631,7 +634,10 @@
       "settings": "Otwórz ustawienia telefonu",
       "enable": "Włącz powiadomienia"
     },
-    "alwaysSent": "Niską baterię, nieudane płatności i odpowiedzi na zgłoszenia wysyłamy zawsze, gdy powiadomienia są włączone."
+    "alwaysSent": "Niską baterię, nieudane płatności i odpowiedzi na zgłoszenia wysyłamy zawsze, gdy powiadomienia są włączone.",
+    "dataExport": "Pobierz moje dane",
+    "dataExportReady": "Gotowy do {date}",
+    "dataExportPreparing": "Przygotowujemy…"
   },
   "personal": {
     "title": "Dane osobowe",
@@ -639,6 +645,7 @@
     "email": "E-mail (opcjonalnie)",
     "phone": "Numer telefonu",
     "phoneHint": "Numerem telefonu logujesz się kodem SMS, więc nie zmienisz go tutaj. Jeśli masz nowy numer, napisz do pomocy: {email}.",
+    "phoneHintNoEmail": "Numerem telefonu logujesz się kodem SMS, więc nie zmienisz go tutaj. Jeśli masz nowy numer, napisz do pomocy.",
     "save": "Zapisz zmiany",
     "saved": "Zapisaliśmy zmiany."
   },
@@ -936,7 +943,21 @@
       "REFUND": "Zwrot",
       "TOWING_FEE": "Opłata za odholowanie"
     },
-    "issuedAt": "{date}\n{time}"
+    "issuedAt": "{date}\n{time}",
+    "pdf": {
+      "download": "Pobierz PDF",
+      "preparing": "Przygotowujemy PDF…",
+      "readyTitle": "PDF gotowy",
+      "readyMeta": "{name} · {size}",
+      "readyLead": "Zapiszesz go w Plikach albo wyślesz, na przykład mailem do księgowości.",
+      "readyLeadWeb": "Plik otworzy się w nowej karcie przeglądarki.",
+      "share": "Udostępnij",
+      "open": "Otwórz",
+      "shareTitle": "Paragon {number}",
+      "errorTitle": "Nie udało się przygotować PDF",
+      "errorLead": "Paragon na ekranie jest ważny. Spróbuj ponownie za chwilę.",
+      "offlineLead": "Sprawdź połączenie z internetem i spróbuj ponownie."
+    }
   },
   "debt": {
     "title": "Zaległa płatność",
@@ -1150,5 +1171,61 @@
       "correction": "Korekta paragonu",
       "history": "Historia"
     }
+  },
+  "help": {
+    "title": "Pomoc",
+    "offline": {
+      "title": "Brak połączenia z internetem",
+      "lead": "Pokazujemy pomoc zapisaną w telefonie. Ostatnia aktualizacja: ",
+      "updated": "{date}, {time}."
+    },
+    "tickets": {
+      "title": "Moje zgłoszenia",
+      "newReply": "Nowa odpowiedź w {ticket}",
+      "newReplies": "Nowe odpowiedzi w {count, plural, one {# zgłoszeniu} other {# zgłoszeniach}}",
+      "offline": "Dostępne po połączeniu z internetem"
+    },
+    "contact": {
+      "title": "Kontakt",
+      "call": "Zadzwoń",
+      "write": "Napisz",
+      "hours": "Pomoc odpowiada {hours}."
+    }
+  },
+  "content": {
+    "offline": {
+      "lead": "Połącz się z internetem, żeby założyć konto, zalogować się i wypożyczyć hulajnogę."
+    },
+    "serverError": {
+      "title": "Nie udało się wczytać aplikacji",
+      "lead": "Serwer chwilowo nie odpowiada. Spróbuj ponownie za chwilę."
+    }
+  },
+  "dataExport": {
+    "title": "Pobierz moje dane",
+    "lead": "Przygotujemy plik z danymi, które o Tobie przechowujemy. Możesz go zachować albo przenieść do innej usługi.",
+    "contents": "W pliku znajdziesz",
+    "sections": {
+      "profile": "Profil, zgody i ustawienia",
+      "rentals": "Przejazdy z trasami",
+      "wallet": "Portfel, płatności i paragony",
+      "tickets": "Zgłoszenia i odpowiedzi",
+      "notifications": "Wysłane powiadomienia"
+    },
+    "note": "Plik w formacie JSON będzie gotowy w kilka minut i ważny przez {days} dni. Nowy plik możesz zlecić raz na dobę.",
+    "request": "Przygotuj plik",
+    "requestNew": "Przygotuj nowy plik",
+    "preparingTitle": "Przygotowujemy plik",
+    "preparingLead": "Zlecono {when}. Zwykle trwa to kilka minut. Możesz zamknąć ten ekran, wyślemy powiadomienie, gdy plik będzie gotowy.",
+    "nextAfterRequest": "Kolejny plik zlecisz {when}.",
+    "nextAfterReady": "Nowy plik zlecisz {when}.",
+    "fileMeta": "{size} · ważny do {date}",
+    "share": "Zapisz albo udostępnij",
+    "shareTitle": "Moje dane",
+    "shareFailed": "Nie udało się pobrać pliku. Spróbuj ponownie za chwilę.",
+    "failedTitle": "Nie udało się przygotować pliku",
+    "failedLead": "Spróbuj ponownie. Nieudane zlecenie nie liczy się do limitu.",
+    "expiredTitle": "Plik wygasł {date}",
+    "expiredLead": "Plik był ważny {days} dni. Możesz przygotować nowy."
   }
 }

@@ -25,6 +25,8 @@ export const colors = {
     glassBorder: 'rgba(255,255,255,0.7)',
     scrim: 'rgba(22,24,29,0.32)',
     camera: '#1B1C20',
+    /** Etykieta nieaktywnego przycisku na tle `line` (plansze moje-dane-przygotowanie, moje-dane-gotowe). */
+    inkDisabled: '#A3A6AD',
   },
   dark: {
     bg: '#16181D',
@@ -50,6 +52,8 @@ export const colors = {
     glassBorder: 'rgba(255,255,255,0.08)',
     scrim: 'rgba(0,0,0,0.5)',
     camera: '#1B1C20',
+    // Brak w tokens.json: w trybie ciemnym kolor pola wyboru, czytelny na tle `line`.
+    inkDisabled: '#5C606A',
   },
 } as const;
 

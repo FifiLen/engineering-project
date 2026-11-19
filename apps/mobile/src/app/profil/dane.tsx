@@ -7,6 +7,7 @@ import { PageScreen } from '../../components/list';
 import { Button, ErrorBox, Field, useTheme } from '../../components/ui';
 import { t } from '../../i18n';
 import { api, errorMessage, formatPhone } from '../../lib/api';
+import { useCompany } from '../../lib/content';
 import { useSession } from '../../lib/session';
 import { radius } from '../../theme/tokens';
 
@@ -17,6 +18,7 @@ import { radius } from '../../theme/tokens';
 export default function PersonalDataScreen() {
   const theme = useTheme();
   const { me, setMe } = useSession();
+  const company = useCompany();
   const [name, setName] = useState(me?.name ?? '');
   const [email, setEmail] = useState(me?.email ?? '');
   const [busy, setBusy] = useState(false);
@@ -78,7 +80,7 @@ export default function PersonalDataScreen() {
           <Icon name="lockClosed" color={theme.muted} />
         </View>
         <Text style={{ fontSize: 14, lineHeight: 20, color: theme.muted, marginHorizontal: 4 }}>
-          {t('personal.phoneHint', { email: t('blocked.email') })}
+          {company ? t('personal.phoneHint', { email: company.supportEmail }) : t('personal.phoneHintNoEmail')}
         </Text>
       </View>
       {error && <ErrorBox message={error} />}

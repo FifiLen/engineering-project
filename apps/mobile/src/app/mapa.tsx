@@ -15,6 +15,7 @@ import {
   type ZoneCollection,
 } from '../components/map/map-layers';
 import { MapView } from '../components/map/map-view';
+import { OfflineState } from '../components/offline';
 import { ScooterRender } from '../components/scooter';
 import {
   AlertHeader,
@@ -206,6 +207,7 @@ export default function MapScreen() {
   if ((offline || zonesOffline) && !nearby) {
     return (
       <OfflineState
+        lead={t('map.offline.lead')}
         onRetry={() => {
           reloadZones();
           if (searchCenter) void loadNearby(searchCenter);
@@ -1107,56 +1109,5 @@ function CancelSheet({
         <Button label={t('map.cancel.keep')} kind="secondary" onPress={onKeep} />
       </View>
     </BottomSheet>
-  );
-}
-
-/** Brak internetu (makieta stan-offline). */
-function OfflineState({ onRetry }: { onRetry: () => void }) {
-  const theme = useTheme();
-  const insets = useSafeAreaInsets();
-  return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: theme.bg,
-        paddingHorizontal: 24,
-        paddingTop: insets.top + 20,
-        paddingBottom: insets.bottom + 16,
-      }}
-    >
-      <View style={{ flex: 1 }} />
-      <View style={{ alignItems: 'center' }}>
-        <View
-          style={{
-            width: 72,
-            height: 72,
-            borderRadius: 36,
-            backgroundColor: theme.line,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icon name="wifiOff" color={theme.ink} size={32} strokeWidth={2} />
-        </View>
-        <Text
-          accessibilityRole="header"
-          style={{
-            marginTop: 24,
-            fontSize: 26,
-            fontWeight: '600',
-            letterSpacing: -0.8,
-            color: theme.ink,
-            textAlign: 'center',
-          }}
-        >
-          {t('map.offline.title')}
-        </Text>
-        <Text style={{ marginTop: 10, fontSize: 16, lineHeight: 24, color: theme.muted, textAlign: 'center' }}>
-          {t('map.offline.lead')}
-        </Text>
-      </View>
-      <View style={{ flex: 1 }} />
-      <Button label={t('map.offline.retry')} kind="dark" onPress={onRetry} />
-    </View>
   );
 }

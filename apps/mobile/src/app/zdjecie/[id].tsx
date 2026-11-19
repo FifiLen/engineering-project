@@ -8,6 +8,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../../components/icons';
 import { AlertHeader, FloatingSheet, RoundButton, SheetText } from '../../components/sheet';
+import { SupportCallNote } from '../../components/support';
 import { Button, useTheme } from '../../components/ui';
 import { t } from '../../i18n';
 import { ApiError, api, errorMessage } from '../../lib/api';
@@ -194,9 +195,7 @@ export default function ParkingPhotoScreen() {
                   <Button label={t('parkingPhoto.failed.retry')} onPress={() => void send()} />
                 )}
                 {required ? (
-                  <Text style={{ fontSize: 14, color: theme.muted, textAlign: 'center' }}>
-                    {t('ride.help', { phone: t('blocked.phone') })}
-                  </Text>
+                  <SupportCallNote />
                 ) : (
                   <Button label={t('parkingPhoto.skip')} kind="secondary" onPress={finish} />
                 )}

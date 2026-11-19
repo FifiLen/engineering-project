@@ -3,6 +3,7 @@
  * HTML plansz, więc ikona w aplikacji wygląda tak samo jak na makiecie. Ikona jest ozdobą: opis niesie
  * etykieta przycisku albo tekst obok.
  */
+import type { ContentIcon } from '@hulajnogi/shared';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 const ICONS = {
@@ -253,9 +254,75 @@ const ICONS = {
       <Path d="M8 9.5h8M8 12.5h5" />
     </>
   ),
+  // Iteracja 7 (makiety 31-mobile-tresci, plansza panelu tresci-sekcja-lista): kontakt pomocy i ikony treści.
+  call: <Path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2" />,
+  mail: (
+    <>
+      <Rect x="3" y="5" width="18" height="14" rx="2" />
+      <Path d="M3 7l9 6 9-6" />
+    </>
+  ),
+  rider: (
+    <>
+      <Circle cx="12" cy="6.5" r="2.5" />
+      <Path d="M8 21v-6l-1-4a5 5 0 0110 0l-1 4v6" />
+    </>
+  ),
+  bikeLane: <Path d="M8 3L4 21M16 3l4 18M12 4v3M12 11v3M12 18v2" />,
+  helmet: (
+    <>
+      <Path d="M3 15a9 9 0 0118 0v2H3z" />
+      <Path d="M12 6v5M3 17h18" />
+    </>
+  ),
+  glass: <Path d="M7 3h10l-1.5 9a3.5 3.5 0 01-7 0zM12 15.5V21M8.5 21h7" />,
+  bolt: <Path d="M13 3L5 13h6l-1 8 8-10h-6z" />,
+  // Ramka skanowania: brak na planszach, rysunek w stylu ikony kodu QR.
+  scan: <Path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2M7 12h10" />,
+  // Paragon PDF i „Pobierz moje dane” (plansze paragon-pdf*, moje-dane*).
+  file: (
+    <>
+      <Path d="M7 3h7l5 5v13H7z" />
+      <Path d="M14 3v5h5" />
+    </>
+  ),
+  share: <Path d="M12 3v12M8 7l4-4 4 4M6 11H5a1 1 0 00-1 1v8a1 1 0 001 1h14a1 1 0 001-1v-8a1 1 0 00-1-1h-1" />,
+  // Pobieranie: brak na planszach (opis „ikona pobierania”), odbicie ikony wysyłki.
+  download: (
+    <>
+      <Path d="M12 4v11M7 10l5 5 5-5" />
+      <Path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3" />
+    </>
+  ),
+  retry: (
+    <>
+      <Path d="M20 12a8 8 0 11-2.3-5.7L20 8.5" />
+      <Path d="M20 4v4.5h-4.5" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof ICONS;
+
+/**
+ * Ikony elementów sekcji-list z zamkniętej listy `CONTENT_ICONS` (ADR 0062) według planszy `tresci-sekcja-lista`;
+ * typ wymusza rysunek dla każdej ikony z rejestru, więc nowa ikona w `packages/shared` bez rysunku nie przejdzie
+ * sprawdzenia typów.
+ */
+export const CONTENT_ICON_NAMES: Record<ContentIcon, IconName> = {
+  'rider-single': 'rider',
+  'bike-lane': 'bikeLane',
+  parking: 'parking',
+  helmet: 'helmet',
+  'no-alcohol': 'glass',
+  map: 'map',
+  scan: 'scan',
+  wallet: 'wallet',
+  battery: 'bolt',
+  'zone-slow': 'gauge',
+  'zone-no-ride': 'noEntry',
+  phone: 'call',
+};
 
 export function Icon({
   name,

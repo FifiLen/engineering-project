@@ -20,6 +20,7 @@ import {
   glass,
   type BadgeTone,
 } from '../components/sheet';
+import { SupportCallNote } from '../components/support';
 import { Button, useTheme } from '../components/ui';
 import { t } from '../i18n';
 import { ApiError, errorMessage } from '../lib/api';
@@ -519,11 +520,7 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
           )}
           <Button label={t('ride.outside.back')} kind="secondary" onPress={() => setPanel(false)} />
         </View>
-        {(offline || stale) && (
-          <Text style={{ fontSize: 14, color: theme.muted, textAlign: 'center', marginTop: -2 }}>
-            {t('ride.help', { phone: t('blocked.phone') })}
-          </Text>
-        )}
+        {(offline || stale) && <SupportCallNote style={{ marginTop: -2 }} />}
       </FloatingSheet>
     );
   } else if (paused) {
@@ -670,9 +667,7 @@ function Riding({ tracked }: { tracked: TrackedRental }) {
           />
         </ButtonRow>
         {lockFailed ? (
-          <Text style={{ marginTop: 14, fontSize: 14, color: theme.muted, textAlign: 'center' }}>
-            {t('ride.help', { phone: t('blocked.phone') })}
-          </Text>
+          <SupportCallNote style={{ marginTop: 14 }} />
         ) : stop ? (
           <Text style={{ marginTop: 14, fontSize: 14, color: theme.muted, textAlign: 'center' }}>
             {t.dynamic(`ride.zone.${stop}.note`)}
