@@ -41,6 +41,10 @@ export const documentTemplatesResource = {
     createdAt: { type: 'datetime', filters: ['gte', 'lte'], sortable: true },
     updatedAt: { type: 'datetime', filters: ['gte', 'lte'], sortable: true },
     version: { type: 'integer' },
+    // Iteracja 8 (ADR 0076): liczba pól aktywnej wersji, wydruki z 30 dni i data dezaktywacji z `v_document_templates`.
+    activeFields: { type: 'integer', sortable: true },
+    generated30d: { type: 'integer', filters: ['gte'], sortable: true },
+    deactivatedAt: { type: 'datetime', filters: ['gte', 'lte'], sortable: true },
   },
   search: ['name', 'description'],
   defaultSort: ['documentType', '-isDefault', 'name'],
@@ -65,6 +69,10 @@ export interface DocumentTemplateListItem {
   createdAt: string;
   updatedAt: string;
   version: number;
+  activeFields: number;
+  generated30d: number;
+  /** `null`: szablon aktywny (`active` = brak daty dezaktywacji). */
+  deactivatedAt: string | null;
 }
 
 // --- Wygenerowane dokumenty -----------------------------------------------------------------------

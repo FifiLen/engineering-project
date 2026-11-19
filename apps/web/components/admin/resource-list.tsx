@@ -5,6 +5,7 @@
  * z licznikami, panel filtrów, sortowanie w nagłówkach, stronicowanie, zaznaczanie i operacje grupowe.
  * Stan listy jest w adresie URL, więc działa „wstecz”, odświeżenie i udostępnienie odnośnika.
  * Lista może też otwierać podgląd rekordu obok tabeli i przyjmować zmiany na żywo (przejazdy).
+ * „Eksportuj” (ADR 0073) zapisuje bieżący widok (filtry, wyszukiwanie, sortowanie, kolumny listy) do XLSX albo CSV.
  */
 import {
   PAGE_SIZES,
@@ -23,6 +24,7 @@ import { t } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import { ConfirmDialog } from './confirm-dialog';
 import { FilterDrawer, type FilterSpec } from './filter-drawer';
+import { ExportButton, exportParams, exportScope, type ExportParams } from './list-export';
 import { AlertIcon, ArrowDown, ArrowUp, CloseIcon, FilterIcon, PlusIcon, SearchIcon } from './icons';
 import { fieldLabel, filterLabel, valueLabel } from './labels';
 
@@ -31,6 +33,8 @@ export interface Column<T> {
   /** Szerokość w siatce CSS, np. `90px` albo `1.2fr`. */
   width: string;
   render?: (item: T) => ReactNode;
+  /** Nagłówek zamiast etykiety pola (`null`: pusty, np. kolumna poleceń); kolumna bez sortowania. */
+  header?: ReactNode;
 }
 
 /**
@@ -80,6 +84,18 @@ export interface ResourceListProps<T extends ListRecord> {
   tabs?: ReactNode;
   /** Przycisk dodawania z własnym podpisem albo bez niego (np. dziennik audytu). */
   createLabel?: string | null;
+  /** Tytuł obszaru zamiast tytułu zasobu (zakładki jednego obszaru, np. Użytkownicy → Zgody). */
+  title?: string;
+  /** Dodatkowe przyciski w nagłówku (np. „Usuń wygasłe kody”). */
+  headActions?: ReactNode;
+  /** Treść pod tabelą (np. wyjaśnienie listy tylko do odczytu). */
+  footer?: ReactNode;
+  /** Zmiana wartości odświeża listę (np. po poleceniu w wierszu). */
+  revision?: number;
+  /** Kolumny eksportu (pola definicji); domyślnie pola kolumn listy. `false` ukrywa „Eksportuj”. */
+  exportColumns?: readonly string[] | false;
+  /** Parametry spoza kontraktu listy dokładane do eksportu (np. okres historii stanów). */
+  exportExtra?: ExportParams;
 }
 
 /** Rekord listy; tabele tylko do dopisywania (dziennik audytu) nie mają wersji. */
@@ -93,6 +109,7 @@ const EMPTY: ListQuery = { filters: [], sort: [], page: 1, pageSize: 25, facets:
 export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) {
   const { resource, basePath, columns, filters, rowLabel, summary, emptyIcon, tabs, createLabel } = props;
   const { onOpen, activeId, selectable = true, subscribe, itemHref, rowKey } = props;
+  const { title, headActions, footer, revision = 0, exportExtra } = props;
   const hrefOf = (item: T) => (itemHref ? itemHref(item) : `${basePath}/${item.id}`);
   const router = useRouter();
   // Panel ukrywa operacje bez uprawnień; decyzję podejmuje API (ADR 0028).
@@ -156,7 +173,7 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
       });
     setSelected(new Set());
     return () => controller.abort();
-  }, [resource.name, requestParams, reload]);
+  }, [resource.name, requestParams, reload, revision]);
 
   // Zmiany na żywo: wiersz od razu, lista i liczniki po przerwie (kilka zmian naraz to jedno odświeżenie).
   const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -239,6 +256,10 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
 
   const data = state.status === 'ready' ? state.data : null;
   const items = data?.items ?? [];
+  const exportFields =
+    props.exportColumns === false
+      ? null
+      : (props.exportColumns ?? columns.filter((c) => c.header === undefined).map((c) => c.field).filter((field) => field in resource.fields));
   const grid = `${selectable ? '28px ' : ''}${columns.map((c) => c.width).join(' ')}`;
   const hasFilters = query.filters.length > 0 || Boolean(query.q);
   const allSelected = items.length > 0 && items.every((i) => selected.has(i.id));
@@ -267,10 +288,11 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
     <>
       <div className="page-head">
         <div>
-          <h1>{t.dynamic(`resource.${resource.name}.title`)}</h1>
+          <h1>{title ?? t.dynamic(`resource.${resource.name}.title`)}</h1>
           {data && summary && <div className="sub">{summary(data)}</div>}
         </div>
         <div className="actions">
+          {headActions}
           {canWrite && (
             <Link className="btn primary" href={`${basePath}/nowy`}>
               <PlusIcon />
@@ -313,6 +335,18 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
           </>
         )}
         <span className="spacer" />
+        {exportFields && (
+          <ExportButton
+            resource={resource}
+            params={exportParams(resource, query, exportExtra)}
+            rows={data?.total ?? null}
+            {...exportScope(resource, query)}
+            columns={exportFields}
+            onChangeFilters={() => setDrawer(true)}
+            onDone={(file) => setNotice(t('listExport.done', { file }))}
+            disabled={!data}
+          />
+        )}
         <button type="button" className={otherFilters.length ? 'btn dark' : 'btn'} onClick={() => setDrawer(true)}>
           <FilterIcon />
           {t('list.filters')}
@@ -383,7 +417,13 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
                 )}
               </span>
             )}
-            {columns.map(({ field }) => {
+            {columns.map(({ field, header }) => {
+              if (header !== undefined)
+                return (
+                  <span key={field} role="columnheader">
+                    {header}
+                  </span>
+                );
               const sortable = resource.fields[field]?.sortable;
               const active = sortInfo?.field === field;
               return (
@@ -481,11 +521,12 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
                 className={[
                   'row',
                   linked && 'link-row',
-                  (selected.has(item.id) || (activeId != null && activeId === item.id)) && 'selected',
+                  (selected.has(item.id) || (activeId != null && activeId === (rowKey ? rowKey(item) : item.id))) &&
+                    'selected',
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                aria-selected={onOpen ? activeId === item.id : undefined}
+                aria-selected={onOpen ? activeId === (rowKey ? rowKey(item) : item.id) : undefined}
                 style={{ gridTemplateColumns: grid }}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('input,button,a')) return;
@@ -594,6 +635,7 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
           </div>
         )}
       </div>
+      {footer}
 
       {selected.size > 0 && (
         <div className="bulk" role="toolbar" aria-label={t('list.selected', { count: selected.size })}>

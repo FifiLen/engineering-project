@@ -13,6 +13,7 @@ import {
   MEDIA_ALT_MIN,
   MEDIA_CAPTION_MAX,
   MEDIA_NAME_MAX,
+  mediaResource,
   type ListResponse,
   type MediaDetails,
   type MediaListItem,
@@ -38,7 +39,24 @@ import {
   TrashIcon,
   UploadIcon,
 } from '../icons';
+import { ExportButton } from '../list-export';
 import { ContentHead, CONTENT_PATHS, formatBytes, mediaUrl, sectionName } from './content-common';
+
+/** Kolumny eksportu biblioteki mediów (ADR 0073). */
+const MEDIA_EXPORT_COLUMNS = [
+  'key',
+  'name',
+  'altText',
+  'contentType',
+  'sizeBytes',
+  'width',
+  'height',
+  'usages',
+  'isSystem',
+  'updatedByName',
+  'createdAt',
+  'updatedAt',
+] as const;
 import { MediaUploadDialog, uploadMediaFile } from './media-dialogs';
 
 const PAGE_SIZE = 12;
@@ -132,6 +150,19 @@ export function MediaPage() {
             {counts && <span className="n num">{counts[f]}</span>}
           </button>
         ))}
+        <span className="spacer" />
+        <ExportButton
+          resource={mediaResource}
+          params={{
+            ...(debounced ? { q: debounced } : {}),
+            ...(usage === 'used' ? { 'usages.gte': '1' } : usage === 'unused' ? { 'usages.lte': '0' } : {}),
+          }}
+          rows={data?.total ?? null}
+          filters={usage === 'all' ? [] : [t.dynamic(`content.media.filter.${usage}`)]}
+          search={debounced || undefined}
+          columns={MEDIA_EXPORT_COLUMNS}
+          disabled={!data}
+        />
       </div>
 
       <div className="ct-media-grid" aria-busy={!data}>

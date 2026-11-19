@@ -13,6 +13,7 @@ import {
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { formatKm, formatRelative, t } from '../../../lib/i18n';
+import { FleetTabs } from '../areas';
 import type { FilterSpec } from '../filter-drawer';
 import { ScooterIcon } from '../icons';
 import { valueLabel } from '../labels';
@@ -106,6 +107,7 @@ export function ScooterList() {
       rowLabel={(s) => scooterNumber(s.number)}
       summary={(data) => t('resource.scooters.summary', { count: total ?? data.total })}
       emptyIcon={<ScooterIcon size={22} />}
+      tabs={<FleetTabs />}
     />
   );
 }

@@ -30,7 +30,9 @@ import {
   useCustomerWallet,
 } from '../payments/customer-wallet';
 import { ResourceList, type Column } from '../resource-list';
+import { UserTabs as UsersAreaTabs } from '../areas';
 import { Banner, Person } from './common';
+import { SavedPlacesCard } from './saved-places';
 
 const BASE = '/admin/klienci';
 const displayName = (u: Pick<UserListItem, 'name'>) => u.name ?? t('access.users.noName');
@@ -94,9 +96,10 @@ export function UserList() {
       quick={{ field: 'status', values: ['ACTIVE', 'BLOCKED'] }}
       filters={filters}
       rowLabel={displayName}
-      summary={(data) => t('resource.users.summary', { count: data.total })}
+      summary={() => t('areas.users.subtitle')}
       emptyIcon={<LockIcon size={22} />}
       createLabel={null}
+      tabs={<UsersAreaTabs />}
     />
   );
 }
@@ -383,6 +386,7 @@ export function UserCard({ id, tab = 'profile' }: { id: string; tab?: 'profile' 
                   </label>
                 </div>
               </section>
+              {can('users.read') && <SavedPlacesCard userId={id} />}
             </div>
 
             <div className="col">

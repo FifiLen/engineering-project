@@ -183,7 +183,7 @@ export function StaffInvite() {
   );
 }
 
-function InvitationLink({ result }: { result: StaffInvitationResult }) {
+export function InvitationLink({ result }: { result: StaffInvitationResult }) {
   const [copied, setCopied] = useState(false);
   return (
     <section className="card section-card" style={{ maxWidth: 720 }}>

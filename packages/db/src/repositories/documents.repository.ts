@@ -41,6 +41,9 @@ const templateSource: ListSource<TemplateField> = {
     createdAt: vDocumentTemplates.createdAt,
     updatedAt: vDocumentTemplates.updatedAt,
     version: vDocumentTemplates.version,
+    activeFields: vDocumentTemplates.activeFields,
+    generated30d: vDocumentTemplates.generated30D,
+    deactivatedAt: vDocumentTemplates.deactivatedAt,
   },
 };
 

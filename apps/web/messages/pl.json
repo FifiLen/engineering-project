@@ -315,7 +315,12 @@
     "RENDER_TIMEOUT": "Silnik dokumentów nie odpowiedział w 30 s",
     "RENDERER_UNAVAILABLE": "Silnik dokumentów jest niedostępny",
     "RENDER_FAILED": "Silnik dokumentów odrzucił plik",
-    "DOCUMENT_SOURCE_NOT_FOUND": "Nie znaleziono obiektu dokumentu"
+    "DOCUMENT_SOURCE_NOT_FOUND": "Nie znaleziono obiektu dokumentu",
+    "LIST_EXPORT_LIMIT": "Lista ma {count} wierszy, a eksport mieści najwyżej {limit}. Zawęź filtry.",
+    "CONSENT_NOT_REVOCABLE": "Operator wycofuje tylko obowiązującą zgodę marketingową",
+    "INVITATION_NOT_PENDING": "Zaproszenie nie czeka już na przyjęcie. Odśwież listę.",
+    "TEMPLATE_IS_DEFAULT": "To domyślny szablon z aktywną wersją; najpierw ustaw jako domyślny inny szablon tego rodzaju",
+    "TEMPLATE_NAME_TAKEN": "Ta nazwa jest już zajęta w tym rodzaju dokumentu"
   },
   "fleetStatus": {
     "AVAILABLE": "Dostępna",
@@ -1754,7 +1759,10 @@
         "updatedByName": "Zmienił",
         "createdAt": "Utworzono",
         "updatedAt": "Zmieniono",
-        "version": "Wersja rekordu"
+        "version": "Wersja rekordu",
+        "activeFields": "Pola aktywnej wersji",
+        "generated30d": "Wydruki, 30 dni",
+        "deactivatedAt": "Wyłączony"
       },
       "values": {
         "documentType": {
@@ -1983,6 +1991,637 @@
           "DELETED": "Usunięty"
         }
       }
+    },
+    "consents": {
+      "title": "Zgody",
+      "searchPlaceholder": "Klient, telefon albo dokument",
+      "new": "",
+      "emptyTitle": "Brak zgód",
+      "emptyBody": "Zgody pojawią się po rejestracji pierwszego klienta.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "userId": "Klient",
+        "userName": "Klient",
+        "userPhone": "Telefon klienta",
+        "userStatus": "Stan konta",
+        "type": "Zgoda i wersja",
+        "documentVersion": "Wersja dokumentu",
+        "versionNo": "Numer wersji",
+        "documentTitle": "Dokument",
+        "source": "Źródło",
+        "acceptedAt": "Zaakceptowano",
+        "revokedAt": "Wycofano",
+        "revokedByStaff": "Wycofał operator",
+        "revokedByName": "Wycofał",
+        "currentVersionNo": "Obowiązująca wersja",
+        "isLatest": "Najnowsza zgoda",
+        "state": "Stan",
+        "stateAt": "Data"
+      },
+      "values": {
+        "type": {
+          "TERMS": "Regulamin",
+          "PRIVACY": "Polityka prywatności",
+          "AGE": "Potwierdzenie wieku",
+          "MARKETING": "Informacje o promocjach"
+        },
+        "source": {
+          "REGISTRATION": "rejestracja",
+          "APP": "aplikacja",
+          "PANEL": "panel"
+        },
+        "state": {
+          "CURRENT": "Obowiązująca",
+          "OUTDATED": "Czeka na nową wersję",
+          "SUPERSEDED": "Zastąpiona",
+          "CONFIRMED": "Potwierdzone",
+          "REVOKED": "Wycofana"
+        },
+        "userStatus": {
+          "ACTIVE": "Aktywny",
+          "BLOCKED": "Zablokowany",
+          "DELETED": "Usunięty"
+        },
+        "isLatest": {
+          "true": "Tak",
+          "false": "Nie"
+        }
+      }
+    },
+    "sessions": {
+      "title": "Sesje",
+      "searchPlaceholder": "Klient, telefon albo urządzenie",
+      "new": "",
+      "emptyTitle": "Brak sesji",
+      "emptyBody": "Sesja powstaje przy logowaniu klienta kodem SMS.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "shortId": "Sesja",
+        "userId": "Klient",
+        "userName": "Klient",
+        "userPhone": "Telefon klienta",
+        "userStatus": "Stan konta",
+        "deviceName": "Urządzenie",
+        "platform": "System",
+        "appVersion": "Wersja aplikacji",
+        "createdAt": "Zalogowano",
+        "lastUsedAt": "Ostatnie użycie",
+        "expiresAt": "Wygasa",
+        "revokedAt": "Unieważniono",
+        "rotations": "Odświeżenia tokenu",
+        "state": "Stan"
+      },
+      "values": {
+        "platform": {
+          "IOS": "iOS",
+          "ANDROID": "Android",
+          "WEB": "Przeglądarka"
+        },
+        "state": {
+          "ACTIVE": "Aktywna",
+          "EXPIRED": "Wygasła",
+          "REVOKED": "Unieważniona"
+        },
+        "userStatus": {
+          "ACTIVE": "Aktywny",
+          "BLOCKED": "Zablokowany",
+          "DELETED": "Usunięty"
+        }
+      }
+    },
+    "staff-sessions": {
+      "title": "Sesje operatorów",
+      "searchPlaceholder": "Imię albo e-mail",
+      "new": "",
+      "emptyTitle": "Brak sesji operatorów",
+      "emptyBody": "Sesja powstaje przy logowaniu hasłem i kodem TOTP.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "shortId": "Sesja",
+        "staffId": "Operator",
+        "staffName": "Operator",
+        "staffEmail": "E-mail",
+        "userAgent": "Przeglądarka",
+        "remembered": "Zapamiętane urządzenie",
+        "createdAt": "Zalogowano",
+        "lastUsedAt": "Ostatnie użycie",
+        "expiresAt": "Wygasa",
+        "revokedAt": "Unieważniono",
+        "rotations": "Odświeżenia tokenu",
+        "state": "Stan"
+      },
+      "values": {
+        "state": {
+          "ACTIVE": "Aktywna",
+          "EXPIRED": "Wygasła",
+          "REVOKED": "Unieważniona"
+        },
+        "remembered": {
+          "true": "Tak (7 dni)",
+          "false": "Nie (12 h)"
+        }
+      }
+    },
+    "staff-invitations": {
+      "title": "Zaproszenia",
+      "searchPlaceholder": "Imię albo e-mail",
+      "new": "",
+      "emptyTitle": "Brak zaproszeń",
+      "emptyBody": "Zaproszenie powstaje przy dodaniu operatora.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "staffId": "Operator",
+        "staffName": "Operator",
+        "staffEmail": "E-mail",
+        "staffActive": "Konto aktywne",
+        "staffRoles": "Role",
+        "invitedBy": "Zaprosił",
+        "invitedByName": "Zaprosił",
+        "createdAt": "Wysłano",
+        "expiresAt": "Wygasa",
+        "acceptedAt": "Przyjęto",
+        "revokedAt": "Unieważniono",
+        "replacedBy": "Zastąpione przez",
+        "isResend": "Ponowne wysłanie",
+        "state": "Stan"
+      },
+      "values": {
+        "state": {
+          "PENDING": "Oczekuje",
+          "ACCEPTED": "Przyjęte",
+          "EXPIRED": "Wygasłe",
+          "REVOKED": "Unieważnione",
+          "REPLACED": "Zastąpione"
+        },
+        "isResend": {
+          "true": "Ponowne",
+          "false": "Pierwsze"
+        },
+        "staffActive": {
+          "true": "Tak",
+          "false": "Nie"
+        }
+      }
+    },
+    "otp-codes": {
+      "title": "Kody SMS",
+      "searchPlaceholder": "Ostatnie cyfry numeru albo klient",
+      "new": "",
+      "emptyTitle": "Brak kodów",
+      "emptyBody": "Kod powstaje, gdy klient prosi o logowanie albo rejestrację.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "phoneMasked": "Numer",
+        "phoneLast3": "Ostatnie cyfry",
+        "userId": "Klient",
+        "userName": "Klient",
+        "purpose": "Cel",
+        "createdAt": "Utworzono",
+        "expiresAt": "Wygasa",
+        "attempts": "Próby",
+        "consumedAt": "Użyty",
+        "state": "Stan",
+        "purgeable": "Do usunięcia"
+      },
+      "values": {
+        "purpose": {
+          "LOGIN": "Logowanie",
+          "REGISTER": "Rejestracja"
+        },
+        "state": {
+          "ACTIVE": "Aktywny",
+          "CONSUMED": "Użyty",
+          "BLOCKED": "Zablokowany",
+          "EXPIRED": "Wygasły"
+        },
+        "purgeable": {
+          "true": "Tak",
+          "false": "Nie"
+        }
+      }
+    },
+    "scooter-commands": {
+      "title": "Komendy",
+      "searchPlaceholder": "Numer hulajnogi albo przejazdu",
+      "new": "",
+      "emptyTitle": "Brak komend",
+      "emptyBody": "Komendy wysyła karta hulajnogi, przejazd, strefa albo system.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# komenda} few {# komendy} other {# komend}}",
+      "fields": {
+        "id": "Identyfikator",
+        "scooterId": "Hulajnoga",
+        "scooterNumber": "Hulajnoga",
+        "type": "Komenda",
+        "source": "Źródło",
+        "zoneId": "Strefa",
+        "zoneCode": "Strefa",
+        "zoneName": "Nazwa strefy",
+        "issuedByStaff": "Operator",
+        "staffName": "Operator",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "status": "Stan",
+        "ackReason": "Powód odrzucenia",
+        "sentAt": "Wysłano",
+        "ackedAt": "Potwierdzono",
+        "expiresAt": "Wygasa",
+        "responseMs": "Czas odpowiedzi, ms"
+      },
+      "values": {
+        "type": {
+          "UNLOCK": "Odblokuj",
+          "LOCK": "Zablokuj",
+          "SPEED_LIMIT": "Limit prędkości",
+          "STOP_GRADUALLY": "Stopniowe zatrzymanie",
+          "RING": "Dzwonek",
+          "LIGHTS": "Światła",
+          "RELEASE_STOP": "Zwolnienie zatrzymania",
+          "BATTERY_SWAPPED": "Wymieniona bateria"
+        },
+        "source": {
+          "STAFF": "Operator",
+          "RENTAL": "Przejazd",
+          "ZONE": "Strefa",
+          "SYSTEM": "System"
+        },
+        "status": {
+          "SENT": "Wysłana",
+          "ACKED": "Potwierdzona",
+          "REJECTED": "Odrzucona",
+          "TIMEOUT": "Brak odpowiedzi"
+        }
+      }
+    },
+    "scooter-status-history": {
+      "title": "Historia stanów",
+      "searchPlaceholder": "Numer hulajnogi, przejazdu albo zadania",
+      "new": "",
+      "emptyTitle": "Brak przedziałów",
+      "emptyBody": "Historia stanów zaczyna się od migracji 0013.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "scooterId": "Hulajnoga",
+        "scooterNumber": "Hulajnoga",
+        "modelId": "Model",
+        "status": "Stan hulajnogi",
+        "online": "Łączność",
+        "validFrom": "Od",
+        "validTo": "Do",
+        "isOpen": "Trwa",
+        "durationSeconds": "Czas trwania",
+        "category": "Stan",
+        "reason": "Przyczyna",
+        "reasonRentalId": "Przejazd",
+        "reasonRentalNumber": "Przejazd",
+        "reasonTaskId": "Zadanie",
+        "reasonTaskNumber": "Zadanie",
+        "reasonTaskType": "Rodzaj zadania",
+        "reasonTaskAssigneeName": "Wykonawca zadania",
+        "reasonTicketId": "Zgłoszenie",
+        "reasonTicketNumber": "Zgłoszenie",
+        "reasonTicketAutoKind": "Zgłoszenie automatyczne",
+        "reasonAuditAction": "Wpis w dzienniku",
+        "reasonStaffName": "Operator"
+      },
+      "values": {
+        "status": {
+          "AVAILABLE": "Dostępna",
+          "RESERVED": "Zarezerwowana",
+          "IN_USE": "W użyciu",
+          "MAINTENANCE": "Serwis",
+          "RETIRED": "Wycofana"
+        },
+        "online": {
+          "true": "Online",
+          "false": "Bez łączności"
+        },
+        "isOpen": {
+          "true": "Tak",
+          "false": "Nie"
+        },
+        "category": {
+          "IN_RIDE": "W użyciu",
+          "RESERVED": "Rezerwacja",
+          "AVAILABLE": "Dostępna",
+          "SERVICE": "Serwis",
+          "OFFLINE": "Bez łączności",
+          "RETIRED": "Wycofana"
+        },
+        "reason": {
+          "RENTAL": "Przejazd",
+          "RESERVATION": "Rezerwacja",
+          "SERVICE_TASK": "Zadanie",
+          "TICKET": "Zgłoszenie",
+          "AUTO_OFFLINE": "Brak telemetrii",
+          "STAFF": "Operator",
+          "NO_TELEMETRY": "Brak telemetrii",
+          "SYSTEM": "System"
+        },
+        "reasonTaskType": {
+          "REPAIR": "Naprawa",
+          "BATTERY_SWAP": "Wymiana baterii",
+          "INSPECTION": "Przegląd",
+          "RELOCATION": "Przewiezienie"
+        },
+        "reasonTicketAutoKind": {
+          "OFFLINE": "Brak łączności",
+          "BATTERY_CRITICAL": "Krytyczna bateria",
+          "OUT_OF_ZONE": "Poza strefą"
+        }
+      }
+    },
+    "rental-events": {
+      "title": "Zdarzenia przejazdów",
+      "searchPlaceholder": "Przejazd, hulajnoga, klient albo strefa",
+      "new": "",
+      "emptyTitle": "Brak zdarzeń",
+      "emptyBody": "Zdarzenia zapisuje proces wypożyczenia.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# zdarzenie} few {# zdarzenia} other {# zdarzeń}} przejazdów",
+      "fields": {
+        "id": "Identyfikator",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "rentalState": "Stan przejazdu",
+        "scooterId": "Hulajnoga",
+        "scooterNumber": "Hulajnoga",
+        "userId": "Klient",
+        "userName": "Klient",
+        "type": "Zdarzenie",
+        "fromState": "Ze stanu",
+        "toState": "Do stanu",
+        "zoneId": "Strefa",
+        "zoneCode": "Strefa",
+        "zoneName": "Nazwa strefy",
+        "zoneType": "Typ strefy",
+        "createdAt": "Czas"
+      },
+      "values": {
+        "type": {
+          "STATE_CHANGED": "Zmiana stanu",
+          "ZONE_ENTERED": "Wjazd do strefy",
+          "ZONE_EXITED": "Wyjazd ze strefy",
+          "BATTERY_LOW": "Niska bateria",
+          "CONNECTION_LOST": "Utrata łączności",
+          "CONNECTION_RESTORED": "Powrót łączności",
+          "PHOTO_UPLOADED": "Zdjęcie parkowania",
+          "END_REQUESTED": "Prośba o zakończenie",
+          "PAUSE_FAILED": "Nieudana pauza",
+          "RESUME_FAILED": "Nieudane wznowienie",
+          "LOCK_FAILED": "Nieudana blokada",
+          "ENDED_REMOTELY": "Zakończony zdalnie",
+          "LATE_UNLOCK_LOCKED": "Spóźnione odblokowanie zablokowane",
+          "BILLING_STOPPED": "Naliczanie zatrzymane",
+          "MOVED_AFTER_END": "Ruch po zakończeniu"
+        },
+        "rentalState": {
+          "RESERVED": "Rezerwacja",
+          "UNLOCKING": "Odblokowywanie",
+          "ACTIVE": "W trakcie",
+          "PAUSED": "Pauza",
+          "ENDING": "Kończenie",
+          "ENDED": "Zakończony",
+          "EXPIRED": "Rezerwacja wygasła",
+          "UNLOCK_FAILED": "Nie odblokowano",
+          "UNPAID": "Nieopłacony"
+        },
+        "fromState": {
+          "RESERVED": "Rezerwacja",
+          "UNLOCKING": "Odblokowywanie",
+          "ACTIVE": "W trakcie",
+          "PAUSED": "Pauza",
+          "ENDING": "Kończenie",
+          "ENDED": "Zakończony",
+          "EXPIRED": "Rezerwacja wygasła",
+          "UNLOCK_FAILED": "Nie odblokowano",
+          "UNPAID": "Nieopłacony"
+        },
+        "toState": {
+          "RESERVED": "Rezerwacja",
+          "UNLOCKING": "Odblokowywanie",
+          "ACTIVE": "W trakcie",
+          "PAUSED": "Pauza",
+          "ENDING": "Kończenie",
+          "ENDED": "Zakończony",
+          "EXPIRED": "Rezerwacja wygasła",
+          "UNLOCK_FAILED": "Nie odblokowano",
+          "UNPAID": "Nieopłacony"
+        },
+        "zoneType": {
+          "SERVICE_AREA": "Obszar działania",
+          "PARKING": "Parkowanie",
+          "SLOW": "Wolna jazda",
+          "NO_RIDE": "Zakaz"
+        }
+      }
+    },
+    "zone-presence": {
+      "title": "Obecność w strefach",
+      "searchPlaceholder": "Hulajnoga, przejazd albo kod strefy",
+      "new": "",
+      "emptyTitle": "Żadna hulajnoga nie jest teraz w strefie",
+      "emptyBody": "Obecność zapisuje śledzenie stref w trwających przejazdach.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# hulajnoga} few {# hulajnogi} other {# hulajnóg}} w strefach w trwających przejazdach",
+      "fields": {
+        "scooterId": "Hulajnoga",
+        "scooterNumber": "Hulajnoga",
+        "zoneId": "Strefa",
+        "zoneCode": "Strefa",
+        "zoneName": "Nazwa strefy",
+        "zoneType": "Typ strefy",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "enteredAt": "Wjazd",
+        "outsideCount": "Odczyty poza strefą",
+        "secondsInZone": "Czas w strefie"
+      },
+      "values": {
+        "zoneType": {
+          "SERVICE_AREA": "Obszar działania",
+          "PARKING": "Parkowanie",
+          "SLOW": "Wolna jazda",
+          "NO_RIDE": "Zakaz"
+        }
+      }
+    },
+    "zone-control": {
+      "title": "Komendy stref",
+      "searchPlaceholder": "Hulajnoga albo przejazd",
+      "new": "",
+      "emptyTitle": "Brak sterowania strefami",
+      "emptyBody": "Stan pojawia się, gdy przejazd wjedzie do strefy wolnej jazdy albo zakazu.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# przejazd} few {# przejazdy} other {# przejazdów}} ze sterowaniem strefami",
+      "fields": {
+        "scooterId": "Hulajnoga",
+        "scooterNumber": "Hulajnoga",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "speedLimitKmh": "Limit prędkości",
+        "limitSynced": "Limit uzgodniony",
+        "limitCommandId": "Komenda limitu",
+        "limitCommandStatus": "Komenda limitu",
+        "stopped": "Zatrzymanie",
+        "stopSynced": "Zatrzymanie uzgodnione",
+        "stopCommandId": "Komenda zatrzymania",
+        "stopCommandStatus": "Komenda zatrzymania",
+        "startedAt": "Początek",
+        "updatedAt": "Ostatnia zmiana"
+      },
+      "values": {
+        "limitSynced": {
+          "true": "Tak",
+          "false": "Nie"
+        },
+        "stopSynced": {
+          "true": "Tak",
+          "false": "Nie"
+        },
+        "stopped": {
+          "true": "Zatrzymana",
+          "false": "Jedzie"
+        },
+        "limitCommandStatus": {
+          "SENT": "Wysłana",
+          "ACKED": "Potwierdzona",
+          "REJECTED": "Odrzucona",
+          "TIMEOUT": "Brak odpowiedzi"
+        },
+        "stopCommandStatus": {
+          "SENT": "Wysłana",
+          "ACKED": "Potwierdzona",
+          "REJECTED": "Odrzucona",
+          "TIMEOUT": "Brak odpowiedzi"
+        }
+      }
+    },
+    "payment-customers": {
+      "title": "Klienci operatora",
+      "searchPlaceholder": "Klient albo identyfikator u operatora",
+      "new": "",
+      "emptyTitle": "Brak klientów u operatora płatności",
+      "emptyBody": "Klient u operatora powstaje przy pierwszym dodaniu karty albo płatności.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "summary": "{count, plural, one {# klient} few {# klientów} other {# klientów}} u operatora płatności",
+      "fields": {
+        "userId": "Klient",
+        "userName": "Klient",
+        "userStatus": "Stan konta",
+        "provider": "Operator",
+        "providerCustomerId": "Identyfikator u operatora",
+        "createdAt": "Utworzono",
+        "paymentMethods": "Karty",
+        "lastPaymentAt": "Ostatnia płatność"
+      },
+      "values": {
+        "userStatus": {
+          "ACTIVE": "Aktywny",
+          "BLOCKED": "Zablokowany",
+          "DELETED": "Usunięty"
+        }
+      }
+    },
+    "permissions": {
+      "title": "Uprawnienia",
+      "searchPlaceholder": "Kod, grupa albo opis",
+      "new": "",
+      "emptyTitle": "Brak uprawnień",
+      "emptyBody": "Uprawnienia pochodzą z katalogu w kodzie.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "code": "Kod",
+        "module": "Grupa",
+        "description": "Opis",
+        "rolesCount": "Role",
+        "roleNames": "Nazwy ról",
+        "inAdministrator": "W roli Administrator",
+        "updatedAt": "Zmieniono",
+        "updatedBy": "Zmienił",
+        "updatedByName": "Zmienił",
+        "version": "Wersja rekordu"
+      },
+      "values": {
+        "inAdministrator": {
+          "true": "Tak",
+          "false": "Nie"
+        },
+        "module": {
+          "dashboard": "Pulpit",
+          "fleet": "Flota",
+          "zones": "Strefy",
+          "rentals": "Przejazdy",
+          "payments": "Cennik i płatności",
+          "accounts": "Klienci",
+          "operations": "Zgłoszenia",
+          "service": "Serwis",
+          "access": "Dostęp",
+          "content": "Treści",
+          "documents": "Wydruki",
+          "reports": "Raporty",
+          "simulator": "Symulator"
+        }
+      }
+    },
+    "saved-places": {
+      "title": "Zapisane miejsca",
+      "searchPlaceholder": "Nazwa miejsca",
+      "new": "",
+      "emptyTitle": "Brak zapisanych miejsc",
+      "emptyBody": "Klient zapisuje miejsca w aplikacji.",
+      "bulkRemove": "Usuń",
+      "removeBody": "Miejsce zniknie z aplikacji klienta.",
+      "fields": {
+        "id": "Identyfikator",
+        "userId": "Klient",
+        "userName": "Klient",
+        "label": "Etykieta",
+        "name": "Nazwa",
+        "lon": "Długość",
+        "lat": "Pozycja (szer., dług.)",
+        "createdAt": "Dodano"
+      },
+      "values": {
+        "label": {
+          "HOME": "Dom",
+          "WORK": "Praca",
+          "CUSTOM": "Inne"
+        }
+      }
+    },
+    "telemetry": {
+      "title": "Telemetria",
+      "fields": {
+        "recordedAt": "Czas odczytu",
+        "lat": "Szerokość",
+        "lon": "Długość",
+        "batteryPct": "Bateria",
+        "speedKmh": "Prędkość",
+        "rentalId": "Przejazd",
+        "rentalNumber": "Przejazd",
+        "locked": "Zablokowana",
+        "buffered": "Z bufora",
+        "gapSeconds": "Odstęp"
+      }
     }
   },
   "history": {
@@ -2207,7 +2846,7 @@
       "system": "systemowa",
       "permissionsOf": "{count} / {total}",
       "matrix": "Uprawnienia",
-      "matrixHint": "{count} z {total} · najedź na uprawnienie, aby zobaczyć kod",
+      "matrixHint": "{count} z {total} · najedź na uprawnienie, aby zobaczyć opis i kod",
       "moduleCount": "{count} z {total}",
       "selectModule": "Wszystkie uprawnienia modułu {module}",
       "pending": "Niezapisane:",
@@ -3881,7 +4520,11 @@
     "tabs": {
       "label": "Hulajnoga",
       "overview": "Przegląd",
-      "service": "Serwis"
+      "service": "Serwis",
+      "commands": "Komendy",
+      "statusHistory": "Historia stanów",
+      "rentals": "Przejazdy",
+      "telemetry": "Telemetria"
     },
     "stats": {
       "odometer": "przebieg",
@@ -5466,5 +6109,539 @@
       "retried": "Zlecono ponownie: wydruk {id}.",
       "retention": "Pliki DOCX i PDF usuwamy po 30 dniach; wpis zostaje. „Wygeneruj ponownie” bierze bieżące dane i aktywną wersję szablonu, więc dokument może różnić się od pierwotnego."
     }
+  },
+  "permissionLabel": {
+    "dashboard": {
+      "read": "Pulpit"
+    },
+    "scooters": {
+      "read": "Podgląd floty",
+      "write": "Edycja floty",
+      "command": "Komendy zdalne"
+    },
+    "telemetry": {
+      "read": "Telemetria"
+    },
+    "zones": {
+      "read": "Podgląd stref",
+      "write": "Edycja stref"
+    },
+    "rentals": {
+      "read": "Podgląd przejazdów",
+      "manage": "Zdalne zakończenie i zwroty"
+    },
+    "tariffs": {
+      "read": "Podgląd cennika",
+      "write": "Edycja cennika"
+    },
+    "payments": {
+      "read": "Płatności"
+    },
+    "wallet": {
+      "adjust": "Korekta salda"
+    },
+    "users": {
+      "read": "Podgląd klientów",
+      "manage": "Zarządzanie klientami"
+    },
+    "tickets": {
+      "read": "Podgląd zgłoszeń",
+      "manage": "Obsługa zgłoszeń"
+    },
+    "service": {
+      "read": "Podgląd serwisu",
+      "manage": "Zadania i części"
+    },
+    "staff": {
+      "read": "Podgląd operatorów",
+      "manage": "Zarządzanie operatorami"
+    },
+    "roles": {
+      "manage": "Role i uprawnienia"
+    },
+    "audit": {
+      "read": "Dziennik audytu"
+    },
+    "content": {
+      "read": "Podgląd treści",
+      "write": "Edycja treści"
+    },
+    "company": {
+      "write": "Dane firmy"
+    },
+    "reports": {
+      "revenue": "Raport przychodów",
+      "fleet_usage": "Raport floty",
+      "rides_by_zone": "Raport stref i godzin",
+      "reliability": "Raport awaryjności",
+      "users": "Raport użytkowników",
+      "wallet": "Raport portfela",
+      "manage": "Definicje raportów"
+    },
+    "templates": {
+      "read": "Podgląd szablonów",
+      "write": "Edycja szablonów"
+    },
+    "documents": {
+      "generate": "Wydruki"
+    },
+    "simulator": {
+      "manage": "Symulator"
+    }
+  },
+  "areas": {
+    "count": "{count, number}",
+    "fleet": {
+      "scooters": "Hulajnogi",
+      "telemetry": "Telemetria",
+      "commands": "Komendy",
+      "subtitle": "{count, plural, one {# hulajnoga} few {# hulajnogi} other {# hulajnóg}} we flocie · {offline} bez łączności"
+    },
+    "rentals": {
+      "rentals": "Przejazdy",
+      "events": "Zdarzenia"
+    },
+    "zones": {
+      "zones": "Strefy",
+      "presence": "Obecność w strefach",
+      "control": "Komendy stref"
+    },
+    "payments": {
+      "customers": "Klienci operatora"
+    },
+    "users": {
+      "customers": "Klienci",
+      "consents": "Zgody",
+      "sessions": "Sesje",
+      "otpCodes": "Kody SMS",
+      "subtitle": "Klienci aplikacji: konta, zgody, sesje i kody logowania"
+    },
+    "access": {
+      "invitations": "Zaproszenia",
+      "sessions": "Sesje",
+      "permissions": "Uprawnienia"
+    }
+  },
+  "listExport": {
+    "open": "Eksportuj",
+    "title": "Eksportuj {noun}",
+    "lead": "Plik obejmie wszystkie strony listy z bieżącymi filtrami, wyszukiwaniem i sortowaniem.",
+    "format": "Format",
+    "formats": {
+      "xlsx": {
+        "label": "XLSX do Excela",
+        "short": "XLSX",
+        "hint": "kwoty jako liczby w złotych, daty jako daty Excela"
+      },
+      "csv": {
+        "label": "CSV, UTF-8 ze średnikiem",
+        "short": "CSV",
+        "hint": "UTF-8 z BOM, średnik i przecinek dziesiętny"
+      }
+    },
+    "scope": "Zakres",
+    "rows": "Wiersze",
+    "rowsValue": "{count, plural, one {# wiersz} few {# wiersze} other {# wierszy}} według bieżących filtrów i sortowania",
+    "filters": "Filtry",
+    "search": "Wyszukiwanie",
+    "sort": "Sortowanie",
+    "columns": "Kolumny",
+    "columnsValue": "{count, plural, one {# kolumna} few {# kolumny} other {# kolumn}} listy: {list}",
+    "none": "brak",
+    "limitTitle": "Za dużo wierszy do eksportu",
+    "limitBody": "Lista ma {count, number} wierszy, a eksport mieści najwyżej {limit, number}. Zawęź filtry, na przykład okres albo stan, i eksportuj w częściach.",
+    "empty": "Lista jest pusta przy tych filtrach; nie ma czego eksportować.",
+    "personal": "Plik zawiera dane osobowe ({fields}). Przechowuj go tylko tak długo, jak to potrzebne. Eksport trafi do dziennika audytu z filtrami i liczbą wierszy.",
+    "masked": "Bez uprawnienia users.read kolumna klienta ma wartość „Klient”, jak w liście.",
+    "failed": "Nie udało się pobrać pliku: {message}",
+    "fileHint": "{file} · {hint}",
+    "loading": "Pobieranie {format}…",
+    "loadingRows": "{count, plural, one {# wiersz} few {# wiersze} other {# wierszy}}, zwykle kilka sekund",
+    "loadingUnknown": "zwykle kilka sekund",
+    "loadingHint": "Plik powstaje w trakcie pobierania i zapisze się w folderze pobranych plików przeglądarki.",
+    "changeFilters": "Zmień filtry",
+    "submit": "Pobierz {format}",
+    "retry": "Spróbuj ponownie",
+    "done": "Pobrano plik {file}",
+    "nouns": {
+      "scooters": "hulajnogi",
+      "scooter-models": "modele hulajnóg",
+      "staff": "operatorów",
+      "roles": "role",
+      "users": "klientów",
+      "audit-log": "dziennik audytu",
+      "rentals": "przejazdy",
+      "zones": "strefy",
+      "tariffs": "wersje cennika",
+      "payments": "płatności",
+      "wallet-ledger": "księgę portfeli",
+      "wallets": "portfele",
+      "receipts": "paragony",
+      "payment-methods": "karty klientów",
+      "payment-webhook-events": "webhooki operatora",
+      "refunds": "zwroty",
+      "tickets": "zgłoszenia",
+      "service-tasks": "zadania serwisowe",
+      "spare-parts": "części",
+      "spare-part-movements": "ruchy magazynowe",
+      "files": "pliki",
+      "notification-templates": "szablony powiadomień",
+      "notifications": "wysłane powiadomienia",
+      "push-tokens": "tokeny push",
+      "content-blocks": "bloki treści",
+      "faq-items": "pytania FAQ",
+      "faq-categories": "kategorie FAQ",
+      "news": "aktualności",
+      "media": "media",
+      "document-templates": "szablony wydruków",
+      "generated-documents": "wygenerowane wydruki",
+      "data-exports": "eksporty danych",
+      "consents": "zgody",
+      "sessions": "sesje klientów",
+      "staff-sessions": "sesje operatorów",
+      "staff-invitations": "zaproszenia",
+      "otp-codes": "kody SMS",
+      "scooter-commands": "komendy",
+      "rental-events": "zdarzenia przejazdów",
+      "zone-presence": "obecność w strefach",
+      "zone-control": "komendy stref",
+      "payment-customers": "klientów operatora",
+      "permissions": "uprawnienia",
+      "saved-places": "zapisane miejsca",
+      "scooter-status-history": "historię stanów",
+      "telemetry": "telemetrię"
+    }
+  },
+  "inlineList": {
+    "filtered": "{count, plural, one {# wynik} few {# wyniki} other {# wyników}} po filtrach",
+    "page": "{page} z {pages}"
+  },
+  "listFormat": {
+    "today": "dziś, {time}",
+    "dateTime": "{date}, {time}",
+    "seconds": "{s} s",
+    "minSec": "{m} min {s} s",
+    "minutes": "{m} min",
+    "hours": "{h} h {m} min",
+    "days": "{d, plural, one {# dzień} other {# dni}} {h} h",
+    "past": "wygasło",
+    "inMinutes": "za {m} min",
+    "inHours": "za {h} h",
+    "inDays": "za {d} dni",
+    "tomorrow": "jutro",
+    "afterSeconds": "po {s, number, ::.#} s",
+    "afterMinutes": "po {m} min {s} s"
+  },
+  "fleetLists": {
+    "commands": {
+      "quick": {
+        "SENT": "Wysłane",
+        "ACKED": "Potwierdzone",
+        "REJECTED": "Odrzucone",
+        "TIMEOUT": "Brak odpowiedzi"
+      },
+      "sent": "Wysłana",
+      "byRental": "przejazd klienta",
+      "bySystem": "komenda systemu",
+      "note": "Lista tylko do odczytu. Komendę wysyłasz z karty hulajnogi (Komendy zdalne) albo z karty przejazdu; strefy i system wysyłają je same. Brak odpowiedzi liczy się od czasu „Wygasa”.",
+      "cardTitle": "Komendy hulajnogi",
+      "cardEmpty": "Ta hulajnoga nie dostała jeszcze komend."
+    },
+    "telemetry": {
+      "scooter": "Hulajnoga",
+      "required": "*",
+      "scooterPlaceholder": "Numer hulajnogi",
+      "noScooters": "Brak hulajnóg o tym numerze",
+      "inRental": "w przejeździe {rental}",
+      "range": "Zakres czasu",
+      "ranges": {
+        "15m": "15 min",
+        "1h": "1 h",
+        "6h": "6 h",
+        "24h": "24 h",
+        "custom": "Własny"
+      },
+      "today": "dziś",
+      "rangeText": "{day}, {from}–{to}",
+      "rangeTextDays": "{from} – {to}",
+      "applyRange": "Pokaż odczyty",
+      "customHint": "Najwyżej {hours} h w ostatnich 90 dniach.",
+      "batteryBelow": "Bateria poniżej {pct}%",
+      "inRide": "Tylko w przejeździe",
+      "readOnly": "Tylko do odczytu: odczyty zapisuje hulajnoga co ok. 5 s, przechowywane {days} dni",
+      "sortInfo": "sortowanie: czas malejąco",
+      "sort": "Czas odczytu malejąco",
+      "position": "Pozycja (szer., dług.)",
+      "coords": "{lat}, {lon}",
+      "speed": "{value, number, ::.0} km/h",
+      "readingAt": "{date}, {time}",
+      "pickTitle": "Wybierz hulajnogę",
+      "pickBody": "Telemetria pokazuje odczyty jednej hulajnogi w zakresie do {hours} h.",
+      "invalidTitle": "Popraw zakres czasu",
+      "rangeRequired": "Wybierz zakres czasu.",
+      "rangeOrder": "Koniec zakresu musi być po początku.",
+      "rangeTooLong": "Zakres może mieć najwyżej {hours} h.",
+      "rangeRetention": "Odczyty są przechowywane {days} dni; wybierz późniejszy początek.",
+      "emptyTitle": "Brak odczytów w tym zakresie",
+      "emptyBody": "Hulajnoga nie wysyłała telemetrii albo filtry wykluczają wszystkie odczyty.",
+      "gapTitle": "Przerwa w odczytach: {duration}",
+      "gapBody": "{from}–{to}; hulajnoga była bez łączności, a bufor urządzenia nie miał punktów z tego czasu",
+      "pageInfo": "Odczyty {from}–{to} · {count} na stronie · bez liczby wszystkich odczytów",
+      "newer": "Nowsze",
+      "older": "Starsze",
+      "footnote": "Liczba wszystkich odczytów nie jest liczona: flota zapisuje ok. 4 mln odczytów na dobę, więc lista przechodzi do starszych i nowszych odczytów od czasu ostatniego wiersza strony.",
+      "exportRows": "Wszystkie odczyty z zakresu (najwyżej {max, number})",
+      "exportRange": "Zakres: {from} – {to}"
+    }
+  },
+  "statusHistory": {
+    "periods": {
+      "24h": "Ostatnie 24 godziny",
+      "7d": "Ostatnie 7 dni",
+      "30d": "Ostatnie 30 dni",
+      "custom": "Własny okres"
+    },
+    "periodButtons": {
+      "24h": "24 h",
+      "7d": "7 dni",
+      "30d": "30 dni",
+      "custom": "Własny"
+    },
+    "period": "Okres",
+    "periodText": "od {from} do teraz · {duration}",
+    "today": "dziś",
+    "now": "teraz",
+    "apply": "Pokaż",
+    "customHint": "Oś czasu pokazuje najwyżej {days} dób.",
+    "noHistory": "Brak historii stanów w tym okresie.",
+    "since": "Historia tej hulajnogi zaczyna się {date}.",
+    "legend": {
+      "AVAILABLE": "Dostępna",
+      "RESERVED": "Rezerwacja",
+      "IN_RIDE": "W użyciu",
+      "SERVICE": "Serwis",
+      "OFFLINE": "Bez łączności",
+      "RETIRED": "Wycofana",
+      "LOW_BATTERY": "Niska bateria",
+      "UNTRACKED": "Brak historii"
+    },
+    "showTable": "Pokaż jako tabelę",
+    "showChart": "Pokaż wykres",
+    "shares": "Udziały w okresie",
+    "percent": "{value, number, ::.0}%",
+    "utilization": "Wykorzystanie",
+    "utilizationSub": "{duration} w przejeździe · {count, plural, one {# przedział} few {# przedziały} other {# przedziałów}}",
+    "availability": "Dostępność",
+    "availabilitySub": "gotowa do jazdy, także w przejeździe",
+    "service": "Serwis",
+    "serviceSub": "{duration} · {count, plural, one {# przedział} few {# przedziały} other {# przedziałów}}",
+    "offline": "Bez łączności",
+    "offlineSub": "{duration} w {count, plural, one {# przerwie} other {# przerwach}}",
+    "intervals": "Przedziały",
+    "emptyIntervals": "Brak przedziałów w tym okresie przy wybranych filtrach.",
+    "automatic": "automatyczne",
+    "cameBack": "wróciła sama",
+    "openReason": "Otwórz przyczynę przedziału"
+  },
+  "rentalEvents": {
+    "transition": "{from} → {to}",
+    "customer": "Klient",
+    "note": "Lista tylko do odczytu. Zdarzenia zapisuje proces wypożyczenia; te same wpisy są na osi czasu przejazdu."
+  },
+  "zoneLists": {
+    "openLists": "Obecność i komendy stref",
+    "presenceNote": "Lista tylko do odczytu. Obecność zapisuje śledzenie stref z histerezą w trwających przejazdach; wiersz znika po wyjeździe ze strefy albo końcu przejazdu.",
+    "controlNote": "Lista tylko do odczytu. Stan limitu prędkości i zatrzymania uzgadniany ze strefami przez komendy MQTT; „nieuzgodniony” oznacza, że hulajnoga jeszcze nie potwierdziła komendy.",
+    "synced": "uzgodniony",
+    "notSynced": "nieuzgodniony",
+    "noLimit": "bez limitu",
+    "stopped": "Zatrzymana",
+    "notStopped": "Bez zatrzymania",
+    "quick": {
+      "stopped": {
+        "true": "Zatrzymane"
+      }
+    }
+  },
+  "paymentCustomers": {
+    "note": "Lista tylko do odczytu. Klienta u operatora płatności zakłada API przy pierwszej karcie albo płatności; karty i płatności są w zakładkach obok."
+  },
+  "consents": {
+    "quick": {
+      "CURRENT": "Obowiązujące",
+      "OUTDATED": "Czekają na nową wersję",
+      "REVOKED": "Wycofane"
+    },
+    "stateAt": {
+      "CURRENT": "zaakceptowano",
+      "OUTDATED": "zaakceptowano",
+      "SUPERSEDED": "zaakceptowano",
+      "CONFIRMED": "potwierdzono",
+      "REVOKED": "wycofano"
+    },
+    "waitsFor": "Czeka na wersję {version}",
+    "revokedByCustomer": "wycofał klient",
+    "noSource": "brak danych",
+    "revoke": "Wycofaj",
+    "revokeTitle": "Wycofaj zgodę marketingową",
+    "revokeSub": "{name} · zgoda {id}",
+    "document": "Dokument",
+    "versionShort": "w. {version}",
+    "accepted": "Zaakceptowano",
+    "effectStop": "Klient od razu przestanie dostawać informacje o promocjach.",
+    "effectApp": "W aplikacji zobaczy zgodę jako wycofaną; może ją wyrazić ponownie.",
+    "effectAudit": "Wpis consent.revoked z powodem w dzienniku audytu.",
+    "reason": "Powód",
+    "reasonHint": "(tylko w dzienniku audytu)",
+    "reasonPlaceholder": "Np. prośba klienta przez telefon, numer zgłoszenia",
+    "confirm": "Potwierdzam, że klient poprosił o wycofanie",
+    "onlyMarketing": "Regulamin, polityka prywatności i wiek to warunki konta: operator ich nie wycofuje.",
+    "revokeSubmit": "Wycofaj zgodę",
+    "revoked": "Wycofano zgodę marketingową klienta {name}"
+  },
+  "sessionsList": {
+    "quick": {
+      "ACTIVE": "Aktywne",
+      "EXPIRED": "Wygasłe",
+      "REVOKED": "Unieważnione"
+    },
+    "sessionId": "id sesji {id}",
+    "app": "aplikacja {version}",
+    "unknownDevice": "Nieznane urządzenie",
+    "noDeviceData": "brak danych urządzenia",
+    "bySms": "kodem SMS",
+    "expired": "wygasła",
+    "revokedOn": "unieważniona {date}",
+    "revoke": "Unieważnij",
+    "revokeTitle": "Unieważnić sesję na {device}?",
+    "revokeSub": "{name} · sesja {id} · ostatnio {last}",
+    "effectToken": "Aplikacja na tym urządzeniu wyloguje się przy najbliższym odświeżeniu tokenu, najpóźniej po 15 min.",
+    "effectOthers": "Inne sesje klienta działają dalej. „Wyloguj wszędzie” jest na karcie klienta.",
+    "effectRental": "Trwający przejazd się nie kończy; klient zakończy go po ponownym zalogowaniu kodem SMS.",
+    "reason": "Powód",
+    "reasonHint": "(opcjonalny, tylko w dzienniku audytu)",
+    "auditHint": "Wpis session.revoked w dzienniku audytu",
+    "revokeSubmit": "Unieważnij sesję",
+    "revoked": "Unieważniono sesję {id}",
+    "note": "Tokenu ani jego skrótu nie pokazujemy. Odświeżenie tokenu nie tworzy nowego wiersza: lista pokazuje sesję, czyli rodzinę tokenów jednego logowania."
+  },
+  "staffSessions": {
+    "subtitle": "Sesje operatorów: jedna rodzina tokenów na logowanie, bez skrótu tokenu",
+    "unknownBrowser": "Nieznana przeglądarka",
+    "byTotp": "hasło i TOTP",
+    "remembered": "zapamiętane, 7 dni",
+    "shortSession": "sesja 12 h",
+    "yours": "Twoje konto",
+    "revokeTitle": "Unieważnić sesję operatora {name}?",
+    "revokeSub": "{browser} · sesja {id} · ostatnio {last}",
+    "effectToken": "Panel w tej przeglądarce wyloguje się przy najbliższym odświeżeniu tokenu, najpóźniej po 15 min.",
+    "effectOthers": "Inne sesje operatora działają dalej. „Wyloguj wszędzie” jest na karcie operatora.",
+    "effectAudit": "Wpis session.revoked w dzienniku audytu."
+  },
+  "invitations": {
+    "quick": {
+      "pending": "Oczekują",
+      "accepted": "Przyjęte",
+      "expired": "Wygasłe",
+      "revoked": "Unieważnione"
+    },
+    "first": "pierwsze",
+    "resent": "ponowne",
+    "acceptedOn": "przyjęte {date}",
+    "replacedOn": "zastąpione {date}",
+    "revokedOn": "unieważnione {date}",
+    "notAccepted": "nie przyjęto",
+    "terminal": "terminal",
+    "terminalCommand": "pnpm db:staff:create",
+    "resend": "Wyślij ponownie",
+    "revoke": "Unieważnij",
+    "revokeTitle": "Unieważnić zaproszenie dla {email}?",
+    "revokeBody": "Link aktywacji przestanie działać od razu. Konto operatora zostaje; nowe zaproszenie wyślesz przyciskiem „Wyślij ponownie”.",
+    "revoked": "Unieważniono zaproszenie dla {email}"
+  },
+  "otpCodes": {
+    "quick": {
+      "ACTIVE": "Aktywne",
+      "CONSUMED": "Użyte",
+      "EXPIRED": "Wygasłe",
+      "BLOCKED": "Zablokowane"
+    },
+    "noAccount": "bez konta",
+    "attempts": "{count} z {max}",
+    "purge": "Usuń wygasłe kody",
+    "purgeTitleLoading": "Usunąć wygasłe kody?",
+    "purgeTitle": "{count, plural, =0 {Brak wygasłych kodów do usunięcia} one {Usunąć # wygasły kod?} few {Usunąć # wygasłe kody?} other {Usunąć # wygasłych kodów?}}",
+    "purgeSub": "Kody, których ważność minęła ponad dobę temu, czyli przed {date}, {time}. Kodów z ostatniej doby procedura nie usuwa.",
+    "breakdown": {
+      "CONSUMED": "Użyte",
+      "EXPIRED": "Wygasłe bez użycia",
+      "BLOCKED": "Zablokowane po {max} próbach",
+      "total": "Razem do usunięcia"
+    },
+    "nothing": "Nie ma kodów starszych niż doba.",
+    "purgeWarning": "Usunięcia nie da się cofnąć. Kody z ostatniej doby zostają, bo z nich liczy się limit kodów na godzinę. W dzienniku audytu zapisze się liczba usuniętych kodów.",
+    "procedure": "Procedura",
+    "procedureName": "sp_purge_expired_otp",
+    "purgeSubmit": "Usuń {count, plural, one {# kod} few {# kody} other {# kodów}}",
+    "purged": "Usunięto {count, plural, one {# kod} few {# kody} other {# kodów}}",
+    "note": "Kodu ani jego skrótu nie pokazujemy, a numer tylko z trzema ostatnimi cyframi. Kod jest ważny 5 min, po {max} błędnych próbach przestaje działać; limit to 5 kodów na godzinę na numer."
+  },
+  "permissionsList": {
+    "subtitle": "Uprawnienia pochodzą z katalogu w kodzie; tutaj zmieniasz tylko ich opis",
+    "quick": {
+      "onlyAdmin": "Tylko w roli Administrator",
+      "none": "Bez ról"
+    },
+    "note": "Przydział uprawnień zmieniasz w macierzy roli (Role → rola). Kodów nie dodaje się w panelu: nowe uprawnienie to zmiana w kodzie i migracji.",
+    "drawerTitle": "Opis uprawnienia",
+    "descriptionHint": "Widać go w macierzy roli po najechaniu na uprawnienie.",
+    "counter": "{count} / {max}",
+    "rolesWith": "Role z tym uprawnieniem",
+    "staffCount": "{count, plural, one {# operator} few {# operatorów} other {# operatorów}}",
+    "openRole": "Otwórz rolę",
+    "without": "{roles}: brak. Dodasz je w macierzy roli.",
+    "versionNote": "Zmiana opisu nie zmienia dostępu. Zapis z kontrolą wersji (wersja {version}) i wpisem permission.updated w dzienniku audytu.",
+    "save": "Zapisz opis",
+    "saved": "Zapisano opis uprawnienia {code}"
+  },
+  "savedPlaces": {
+    "title": "Zapisane miejsca",
+    "empty": "Klient nie zapisał miejsc w aplikacji.",
+    "remove": "Usuń miejsce {name}",
+    "removeTitle": "Usunąć miejsce „{name}”?",
+    "removeBody": "Miejsce zniknie z aplikacji klienta. Usunięcie trafi do dziennika audytu.",
+    "removeSubmit": "Usuń miejsce"
+  },
+  "templateEdit": {
+    "quick": {
+      "all": "Wszystkie",
+      "active": "Aktywne",
+      "inactive": "Nieaktywne"
+    },
+    "sort": "Rodzaj, potem nazwa",
+    "summary": "{count, plural, one {# szablon} few {# szablony} other {# szablonów}} · sortowanie: rodzaj, potem nazwa",
+    "inactive": "Nieaktywny",
+    "deactivatedOn": "wyłączony {date}",
+    "reactivate": "Aktywuj ponownie",
+    "reactivated": "Szablon „{name}” jest znów aktywny (bez roli domyślnego)",
+    "deactivated": "Wyłączono szablon „{name}”",
+    "defaultDone": "„{name}” jest teraz domyślnym szablonem",
+    "saved": "Zapisano szablon „{name}”",
+    "menu": {
+      "edit": "Edytuj nazwę i opis",
+      "upload": "Wgraj nową wersję",
+      "download": "Pobierz aktywną wersję",
+      "deactivate": "Dezaktywuj szablon"
+    },
+    "lockedDefault": "Domyślny szablon z aktywną wersją: „Drukuj” dla rodzaju {type} by przestało działać. Najpierw ustaw jako domyślny inny szablon tego rodzaju.",
+    "title": "Edytuj szablon",
+    "nameHint": "Była: {name}. Unikalna w rodzaju, widać ją w oknie „Drukuj”; rodzaju nie zmienisz.",
+    "deactivation": "Dezaktywacja",
+    "deactivateHint": "Szablon zniknie z okna „Drukuj”; wersje i wydruki zostają.",
+    "deactivate": "Dezaktywuj",
+    "keepActive": "Zostaw aktywny",
+    "confirmTitle": "Dezaktywować „{name}”?",
+    "effectPrint": "Zniknie z okna „Drukuj”. Wersje i {count, plural, one {# wydruk} few {# wydruki} other {# wydruków}} z 30 dni zostają do pobrania.",
+    "effectRestore": "Możesz go aktywować ponownie z listy; nie wróci jako domyślny."
   }
 }

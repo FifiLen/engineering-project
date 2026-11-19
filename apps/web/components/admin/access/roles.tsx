@@ -15,6 +15,7 @@ import { AlertIcon, LockIcon } from '../icons';
 import { valueLabel } from '../labels';
 import { ResourceList, type Column } from '../resource-list';
 import { AccessTabs, Banner, Person } from './common';
+import { permissionLabel } from './permissions';
 
 const BASE = '/admin/role';
 const MODULE_ORDER = [
@@ -131,7 +132,8 @@ export function RoleEditor({ id }: { id?: string }) {
   const original = new Set(record?.permissions ?? []);
   const added = [...selected].filter((p) => !original.has(p));
   const removed = [...original].filter((p) => !selected.has(p));
-  const labelOf = (code: string) => catalog.find((p) => p.code === code)?.description ?? code;
+  // Krótka etykieta z `pl.json`, opis z bazy w dymku (ADR 0076).
+  const labelOf = (code: string) => permissionLabel(code, catalog.find((p) => p.code === code)?.description ?? code);
   const dirty =
     added.length + removed.length > 0 || name !== (record?.name ?? '') || description !== (record?.description ?? '');
 
@@ -267,14 +269,14 @@ export function RoleEditor({ id }: { id?: string }) {
                     const isOn = selected.has(p.code);
                     const cls = `perm${isOn ? ' on' : ''}${isOn && !original.has(p.code) && record ? ' added' : ''}${!isOn && original.has(p.code) ? ' removed' : ''}`;
                     return (
-                      <label key={p.code} className={cls} title={p.code}>
+                      <label key={p.code} className={cls} title={`${p.description} (${p.code})`}>
                         <input
                           type="checkbox"
                           checked={isOn}
                           disabled={!canManage}
                           onChange={(e) => toggle([p.code], e.target.checked)}
                         />
-                        {p.description}
+                        {permissionLabel(p.code, p.description)}
                       </label>
                     );
                   })}

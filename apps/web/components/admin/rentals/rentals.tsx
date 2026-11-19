@@ -25,6 +25,7 @@ import { rentalNumber, scooterNumber } from '../fleet/fleet-format';
 import { ChevronRightIcon, CloseIcon, RouteIcon, StopIcon, WarningIcon } from '../icons';
 import { valueLabel } from '../labels';
 import { SETTLEMENT_PILL } from '../payments/payment-format';
+import { RentalTabs } from '../areas';
 import { ResourceList, type Column, type QuickPreset } from '../resource-list';
 import { useRentalDetails } from './rental-data';
 import {
@@ -197,6 +198,7 @@ export function RentalList() {
         emptyIcon={<RouteIcon size={22} />}
         createLabel={null}
         selectable={false}
+        tabs={<RentalTabs />}
         onOpen={(r) => setOpenId(r.id)}
         activeId={openId}
         subscribe={subscribe}
