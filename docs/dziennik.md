@@ -1635,7 +1635,6 @@ Migracja `0012_iteration7_fixes.sql` (0011 bez zmian), `pnpm db:pull` z ręczną
 - Poprawki po przeglądzie (C1, C7, D1 w panelu i aplikacji) sprawdzone testami i buildem, bez zapisu o ponownym przeklikaniu w przeglądarce.
 
 **Sprawy dla autora**
-- Wypchnięcie iteracji 7 i zielone CI.
 - `pnpm infra:up` (buduje obraz Gotenberga) i `pnpm db:migrate`, `pnpm db:seed` w innych środowiskach; seed wymaga SeaweedFS.
 - `SITE_REVALIDATE_URL` i `SITE_REVALIDATE_SECRET` w `.env`, żeby strona odświeżała się zaraz po zapisie w panelu (bez nich po 5 min).
 - Prawdziwe dane firmy w panelu (Treści → Dane firmy): w bazie deweloperskiej adres i NIP są puste.
@@ -1649,3 +1648,6 @@ Migracja `0012_iteration7_fixes.sql` (0011 bez zmian), `pnpm db:pull` z ręczną
   - agent aplikacji wstawił i usunął paragon testowy `PAR/2026/000001`: sekwencja numerów paragonów jest przesunięta o 1, a plik PDF i wiersz `files` zostały;
   - klient testowy z danych startowych ma gotowy eksport danych (limit 24 h);
   - Protokół serwisowy ma archiwalną testową wersję 3, nagłówek sekcji `admin.scooter-label` ma wersję rekordu 3 (dwa zapisy z treścią wersji 1), a operator testowy 3 wydruki.
+
+**Wypchnięcie**
+- Iteracja 7 w sześciu commitach `8e63b12`–`66a9ced` na `main`; CI zielone 19 listopada 2026 (przebieg 44475249840).

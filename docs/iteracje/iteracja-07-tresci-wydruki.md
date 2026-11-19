@@ -1,6 +1,6 @@
 # Iteracja 7: treści i wydruki
 
-**Status:** plan (18 listopada 2026); decyzje autora przyjęte 18 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-18-listopada-2026)); makiety gotowe 18 listopada 2026; ADR 0062–0069 przyjęte 18 listopada 2026, ADR 0070 (hero 760 px) 18 listopada 2026; zrealizowana 19 listopada 2026 (bez zielonego CI); aplikacja natywna (pobranie i udostępnienie PDF, pamięć treści) niesprawdzona do czasu development build
+**Status:** plan (18 listopada 2026); decyzje autora przyjęte 18 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-18-listopada-2026)); makiety gotowe 18 listopada 2026; ADR 0062–0069 przyjęte 18 listopada 2026, ADR 0070 (hero 760 px) 18 listopada 2026; zrealizowana 19 listopada 2026, zielone CI 19 listopada 2026 (commit `66a9ced`); aplikacja natywna (pobranie i udostępnienie PDF, pamięć treści) niesprawdzona do czasu development build
 
 ## Cel
 Operator zmienia w panelu wszystko, co klient czyta i ogląda poza etykietami interfejsu, a operator i klient dostają dokumenty z szablonów zmienianych bez programisty. Konkretnie:
@@ -255,7 +255,7 @@ Wersje starsze niż 3 dni; nic nie instalujemy przed akceptacją ADR.
 6. ~~`packages/core` i `packages/shared`: sekcje, Markdown, media, katalog dokumentów, walidacja szablonów, z testami; szablony startowe przechodzą walidację.~~ Zrobione 19 listopada 2026.
 7. ~~API: treści, media, dane firmy, `ETag` i `content.updated`; wydruki z zadaniem i atrapą renderera; paragon PDF klienta; eksport danych; testy API; `pnpm api:openapi`.~~ Zrobione 19 listopada 2026 (moduły Treści, Dokumenty i Eksport danych).
 8. ~~Strona promocyjna, panel i aplikacja (równolegle, każdy w swoim katalogu); teksty merytoryczne usunięte z plików tłumaczeń.~~ Zrobione 19 listopada 2026; odstępstwa od makiet w [dzienniku](../dziennik.md#iteracja-7-implementacja-19-listopada-2026).
-9. Domknięcie: arc42, model danych, wymagania uczelni (17 i 19), spis makiet, dziennik; scenariusz demo krok po kroku; `pnpm lint && pnpm typecheck && pnpm test && pnpm build`; zielone CI. Dokumentacja zrobiona 19 listopada 2026; CI czeka na commit.
+9. Domknięcie: arc42, model danych, wymagania uczelni (17 i 19), spis makiet, dziennik; scenariusz demo krok po kroku; `pnpm lint && pnpm typecheck && pnpm test && pnpm build`; zielone CI. Dokumentacja zrobiona 19 listopada 2026; zielone CI 19 listopada 2026 (commit `66a9ced`).
 
 ## Scenariusz demo
 Według faktycznej implementacji (19 listopada 2026). Wymaga:

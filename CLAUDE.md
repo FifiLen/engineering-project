@@ -81,7 +81,7 @@ Do zrobienia:
 - [x] Przed iteracją 7: makiety brakujących stanów (2026-11-18, `28-panel-tresci`, `29-panel-wydruki`, `30-strona-tresci`, `31-mobile-tresci`, 30 plansz).
 - [x] Przed iteracją 7: ADR 0062–0069 (2026-11-18, zaakceptowane).
 - [x] Iteracja 7: implementacja według planu (2026-11-19).
-- [ ] Wypchnąć iterację 7 i potwierdzić zielone CI.
+- [x] Wypchnąć iterację 7 i potwierdzić zielone CI (2026-11-19, commit `66a9ced`).
 - [ ] Konto Stripe w trybie testowym z kluczami w `.env` i Stripe CLI (autor; bez nich działa atrapa operatora).
 
 ## Uwagi środowiskowe
