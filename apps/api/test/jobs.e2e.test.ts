@@ -72,6 +72,8 @@ describe.skipIf(!adminUrl)('API: zadania w tle (pg-boss)', () => {
       'notifications.sweep',
       'payments.reconcile',
       'rentals.expire-sweep',
+      'reports.retention',
+      'reports.sweep',
       'telemetry.partitions',
       'telemetry.purge',
     ]);
@@ -80,6 +82,7 @@ describe.skipIf(!adminUrl)('API: zadania w tle (pg-boss)', () => {
   it('kolejki z ponowieniami pobierają po jednym zadaniu (błąd jednego nie kończy partii)', () => {
     expect(workerOptions(JOBS.dataExportGenerate)).toMatchObject({ batchSize: 1 });
     expect(workerOptions(JOBS.documentGenerate)).toMatchObject({ batchSize: 1, localConcurrency: 2 });
+    expect(workerOptions(JOBS.reportGenerate)).toMatchObject({ batchSize: 1 });
     expect(workerOptions(JOBS.notificationSend)).toMatchObject({ batchSize: 5 });
   });
 

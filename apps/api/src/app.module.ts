@@ -15,6 +15,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 import { OperationsModule } from './operations/operations.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { RentalsModule } from './rentals/rentals.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 import { SimulatorModule } from './simulator/simulator.module.js';
 import { TelemetryModule } from './telemetry/telemetry.module.js';
 import { ZonesModule } from './zones/zones.module.js';
@@ -38,6 +39,7 @@ export class AppModule {
         ContentModule,
         DocumentsModule,
         DataExportModule,
+        ReportsModule,
         ZonesModule,
         FleetModule,
         OperationsModule,

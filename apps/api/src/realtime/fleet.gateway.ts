@@ -15,6 +15,7 @@ import {
   type NotificationView,
   type RentalListItem,
   type RentalView,
+  type ReportReady,
   type ServerToClientEvents,
   type ServiceTaskUpdated,
   type SimulatorResult,
@@ -51,7 +52,7 @@ type ClientSocket = Socket<ClientToServerEvents, ServerToClientEvents, object, S
  * i `simulator` (`simulator.manage`, tylko przy włączonym sterowaniu symulatorem, ADR 0059); aplikacja łączy się
  * z tokenem klienta i od razu trafia do pokoju `user:{id}` ze zmianami swoich przejazdów, zgłoszeń, powiadomień,
  * wydruków i eksportu danych (ADR 0035, ADR 0036, ADR 0055, ADR 0058, ADR 0066, ADR 0069). Operator trafia przy
- * połączeniu do pokoju `staff:{id}` ze swoimi wydrukami.
+ * połączeniu do pokoju `staff:{id}` ze swoimi wydrukami i raportami (ADR 0071).
  */
 @WebSocketGateway({ cors: { origin: true, credentials: true } })
 export class FleetGateway implements OnGatewayConnection {
@@ -183,6 +184,11 @@ export class FleetGateway implements OnGatewayConnection {
   documentReady(requester: { staffId: string | null; userId: string | null }, document: DocumentReady): void {
     if (requester.staffId) this.server?.to(staffRoom(requester.staffId)).emit('document.ready', document);
     if (requester.userId) this.server?.to(userRoom(requester.userId)).emit('document.ready', document);
+  }
+
+  /** Raport gotowy albo nieudany (ADR 0071), do pokoju zlecającego operatora. */
+  reportReady(staffId: string, run: ReportReady): void {
+    this.server?.to(staffRoom(staffId)).emit('report.ready', run);
   }
 
   /** Eksport danych gotowy albo nieudany (ADR 0069), do pokoju klienta. */

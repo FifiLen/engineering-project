@@ -13,6 +13,8 @@ export interface RenderOptions {
   /** Nagłówek `Gotenberg-Trace`: identyfikator wydruku w logach silnika. */
   trace: string;
   fileName: string;
+  /** Limit czasu konwersji innej niż domyślny silnika (raport PDF: 60 s, `REPORT_LIMITS.renderTimeoutMs`). */
+  timeoutMs?: number;
 }
 
 export interface DocumentRenderer {

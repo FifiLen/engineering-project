@@ -25,8 +25,9 @@ const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 
 /**
  * Gotenberg 9.5.1 (ADR 0066): `POST /forms/libreoffice/convert` dla DOCX i `POST /forms/chromium/convert/html`
- * dla HTML naklejki, `multipart/form-data` przez `fetch` z limitem czasu klienta i nagłówkiem `Gotenberg-Trace`
- * równym identyfikatorowi wydruku. Silnik nie ma dostępu do sieci, więc HTML dostaje pliki obok siebie.
+ * dla HTML naklejki i raportu (stopka raportu jako plik `footer.html` w `assets`, ADR 0071), `multipart/form-data`
+ * przez `fetch` z limitem czasu klienta (domyślny albo `timeoutMs` konwersji) i nagłówkiem `Gotenberg-Trace` równym
+ * identyfikatorowi wydruku. Silnik nie ma dostępu do sieci, więc HTML dostaje pliki obok siebie.
  */
 export class GotenbergRenderer implements DocumentEngine {
   readonly name = 'gotenberg' as const;
@@ -75,7 +76,7 @@ export class GotenbergRenderer implements DocumentEngine {
         method: 'POST',
         body: form,
         headers: { 'Gotenberg-Trace': opts.trace, 'Gotenberg-Output-Filename': opts.fileName },
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? this.timeoutMs),
       });
     } catch (error) {
       const name = (error as { name?: string }).name;
@@ -125,7 +126,14 @@ export function minimalPdf(text: string): Uint8Array {
  */
 export class FakeRenderer implements DocumentEngine {
   readonly name = 'fake' as const;
-  readonly calls: Array<{ kind: 'docx' | 'html'; trace: string; fileName: string; html?: string }> = [];
+  readonly calls: Array<{
+    kind: 'docx' | 'html';
+    trace: string;
+    fileName: string;
+    html?: string;
+    assets?: string[];
+    timeoutMs?: number;
+  }> = [];
   private failures: RenderFailure[] = [];
 
   fillDocx(template: Uint8Array, data: TemplateData): Uint8Array {
@@ -141,8 +149,18 @@ export class FakeRenderer implements DocumentEngine {
     return this.result(opts.trace);
   }
 
-  htmlToPdf(html: string, opts: RenderOptions): Promise<Uint8Array> {
-    this.calls.push({ kind: 'html', trace: opts.trace, fileName: opts.fileName, html });
+  htmlToPdf(
+    html: string,
+    opts: RenderOptions & { assets?: Array<{ name: string; bytes: Uint8Array }> },
+  ): Promise<Uint8Array> {
+    this.calls.push({
+      kind: 'html',
+      trace: opts.trace,
+      fileName: opts.fileName,
+      html,
+      ...(opts.assets ? { assets: opts.assets.map((a) => a.name) } : {}),
+      ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
+    });
     return this.result(opts.trace);
   }
 

@@ -143,6 +143,21 @@ const DOMAIN_STATUS: Record<string, HttpStatus> = {
   // Eksport danych klienta (ADR 0069): limit zleceń to 429 z `details.nextAllowedAt`, zlecenie w toku 409.
   DATA_EXPORT_LIMIT: HttpStatus.TOO_MANY_REQUESTS,
   DATA_EXPORT_IN_PROGRESS: HttpStatus.CONFLICT,
+  // Raporty (ADR 0071): raport albo uruchomienie bez uprawnienia lub wyłączone to 404, parametry 400, format spoza
+  // definicji 422, pusty raport i stan uruchomienia to konflikty (409), limit czasu zapytań 504, plik po retencji 410.
+  REPORT_NOT_FOUND: HttpStatus.NOT_FOUND,
+  REPORT_RUN_NOT_FOUND: HttpStatus.NOT_FOUND,
+  REPORT_RANGE_TOO_LONG: HttpStatus.BAD_REQUEST,
+  REPORT_RANGE_INVALID: HttpStatus.BAD_REQUEST,
+  REPORT_RANGE_IN_FUTURE: HttpStatus.BAD_REQUEST,
+  REPORT_PARAM_NOT_SUPPORTED: HttpStatus.BAD_REQUEST,
+  REPORT_INVALID_GRANULARITY: HttpStatus.BAD_REQUEST,
+  REPORT_FORMAT_NOT_ALLOWED: HttpStatus.UNPROCESSABLE_ENTITY,
+  REPORT_EMPTY: HttpStatus.CONFLICT,
+  REPORT_RUN_NOT_READY: HttpStatus.CONFLICT,
+  REPORT_RUN_NOT_RETRYABLE: HttpStatus.CONFLICT,
+  REPORT_TIMEOUT: HttpStatus.GATEWAY_TIMEOUT,
+  REPORT_FILE_DELETED: HttpStatus.GONE,
 };
 
 @Catch()

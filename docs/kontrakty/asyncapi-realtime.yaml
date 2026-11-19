@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: Zdarzenia na żywo (Socket.IO)
-  version: 1.6.1
+  version: 1.7.0
   description: |
     Kontrakt zdarzeń Socket.IO między backendem a panelem operatora i aplikacją (ADR 0012).
     Operacje opisane z perspektywy backendu. Typy w kodzie: packages/shared/src/realtime.ts.
@@ -49,6 +49,9 @@ info:
     * 1.6.1 (poprawki po przeglądzie iteracji 7): bez zmiany ładunku. Po content.updated aplikacja zawsze
       wysyła żądanie warunkowe GET /content/mobile (bez porównywania rewizji): licznik rośnie już w niezatwierdzonej
       transakcji, a ETag odpowiedzi to skrót treści (pole hash), więc 304 albo ten sam skrót nic nie zmienia.
+    * 1.7.0 (iteracja 8, ADR 0071): zdarzenie report.ready w pokoju staff:{id} zlecającego po stanie końcowym
+      uruchomienia raportu (SUCCEEDED z plikiem PDF albo XLSX z adresem z podpisem na 10 min, FAILED z errorCode);
+      ładunek to widok uruchomienia jak w GET /admin/report-runs/{id}, a panel odpytuje ten punkt jako zapas.
 
 servers:
   lokalny:
@@ -110,13 +113,17 @@ channels:
 
   staff:
     address: staff:{staffId}
-    description: Pokój operatora; jego wydruki w stanie końcowym (ADR 0066). Gniazdo operatora dołącza przy połączeniu.
+    description: >-
+      Pokój operatora; jego wydruki (ADR 0066) i raporty (ADR 0071) w stanie końcowym. Gniazdo operatora dołącza przy
+      połączeniu.
     parameters:
       staffId:
         description: Identyfikator operatora z tokenu dostępowego
     messages:
       documentReady:
         $ref: '#/components/messages/DocumentReady'
+      reportReady:
+        $ref: '#/components/messages/ReportReady'
 
   tickets:
     address: tickets
@@ -200,6 +207,13 @@ operations:
     summary: 'document.ready: wydruk operatora gotowy (SUCCEEDED) albo nieudany (FAILED z errorCode; przy błędzie PDF zostaje DOCX)'
     messages:
       - $ref: '#/channels/staff/messages/documentReady'
+  sendReportReady:
+    action: send
+    channel:
+      $ref: '#/channels/staff'
+    summary: 'report.ready: uruchomienie raportu zlecającego gotowe (SUCCEEDED z plikiem) albo nieudane (FAILED z errorCode)'
+    messages:
+      - $ref: '#/channels/staff/messages/reportReady'
   sendDocumentReadyToUser:
     action: send
     channel:
@@ -660,6 +674,107 @@ components:
                 urlExpiresAt: '2026-11-18T14:32:00.000Z'
                 fileName: S-1037-protokol-serwisowy.pdf
                 sizeBytes: 88412
+    ReportReady:
+      name: report.ready
+      payload:
+        description: >-
+          ReportReady (= ReportRunView) z packages/shared/src/realtime.ts i reports.ts (ADR 0071); ten sam kształt co
+          GET /admin/report-runs/{id}.
+        type: object
+        required:
+          [
+            id,
+            shortId,
+            reportCode,
+            reportName,
+            format,
+            status,
+            state,
+            params,
+            requestedBy,
+            requestedByName,
+            fileName,
+            fileSizeBytes,
+            rowCount,
+            pageCount,
+            dataAsOf,
+            errorCode,
+            retryOf,
+            createdAt,
+            startedAt,
+            finishedAt,
+            fileDeletedAt,
+            file,
+          ]
+        properties:
+          id: { type: string, format: uuid }
+          shortId:
+            { type: string, description: 'Pierwsze 8 znaków identyfikatora (stopka pliku, wyszukiwanie w Historii)' }
+          reportCode: { type: string, enum: [revenue, fleet_usage, rides_by_zone, reliability, users, wallet] }
+          reportName: { type: string, description: Nazwa z report_definitions (treść z panelu) }
+          format: { type: string, enum: [PDF, XLSX] }
+          status: { type: string, enum: [SUCCEEDED, FAILED] }
+          state: { type: string, enum: [SUCCEEDED, FAILED] }
+          params:
+            type: object
+            description: 'StoredReportParams z packages/core: preset, from, to, granularity, compare, filtry, periodFrom, periodTo, compareFrom, compareTo'
+          requestedBy: { type: string, format: uuid }
+          requestedByName: { type: string }
+          fileName: { type: [string, 'null'], description: 'Np. revenue-2026-10.pdf' }
+          fileSizeBytes: { type: [integer, 'null'] }
+          rowCount: { type: [integer, 'null'] }
+          pageCount: { type: [integer, 'null'], description: Tylko PDF }
+          dataAsOf: { type: [string, 'null'], format: date-time, description: Chwila danych (czas transakcji odczytu) }
+          errorCode:
+            type: [string, 'null']
+            description: 'Tylko przy FAILED: REPORT_TIMEOUT, REPORT_RENDER_TIMEOUT, RENDERER_UNAVAILABLE, REPORT_FAILED'
+          retryOf: { type: [string, 'null'], format: uuid }
+          createdAt: { type: string, format: date-time }
+          startedAt: { type: [string, 'null'], format: date-time }
+          finishedAt: { type: [string, 'null'], format: date-time }
+          fileDeletedAt: { type: [string, 'null'], format: date-time }
+          file:
+            oneOf:
+              - $ref: '#/components/schemas/DocumentFileLink'
+              - type: 'null'
+      examples:
+        - name: raport-gotowy
+          payload:
+            id: 4e1d9a07-2b3c-4d5e-8f60-718293a4b5c6
+            shortId: 4e1d9a07
+            reportCode: revenue
+            reportName: Przychody
+            format: PDF
+            status: SUCCEEDED
+            state: SUCCEEDED
+            params:
+              preset: previous_month
+              from: '2026-10-01'
+              to: '2026-10-31'
+              granularity: day
+              compare: true
+              periodFrom: '2026-09-30T22:00:00.000Z'
+              periodTo: '2026-10-31T23:00:00.000Z'
+              compareFrom: '2026-09-01'
+              compareTo: '2026-09-30'
+            requestedBy: 0d9e8f7a-6b5c-4d3e-8f21-0a1b2c3d4e5f
+            requestedByName: Piotr Mazur
+            fileName: revenue-2026-10.pdf
+            fileSizeBytes: 90148
+            rowCount: 51
+            pageCount: 3
+            dataAsOf: '2026-11-19T13:32:04.000Z'
+            errorCode: null
+            retryOf: null
+            createdAt: '2026-11-19T13:32:02.000Z'
+            startedAt: '2026-11-19T13:32:03.000Z'
+            finishedAt: '2026-11-19T13:32:05.000Z'
+            fileDeletedAt: null
+            file:
+              url: /files/5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d?exp=1795140000&sig=abc
+              urlExpiresAt: '2026-11-19T13:42:05.000Z'
+              fileName: revenue-2026-10.pdf
+              sizeBytes: 90148
     DataExportReady:
       name: data-export.ready
       payload:

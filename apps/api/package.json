@@ -29,6 +29,7 @@
     "@node-rs/argon2": "2.2.2",
     "@xmldom/xmldom": "0.9.12",
     "docxtemplater": "3.71.1",
+    "exceljs": "4.4.0",
     "expo-server-sdk": "8.0.0",
     "fastify": "^5.6.0",
     "mqtt": "^5.16.1",

@@ -186,7 +186,7 @@ export class DrizzleFileRepository {
   async insertStored(file: {
     id: string;
     storageKey: string;
-    purpose: 'DOCUMENT_TEMPLATE' | 'GENERATED_DOCUMENT' | 'DATA_EXPORT';
+    purpose: 'DOCUMENT_TEMPLATE' | 'GENERATED_DOCUMENT' | 'DATA_EXPORT' | 'REPORT_EXPORT';
     contentType: string;
     sizeBytes: number;
     sha256: string;

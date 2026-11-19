@@ -287,7 +287,7 @@ export class SparePartsController {
   }
 }
 
-/** Pulpit „Wymaga uwagi” (D1). */
+/** Pulpit: „Wymaga uwagi” (D1 iteracji 6) i kafelki z wykresami (iteracja 8, pytanie 9). */
 @ApiTags('panel: pulpit')
 @Controller('admin/dashboard')
 export class DashboardController {
@@ -301,5 +301,15 @@ export class DashboardController {
   })
   attention(@CurrentStaff() staff: StaffPrincipal) {
     return this.dashboard.attention(staff.staffId);
+  }
+
+  @RequirePermission('dashboard.read')
+  @Get('summary')
+  @ApiOperation({
+    summary:
+      'Kafelki (pierwsze 5 dozwolonych: aktywne przejazdy, dostępne hulajnogi, niska bateria, sprzedaż dziś, nowe zgłoszenia, zadania w toku, części poniżej minimum), przejazdy dziś według godzin ze średnią z 4 tych samych dni tygodnia (rentals.read), stan floty (scooters.read), „Twoje zadania” (service.read bez rentals.read) i grupa „Treści” (content.read bez kafelków operacyjnych); pole bez uprawnienia to null',
+  })
+  summary(@CurrentStaff() staff: StaffPrincipal) {
+    return this.dashboard.summary(staff.staffId);
   }
 }

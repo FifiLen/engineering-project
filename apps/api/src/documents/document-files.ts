@@ -23,7 +23,7 @@ export async function storeFile(
   db: DbExecutor,
   input: {
     id?: string;
-    purpose: 'DOCUMENT_TEMPLATE' | 'GENERATED_DOCUMENT' | 'DATA_EXPORT';
+    purpose: 'DOCUMENT_TEMPLATE' | 'GENERATED_DOCUMENT' | 'DATA_EXPORT' | 'REPORT_EXPORT';
     key: (id: string) => string;
     bytes: Uint8Array;
     contentType: string;

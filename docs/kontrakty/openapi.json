@@ -333,6 +333,21 @@
         ]
       }
     },
+    "/admin/dashboard/summary": {
+      "get": {
+        "operationId": "DashboardController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Kafelki (pierwsze 5 dozwolonych: aktywne przejazdy, dostępne hulajnogi, niska bateria, sprzedaż dziś, nowe zgłoszenia, zadania w toku, części poniżej minimum), przejazdy dziś według godzin ze średnią z 4 tych samych dni tygodnia (rentals.read), stan floty (scooters.read), „Twoje zadania” (service.read bez rentals.read) i grupa „Treści” (content.read bez kafelków operacyjnych); pole bez uprawnienia to null",
+        "tags": [
+          "panel: pulpit"
+        ]
+      }
+    },
     "/admin/data-exports": {
       "get": {
         "operationId": "AdminDataExportsController_list",
@@ -1845,6 +1860,307 @@
         "summary": "Zwrot za przejazd według źródła płatności (pytanie 11): portfel od razu, karta u operatora; suma zwrotów nie większa niż zapłata",
         "tags": [
           "panel: przejazdy"
+        ]
+      }
+    },
+    "/admin/report-definitions": {
+      "get": {
+        "operationId": "ReportDefinitionsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Definicje raportów według wzorca listy (nazwa, opis, aktywność, kolejność, ostatnie uruchomienie)",
+        "tags": [
+          "panel: raporty"
+        ]
+      }
+    },
+    "/admin/report-definitions/{code}": {
+      "get": {
+        "operationId": "ReportDefinitionsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Definicja z polami z kodu tylko do odczytu (uprawnienie, formaty, parametry, sekcje)",
+        "tags": [
+          "panel: raporty"
+        ]
+      },
+      "patch": {
+        "operationId": "ReportDefinitionsController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zmiana nazwy, opisu, aktywności i kolejności z wersją rekordu (blokada optymistyczna, CONFLICT 409); wpis report_definition.updated w dzienniku audytu",
+        "tags": [
+          "panel: raporty"
+        ]
+      }
+    },
+    "/admin/report-definitions/reorder": {
+      "post": {
+        "operationId": "ReportDefinitionsController_reorder",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Kolejność przeciąganiem: definicje w nowym porządku z wersjami; zwraca wszystkie definicje; CONFLICT 409 przy nieaktualnej wersji",
+        "tags": [
+          "panel: raporty"
+        ]
+      }
+    },
+    "/admin/report-runs": {
+      "get": {
+        "operationId": "ReportRunsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Historia uruchomień według wzorca listy (raporty: revenue, fleet_usage, rides_by_zone, reliability, users, wallet; tylko z uprawnieniem reports.<kod>, bez żadnego 403 FORBIDDEN); q szuka identyfikatora ze stopki (8 znaków), nazwy raportu i zlecającego",
+        "tags": [
+          "panel: raporty"
+        ]
+      }
+    },
+    "/admin/report-runs/{id}": {
+      "get": {
+        "operationId": "ReportRunsController_details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Stan uruchomienia z adresem pliku (podpis 10 min); zapas dla report.ready, odpytywanie co 2 s; REPORT_RUN_NOT_FOUND 404 także bez uprawnienia raportu",
+        "tags": [
+          "panel: raporty"
+        ]
+      }
+    },
+    "/admin/report-runs/{id}/file": {
+      "get": {
+        "operationId": "ReportRunsController_file",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Pobranie pliku: adres z podpisem na 10 min (GET /files/{id}?exp&sig); REPORT_RUN_NOT_READY 409, REPORT_FILE_DELETED 410 po 30 dniach, REPORT_RUN_NOT_FOUND 404",
+        "tags": [
+          "panel: raporty"
+        ]
+      }
+    },
+    "/admin/report-runs/{id}/retry": {
+      "post": {
+        "operationId": "ReportRunsController_retry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "„Ponów” i „Uruchom ponownie z tymi parametrami”: nowy wiersz z retry_of, ten sam okres bezwzględny i format, dane na teraz; REPORT_RUN_NOT_RETRYABLE 409 dla uruchomienia w toku",
+        "tags": [
+          "panel: raporty"
+        ]
+      }
+    },
+    "/admin/reports": {
+      "get": {
+        "operationId": "ReportsController_catalog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Katalog: aktywne raporty z uprawnieniem reports.<kod> w kolejności definicji (nazwa i opis z report_definitions, sekcje, parametry, formaty, orientacja, ostatnie uruchomienie), trzy ostatnie eksporty operatora i canManage (reports.manage)",
+        "tags": [
+          "panel: raporty"
+        ]
+      }
+    },
+    "/admin/reports/{code}/preview": {
+      "get": {
+        "operationId": "ReportsController_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scooterId",
+            "required": false,
+            "schema": {}
+          },
+          {
+            "in": "query",
+            "name": "modelId",
+            "required": false,
+            "schema": {}
+          },
+          {
+            "in": "query",
+            "name": "zoneId",
+            "required": false,
+            "schema": {}
+          },
+          {
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1",
+                "0",
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ostatnia doba okresu RRRR-MM-DD (włącznie)",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {}
+          },
+          {
+            "description": "Pierwsza doba okresu RRRR-MM-DD (czas polski)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {}
+          },
+          {
+            "in": "query",
+            "name": "preset",
+            "required": false,
+            "schema": {
+              "enum": [
+                "today",
+                "yesterday",
+                "last_7_days",
+                "this_month",
+                "previous_month",
+                "custom"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Podgląd synchroniczny (migawka REPEATABLE READ, limit 15 s): kafelki z porównaniem, wykresy jako dane, tabele do 200 wierszy z totalRows, dataAsOf i earliestDataAt; REPORT_NOT_FOUND 404, VALIDATION_ERROR i REPORT_RANGE_TOO_LONG, REPORT_RANGE_INVALID, REPORT_RANGE_IN_FUTURE, REPORT_PARAM_NOT_SUPPORTED, REPORT_INVALID_GRANULARITY 400, REPORT_TIMEOUT 504",
+        "tags": [
+          "panel: raporty"
+        ]
+      }
+    },
+    "/admin/reports/{code}/runs": {
+      "post": {
+        "operationId": "ReportsController_export",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Eksport PDF albo XLSX (202, zadanie report.generate): wiersz report_runs QUEUED z datami bezwzględnymi; REPORT_FORMAT_NOT_ALLOWED 422, REPORT_EMPTY 409, błędy parametrów jak w podglądzie; wynik w report.ready (pokój staff:{id}) albo GET /admin/report-runs/{id}",
+        "tags": [
+          "panel: raporty"
         ]
       }
     },

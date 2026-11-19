@@ -5,7 +5,7 @@
  * są w packages/core (`resolveReportParams`); wyliczenia są kopią z core, zgodność pilnuje test bazy (seed).
  */
 import { z } from 'zod';
-import { JOB_STATUSES } from './documents.js';
+import { JOB_STATUSES, type DocumentFileLink } from './documents.js';
 
 export const REPORT_CODES = ['revenue', 'fleet_usage', 'rides_by_zone', 'reliability', 'users', 'wallet'] as const;
 export type ReportCode = (typeof REPORT_CODES)[number];
@@ -295,4 +295,15 @@ export interface ReportRunView {
   startedAt: string | null;
   finishedAt: string | null;
   fileDeletedAt: string | null;
+  /** Plik gotowego uruchomienia z adresem z podpisem na 10 min (ADR 0057); `null` przed końcem i po retencji. */
+  file: DocumentFileLink | null;
+}
+
+/** `GET /admin/reports`: katalog, „Twoje ostatnie eksporty” i dostęp do zakładki Definicje. */
+export interface ReportCatalog {
+  items: ReportCatalogItem[];
+  /** Trzy ostatnie uruchomienia zalogowanego operatora w dostępnych raportach. */
+  recentRuns: ReportRunView[];
+  /** `reports.manage`: zakładka Definicje. */
+  canManage: boolean;
 }

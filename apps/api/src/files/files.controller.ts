@@ -30,7 +30,7 @@ import { ZodPipe } from '../common/zod-query.js';
 import { FilesService } from './files.service.js';
 
 /** Cele plików pobieranych z nazwą pliku (`Content-Disposition`). */
-const DOWNLOAD_PURPOSES = new Set(['DOCUMENT_TEMPLATE', 'GENERATED_DOCUMENT', 'DATA_EXPORT']);
+const DOWNLOAD_PURPOSES = new Set(['DOCUMENT_TEMPLATE', 'GENERATED_DOCUMENT', 'DATA_EXPORT', 'REPORT_EXPORT']);
 
 /** Limity parsera `multipart/form-data` (rejestracja w `bootstrap.ts`): jeden plik, pole `purpose`. */
 export const MULTIPART_LIMITS = { fileSize: FILE_MAX_BYTES, files: 1, fields: 4, fieldSize: 1024, parts: 6 };
@@ -121,8 +121,8 @@ export class FilesController {
       .header('content-type', object.contentType)
       .header('cache-control', 'private, max-age=600')
       .header('x-content-type-options', 'nosniff');
-    // Wydruki, szablony i eksport danych pobiera się jako plik z nazwą (ADR 0067–0069); eksportu z danymi
-    // osobowymi nie zapisuje pamięć podręczna.
+    // Wydruki, szablony, raporty i eksport danych pobiera się jako plik z nazwą (ADR 0067–0069, ADR 0071);
+    // eksportu z danymi osobowymi nie zapisuje pamięć podręczna.
     if (DOWNLOAD_PURPOSES.has(object.purpose) && object.originalName) {
       const name = object.originalName.replace(/[^\w.-]+/g, '_');
       const disposition = object.contentType === 'application/pdf' ? 'inline' : 'attachment';

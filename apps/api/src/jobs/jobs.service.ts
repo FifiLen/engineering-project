@@ -1,4 +1,4 @@
-import { DATA_EXPORT_JOB_EXPIRE_MS, DOCUMENT_JOB_EXPIRE_MS } from '@hulajnogi/core';
+import { DATA_EXPORT_JOB_EXPIRE_MS, DOCUMENT_JOB_EXPIRE_MS, REPORT_LIMITS } from '@hulajnogi/core';
 import { type DbExecutor, sql } from '@hulajnogi/db';
 import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
 import { fromDrizzle, PgBoss } from 'pg-boss';
@@ -44,6 +44,10 @@ export const JOBS = {
   dataExportGenerate: 'data-export.generate',
   dataExportsPurge: 'data-exports.purge',
   dataExportsSweep: 'data-exports.sweep',
+  // Raporty (ADR 0071): plik PDF albo XLSX uruchomienia, porzucone uruchomienia co 5 min i pliki po 30 dniach.
+  reportGenerate: 'report.generate',
+  reportsSweep: 'reports.sweep',
+  reportsRetention: 'reports.retention',
 } as const;
 export type JobName = (typeof JOBS)[keyof typeof JOBS];
 
@@ -62,6 +66,8 @@ const SCHEDULES: ReadonlyArray<[JobName, string]> = [
   [JOBS.dataExportsPurge, '45 3 * * *'],
   [JOBS.documentsSweep, '*/5 * * * *'],
   [JOBS.dataExportsSweep, '*/5 * * * *'],
+  [JOBS.reportsSweep, '*/5 * * * *'],
+  [JOBS.reportsRetention, '40 3 * * *'],
 ];
 
 /**
@@ -88,6 +94,12 @@ const QUEUE_OPTIONS: Partial<
   },
   [JOBS.dataExportGenerate]: {
     queue: { expireInSeconds: DATA_EXPORT_JOB_EXPIRE_MS / 1000, retryLimit: 2, retryDelay: 10, retryBackoff: true },
+    batchSize: 1,
+  },
+  // Raport (ADR 0071): 120 s na zadanie (zapytania do 60 s i render do 60 s), ponowienie tylko przy niedostępnym
+  // silniku dokumentów; jeden na proces, bo raport obciąża bazę.
+  [JOBS.reportGenerate]: {
+    queue: { expireInSeconds: REPORT_LIMITS.jobExpireMs / 1000, retryLimit: 2, retryDelay: 5, retryBackoff: true },
     batchSize: 1,
   },
 };

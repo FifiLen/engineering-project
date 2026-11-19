@@ -618,6 +618,27 @@ export class DrizzleReportRunsRepository {
     return (rowCount ?? 0) > 0;
   }
 
+  /**
+   * Nazwy filtrów do nagłówka pliku i arkusza „Parametry” (strefa `KOD · nazwa`, model, hulajnoga `#0012`);
+   * nieznany identyfikator daje `null` (raport z takim filtrem jest pusty).
+   */
+  async filterNames(filters: {
+    zoneId?: string;
+    modelId?: string;
+    scooterId?: string;
+  }): Promise<{ zone: string | null; model: string | null; scooter: string | null }> {
+    const [row] = await this.rows(sql`
+      SELECT (SELECT code || ' · ' || name FROM zones WHERE id = ${filters.zoneId ?? null}::uuid) AS zone,
+             (SELECT name FROM scooter_models WHERE id = ${filters.modelId ?? null}::uuid) AS model,
+             (SELECT '#' || lpad(number::text, 4, '0') FROM scooters WHERE id = ${filters.scooterId ?? null}::uuid)
+               AS scooter`);
+    return {
+      zone: (row?.zone as string | null) ?? null,
+      model: (row?.model as string | null) ?? null,
+      scooter: (row?.scooter as string | null) ?? null,
+    };
+  }
+
   /** „Twoje ostatnie eksporty” w katalogu: trzy ostatnie uruchomienia operatora w dostępnych raportach. */
   async recentForStaff(staffId: string, codes: readonly ReportCode[], limit = 3): Promise<ReportRunRecord[]> {
     if (!codes.length) return [];

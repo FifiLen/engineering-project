@@ -10,6 +10,7 @@ import {
   REPORT_FORMATS,
   REPORT_RUN_STATES,
   reportDefinitionUpdateSchema,
+  type ReportCatalogItem,
   type ReportCode,
   type ReportFormat,
   type ReportRunState,
@@ -129,4 +130,7 @@ export interface ReportDefinitionListItem {
 /** Szczegóły definicji: pola z kodu tylko do odczytu (schemat parametrów, sekcje z katalogu). */
 export interface ReportDefinitionDetails extends ReportDefinitionListItem {
   parameters: Record<string, unknown>;
+  orientation: ReportCatalogItem['orientation'];
+  params: ReportCatalogItem['params'];
+  sections: ReportCatalogItem['sections'];
 }

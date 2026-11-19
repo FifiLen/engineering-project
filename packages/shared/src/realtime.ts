@@ -8,6 +8,7 @@ import type { ContentClient } from './content/sections.js';
 import type { DataExportState } from './data-export.js';
 import type { DocumentFileLink, DocumentFormat, DocumentType, JobStatus } from './documents.js';
 import type { NotificationView } from './notifications.js';
+import type { ReportRunView } from './reports.js';
 import type { WalletSummary } from './payments.js';
 import type { RentalView } from './rentals.js';
 import type { ServiceTaskStatus, ServiceTaskType, TaskPriority } from './service.js';
@@ -26,7 +27,10 @@ export const SERVICE_ROOM = 'service';
 export const SIMULATOR_ROOM = 'simulator';
 /** Pokój klienta: jego przejazdy na wszystkich urządzeniach (ADR 0012). */
 export const userRoom = (userId: string): string => `user:${userId}`;
-/** Pokój operatora: jego wydruki (`document.ready`); gniazdo operatora dołącza przy połączeniu (ADR 0066). */
+/**
+ * Pokój operatora: jego wydruki (`document.ready`) i raporty (`report.ready`); gniazdo operatora dołącza przy
+ * połączeniu (ADR 0066, ADR 0071).
+ */
 export const staffRoom = (staffId: string): string => `staff:${staffId}`;
 
 /** Hulajnoga na mapie floty: punkt początkowy z `GET /admin/fleet/map` i aktualizacje na żywo. */
@@ -78,7 +82,15 @@ export interface ServerToClientEvents {
   'document.ready': (document: DocumentReady) => void;
   /** Klient (pokój `user:{id}`): eksport danych gotowy albo nieudany (ADR 0069). */
   'data-export.ready': (event: DataExportReady) => void;
+  /**
+   * Operator (pokój `staff:{id}` zlecającego): uruchomienie raportu w stanie końcowym (ADR 0071) z adresem pliku
+   * z podpisem na 10 min; panel odpytuje `GET /admin/report-runs/{id}` jako zapas.
+   */
+  'report.ready': (run: ReportReady) => void;
 }
+
+/** `report.ready`: widok uruchomienia jak w `GET /admin/report-runs/{id}` (stan `SUCCEEDED` albo `FAILED`). */
+export type ReportReady = ReportRunView;
 
 export interface ContentUpdated {
   /**
