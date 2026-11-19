@@ -52,14 +52,17 @@ export class DashboardService {
       can('tickets.read') ? repo.urgentTickets(limit) : null,
       can('payments.read') ? repo.failedPayments(limit) : null,
     ]);
-    // Nazwisko klienta tylko z `users.read`, jak w listach zgłoszeń.
+    // Nazwisko klienta tylko z `users.read`, jak w listach zgłoszeń: zgłaszający, klient przejazdu bez łączności
+    // i klient nieudanej płatności.
     const seesCustomers = can('users.read');
+    const masked = <T extends { userName: string | null }>(items: T[]) =>
+      seesCustomers ? items : items.map((i) => ({ ...i, userName: null }));
     return {
       criticalBatteryPct: BATTERY_CRITICAL_TICKET_PCT,
       offlineInRental: offline && {
         count: counts.offlineInRental,
         billingStopped: counts.billingStopped,
-        items: offline,
+        items: masked(offline),
       },
       criticalBattery: battery && { count: counts.criticalBattery, items: battery },
       urgentTickets: tickets && {
@@ -69,7 +72,7 @@ export class DashboardService {
       failedPayments: payments && {
         count: counts.failedPaymentsToday,
         unpaidRentals: counts.unpaidRentals,
-        items: payments,
+        items: masked(payments),
       },
       asOf: new Date().toISOString(),
     };

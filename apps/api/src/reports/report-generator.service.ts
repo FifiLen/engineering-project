@@ -46,9 +46,9 @@ const BATCH = REPORT_LIMITS.retentionBatch;
 
 /**
  * Zadania raportów (ADR 0071, wzór `document.generate` z ADR 0066 i ADR 0068): `report.generate` liczy dane od nowa
- * w migawce z limitem 60 s, buduje PDF (HTML w API, Gotenberg, stopka `footer.html`, limit renderu 60 s) albo XLSX
- * (ExcelJS za portem `SpreadsheetWriter`), zapisuje plik w magazynie (cel `REPORT_EXPORT`) i wysyła `report.ready`
- * do pokoju zlecającego. `reports.sweep` kończy porzucone uruchomienia, `reports.retention` usuwa pliki po 30 dniach.
+ * w migawce z limitem 60 s na zapytanie i 45 s łącznie, buduje PDF (HTML w API, Gotenberg, stopka `footer.html`,
+ * limit renderu 60 s) albo XLSX (ExcelJS za portem `SpreadsheetWriter`), zapisuje plik w magazynie (cel
+ * `REPORT_EXPORT`) i wysyła `report.ready` do pokoju zlecającego. `reports.sweep` kończy porzucone uruchomienia, `reports.retention` usuwa pliki po 30 dniach.
  */
 @Injectable()
 export class ReportGeneratorService implements OnModuleInit {
@@ -76,34 +76,53 @@ export class ReportGeneratorService implements OnModuleInit {
 
   /**
    * Zadanie `report.generate`: blokada wiersza i `RUNNING` (`shouldRunReportJob`: `QUEUED` albo porzucony `RUNNING`
-   * po limicie 120 s), plik, `succeed` z chwilą danych, liczbą wierszy i stron. Niedostępny silnik wraca do kolejki,
-   * dopóki są ponowienia; inny błąd to `FAILED` z kodem (`REPORT_TIMEOUT`, `REPORT_RENDER_TIMEOUT`, `REPORT_FAILED`).
+   * po limicie 120 s) z żetonem przejęcia (`started_at`), plik, `succeed` z chwilą danych, liczbą wierszy i stron.
+   * Niedostępny silnik wraca do kolejki, dopóki są ponowienia; inny błąd to `FAILED` z kodem (`REPORT_TIMEOUT`,
+   * `REPORT_RENDER_TIMEOUT`, `REPORT_FAILED`). Wynik zapisuje tylko wykonanie z aktualnym żetonem: gdy wiersz przejęło
+   * drugie wykonanie albo zakończył go `reports.sweep`, zapisany plik jest usuwany, a `report.ready` nie idzie.
    */
   async generate(runId: string, attempt: JobAttempt = { retryCount: 0, retryLimit: 0 }): Promise<void> {
     const started = await this.db.transaction(async (tx) => {
       const repo = new DrizzleReportRunsRepository(tx);
       const run = await repo.lock(runId);
       if (!run || !shouldRunReportJob(run, new Date())) return null;
-      await repo.markRunning(runId);
-      return run;
+      const token = await repo.markRunning(runId);
+      return token ? { run, token } : null;
     });
     if (!started) return;
+    const { run, token } = started;
+    const runs = new DrizzleReportRunsRepository(this.db);
     let dataAsOf: Date | null = null;
     try {
-      const result = await this.render(started, (at) => (dataAsOf = at));
-      await new DrizzleReportRunsRepository(this.db).succeed(runId, result);
+      const result = await this.render(run, (at) => (dataAsOf = at));
+      if (!(await runs.succeed(runId, token, result))) {
+        this.logger.warn(`Raport ${runId}: wynik spóźnionego wykonania odrzucony (wiersz przejęty albo zakończony)`);
+        await this.discardFile(result.fileId, result.storageKey);
+        return;
+      }
     } catch (error) {
       const raw = error instanceof DomainError ? error.code : 'REPORT_FAILED';
       const code = RENDER_CODES.has(raw) ? reportRenderErrorCode(raw) : raw;
       if (isRetryableReportError(code) && attempt.retryCount < attempt.retryLimit) {
-        await new DrizzleReportRunsRepository(this.db).requeue(runId);
+        // Wiersz przejęty przez inne wykonanie: to wykonanie kończy się bez ponowienia.
+        if (!(await runs.requeue(runId, token))) return;
         throw error;
       }
       if (!(error instanceof DomainError)) this.logger.error(`Raport ${runId}: ${(error as Error).stack}`);
       const detail = error instanceof DomainError ? JSON.stringify(error.details ?? {}) : (error as Error).message;
-      await new DrizzleReportRunsRepository(this.db).fail(runId, code, detail, dataAsOf);
+      if (!(await runs.fail(runId, token, code, detail, dataAsOf))) return;
     }
     await this.emitReady(runId);
+  }
+
+  /** Plik wykonania, którego wynik odrzucono: wiersz `DELETED`, potem obiekt z magazynu (błąd magazynu w logu). */
+  private async discardFile(fileId: string, storageKey: string): Promise<void> {
+    try {
+      await new DrizzleFileRepository(this.db).markDeleted(fileId);
+      await this.storage.delete(storageKey);
+    } catch (error) {
+      this.logger.warn(`Nie usunięto pliku odrzuconego raportu ${fileId}: ${(error as Error).message}`);
+    }
   }
 
   /** Parametry zapisane przy zleceniu: ten sam okres bezwzględny (daty z `report_runs.params`). */
@@ -119,12 +138,12 @@ export class ReportGeneratorService implements OnModuleInit {
   private async render(
     run: ReportRunRecord,
     onSnapshot: (dataAsOf: Date) => void,
-  ): Promise<{ fileId: string; dataAsOf: Date; rowCount: number; pageCount: number | null }> {
+  ): Promise<{ fileId: string; storageKey: string; dataAsOf: Date; rowCount: number; pageCount: number | null }> {
     const params = this.params(run);
     const definition = await new DrizzleReportDefinitionsRepository(this.db).get(run.reportCode);
     const { model, dataAsOf } = await reportSnapshot(
       this.db,
-      REPORT_LIMITS.jobQueryTimeoutMs,
+      { timeoutMs: REPORT_LIMITS.jobQueryTimeoutMs, totalTimeoutMs: REPORT_LIMITS.jobSnapshotTotalMs },
       async (repo, at): Promise<{ model: ReportModel; dataAsOf: Date }> => {
         onSnapshot(at);
         return { model: await computeReport(repo, params), dataAsOf: at };
@@ -186,7 +205,7 @@ export class ReportGeneratorService implements OnModuleInit {
       originalName: fileName,
       staffId: run.requestedBy,
     });
-    return { fileId: file.id, dataAsOf, rowCount: model.rowCount, pageCount };
+    return { fileId: file.id, storageKey: file.storageKey, dataAsOf, rowCount: model.rowCount, pageCount };
   }
 
   /** `report.ready` po stanie końcowym do pokoju `staff:{id}` zlecającego, z adresem pliku z podpisem. */

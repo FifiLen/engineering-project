@@ -6,7 +6,7 @@ import { computeReport } from './build.js';
 import { balanceRangeLabel } from './build-wallet.js';
 import { heatmapCells } from './build-rides.js';
 import { cohortTable } from './build-users.js';
-import { fleetModelRows } from './build-fleet.js';
+import { fleetHistoryNote, fleetModelRows } from './build-fleet.js';
 import { REPORT_CATALOG, REPORT_CODES, REPORT_PERMISSIONS, reportSections } from './catalog.js';
 import { dashboardLayout, fleetStateSummary, ridesByHourSummary, visibleDashboardTiles } from './dashboard.js';
 import {
@@ -132,6 +132,28 @@ describe('parametry raportów', () => {
     expect(comparisonRange({ from: '2026-03-01', to: '2026-03-31' }).range).toEqual({
       from: '2026-02-01',
       to: '2026-02-28',
+    });
+    // Zakres do końca miesiąca: cały poprzedni miesiąc, także dłuższy.
+    expect(comparisonRange({ from: '2026-02-01', to: '2026-02-28' }).range).toEqual({
+      from: '2026-01-01',
+      to: '2026-01-31',
+    });
+    expect(comparisonRange({ from: '2026-11-01', to: '2026-11-30' }).range).toEqual({
+      from: '2026-10-01',
+      to: '2026-10-31',
+    });
+    expect(comparisonRange({ from: '2028-02-01', to: '2028-02-29' }).range).toEqual({
+      from: '2028-01-01',
+      to: '2028-01-31',
+    });
+    // Niepełny miesiąc: te same dni, przycięte do długości poprzedniego.
+    expect(comparisonRange({ from: '2026-03-01', to: '2026-03-30' }).range).toEqual({
+      from: '2026-02-01',
+      to: '2026-02-28',
+    });
+    expect(comparisonRange({ from: '2026-02-01', to: '2026-02-27' }).range).toEqual({
+      from: '2026-01-01',
+      to: '2026-01-27',
     });
   });
 
@@ -464,13 +486,14 @@ describe('model raportów', () => {
     expect(chart.items[2]!.weekend).toBe(true); // sobota 3 października
   });
 
-  it('wykorzystanie floty: przejazdy sprzed historii w czasie przejazdu, czas wyłączenia poza czasem okresu', async () => {
+  it('wykorzystanie floty: podstawą wskaźników jest czas z historią stanów bez wyłączenia, z adnotacją o luce', async () => {
     const rows = [
       scooterRow(1),
+      // Historia od połowy okresu: 50 h z kategoriami, przejazdy sprzed historii poza wskaźnikami.
       scooterRow(2, {
-        inRideSeconds: 0,
-        untrackedRideSeconds: 20 * H,
+        historyFrom: new Date('2026-11-16T13:05:00Z'),
         trackedSeconds: 50 * H,
+        untrackedRideSeconds: 20 * H,
         availableSeconds: 30 * H,
       }),
       scooterRow(3, {
@@ -486,24 +509,66 @@ describe('model raportów', () => {
       resolveReportParams('fleet_usage', { preset: 'last_7_days', scooterId: 's1', compare: false }, NOW),
     );
     const byScooter = model.tables.find((t) => t.key === 'byScooter')!;
-    expect(byScooter.rows.map((r) => [r.cells.scooter, r.cells.inRideSeconds, r.cells.utilization])).toEqual([
-      ['#0001', 10 * H, 0.1],
-      ['#0002', 20 * H, 0.2],
-      ['#0003', 10 * H, 0.2],
+    expect(
+      byScooter.rows.map((r) => [r.cells.scooter, r.cells.inRideSeconds, r.cells.utilization, r.cells.availability]),
+    ).toEqual([
+      ['#0001', 10 * H, 0.1, 0.91],
+      ['#0002', 10 * H, 0.2, 41 / 50],
+      ['#0003', 10 * H, 0.2, 41 / 50],
     ]);
-    expect(byScooter.rows[0]!.cells.availability).toBeCloseTo(0.91, 6);
     const tile = (key: string) => model.tiles.find((t) => t.key === key)!;
-    expect(tile('utilization').value).toBeCloseTo(40 / 250, 6);
+    // (10 + 10 + 10) ÷ (100 + 50 + 100 − 50): bez luki przed historią i bez czasu wyłączenia.
+    expect(tile('utilization').value).toBeCloseTo(30 / 200, 6);
+    expect(tile('availability').value).toBeCloseTo((91 + 41 + 41) / 200, 6);
+    expect(tile('inRideSeconds').value).toBe(30 * H);
     expect(tile('utilization').previous).toBeNull();
     // Przy filtrze hulajnogi tabela modeli powstaje z wierszy hulajnóg.
-    expect(model.tables.find((t) => t.key === 'byModel')!.rows.map((r) => [r.cells.model, r.cells.scooters])).toEqual([
-      ['podstawowy', 2],
-      ['pro', 1],
+    const byModel = model.tables.find((t) => t.key === 'byModel')!;
+    expect(byModel.rows.map((r) => [r.cells.model, r.cells.scooters, r.cells.utilization])).toEqual([
+      ['podstawowy', 2, 20 / 150],
+      ['pro', 1, 0.2],
     ]);
+    expect(byModel.totals!.utilization).toBeCloseTo(tile('utilization').value!, 9);
     expect(fleetModelRows(rows)[0]!.periodSeconds).toBe(100 * H);
+    // Pasek udziałów na tej samej podstawie co kafelki, bez segmentu „brak historii”.
     const share = model.charts.find((c) => c.key === 'timeShare')!;
     if (share.type !== 'share') throw new Error('pasek');
-    expect(share.segments.map((s) => s.key)).toContain('UNTRACKED');
+    expect(share.segments.map((s) => s.key)).toEqual(['IN_RIDE', 'RESERVED', 'AVAILABLE', 'SERVICE', 'OFFLINE']);
+    expect(share.total).toBe(200 * H);
+    expect(share.segments[0]!.share).toBeCloseTo(tile('utilization').value!, 9);
+    // Adnotacja: najpóźniejszy początek historii (16.11 14:05 w Warszawie) i pokrycie 250 h z 300 h.
+    const note =
+      'Część okresu bez historii stanów (pełna historia od 16.11.2026, 14:05; historia obejmuje 83,3% czasu okresu)';
+    expect(byScooter.description).toContain(note);
+    expect(byScooter.description).toMatch(/^Wykorzystanie = /);
+    expect(byModel.description).toContain(note);
+    expect(model.tables.find((t) => t.key === 'series')!.description).toContain(note);
+    expect(fleetHistoryNote([scooterRow(1)])).toBeNull();
+  });
+
+  it('wykorzystanie floty: szereg liczy wykorzystanie względem sumy kategorii przedziału', async () => {
+    const series = [
+      {
+        ...bucket('2026-11-13'),
+        // Dwie hulajnogi w przedziale, ale jedna ma historię dopiero od połowy doby: 36 h z historią, nie 48 h.
+        periodSeconds: 24 * H,
+        scooters: 2,
+        inRideSeconds: 9 * H,
+        reservedSeconds: 0,
+        availableSeconds: 27 * H,
+        serviceSeconds: 0,
+        offlineSeconds: 0,
+        retiredSeconds: 0,
+        rides: 12,
+      },
+    ];
+    const model = await computeReport(
+      fakeRepo({ fleetUsageSeries: async () => series }),
+      resolveReportParams('fleet_usage', { from: '2026-11-13', to: '2026-11-13', compare: false }, NOW),
+    );
+    const table = model.tables.find((t) => t.key === 'series')!;
+    expect(table.rows[0]!.cells.utilization).toBe(0.25);
+    expect(table.rows[0]!.cells.availability).toBe(1);
   });
 
   it('mapa ciepła: średnia na wystąpienie dnia tygodnia, wszystkie 168 komórek', () => {

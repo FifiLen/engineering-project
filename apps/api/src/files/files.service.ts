@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
+  deletePermission,
   DomainError,
   ensureFileAttachable,
   ensureMediaUpload,
@@ -221,9 +222,8 @@ export class FilesService implements OnModuleInit, OnApplicationShutdown {
     const repo = new DrizzleFileRepository(this.db);
     const file = await repo.find(id);
     if (!file) throw notFound('file', id);
-    (await this.staffPermissions.get(staffId)).permissions.require(
-      uploadPermission(file.purpose as StaffUploadFilePurpose),
-    );
+    // Plik raportu, wydruku albo eksportu danych nie jest plikiem z wysyłki: FILE_ATTACHED przed sprawdzeniem uprawnień.
+    (await this.staffPermissions.get(staffId)).permissions.require(deletePermission(file.purpose, id));
     const claim = await this.db.transaction((tx) => new DrizzleFileRepository(tx).claimForDeletion(id, 'UNATTACHED'));
     if (claim && 'attached' in claim) throw new DomainError('FILE_ATTACHED', { fileId: id });
     if (claim) await this.deleteObject(claim.claimed);

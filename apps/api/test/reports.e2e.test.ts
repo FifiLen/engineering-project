@@ -14,6 +14,7 @@ import ExcelJS from 'exceljs';
 import type { InjectOptions } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { DOCUMENT_RENDERER, type FakeRenderer } from '../src/documents/renderers.js';
+import { FILE_STORAGE, type MemoryFileStorage } from '../src/files/file-storage.js';
 import { JOBS } from '../src/jobs/jobs.service.js';
 import { FleetGateway } from '../src/realtime/fleet.gateway.js';
 import { asStaff, staffToken } from './helpers.js';
@@ -155,7 +156,7 @@ describe.skipIf(!hasDb)('raporty (ADR 0071)', () => {
     expect((await editor({ method: 'GET', url: '/admin/reports/wallet/preview' })).statusCode).toBe(404);
   });
 
-  it('walidacja parametrów: kształt (400 VALIDATION_ERROR), reguły okresu z core, parametr spoza raportu pomijany', async () => {
+  it('walidacja parametrów: kształt (400 VALIDATION_ERROR), reguły okresu z core, parametr spoza raportu odrzucony', async () => {
     const preview = (query: string) =>
       ctx.staff.admin({ method: 'GET', url: `/admin/reports/revenue/preview?${query}` });
     const error = async (query: string, code: string, status = 400) => {
@@ -174,10 +175,22 @@ describe.skipIf(!hasDb)('raporty (ADR 0071)', () => {
     await error('granularity=hour', 'VALIDATION_ERROR');
     await error('preset=custom', 'VALIDATION_FAILED');
     await error('from=2026-10-01', 'VALIDATION_FAILED');
-    // Parametr innego raportu z adresu jest pomijany (schemat w shared), więc nie psuje podglądu.
-    const zones = await ctx.staff.admin({ method: 'GET', url: '/admin/reports/rides_by_zone/preview?granularity=day' });
-    expect(zones.statusCode).toBe(200);
-    expect(zones.json()).toMatchObject({ params: { granularity: null } });
+    // Filtr albo granulacja innego raportu to błąd (wcześniej schemat w shared pomijał je po cichu), pusta wartość nie.
+    const zoneId = (await ctx.pool.query<{ id: string }>(`SELECT id FROM zones LIMIT 1`)).rows[0]!.id;
+    expect((await error(`zoneId=${zoneId}`, 'REPORT_PARAM_NOT_SUPPORTED')).details).toEqual({ param: 'zoneId' });
+    const zones = (query: string) =>
+      ctx.staff.admin({ method: 'GET', url: `/admin/reports/rides_by_zone/preview?${query}` });
+    const granularity = await zones('granularity=day');
+    expect(granularity.statusCode).toBe(400);
+    expect(granularity.json()).toMatchObject({ code: 'REPORT_PARAM_NOT_SUPPORTED', details: { param: 'granularity' } });
+    expect((await zones('granularity=&preset=today')).json()).toMatchObject({ params: { granularity: null } });
+    expect((await preview('preset=today&zoneId=&modelId=')).statusCode).toBe(200);
+    const exported = await ctx.staff.admin({
+      method: 'POST',
+      url: '/admin/reports/revenue/runs',
+      payload: { format: 'PDF', params: { preset: 'today', scooterId: zoneId } },
+    });
+    expect(exported.json()).toMatchObject({ code: 'REPORT_PARAM_NOT_SUPPORTED', details: { param: 'scooterId' } });
   });
 
   it('eksport pustego raportu to 409 REPORT_EMPTY, format spoza definicji 422 REPORT_FORMAT_NOT_ALLOWED', async () => {
@@ -487,6 +500,77 @@ describe.skipIf(!hasDb)('raporty (ADR 0071)', () => {
       payload: { items: [{ code: 'wallet', version: defs.wallet!.version }] },
     });
     expect(conflict.statusCode).toBe(409);
+  });
+
+  it('wyścig zadania: spóźnione wykonanie po przejęciu albo po sweep nie zapisuje wyniku, a jego plik znika', async () => {
+    const storage = ctx.app.get<MemoryFileStorage>(FILE_STORAGE);
+    const reportFiles = async (id: string) =>
+      (
+        await ctx.pool.query<{ status: string; storage_key: string }>(
+          `SELECT status::text, storage_key FROM files WHERE purpose = 'REPORT_EXPORT' AND original_name LIKE 'revenue-%'
+             AND created_at >= (SELECT created_at FROM report_runs WHERE id = $1) ORDER BY created_at`,
+          [id],
+        )
+      ).rows;
+    /** Wykonanie zadania, w którego trakcie (podczas renderu) dzieje się `meanwhile`. */
+    const runWith = async (id: string, meanwhile: () => Promise<unknown>) => {
+      const job = ctx.jobs().sent.at(-1)!;
+      expect(job.data).toEqual({ runId: id });
+      done = ctx.jobs().sent.length;
+      const original = renderer.htmlToPdf.bind(renderer);
+      const spy = vi.spyOn(renderer, 'htmlToPdf').mockImplementationOnce(async (html, opts) => {
+        await meanwhile();
+        return original(html, opts);
+      });
+      try {
+        await ctx.jobs().run(JOBS.reportGenerate, job.data);
+      } finally {
+        spy.mockRestore();
+      }
+    };
+
+    // 1. Dwa wykonania: drugie przejmuje wiersz (nowy żeton), gdy pierwsze jeszcze renderuje.
+    const taken = await exportReport(ctx.staff.admin, 'revenue', 'PDF', { preset: 'today' });
+    ready.mockClear();
+    await runWith(taken.id, () =>
+      ctx.pool.query(`UPDATE report_runs SET started_at = clock_timestamp() WHERE id = $1`, [taken.id]),
+    );
+    expect((await ctx.staff.admin({ method: 'GET', url: `/admin/report-runs/${taken.id}` })).json()).toMatchObject({
+      status: 'RUNNING',
+      file: null,
+    });
+    const [late] = await reportFiles(taken.id);
+    expect(late!.status).toBe('DELETED');
+    expect(storage.objects.has(late!.storage_key)).toBe(false);
+    expect(ready).not.toHaveBeenCalled();
+    // Wykonanie z aktualnym żetonem (tu: ponowne po wygaśnięciu przejęcia) kończy raport normalnie.
+    await ctx.pool.query(`UPDATE report_runs SET started_at = now() - interval '5 minutes' WHERE id = $1`, [taken.id]);
+    await ctx.jobs().run(JOBS.reportGenerate, { runId: taken.id });
+    const won = (await ctx.staff.admin({ method: 'GET', url: `/admin/report-runs/${taken.id}` })).json<ReportRunView>();
+    expect(won.status).toBe('SUCCEEDED');
+    expect(ready).toHaveBeenCalledTimes(1);
+
+    // 2. `reports.sweep` kończy wiersz jako porzucony przed spóźnionym `succeed`.
+    const swept = await exportReport(ctx.staff.admin, 'revenue', 'PDF', { preset: 'today' });
+    ready.mockClear();
+    await runWith(swept.id, async () => {
+      await ctx.pool.query(`UPDATE report_runs SET started_at = now() - interval '20 minutes' WHERE id = $1`, [
+        swept.id,
+      ]);
+      await ctx.jobs().run(JOBS.reportsSweep);
+    });
+    expect((await ctx.staff.admin({ method: 'GET', url: `/admin/report-runs/${swept.id}` })).json()).toMatchObject({
+      status: 'FAILED',
+      errorCode: 'REPORT_TIMEOUT',
+      file: null,
+    });
+    const [orphan] = await reportFiles(swept.id);
+    expect(orphan!.status).toBe('DELETED');
+    expect(storage.objects.has(orphan!.storage_key)).toBe(false);
+    // `report.ready` tylko raz: z `reports.sweep` (FAILED), nie ze spóźnionego wykonania.
+    expect(ready.mock.calls.filter(([, view]) => view.id === swept.id).map(([, view]) => view.status)).toEqual([
+      'FAILED',
+    ]);
   });
 
   it('porządki: porzucone uruchomienie FAILED z REPORT_TIMEOUT, plik po 30 dniach usunięty (410), ponowienie działa', async () => {

@@ -25,7 +25,7 @@ export type {
   ReportValue,
 } from './model.js';
 export { isTableTruncated, mtbfHours, relativeChange, truncateReportTables } from './model.js';
-export { fleetBasisSeconds, fleetTimeTotals, scooterLabel } from './build-fleet.js';
+export { fleetBasisSeconds, fleetHistoryNote, fleetTimeTotals, scooterLabel } from './build-fleet.js';
 export { vatRateLabel } from './build-revenue.js';
 export { balanceRangeLabel } from './build-wallet.js';
 export { cohortTable } from './build-users.js';

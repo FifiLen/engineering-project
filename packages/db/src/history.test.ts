@@ -49,6 +49,8 @@ const OPTIONS: HistoryOptions = { days: 3, ridesPerDay: 80, seed: 7 };
 describe.skipIf(!adminUrl)('generator danych historycznych (ADR 0075)', () => {
   let admin: Pool;
   const pools: Pool[] = [];
+  /** Numer hulajnogi ze zgłoszeniem z danych startowych przesuniętym do okna (ten sam na obu bazach). */
+  let excludedInWindow = 0;
 
   beforeAll(async () => {
     admin = new Pool({ connectionString: adminUrl });
@@ -75,6 +77,17 @@ describe.skipIf(!adminUrl)('generator danych historycznych (ADR 0075)', () => {
           { slug: 'polityka', name: 'Polityka', consentType: 'PRIVACY', title: 'Polityka', bodyMd: 'Treść.' },
         ],
       });
+      // Zgłoszenie z danych startowych w środku okna: hulajnoga (w serwisie w seedzie) odpada z symulacji w trakcie
+      // okna i od tej chwili ma stan z seeda. Ta sama zmiana na obu bazach (test determinizmu).
+      const { rows } = await pool.query<{ number: number }>(
+        `UPDATE tickets SET created_at = created_at - interval '36 hours', updated_at = updated_at - interval '36 hours'
+         WHERE id = (SELECT t.id FROM tickets t JOIN scooters s ON s.id = t.scooter_id
+                     WHERE s.status = 'MAINTENANCE'
+                       AND NOT EXISTS (SELECT 1 FROM service_tasks x WHERE x.scooter_id = s.id)
+                     ORDER BY t.created_at DESC, t.id LIMIT 1)
+         RETURNING (SELECT number FROM scooters WHERE id = scooter_id)`,
+      );
+      excludedInWindow = rows[0]!.number;
     }
   }, 120_000);
 
@@ -119,6 +132,46 @@ describe.skipIf(!adminUrl)('generator danych historycznych (ADR 0075)', () => {
     expect(r.zone_entries).toBeGreaterThan(0);
     expect(r.closed_intervals).toBeGreaterThan(0);
     expect(r.current_tariff).toBe(1);
+
+    // Hulajnogi w serwisie albo wycofane w danych startowych kończą historię generatora w tym stanie, a wyłączone
+    // od początku okna (otwarte zadanie, wycofana) nie mają w oknie przedziałów „dostępna” (wcześniej 3 doby AVAILABLE).
+    const seeded = await pool.query<{
+      number: number;
+      status: string;
+      last_generated: string;
+      available: number;
+      excluded_at_start: boolean;
+    }>(
+      `SELECT s.number, s.status::text AS status,
+              (SELECT h.status::text FROM scooter_status_history h
+               WHERE h.scooter_id = s.id AND h.valid_from < $1 ORDER BY h.valid_from DESC LIMIT 1) AS last_generated,
+              (SELECT count(*)::int FROM scooter_status_history h
+               WHERE h.scooter_id = s.id AND h.valid_from < $1 AND h.status = 'AVAILABLE') AS available,
+              s.status = 'RETIRED' OR EXISTS (SELECT 1 FROM service_tasks t
+                                             WHERE t.scooter_id = s.id AND t.status IN ('OPEN', 'IN_PROGRESS'))
+                AS excluded_at_start
+       FROM scooters s WHERE s.status IN ('MAINTENANCE', 'RETIRED')`,
+      [summary.windowTo],
+    );
+    expect(seeded.rows.filter((row) => row.excluded_at_start).length).toBeGreaterThan(0);
+    for (const row of seeded.rows.filter((r) => r.excluded_at_start)) {
+      expect([row.last_generated, row.available]).toEqual([row.status, 0]);
+    }
+    expect(seeded.rows.find((row) => row.number === excludedInWindow)).toMatchObject({ last_generated: 'MAINTENANCE' });
+    expect(summary.stats.scootersFrozenAtSeedState).toBeGreaterThanOrEqual(1);
+    // Wjazdy do strefy zakazu tylko w zamierzonych przejazdach (NO_RIDE_PASS, ok. 1,5%): trasy, które przypadkiem
+    // przecinały strefę, są losowane od nowa (wcześniej ok. 12% przejazdów z wjazdem). Na 3 dobach próba jest za mała
+    // na próg 3% z kontroli, więc test porównuje wjazdy z liczbą przejazdów zamierzonych.
+    const noRide = await pool.query<{ rides: number }>(
+      `SELECT count(*)::int AS rides FROM rentals r
+       WHERE EXISTS (SELECT 1 FROM rental_events e JOIN zones z ON z.id = e.zone_id
+                     WHERE e.rental_id = r.id AND e.type = 'ZONE_ENTERED' AND z.type = 'NO_RIDE')`,
+    );
+    expect(summary.stats.routesRedrawn).toBeGreaterThan(0);
+    expect(noRide.rows[0]!.rides).toBeGreaterThan(0);
+    expect(noRide.rows[0]!.rides).toBeLessThanOrEqual(
+      (summary.stats.ridesNoRidePass ?? 0) + (summary.stats.ridesNoRideUnavoidable ?? 0),
+    );
 
     // Raporty widzą dane generatora: przychód z paragonów i wykorzystanie z historii stanów.
     const revenue = await pool.query<{ gross: string }>(

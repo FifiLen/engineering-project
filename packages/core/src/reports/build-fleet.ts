@@ -11,6 +11,7 @@ import {
   timeBarChart,
   type ReportModel,
 } from './model.js';
+import { warsawWallClock } from './dates.js';
 import type { ResolvedReportParams } from './params.js';
 import type {
   FleetTimeColumns,
@@ -22,10 +23,14 @@ import type {
 import { scooterUsageIndicators, type ScooterTimeTotals } from './scooter-time.js';
 
 /**
- * Raport wykorzystania floty (ADR 0074): czasy kategorii z historii stanów przycięte do okresu, a dla części okresu
- * sprzed historii (migracja 0013, pytanie 13) czas przejazdów z `rentals`. Czas okresu hulajnogi to `period_seconds`
- * bez czasu wyłączenia z ruchu (`RETIRED` nie należy do floty w ruchu); wykorzystanie i dostępność liczy
- * `scooterUsageIndicators`, ta sama funkcja co pulpit i karta hulajnogi.
+ * Raport wykorzystania floty (ADR 0074): czasy kategorii z historii stanów przycięte do okresu. Podstawą wskaźników
+ * jest czas objęty historią stanów (`tracked_seconds`) bez czasu wyłączenia z ruchu (`RETIRED` nie należy do floty
+ * w ruchu), a nie cały czas okresu: część okresu sprzed historii (migracja 0013, pytanie 13, albo hulajnoga dodana
+ * w trakcie okresu) nie ma kategorii, więc liczona w mianowniku zaniżałaby dostępność. Kafelki, pasek udziałów,
+ * tabele i szereg używają tej samej podstawy, a gdy historia nie obejmuje całego okresu, tabele mają adnotację
+ * „Część okresu bez historii stanów (pełna historia od …)”. Przejazdy, czas jazdy, dystans i przychód obejmują cały
+ * okres (z `rentals` i paragonów). Wykorzystanie i dostępność liczy `scooterUsageIndicators`, ta sama funkcja co pulpit
+ * i karta hulajnogi.
  */
 export interface FleetUsageData {
   code: 'fleet_usage';
@@ -77,10 +82,14 @@ export function fleetModelRows(byScooter: readonly FleetUsageScooterRow[]): Flee
     .sort((a, b) => a.modelCode.localeCompare(b.modelCode));
 }
 
-/** Sekundy kategorii z kolumn funkcji raportowej (przejazdy sprzed historii doliczone do przejazdu). */
+/**
+ * Sekundy kategorii z kolumn funkcji raportowej, tylko z historii stanów: czas przejazdów sprzed historii
+ * (`untracked_ride_seconds`) leży poza podstawą wskaźników, więc nie trafia do licznika (suma kategorii z `RETIRED`
+ * równa się `tracked_seconds`, bo baza zaokrągla sumy narastające).
+ */
 export function fleetTimeTotals(row: FleetTimeColumns): ScooterTimeTotals {
   return {
-    IN_RIDE: row.inRideSeconds + row.untrackedRideSeconds,
+    IN_RIDE: row.inRideSeconds,
     RESERVED: row.reservedSeconds,
     AVAILABLE: row.availableSeconds,
     SERVICE: row.serviceSeconds,
@@ -89,9 +98,42 @@ export function fleetTimeTotals(row: FleetTimeColumns): ScooterTimeTotals {
   };
 }
 
-/** Czas okresu do wskaźników: okres (do teraz) bez czasu wyłączenia z ruchu. */
-export const fleetBasisSeconds = (row: Pick<FleetTimeColumns, 'periodSeconds' | 'retiredSeconds'>): number =>
-  Math.max(0, row.periodSeconds - row.retiredSeconds);
+/** Podstawa wskaźników: czas objęty historią stanów (do teraz) bez czasu wyłączenia z ruchu. */
+export const fleetBasisSeconds = (row: Pick<FleetTimeColumns, 'trackedSeconds' | 'retiredSeconds'>): number =>
+  Math.max(0, row.trackedSeconds - row.retiredSeconds);
+
+/** Tolerancja zaokrąglenia do pełnych sekund przy porównaniu czasu z historią z czasem okresu. */
+const ROUNDING_SLACK_SECONDS = 1;
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** Chwila w czasie polskim: „17.11.2026, 14:05”. */
+function formatWarsawMinute(at: Date): string {
+  const w = warsawWallClock(at);
+  return `${pad2(w.getUTCDate())}.${pad2(w.getUTCMonth() + 1)}.${w.getUTCFullYear()}, ${pad2(w.getUTCHours())}:${pad2(w.getUTCMinutes())}`;
+}
+
+/**
+ * Adnotacja tabel, gdy historia stanów nie obejmuje całego okresu (suma `tracked_seconds` mniejsza od sumy
+ * `period_seconds`): od kiedy historia obejmuje wszystkie hulajnogi raportu (najpóźniejszy początek historii wśród
+ * hulajnóg z luką) i jaka część czasu okresu jest objęta historią. `null`, gdy historia obejmuje cały okres.
+ */
+export function fleetHistoryNote(byScooter: readonly FleetUsageScooterRow[]): string | null {
+  const gaps = byScooter.filter((s) => s.trackedSeconds + ROUNDING_SLACK_SECONDS < s.periodSeconds);
+  if (gaps.length === 0) return null;
+  const period = sumOf(byScooter, (s) => s.periodSeconds);
+  const tracked = sumOf(byScooter, (s) => s.trackedSeconds);
+  const starts = gaps.flatMap((s) => (s.historyFrom ? [s.historyFrom.getTime()] : []));
+  const since =
+    starts.length > 0 ? `pełna historia od ${formatWarsawMinute(new Date(Math.max(...starts)))}` : 'brak historii';
+  const coverage = period > 0 ? ((tracked / period) * 100).toFixed(1).replace('.', ',') : '0';
+  return (
+    `Część okresu bez historii stanów (${since}; historia obejmuje ${coverage}% czasu okresu): czasy stanów, ` +
+    'wykorzystanie i dostępność liczone względem czasu z historią. Przejazdy, przychód i dystans obejmują cały okres.'
+  );
+}
+
+const withNote = <T extends { description: string | null }>(table: T, note: string | null): T =>
+  note ? { ...table, description: table.description ? `${table.description}. ${note}` : note } : table;
 
 function sumTimes(rows: readonly FleetTimeColumns[]): FleetTimeColumns {
   return {
@@ -133,11 +175,12 @@ function tileValues(byScooter: readonly FleetUsageScooterRow[]): Record<string, 
   };
 }
 
-/** Szereg nie ma przejazdów sprzed historii: wykorzystanie przedziału z samej historii stanów. */
+/** Przedział szeregu: podstawa to suma kategorii przedziału (czas z historią), jak w kafelkach. */
 function seriesCells(r: FleetUsageSeriesRow) {
   return timeCells({
     periodSeconds: r.periodSeconds * r.scooters,
-    trackedSeconds: 0,
+    trackedSeconds:
+      r.inRideSeconds + r.reservedSeconds + r.availableSeconds + r.serviceSeconds + r.offlineSeconds + r.retiredSeconds,
     inRideSeconds: r.inRideSeconds,
     reservedSeconds: r.reservedSeconds,
     availableSeconds: r.availableSeconds,
@@ -163,15 +206,7 @@ export function buildFleetUsageReport(params: ResolvedReportParams, data: FleetU
 
   const fleet = sumTimes(current.byScooter);
   const fleetTotals = fleetTimeTotals(fleet);
-  const untracked = Math.max(
-    0,
-    fleetBasisSeconds(fleet) -
-      fleetTotals.IN_RIDE -
-      fleetTotals.RESERVED -
-      fleetTotals.AVAILABLE -
-      fleetTotals.SERVICE -
-      fleetTotals.OFFLINE,
-  );
+  const note = fleetHistoryNote(current.byScooter);
   const categories = L.timeCategory;
   const shareSegments = [
     { key: 'IN_RIDE', label: categories.IN_RIDE, value: fleetTotals.IN_RIDE },
@@ -179,13 +214,12 @@ export function buildFleetUsageReport(params: ResolvedReportParams, data: FleetU
     { key: 'AVAILABLE', label: categories.AVAILABLE, value: fleetTotals.AVAILABLE },
     { key: 'SERVICE', label: categories.SERVICE, value: fleetTotals.SERVICE },
     { key: 'OFFLINE', label: categories.OFFLINE, value: fleetTotals.OFFLINE },
-    ...(untracked > 0 ? [{ key: 'UNTRACKED', label: 'Brak historii stanów', value: untracked }] : []),
   ];
 
   const byModelTotals = {
     model: L.total,
     scooters: sumOf(current.byModel, (r) => r.scooters),
-    ...timeCells(sumTimes(current.byModel.map((m) => ({ ...m, periodSeconds: m.periodSeconds * m.scooters })))),
+    ...timeCells(sumTimes(current.byModel)),
     rides: sumOf(current.byModel, (r) => r.rides),
     revenueGross: sumOf(current.byModel, (r) => r.revenueGross),
     distance: sumOf(current.byModel, (r) => r.distanceM),
@@ -204,59 +238,67 @@ export function buildFleetUsageReport(params: ResolvedReportParams, data: FleetU
       ),
     ],
     tables: [
-      tableFrom(
-        spec,
-        'byScooter',
-        current.byScooter.map((s) =>
-          row({
-            scooter: scooterLabel(s.scooterNumber),
-            model: s.modelName,
-            ...timeCells(s),
-            rides: s.rides,
-            revenueGross: s.revenueGross,
-            distance: s.distanceM,
-            odometer: s.odometerM,
+      withNote(
+        tableFrom(
+          spec,
+          'byScooter',
+          current.byScooter.map((s) =>
+            row({
+              scooter: scooterLabel(s.scooterNumber),
+              model: s.modelName,
+              ...timeCells(s),
+              rides: s.rides,
+              revenueGross: s.revenueGross,
+              distance: s.distanceM,
+              odometer: s.odometerM,
+            }),
+          ),
+          {
+            scooter: L.total,
+            model: null,
+            ...timeCells(fleet),
+            rides: sumOf(current.byScooter, (r) => r.rides),
+            revenueGross: sumOf(current.byScooter, (r) => r.revenueGross),
+            distance: sumOf(current.byScooter, (r) => r.distanceM),
+            odometer: null,
+          },
+        ),
+        note,
+      ),
+      withNote(
+        tableFrom(
+          spec,
+          'byModel',
+          current.byModel.map((m) =>
+            row({
+              model: m.modelName,
+              scooters: m.scooters,
+              ...timeCells(m),
+              rides: m.rides,
+              revenueGross: m.revenueGross,
+              distance: m.distanceM,
+            }),
+          ),
+          byModelTotals,
+        ),
+        note,
+      ),
+      withNote(
+        tableFrom(
+          spec,
+          'series',
+          current.series.map((r, i) => {
+            const prev = aligned[i];
+            return row({
+              bucket: r.bucket,
+              scooters: r.scooters,
+              ...seriesCells(r),
+              previousUtilization: prev ? seriesCells(prev).utilization : null,
+              rides: r.rides,
+            });
           }),
         ),
-        {
-          scooter: L.total,
-          model: null,
-          ...timeCells(fleet),
-          rides: sumOf(current.byScooter, (r) => r.rides),
-          revenueGross: sumOf(current.byScooter, (r) => r.revenueGross),
-          distance: sumOf(current.byScooter, (r) => r.distanceM),
-          odometer: null,
-        },
-      ),
-      tableFrom(
-        spec,
-        'byModel',
-        current.byModel.map((m) =>
-          row({
-            model: m.modelName,
-            scooters: m.scooters,
-            // `period_seconds` modelu to czas okresu jednej hulajnogi (max z hulajnóg modelu).
-            ...timeCells({ ...m, periodSeconds: m.periodSeconds * m.scooters }),
-            rides: m.rides,
-            revenueGross: m.revenueGross,
-            distance: m.distanceM,
-          }),
-        ),
-        byModelTotals,
-      ),
-      tableFrom(
-        spec,
-        'series',
-        current.series.map((r, i) => {
-          const prev = aligned[i];
-          return row({
-            bucket: r.bucket,
-            scooters: r.scooters,
-            ...seriesCells(r),
-            previousUtilization: prev ? seriesCells(prev).utilization : null,
-            rides: r.rides,
-          });
-        }),
+        note,
       ),
     ],
     empty: current.byScooter.every((s) => s.trackedSeconds === 0 && s.untrackedRideSeconds === 0 && s.rides === 0),

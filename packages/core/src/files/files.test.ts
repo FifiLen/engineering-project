@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  deletePermission,
   detectImageType,
   ensureCanAddParkingPhoto,
   ensureFileAttachable,
@@ -53,6 +54,14 @@ describe('pliki: wysyłka (ADR 0057)', () => {
   it('operator wysyła zdjęcie zgłoszenia z uprawnieniem do zgłoszeń', () => {
     expect(uploadPermission('TICKET_PHOTO')).toBe('tickets.manage');
     expect(uploadPermission('PARKING_PHOTO')).toBe('rentals.manage');
+  });
+
+  it('operator usuwa tylko pliki z wysyłki; pliki raportu, wydruku i eksportu to FILE_ATTACHED', () => {
+    expect(deletePermission('PARKING_PHOTO', 'f')).toBe('rentals.manage');
+    expect(deletePermission('MEDIA', 'f')).toBe('content.write');
+    for (const purpose of ['REPORT_EXPORT', 'GENERATED_DOCUMENT', 'DATA_EXPORT', 'DOCUMENT_TEMPLATE']) {
+      expect(() => deletePermission(purpose, 'f')).toThrow(expect.objectContaining({ code: 'FILE_ATTACHED' }));
+    }
   });
 });
 

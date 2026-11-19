@@ -326,6 +326,28 @@ describe.skipIf(!adminUrl)('API: pliki (ADR 0057)', () => {
     expect(storage().objects.has(rows[0].storage_key)).toBe(true);
   });
 
+  it('plików raportu, wydruku i eksportu danych nie usuwa żaden operator (cel spoza wysyłki to FILE_ATTACHED)', async () => {
+    const requester = (await pool.query(`SELECT id FROM staff WHERE email = 'a@test.local'`)).rows[0].id as string;
+    for (const purpose of ['REPORT_EXPORT', 'GENERATED_DOCUMENT', 'DATA_EXPORT', 'DOCUMENT_TEMPLATE']) {
+      const id = randomUUID();
+      const key = `${purpose.toLowerCase()}/${id}.bin`;
+      await storage().put(key, PDF, 'application/pdf');
+      await pool.query(
+        `INSERT INTO files (id, storage_key, purpose, content_type, size_bytes, uploaded_by_staff)
+         VALUES ($1, $2, $3::file_purpose, 'application/pdf', $4, $5)`,
+        [id, key, purpose, PDF.length, requester],
+      );
+      // Przed poprawką plik raportu usuwał operator z samym `rentals.manage` (Serwisant), a administrator każdy.
+      for (const token of [staff.service, staff.admin]) {
+        const removed = await asStaff(app, token)({ method: 'DELETE', url: `/admin/files/${id}` });
+        expect([purpose, removed.statusCode, removed.json().code]).toEqual([purpose, 409, 'FILE_ATTACHED']);
+      }
+      const { rows } = await pool.query(`SELECT status::text FROM files WHERE id = $1`, [id]);
+      expect(rows[0].status).toBe('READY');
+      expect(storage().objects.has(key)).toBe(true);
+    }
+  });
+
   it('usunięcie z panelu i przypięcie tego samego pliku naraz: plik przypięty nigdy nie traci obiektu', async () => {
     const scooterId = (await pool.query(`SELECT id FROM scooters`)).rows[0].id as string;
     for (let round = 0; round < 3; round++) {

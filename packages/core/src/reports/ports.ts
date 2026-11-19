@@ -80,7 +80,10 @@ export interface FleetTimeColumns {
   serviceSeconds: number;
   offlineSeconds: number;
   retiredSeconds: number;
-  /** Czas przejazdów sprzed historii stanów (z `rentals`); czas w przejeździe = `inRideSeconds` + to. */
+  /**
+   * Czas przejazdów sprzed historii stanów (z `rentals`); poza podstawą wskaźników (ta liczy tylko czas z historią),
+   * zostaje do MTBF w raporcie awaryjności i do stanu „Brak danych”.
+   */
   untrackedRideSeconds: number;
 }
 

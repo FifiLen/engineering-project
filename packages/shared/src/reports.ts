@@ -55,7 +55,8 @@ const modelScooter = { modelId: z.uuid().optional(), scooterId: z.uuid().optiona
 /**
  * Parametry każdego raportu: okres i porównanie wszędzie, granulacja w raportach z szeregiem w czasie (przychody,
  * wykorzystanie floty, użytkownicy), strefa końca w raporcie stref, model i hulajnoga we flocie i awaryjności.
- * Nieznane pola są pomijane (`strip`), więc parametr innego raportu z adresu nie psuje podglądu.
+ * Nieznane pola są pomijane (`strip`); filtr albo granulację innego raportu API odrzuca wcześniej
+ * (`REPORT_PARAM_NOT_SUPPORTED`, `ensureReportParamsSupported` w packages/core), pustą wartość pomija.
  */
 export const REPORT_PARAMS_SCHEMAS = {
   revenue: z.object({ ...baseParams, ...granularity }),

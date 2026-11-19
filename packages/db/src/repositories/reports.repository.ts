@@ -119,15 +119,32 @@ export function rethrowReportTimeout(error: unknown, timeoutMs: number): never {
  * i pliku widzą te same dane, a chwilą danych jest `now()` tej transakcji.
  */
 export class DrizzleReportsRepository implements ReportsRepository {
-  constructor(private readonly db: DbExecutor) {}
+  constructor(
+    private readonly db: DbExecutor,
+    private readonly budget: ReportSnapshotBudget | null = null,
+  ) {}
+
+  /**
+   * Zapytanie migawki. Z łącznym limitem (`budget`, zadanie `report.generate`) każde zapytanie dostaje
+   * `statement_timeout` równy reszcie limitu (najwyżej limit jednego zapytania), a po jego wyczerpaniu kolejne
+   * zapytanie w ogóle nie rusza (`REPORT_TIMEOUT`), więc cała migawka kończy się przed wygaśnięciem zadania.
+   */
+  private async execute(query: SQL) {
+    if (this.budget) {
+      const remaining = Math.floor(this.budget.deadline - Date.now());
+      if (remaining <= 0) throw new DomainError('REPORT_TIMEOUT', { timeoutMs: this.budget.totalMs });
+      await this.db.execute(sql.raw(`SET LOCAL statement_timeout = ${Math.min(this.budget.statementMs, remaining)}`));
+    }
+    return this.db.execute<Row>(query);
+  }
 
   private async call<T>(query: SQL, numeric: readonly string[]): Promise<T[]> {
-    const { rows } = await this.db.execute<Row>(query);
+    const { rows } = await this.execute(query);
     return rows.map((r) => mapRow<T>(r, numeric));
   }
 
   async earliestData(code: ReportCode): Promise<Date | null> {
-    const { rows } = await this.db.execute<Row>(sql`SELECT fn_report_earliest_data(${code}) AS at`);
+    const { rows } = await this.execute(sql`SELECT fn_report_earliest_data(${code}) AS at`);
     const at = rows[0]?.at;
     return at === null || at === undefined ? null : new Date(at as string);
   }
@@ -175,12 +192,14 @@ export class DrizzleReportsRepository implements ReportsRepository {
 
   // --- Wykorzystanie floty --------------------------------------------------------------------------------
 
-  fleetUsageByScooter(p: ReportInterval, f: FleetUsageFilters) {
-    return this.call<FleetUsageScooterRow>(
+  async fleetUsageByScooter(p: ReportInterval, f: FleetUsageFilters) {
+    const rows = await this.call<FleetUsageScooterRow>(
       sql`SELECT * FROM fn_report_fleet_usage_by_scooter(${p.from}, ${p.to}, ${f.modelId ?? null}::uuid,
                                                          ${f.scooterId ?? null}::uuid)`,
       NUMERIC.fleetTimes,
     );
+    // `execute` zwraca znacznik czasu jako tekst; port obiecuje `Date` (adnotacja „pełna historia od …”).
+    return rows.map((r) => ({ ...r, historyFrom: r.historyFrom ? new Date(r.historyFrom) : null }));
   }
 
   fleetUsageByModel(p: ReportInterval, f: Pick<FleetUsageFilters, 'modelId'>) {
@@ -351,17 +370,34 @@ export class DrizzleReportsRepository implements ReportsRepository {
   }
 }
 
+/** Łączny limit migawki: chwila końca (`Date.now()` w ms), limit jednego zapytania i limit łączny (do błędu). */
+export interface ReportSnapshotBudget {
+  deadline: number;
+  statementMs: number;
+  totalMs: number;
+}
+
 /**
  * Migawka danych raportu (ADR 0071): transakcja `REPEATABLE READ READ ONLY` z `SET LOCAL statement_timeout`
  * (podgląd 15 s, zadanie 60 s) i bez JIT, chwila danych `now()` i repozytorium na tej transakcji. Przekroczony limit to
- * `REPORT_TIMEOUT` z `details.timeoutMs`.
+ * `REPORT_TIMEOUT` z `details.timeoutMs`. `totalTimeoutMs` (zadanie `report.generate`) ogranicza też łączny czas
+ * migawki od wywołania (z czekaniem na połączenie): sam `statement_timeout` dotyczy jednego zapytania, a raport
+ * wykonuje ich kilkanaście, więc bez limitu łącznego migawka mogła trwać dłużej niż wygaśnięcie zadania (120 s).
  */
 export async function withReportSnapshot<T>(
   db: Database,
-  options: { timeoutMs: number },
+  options: { timeoutMs: number; totalTimeoutMs?: number },
   fn: (repo: DrizzleReportsRepository, dataAsOf: Date) => Promise<T>,
 ): Promise<T> {
   const timeout = Math.max(1, Math.floor(options.timeoutMs));
+  const budget: ReportSnapshotBudget | null =
+    options.totalTimeoutMs === undefined
+      ? null
+      : {
+          deadline: Date.now() + options.totalTimeoutMs,
+          statementMs: timeout,
+          totalMs: Math.floor(options.totalTimeoutMs),
+        };
   try {
     return await db.transaction(
       async (tx) => {
@@ -370,12 +406,12 @@ export async function withReportSnapshot<T>(
         // każda funkcja raportowa mieści się poniżej 0,35 s (pomiar EXPLAIN ANALYZE, ADR 0075).
         await tx.execute(sql.raw('SET LOCAL jit = off'));
         const { rows } = await tx.execute<Row>(sql`SELECT now() AS now`);
-        return fn(new DrizzleReportsRepository(tx), new Date(rows[0]!.now as string));
+        return fn(new DrizzleReportsRepository(tx, budget), new Date(rows[0]!.now as string));
       },
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
     );
   } catch (error) {
-    rethrowReportTimeout(error, timeout);
+    rethrowReportTimeout(error, budget?.totalMs ?? timeout);
   }
 }
 
@@ -552,38 +588,58 @@ export class DrizzleReportRunsRepository {
               ${run.requestedBy}, ${run.retryOf ?? null})`);
   }
 
-  /** Start zadania: `QUEUED` albo porzucony `RUNNING` (decyzja `shouldRunReportJob` w core). */
-  async markRunning(id: string): Promise<void> {
-    await this.db.execute(sql`
-      UPDATE report_runs SET status = 'RUNNING', started_at = now() WHERE id = ${id} AND status IN ('QUEUED', 'RUNNING')`);
+  /**
+   * Start zadania: `QUEUED` albo porzucony `RUNNING` (decyzja `shouldRunReportJob` w core). Zwraca żeton przejęcia:
+   * nowy `started_at` jako tekst (mikrosekundy, których nie ma w `Date`), albo `null`, gdy wiersz jest już w stanie
+   * końcowym. Wynik zapisuje tylko wykonanie z aktualnym żetonem (`succeed`, `fail`, `requeue`), więc spóźnione
+   * wykonanie po przejęciu przez drugie albo po `reports.sweep` nie nadpisuje stanu.
+   */
+  async markRunning(id: string): Promise<string | null> {
+    const [row] = await this.rows(sql`
+      UPDATE report_runs SET status = 'RUNNING', started_at = clock_timestamp()
+      WHERE id = ${id} AND status IN ('QUEUED', 'RUNNING')
+      RETURNING started_at::text AS token`);
+    return (row?.token as string | undefined) ?? null;
   }
 
-  /** Powrót do kolejki przed ponowieniem (`RENDERER_UNAVAILABLE`). */
-  async requeue(id: string): Promise<void> {
-    await this.db.execute(
-      sql`UPDATE report_runs SET status = 'QUEUED', started_at = NULL WHERE id = ${id} AND status = 'RUNNING'`,
+  /** Warunek wykonania, które nadal ma wiersz: `RUNNING` z żetonem z `markRunning`. */
+  private static owned(id: string, token: string) {
+    return sql`id = ${id} AND status = 'RUNNING' AND started_at = ${token}::timestamptz`;
+  }
+
+  /** Powrót do kolejki przed ponowieniem (`RENDERER_UNAVAILABLE`); `false`, gdy wiersz przejęło inne wykonanie. */
+  async requeue(id: string, token: string): Promise<boolean> {
+    const { rowCount } = await this.db.execute(
+      sql`UPDATE report_runs SET status = 'QUEUED', started_at = NULL WHERE ${DrizzleReportRunsRepository.owned(id, token)}`,
     );
+    return (rowCount ?? 0) > 0;
   }
 
-  /** Gotowy plik: plik w magazynie, chwila danych, liczba wierszy tabel i stron PDF (XLSX bez stron). */
+  /**
+   * Gotowy plik: plik w magazynie, chwila danych, liczba wierszy tabel i stron PDF (XLSX bez stron). `false`, gdy
+   * wiersz przejęło inne wykonanie albo zakończył go `reports.sweep`: wtedy wywołujący usuwa zapisany plik.
+   */
   async succeed(
     id: string,
+    token: string,
     result: { fileId: string; dataAsOf: Date; rowCount: number; pageCount: number | null },
-  ): Promise<void> {
-    await this.db.execute(sql`
+  ): Promise<boolean> {
+    const { rowCount } = await this.db.execute(sql`
       UPDATE report_runs
       SET status = 'SUCCEEDED', finished_at = now(), file_id = ${result.fileId}, data_as_of = ${result.dataAsOf},
-          row_count = ${result.rowCount}, page_count = ${result.pageCount}, error_code = NULL, error = NULL,
-          started_at = COALESCE(started_at, now())
-      WHERE id = ${id}`);
+          row_count = ${result.rowCount}, page_count = ${result.pageCount}, error_code = NULL, error = NULL
+      WHERE ${DrizzleReportRunsRepository.owned(id, token)}`);
+    return (rowCount ?? 0) > 0;
   }
 
-  async fail(id: string, code: string, error: string | null, dataAsOf: Date | null = null): Promise<void> {
-    await this.db.execute(sql`
+  /** Błąd wykonania z żetonem; `false`, gdy wiersz przejęło inne wykonanie albo jest już w stanie końcowym. */
+  async fail(id: string, token: string, code: string, error: string | null, dataAsOf: Date | null = null) {
+    const { rowCount } = await this.db.execute(sql`
       UPDATE report_runs
       SET status = 'FAILED', finished_at = now(), error_code = ${code}, error = ${error?.slice(0, 500) ?? null},
-          data_as_of = COALESCE(${dataAsOf}, data_as_of), started_at = COALESCE(started_at, now())
-      WHERE id = ${id}`);
+          data_as_of = COALESCE(${dataAsOf}, data_as_of)
+      WHERE ${DrizzleReportRunsRepository.owned(id, token)}`);
+    return (rowCount ?? 0) > 0;
   }
 
   /** `reports.sweep`: `QUEUED` i `RUNNING` porzucone przed `before` kończą się `FAILED` z kodem. */

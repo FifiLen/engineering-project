@@ -1,11 +1,12 @@
 import { DomainError } from '../errors.js';
-import { REPORT_CATALOG, REPORT_LIMITS, type ReportCode, type ReportFilter } from './catalog.js';
+import { REPORT_CATALOG, REPORT_FILTERS, REPORT_LIMITS, type ReportCode, type ReportFilter } from './catalog.js';
 import {
   addDays,
   addMonthsClamped,
   dayOfMonth,
   daysBetween,
   daysInMonth,
+  endOfMonth,
   isLocalDate,
   localDateOf,
   sameMonth,
@@ -120,20 +121,41 @@ export const isMonthlyRange = (range: ReportRange): boolean =>
   dayOfMonth(range.from) === 1 && sameMonth(range.from, range.to);
 
 /**
- * Okres porównawczy: przy zakresie miesięcznym poprzedni miesiąc kalendarzowy wyrównany do dnia miesiąca (1–31
- * października porównuje się z 1–30 września; 31 października nie ma pary), w pozostałych przypadkach okres tej samej
- * długości tuż przed.
+ * Okres porównawczy: przy zakresie miesięcznym poprzedni miesiąc kalendarzowy. Zakres do końca miesiąca porównuje się
+ * z całym poprzednim miesiącem (1–31 października z 1–30 września, 1–28 lutego z 1–31 stycznia, 1–30 listopada
+ * z 1–31 października), zakres niepełny z tymi samymi dniami poprzedniego miesiąca (1–19 listopada z 1–19
+ * października, przycięte do długości miesiąca). Wykres dzienny paruje przedziały według dnia miesiąca
+ * (`alignPrevious`), więc dni bez pary (31 października; 29–31 stycznia przy lutym) nie mają słupka porównania,
+ * a sumy obejmują cały poprzedni miesiąc. W pozostałych przypadkach okres tej samej długości tuż przed.
  */
 export function comparisonRange(range: ReportRange): { range: ReportRange; alignment: ReportComparisonAlignment } {
   if (isMonthlyRange(range)) {
     const from = addMonthsClamped(range.from, -1);
     const [y, m] = from.split('-').map(Number) as [number, number];
-    const toDay = Math.min(dayOfMonth(range.to), daysInMonth(y, m));
+    const wholeMonth = range.to === endOfMonth(range.to);
+    const toDay = wholeMonth ? daysInMonth(y, m) : Math.min(dayOfMonth(range.to), daysInMonth(y, m));
     const to = `${from.slice(0, 8)}${String(toDay).padStart(2, '0')}`;
     return { range: { from, to }, alignment: 'month' };
   }
   const days = rangeDays(range);
   return { range: { from: addDays(range.from, -days), to: addDays(range.from, -1) }, alignment: 'length' };
+}
+
+/**
+ * Filtr albo granulacja spoza raportu to `REPORT_PARAM_NOT_SUPPORTED` (`param`). Wartość pusta (`undefined`, `null`,
+ * pusty tekst) to brak parametru: panel może wysłać pusty filtr z adresu. API woła to na surowych parametrach przed
+ * schematem z packages/shared, który nieznane pola pomija (`strip`), żeby filtr innego raportu nie znikał po cichu.
+ */
+export function ensureReportParamsSupported(code: ReportCode, input: object): void {
+  const spec = REPORT_CATALOG[code].params;
+  const values = input as Readonly<Record<string, unknown>>;
+  const present = (key: string) => values[key] !== undefined && values[key] !== null && values[key] !== '';
+  for (const filter of REPORT_FILTERS) {
+    if (present(filter) && !spec.filters.includes(filter))
+      throw new DomainError('REPORT_PARAM_NOT_SUPPORTED', { param: filter });
+  }
+  if (present('granularity') && !spec.granularity)
+    throw new DomainError('REPORT_PARAM_NOT_SUPPORTED', { param: 'granularity' });
 }
 
 /**
@@ -145,12 +167,7 @@ export function resolveReportParams(code: ReportCode, input: ReportParamsInput, 
   const spec = REPORT_CATALOG[code].params;
   const today = localDateOf(now);
 
-  for (const filter of ['zoneId', 'modelId', 'scooterId'] as const) {
-    if (input[filter] !== undefined && !spec.filters.includes(filter))
-      throw new DomainError('REPORT_PARAM_NOT_SUPPORTED', { param: filter });
-  }
-  if (input.granularity !== undefined && !spec.granularity)
-    throw new DomainError('REPORT_PARAM_NOT_SUPPORTED', { param: 'granularity' });
+  ensureReportParamsSupported(code, input);
 
   const preset: ReportPreset = input.preset ?? (input.from || input.to ? 'custom' : 'this_month');
   let range: ReportRange;

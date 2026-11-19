@@ -92,6 +92,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
       '0011_content_documents.sql',
       '0012_iteration7_fixes.sql',
       '0013_reports.sql',
+      '0014_iteration8_fixes.sql',
     ]);
     const second = await runMigrations(pool);
     expect(second.applied).toEqual([]);

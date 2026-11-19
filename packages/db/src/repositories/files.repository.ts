@@ -92,15 +92,20 @@ const toFile = (r: Row): FileRecord => ({
 });
 
 /**
- * Plik przypięty do rekordu: zdjęcie parkowania przejazdu, zdjęcie zgłoszenia, plik grafiki biblioteki mediów albo
- * plik wersji szablonu wydruku (iteracja 7). Plik bez przypięcia usuwa `files.cleanup` po 24 h, także stary plik
- * grafiki po „Zastąp plik” (ADR 0064).
+ * Plik przypięty do rekordu: zdjęcie parkowania przejazdu, zdjęcie zgłoszenia, plik grafiki biblioteki mediów, plik
+ * wersji szablonu wydruku (iteracja 7), plik wydruku (DOCX i PDF), eksportu danych klienta albo raportu (iteracja 8).
+ * Plik bez przypięcia usuwa `files.cleanup` po 24 h (tylko cele z wysyłki i szablony), także stary plik grafiki po
+ * „Zastąp plik” (ADR 0064); pliki wydruków, eksportów i raportów usuwa ich własna retencja.
  */
 const ATTACHED = sql`(EXISTS (SELECT 1 FROM rentals r WHERE r.parking_photo_id = f.id)
                       OR EXISTS (SELECT 1 FROM ticket_photos p WHERE p.file_id = f.id)
                       OR EXISTS (SELECT 1 FROM media_assets m WHERE m.file_id = f.id)
                       OR EXISTS (SELECT 1 FROM document_template_versions v
-                                 WHERE v.file_id = f.id OR v.preview_file_id = f.id))`;
+                                 WHERE v.file_id = f.id OR v.preview_file_id = f.id)
+                      OR EXISTS (SELECT 1 FROM generated_documents g
+                                 WHERE g.docx_file_id = f.id OR g.pdf_file_id = f.id)
+                      OR EXISTS (SELECT 1 FROM data_exports x WHERE x.file_id = f.id)
+                      OR EXISTS (SELECT 1 FROM report_runs rr WHERE rr.file_id = f.id))`;
 
 /**
  * Zdjęcie parkowania jest dowodem w sprawie: przejazd, do którego je przypięto, ma zgłoszenie (np. reklamację

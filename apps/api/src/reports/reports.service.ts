@@ -7,6 +7,7 @@ import {
   ensureReportFileDownloadable,
   ensureReportFormat,
   ensureReportNotEmpty,
+  ensureReportParamsSupported,
   ensureReportRunRetryable,
   REPORT_LIMITS,
   REPORT_MANAGE_PERMISSION,
@@ -75,8 +76,12 @@ export class ReportsService {
     return def;
   }
 
-  /** Kształt parametrów schematem z shared (400 `VALIDATION_ERROR`), reguły okresu w core. */
+  /**
+   * Kształt parametrów schematem z shared (400 `VALIDATION_ERROR`), reguły okresu w core. Filtr albo granulacja spoza
+   * raportu to `REPORT_PARAM_NOT_SUPPORTED` przed schematem, który nieznane pola pomija (pusta wartość nie liczy się).
+   */
   private parseParams(code: ReportCode, input: unknown): ReportParamsInput {
+    if (input && typeof input === 'object') ensureReportParamsSupported(code, input);
     const parsed = parseReportParams(code, input ?? {});
     if (!parsed.success) {
       throw new ApiError(

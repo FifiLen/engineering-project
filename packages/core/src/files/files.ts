@@ -65,6 +65,19 @@ export function uploadPermission(purpose: StaffUploadFilePurpose): Permission {
   return purpose === 'TICKET_PHOTO' ? 'tickets.manage' : 'rentals.manage';
 }
 
+/**
+ * Uprawnienie do usunięcia pliku przez operatora (`DELETE /files/{id}`): tylko pliki z wysyłki
+ * (`STAFF_UPLOAD_FILE_PURPOSES`), z tym samym uprawnieniem co wysyłka. Pliki wytworzone przez system (raport,
+ * wydruk, eksport danych klienta, wersja szablonu) należą do swojego rekordu i mają własną retencję, więc dają
+ * `FILE_ATTACHED` niezależnie od uprawnień (wcześniej plik raportu usuwał operator z samym `rentals.manage`).
+ */
+export function deletePermission(purpose: string, fileId: string): Permission {
+  if (!(STAFF_UPLOAD_FILE_PURPOSES as readonly string[]).includes(purpose)) {
+    throw new DomainError('FILE_ATTACHED', { fileId });
+  }
+  return uploadPermission(purpose as StaffUploadFilePurpose);
+}
+
 export interface AttachableFile {
   purpose: string;
   status: 'READY' | 'DELETED';

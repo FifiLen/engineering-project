@@ -223,19 +223,23 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
   });
 
   it('zaproszenie administratora z terminala: konto z rolą, link jednorazowy, ponowne zaproszenie', async () => {
-    const first = await inviteAdministrator(pool, { email: ' Nowy.Admin@Operator.pl ', name: 'Nowy Admin' }, t0);
+    // Czas zaproszenia od teraz, nie od stałej `t0`: wiersz dostaje `created_at = now()` bazy, a ograniczenie
+    // `expires_at > created_at` odrzucało zaproszenie z `t0` + 72 h od 19.11.2026 12:00 UTC.
+    const base = new Date(Math.floor(Date.now() / 1000) * 1000);
+    const at = (seconds: number) => new Date(base.getTime() + seconds * 1000);
+    const first = await inviteAdministrator(pool, { email: ' Nowy.Admin@Operator.pl ', name: 'Nowy Admin' }, base);
     expect(first.created).toBe(true);
     const invitations = new DrizzleInvitationRepository(db);
     const found = (await invitations.findByTokenHash(hashToken(first.token)))!;
     expect(found).toMatchObject({
       staffEmail: 'nowy.admin@operator.pl',
       invitedByName: null,
-      expiresAt: after(72 * 3600),
+      expiresAt: at(72 * 3600),
     });
 
-    const again = await inviteAdministrator(pool, { email: 'nowy.admin@operator.pl', name: 'Nowy Admin' }, after(60));
+    const again = await inviteAdministrator(pool, { email: 'nowy.admin@operator.pl', name: 'Nowy Admin' }, at(60));
     expect(again).toMatchObject({ staffId: first.staffId, created: false });
-    expect((await invitations.findByTokenHash(hashToken(first.token)))!.revokedAt).toEqual(after(60));
+    expect((await invitations.findByTokenHash(hashToken(first.token)))!.revokedAt).toEqual(at(60));
 
     const staffRepo = new DrizzleStaffRepository(db);
     expect(await staffRepo.permissions(first.staffId)).toEqual([...PERMISSIONS].sort());
@@ -245,8 +249,8 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     ]);
 
     const invitation = (await invitations.findByTokenHash(hashToken(again.token)))!;
-    expect(await invitations.accept(invitation.id, after(120))).toBe(true);
-    expect(await invitations.accept(invitation.id, after(120))).toBe(false);
+    expect(await invitations.accept(invitation.id, at(120))).toBe(true);
+    expect(await invitations.accept(invitation.id, at(120))).toBe(false);
     await staffRepo.setPassword(first.staffId, 'argon2-hash');
     await expect(inviteAdministrator(pool, { email: 'nowy.admin@operator.pl', name: 'X' })).rejects.toThrow(
       expect.objectContaining({ code: 'STAFF_ALREADY_ACTIVATED' }),

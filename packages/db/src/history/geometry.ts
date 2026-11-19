@@ -56,6 +56,44 @@ export function insidePolygons(polygons: readonly Polygon[], p: GeoPoint): boole
   );
 }
 
+const cross = (ax: number, ay: number, bx: number, by: number, cx: number, cy: number) =>
+  (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+
+/** Odcinki AB i CD mają punkt wspólny (także styczny koniec); płaskie przybliżenie lon/lat jak w `insidePolygons`. */
+function segmentsIntersect(a: [number, number], b: [number, number], c: [number, number], d: [number, number]) {
+  const d1 = cross(c[0], c[1], d[0], d[1], a[0], a[1]);
+  const d2 = cross(c[0], c[1], d[0], d[1], b[0], b[1]);
+  const d3 = cross(a[0], a[1], b[0], b[1], c[0], c[1]);
+  const d4 = cross(a[0], a[1], b[0], b[1], d[0], d[1]);
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true;
+  const on = (p: [number, number], q: [number, number], r: [number, number], v: number) =>
+    v === 0 &&
+    Math.min(p[0], q[0]) <= r[0] &&
+    r[0] <= Math.max(p[0], q[0]) &&
+    Math.min(p[1], q[1]) <= r[1] &&
+    r[1] <= Math.max(p[1], q[1]);
+  return on(c, d, a, d1) || on(c, d, b, d2) || on(a, b, c, d3) || on(a, b, d, d4);
+}
+
+/**
+ * Odcinek PQ ma część wspólną z wielokątami: koniec wewnątrz albo przecięcie brzegu (pierścienia zewnętrznego lub
+ * otworu). Generator odrzuca tak trasy przez strefę zakazu poza zamierzonymi przejazdami (ADR 0075).
+ */
+export function segmentTouchesPolygons(polygons: readonly Polygon[], p: GeoPoint, q: GeoPoint): boolean {
+  if (insidePolygons(polygons, p) || insidePolygons(polygons, q)) return true;
+  const a: [number, number] = [p.lon, p.lat];
+  const b: [number, number] = [q.lon, q.lat];
+  for (const poly of polygons) {
+    const { bbox } = poly;
+    if (Math.max(a[0], b[0]) < bbox.minLon || Math.min(a[0], b[0]) > bbox.maxLon) continue;
+    if (Math.max(a[1], b[1]) < bbox.minLat || Math.min(a[1], b[1]) > bbox.maxLat) continue;
+    for (const ring of poly.rings) {
+      for (let i = 0; i + 1 < ring.length; i++) if (segmentsIntersect(a, b, ring[i]!, ring[i + 1]!)) return true;
+    }
+  }
+  return false;
+}
+
 /** Odległość punktu od brzegu wielokątów w metrach (0 dla punktu na brzegu). */
 export function distanceToBoundaryM(polygons: readonly Polygon[], p: GeoPoint): number {
   const mLon = M_PER_DEG_LAT * Math.cos((p.lat * Math.PI) / 180);

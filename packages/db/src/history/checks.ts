@@ -107,10 +107,22 @@ const CHECKS: ReadonlyArray<readonly [string, string]> = [
                FROM spare_part_movements) x WHERE bad)`,
   ],
   [
-    'koszt części w zadaniach = ruchy USE (bez zwrotów)',
+    'ilość części w zadaniach = ruchy USE pomniejszone o zwroty (RETURN)',
     `SELECT CASE WHEN (SELECT COALESCE(sum(quantity), 0) FROM service_task_parts)
                     = -(SELECT COALESCE(sum(delta), 0) FROM spare_part_movements WHERE kind IN ('USE', 'RETURN'))
             THEN 0 ELSE 1 END`,
+  ],
+  [
+    // Generator wjeżdża do strefy zakazu tylko w zamierzonych przejazdach (ok. 1,5%, ADR 0075); trasy losowe, które
+    // przypadkiem przecinały strefę, dawały ok. 12% przejazdów z wjazdem. Naruszenie: udział co najmniej 3% przy
+    // próbie od 1000 przejazdów (na mniejszej próbie 1,5% losowo przekracza 3%).
+    'przejazdy z wjazdem do strefy zakazu poniżej 3% przejazdów (od 1000 przejazdów)',
+    `SELECT CASE WHEN count(*) >= 1000 AND count(*) FILTER (WHERE EXISTS (
+                        SELECT 1 FROM rental_events e JOIN zones z ON z.id = e.zone_id
+                        WHERE e.rental_id = r.id AND e.type = 'ZONE_ENTERED' AND z.type = 'NO_RIDE')) * 100
+                    >= 3 * count(*)
+            THEN 1 ELSE 0 END
+     FROM rentals r WHERE r.started_at IS NOT NULL`,
   ],
 ];
 

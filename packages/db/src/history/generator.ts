@@ -59,6 +59,7 @@ import {
   pointAlong,
   pointWkt,
   randomAround,
+  segmentTouchesPolygons,
   type Polygon,
 } from './geometry.js';
 import { Random } from './random.js';
@@ -134,6 +135,8 @@ const RESERVATION_CANCELLED = 0.04;
 const UNLOCK_FAILED = 0.005;
 const PAUSE_SHARE = 0.12;
 const NO_RIDE_PASS = 0.015;
+/** Próby nowych punktów pośrednich, gdy trasa przypadkiem przecina strefę zakazu (ostatnia: prosta do celu). */
+const ROUTE_ATTEMPTS = 8;
 /** Kilka promili przejazdów kończy się poza strefą parkowania zdalnym zakończeniem z odholowaniem (ADR 0060). */
 const TOWED_SHARE = 0.004;
 const CARD_DECLINED = 0.025;
@@ -330,7 +333,12 @@ interface ScooterSim {
   busyUntil: number;
   /** Od tej chwili hulajnoga nie bierze udziału w symulacji (zgłoszenia z danych startowych, wycofana). */
   excludedFrom: number;
-  status: 'AVAILABLE' | 'RESERVED' | 'IN_USE' | 'MAINTENANCE';
+  /** Stan i łączność z danych startowych (otwarty przedział seeda), które hulajnoga przyjmuje przy wyłączeniu. */
+  seedStatus: 'AVAILABLE' | 'RESERVED' | 'IN_USE' | 'MAINTENANCE' | 'RETIRED';
+  seedOnline: boolean;
+  /** Od tej chwili stan jest zamrożony na stanie z seeda (dalsze zmiany symulacji są pomijane); `Infinity` bez tego. */
+  frozenFrom: number;
+  status: 'AVAILABLE' | 'RESERVED' | 'IN_USE' | 'MAINTENANCE' | 'RETIRED';
   online: boolean;
   curFrom: number;
   historyEnd: number;
@@ -726,7 +734,8 @@ class HistoryGenerator {
     const rows = await q<{
       id: string;
       number: number;
-      status: string;
+      status: ScooterSim['seedStatus'];
+      online: boolean;
       battery_pct: number | null;
       lon: number | null;
       lat: number | null;
@@ -735,7 +744,7 @@ class HistoryGenerator {
       busy_from: Date | null;
       open_task: boolean;
     }>(
-      `SELECT s.id, s.number, s.status, s.battery_pct, ST_X(s.position) AS lon, ST_Y(s.position) AS lat,
+      `SELECT s.id, s.number, s.status, s.online, s.battery_pct, ST_X(s.position) AS lon, ST_Y(s.position) AS lat,
               (SELECT min(h.valid_from) FROM scooter_status_history h WHERE h.scooter_id = s.id) AS history_from,
               (SELECT min(h.valid_from) FROM scooter_status_history h WHERE h.scooter_id = s.id)::text AS history_from_text,
               LEAST((SELECT min(t.created_at) FROM tickets t WHERE t.scooter_id = s.id),
@@ -748,6 +757,14 @@ class HistoryGenerator {
       if (!s.history_from) continue;
       const pos = s.lat === null || s.lon === null ? null : { lat: s.lat, lon: s.lon };
       const parking = pos ? this.nearestParking(pos) : s.number % this.parking.length;
+      const excludedFrom =
+        s.status === 'RETIRED' || s.open_task
+          ? this.windowStart
+          : Math.min(s.busy_from?.getTime() ?? Infinity, this.windowEnd);
+      // Hulajnoga wyłączona od początku okna stoi w stanie z seeda (serwis, wycofana) przez całe okno, zamiast
+      // 90 dób jako dostępna z łącznością; wyłączona w trakcie okna przechodzi w ten stan przy wyłączeniu
+      // (`freezeAtSeedState`).
+      const frozenAtStart = excludedFrom === this.windowStart && (s.status === 'MAINTENANCE' || s.status === 'RETIRED');
       this.scooters.push({
         id: s.id,
         number: s.number,
@@ -758,12 +775,12 @@ class HistoryGenerator {
         // Hulajnoga wycofana albo z otwartym zadaniem (indeks „jedno otwarte zadanie danego rodzaju” nie pozwoli
         // wstawić zadania historycznego, które przechodzi przez `OPEN`) stoi poza symulacją; z innymi zgłoszeniami
         // z danych startowych odpada od chwili pierwszego z nich.
-        excludedFrom:
-          s.status === 'RETIRED' || s.open_task
-            ? this.windowStart
-            : Math.min(s.busy_from?.getTime() ?? Infinity, this.windowEnd),
-        status: 'AVAILABLE',
-        online: true,
+        excludedFrom,
+        seedStatus: s.status,
+        seedOnline: s.online,
+        frozenFrom: frozenAtStart ? this.windowStart : Infinity,
+        status: frozenAtStart ? s.status : 'AVAILABLE',
+        online: frozenAtStart ? s.online : true,
         curFrom: this.windowStart,
         historyEnd: s.history_from.getTime(),
         historyEndText: s.history_from_text,
@@ -892,7 +909,12 @@ class HistoryGenerator {
       if (!part.active) continue;
       this.queue.push(this.windowStart + 8 * HOUR, () => this.receiveParts(part, Math.max(3 * part.minStock, 10)));
     }
-    for (const scooter of this.scooters) this.scheduleOffline(scooter, this.windowStart);
+    for (const scooter of this.scooters) {
+      this.scheduleOffline(scooter, this.windowStart);
+      if (scooter.frozenFrom === Infinity && scooter.excludedFrom < this.windowEnd) {
+        this.queue.push(scooter.excludedFrom, () => this.freezeAtSeedState(scooter, scooter.excludedFrom));
+      }
+    }
     // Inwentaryzacja przed przyjęciem dostawy startowej z `pnpm db:seed` (ruch `RECEIPT` od stanu 0 w chwili seeda).
     this.queue.push(this.windowEnd - 30 * MINUTE, () => this.stocktake());
   }
@@ -952,7 +974,21 @@ class HistoryGenerator {
 
   // --- Hulajnogi: historia stanów (ADR 0074) -------------------------------------------------------------
 
+  /**
+   * Wyłączenie z symulacji w trakcie okna (zgłoszenie z danych startowych): po zakończeniu bieżącego przejazdu albo
+   * serwisu hulajnoga przyjmuje stan z seeda, jeśli to serwis albo wycofanie, i ten stan już się nie zmienia.
+   */
+  private freezeAtSeedState(s: ScooterSim, at: number) {
+    if (s.seedStatus !== 'MAINTENANCE' && s.seedStatus !== 'RETIRED') return;
+    const t = Math.max(at, s.busyUntil, s.curFrom);
+    if (t >= s.historyEnd) return;
+    this.setScooter(s, t, s.seedStatus, s.seedOnline);
+    s.frozenFrom = t;
+    this.count('scootersFrozenAtSeedState');
+  }
+
   private setScooter(s: ScooterSim, at: number, status: ScooterSim['status'], online = s.online) {
+    if (at >= s.frozenFrom) return; // stan z seeda po wyłączeniu z symulacji
     if (status === s.status && online === s.online) return;
     if (at < s.curFrom) throw new Error(`Zmiana stanu hulajnogi ${s.number} wstecz w czasie`);
     if (at > s.curFrom) {
@@ -1477,6 +1513,15 @@ class HistoryGenerator {
     return out;
   }
 
+  /** Łamana przecina strefę zakazu jazdy (odcinek z końcem w strefie albo przecinający jej brzeg). */
+  private crossesNoRide(points: readonly GeoPoint[]): boolean {
+    for (let i = 1; i < points.length; i++) {
+      for (const zone of this.noRide)
+        if (segmentTouchesPolygons(zone.polygons, points[i - 1]!, points[i]!)) return true;
+    }
+    return false;
+  }
+
   private canPark(p: GeoPoint): boolean {
     return evaluatePosition(
       this.zonesNear(p)
@@ -1626,20 +1671,33 @@ class HistoryGenerator {
     const from = scooter.parking;
     const to = r.chance(0.15) ? from : (from + 1 + r.int(0, this.parking.length - 2)) % this.parking.length;
     const end = towed ? this.outsideParking(this.parking[to]!.center) : this.pointInZone(this.parking[to]!);
-    const points: GeoPoint[] = [scooter.pos];
     // Objazdy: przejazdy w Rybniku są dłuższe niż odległość między strefami (mediana ok. 2 km, część rekreacyjnych).
     const legs = r.int(2, 4) + (from === to ? 1 : 0);
     const detour = r.chance(0.15) ? r.between(900, 1800) : r.between(250, 1000);
-    for (let i = 1; i <= legs; i++) {
-      const f = i / (legs + 1);
-      const mid = {
-        lat: scooter.pos.lat + (end.lat - scooter.pos.lat) * f,
-        lon: scooter.pos.lon + (end.lon - scooter.pos.lon) * f,
-      };
-      points.push(offset(mid, r.between(-detour, detour), r.between(-detour, detour)));
+    const waypoints = (scale: number): GeoPoint[] =>
+      Array.from({ length: legs }, (_, k) => {
+        const f = (k + 1) / (legs + 1);
+        const mid = {
+          lat: scooter.pos.lat + (end.lat - scooter.pos.lat) * f,
+          lon: scooter.pos.lon + (end.lon - scooter.pos.lon) * f,
+        };
+        return offset(mid, r.between(-detour, detour) * scale, r.between(-detour, detour) * scale);
+      });
+    let mids = waypoints(1);
+    const passNoRide = this.noRide.length > 0 && r.chance(NO_RIDE_PASS);
+    if (!passNoRide) {
+      // Wjazd do strefy zakazu tylko w zamierzonych przejazdach (NO_RIDE_PASS, ADR 0075): odcinek łamanej, który
+      // przecina strefę zakazu, to nowe punkty pośrednie z coraz mniejszym objazdem, na końcu prosta do celu.
+      for (let attempt = 1; attempt <= ROUTE_ATTEMPTS && this.crossesNoRide([scooter.pos, ...mids, end]); attempt++) {
+        mids = attempt < ROUTE_ATTEMPTS ? waypoints(1 - attempt / ROUTE_ATTEMPTS) : [];
+        this.count('routesRedrawn');
+      }
+      if (this.crossesNoRide([scooter.pos, ...mids, end])) this.count('ridesNoRideUnavoidable');
     }
-    if (this.noRide.length && r.chance(NO_RIDE_PASS)) {
-      points.splice(1 + r.int(0, legs - 1), 0, this.pointInZone(this.random.pick(this.noRide)));
+    const points: GeoPoint[] = [scooter.pos, ...mids];
+    if (passNoRide) {
+      points.splice(1 + r.int(0, Math.max(0, mids.length - 1)), 0, this.pointInZone(this.random.pick(this.noRide)));
+      this.count('ridesNoRidePass');
     }
     points.push(end);
     const length = pathLengthM(points);

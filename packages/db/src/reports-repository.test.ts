@@ -289,15 +289,22 @@ describe.skipIf(!adminUrl)('repozytoria raportów i nowych list (iteracja 8)', (
     await runs.insert({ id: a, reportCode: 'revenue', format: 'PDF', params, requestedBy: staff });
     await runs.insert({ id: b, reportCode: 'fleet_usage', format: 'XLSX', params, requestedBy: staff });
     await runs.insert({ id: c, reportCode: 'revenue', format: 'XLSX', params, requestedBy: staff, retryOf: a });
-    await runs.markRunning(a);
+    const tokenA = (await runs.markRunning(a))!;
     const file = (
       await one<{ id: string }>(
         `INSERT INTO files (storage_key, purpose, content_type, size_bytes)
          VALUES ('report/2026/11/' || gen_random_uuid() || '.pdf', 'REPORT_EXPORT', 'application/pdf', 4096) RETURNING id`,
       )
     ).id;
-    await runs.succeed(a, { fileId: file, dataAsOf: new Date('2026-11-19T10:00:00Z'), rowCount: 42, pageCount: 3 });
-    await runs.fail(b, 'REPORT_RENDER_TIMEOUT', 'Gotenberg 60 s');
+    expect(
+      await runs.succeed(a, tokenA, {
+        fileId: file,
+        dataAsOf: new Date('2026-11-19T10:00:00Z'),
+        rowCount: 42,
+        pageCount: 3,
+      }),
+    ).toBe(true);
+    expect(await runs.fail(b, (await runs.markRunning(b))!, 'REPORT_RENDER_TIMEOUT', 'Gotenberg 60 s')).toBe(true);
     expect(await runs.get(a)).toMatchObject({
       status: 'SUCCEEDED',
       fileId: file,
@@ -330,6 +337,71 @@ describe.skipIf(!adminUrl)('repozytoria raportów i nowych list (iteracja 8)', (
     expect(history.facets.reportCode).toEqual({ revenue: 2 });
     expect((await runs.list(query(reportRunsDef(), ''), [])).total).toBe(0);
     expect((await runs.recentForStaff(staff, ['fleet_usage'])).map((r) => r.id)).toEqual([b]);
+  });
+
+  it('uruchomienia: wynik zapisuje tylko wykonanie z aktualnym żetonem przejęcia (dwa wykonania, sweep)', async () => {
+    const runs = new DrizzleReportRunsRepository(db);
+    const staff = await staffId();
+    const params = { preset: 'today', from: '2026-11-19', to: '2026-11-19' };
+    const result = { fileId: null as unknown as string, dataAsOf: new Date(), rowCount: 1, pageCount: 1 };
+    const newFile = async () =>
+      (
+        await one<{ id: string }>(
+          `INSERT INTO files (storage_key, purpose, content_type, size_bytes)
+           VALUES ('report/race/' || gen_random_uuid() || '.pdf', 'REPORT_EXPORT', 'application/pdf', 10) RETURNING id`,
+        )
+      ).id;
+
+    // Dwa wykonania: drugie przejmuje wiersz, więc wynik, błąd i powrót do kolejki pierwszego nic nie zmieniają.
+    const twice = randomUUID();
+    await runs.insert({ id: twice, reportCode: 'revenue', format: 'PDF', params, requestedBy: staff });
+    const first = (await runs.markRunning(twice))!;
+    const second = (await runs.markRunning(twice))!;
+    expect(second).not.toBe(first);
+    expect(await runs.succeed(twice, first, { ...result, fileId: await newFile() })).toBe(false);
+    expect(await runs.fail(twice, first, 'REPORT_FAILED', 'x')).toBe(false);
+    expect(await runs.requeue(twice, first)).toBe(false);
+    expect(await runs.get(twice)).toMatchObject({ status: 'RUNNING', fileId: null });
+    const fileId = await newFile();
+    expect(await runs.succeed(twice, second, { ...result, fileId })).toBe(true);
+    expect(await runs.get(twice)).toMatchObject({ status: 'SUCCEEDED', fileId });
+    // Stan końcowy: ponowne przejęcie i drugi wynik niemożliwe.
+    expect(await runs.markRunning(twice)).toBeNull();
+    expect(await runs.succeed(twice, second, { ...result, fileId: await newFile() })).toBe(false);
+
+    // `reports.sweep` przed spóźnionym `succeed`.
+    const swept = randomUUID();
+    await runs.insert({ id: swept, reportCode: 'revenue', format: 'PDF', params, requestedBy: staff });
+    const token = (await runs.markRunning(swept))!;
+    await pool.query(`UPDATE report_runs SET started_at = started_at - interval '20 minutes' WHERE id = $1`, [swept]);
+    expect(await runs.failAbandoned(new Date(Date.now() - 15 * 60_000))).toContain(swept);
+    expect(await runs.succeed(swept, token, { ...result, fileId: await newFile() })).toBe(false);
+    expect(await runs.get(swept)).toMatchObject({ status: 'FAILED', errorCode: 'REPORT_TIMEOUT', fileId: null });
+  });
+
+  it('migawka zadania: łączny limit czasu przerywa kolejne zapytania (REPORT_TIMEOUT z limitem łącznym)', async () => {
+    let calls = 0;
+    await expect(
+      withReportSnapshot(db, { timeoutMs: 60_000, totalTimeoutMs: 300 }, async (repo) => {
+        // Każde zapytanie mieści się w limicie jednego zapytania, ale razem przekraczają limit łączny.
+        for (;;) {
+          await repo.earliestData('revenue');
+          calls += 1;
+          await (repo as unknown as { db: Database }).db.execute(sql`SELECT pg_sleep(0.1)`);
+        }
+      }),
+    ).rejects.toMatchObject({ code: 'REPORT_TIMEOUT', details: { timeoutMs: 300 } });
+    expect(calls).toBeGreaterThanOrEqual(1);
+    expect(calls).toBeLessThanOrEqual(4);
+    // Zapytanie, które samo przekroczyłoby resztę limitu, przerywa `statement_timeout` równy tej reszcie.
+    const started = Date.now();
+    await expect(
+      withReportSnapshot(db, { timeoutMs: 60_000, totalTimeoutMs: 200 }, async (repo) => {
+        await repo.earliestData('revenue');
+        await (repo as unknown as { execute: (q: unknown) => Promise<unknown> }).execute(sql`SELECT pg_sleep(5)`);
+      }),
+    ).rejects.toMatchObject({ code: 'REPORT_TIMEOUT', details: { timeoutMs: 200 } });
+    expect(Date.now() - started).toBeLessThan(2_000);
   });
 
   // --- Listy na widokach 0013 ---------------------------------------------------------------------

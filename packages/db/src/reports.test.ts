@@ -379,8 +379,13 @@ describe.skipIf(!adminUrl)('raporty i domknięcie panelu w bazie (0013)', () => 
       `SELECT bucket::text, to_char(bucket_from AT TIME ZONE 'Europe/Warsaw', 'YYYY-MM-DD HH24:MI') AS from
        FROM fn_report_buckets('2026-09-30T22:00:00Z', '2026-10-31T23:00:00Z', 'week')`,
     );
-    expect(weeks.map((w) => w.bucket)).toEqual(['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26']);
-    expect(weeks[0]!.from).toBe('2026-10-01 00:00'); // pierwszy tydzień przycięty do okresu
+    // Pierwszy tydzień przycięty do okresu: data przedziału to początek po przycięciu (0014), nie poniedziałek 28.09.
+    expect(weeks.map((w) => w.bucket)).toEqual(['2026-10-01', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26']);
+    expect(weeks[0]!.from).toBe('2026-10-01 00:00');
+    const midMonth = await rows<{ bucket: string }>(
+      `SELECT bucket::text FROM fn_report_buckets('2026-10-14T22:00:00Z', '2026-11-30T23:00:00Z', 'month')`,
+    );
+    expect(midMonth.map((m) => m.bucket)).toEqual(['2026-10-15', '2026-11-01']);
     const months = await rows<{ bucket: string; hours: number }>(
       `SELECT bucket::text, extract(epoch FROM bucket_to - bucket_from)::int / 3600 AS hours
        FROM fn_report_buckets('2026-09-30T22:00:00Z', '2026-11-30T23:00:00Z', 'month')`,
@@ -1232,9 +1237,16 @@ describe.skipIf(!adminUrl)('raporty i domknięcie panelu w bazie (0013)', () => 
         page_count: 3,
         error_code: null,
         retry_of: first,
-        duration_ms: 2000,
+        duration_ms: '2000',
       },
     ]);
+    // 0014: czas w milisekundach jako bigint (integer przepełniał się po 24,8 doby).
+    await pool.query(`UPDATE report_runs SET started_at = finished_at - interval '30 days' WHERE id = $1`, [retry]);
+    expect(
+      await one(`SELECT duration_ms, pg_typeof(duration_ms)::text AS type FROM v_report_run_list WHERE id = $1`, [
+        retry,
+      ]),
+    ).toEqual({ duration_ms: '2592000000', type: 'bigint' });
     expect(
       await one(
         `SELECT runs, last_run_id, last_run_state, permission_roles FROM v_report_definitions WHERE code = 'revenue'`,
@@ -1579,13 +1591,17 @@ describe.skipIf(!adminUrl)('raporty i domknięcie panelu w bazie (0013)', () => 
       new Map(list.map((r) => [r.id, [r.source, r.zone_code, r.staff_name, r.has_rental, r.response_ms]])),
     ).toEqual(
       new Map([
-        [byStaff, ['STAFF', null, 'Piotr Mazur', false, 1500]],
+        [byStaff, ['STAFF', null, 'Piotr Mazur', false, '1500']],
         [byZone, ['ZONE', 'S-01', null, true, null]],
         [derivedZone, ['ZONE', null, null, true, null]],
         [byRental, ['RENTAL', null, null, true, null]],
         [bySystem, ['SYSTEM', null, null, false, null]],
       ]),
     );
+    expect(
+      (await one(`SELECT pg_typeof(response_ms)::text AS type FROM v_scooter_command_list WHERE id = $1`, [byStaff]))
+        .type,
+    ).toBe('bigint');
     await expect(command({ type: 'RING', source: 'STAFF' })).rejects.toThrow(/scooter_commands_staff_source/);
     await expect(command({ type: 'LOCK', zone: slow })).rejects.toThrow(/scooter_commands_zone_source/);
   });
@@ -1649,5 +1665,138 @@ describe.skipIf(!adminUrl)('raporty i domknięcie panelu w bazie (0013)', () => 
     ]);
     // Filtr baterii nie zmienia odstępu: liczy się od poprzedniego odczytu bez filtra.
     expect((await page(true, 5, 30)).map((r) => [r.battery_pct, r.gap])).toEqual([[25, 7]]);
+  });
+
+  // ------------------------------------------------------------------------------------------
+  // Poprawki po przeglądzie (0014): na końcu, bo dopisują dane z datami z okresów wcześniejszych testów
+  // ------------------------------------------------------------------------------------------
+
+  it('v_scooter_status_history (0014): wygasła rezerwacja i nieudane odblokowanie kończą się przy przejściu stanu', async () => {
+    const s = await scooter();
+    const u = await user();
+    const insertRental = async (values: {
+      state: string;
+      reservedAt?: string;
+      createdAt: string;
+      updatedAt: string;
+      startedAt?: string;
+      endedAt?: string;
+    }) =>
+      id(
+        `INSERT INTO rentals (user_id, scooter_id, tariff_id, state, reserved_at, reservation_expires_at, started_at,
+                              ended_at, end_mode, created_at, updated_at)
+         VALUES ($1, $2, (SELECT id FROM tariffs WHERE version = 1), $3::rental_state, $4::timestamptz,
+                 $4::timestamptz + interval '5 minutes', $5::timestamptz, $6::timestamptz,
+                 CASE WHEN $6::timestamptz IS NOT NULL THEN 'CUSTOMER'::rental_end_mode END, $7, $8)
+         RETURNING id`,
+        [
+          u,
+          s,
+          values.state,
+          values.reservedAt ?? null,
+          values.startedAt ?? null,
+          values.endedAt ?? null,
+          values.createdAt,
+          values.updatedAt,
+        ],
+      );
+    // Rezerwacja wygasła o 10:05 (zdarzenie STATE_CHANGED), `updated_at` później (np. dopisana notatka).
+    const expired = await insertRental({
+      state: 'EXPIRED',
+      reservedAt: '2026-09-01T10:00:00Z',
+      createdAt: '2026-09-01T10:00:00Z',
+      updatedAt: '2026-09-01T18:00:00Z',
+    });
+    await pool.query(
+      `INSERT INTO rental_events (rental_id, type, from_state, to_state, created_at)
+       VALUES ($1, 'STATE_CHANGED', 'RESERVED', 'EXPIRED', '2026-09-01T10:05:00Z')`,
+      [expired],
+    );
+    // Nieudane odblokowanie bez rezerwacji i bez zdarzenia: koniec z `updated_at`.
+    const failed = await insertRental({
+      state: 'UNLOCK_FAILED',
+      createdAt: '2026-09-01T10:30:00Z',
+      updatedAt: '2026-09-01T10:31:00Z',
+    });
+    // Przejazd bez rezerwacji: faza UNLOCKING od 11:00, potwierdzenie odblokowania (`started_at`) o 11:00:05.
+    const ride = await insertRental({
+      state: 'ENDED',
+      createdAt: '2026-09-01T11:00:00Z',
+      updatedAt: '2026-09-01T11:30:00Z',
+      startedAt: '2026-09-01T11:00:05Z',
+      endedAt: '2026-09-01T11:30:00Z',
+    });
+    await interval(s, 'RESERVED', true, '2026-09-01T10:00:00Z', '2026-09-01T10:05:00Z');
+    await interval(s, 'IN_USE', true, '2026-09-01T10:30:00Z', '2026-09-01T10:31:00Z');
+    await interval(s, 'IN_USE', true, '2026-09-01T11:00:00Z', '2026-09-01T11:00:03Z'); // przed `started_at`
+    await interval(s, 'IN_USE', false, '2026-09-01T11:00:03Z', '2026-09-01T11:30:00Z');
+    await interval(s, 'IN_USE', true, '2026-09-01T12:00:00Z', '2026-09-01T12:10:00Z'); // bez przejazdu
+    const view = await rows<{ valid_from: Date; reason: string; reason_rental_id: string | null }>(
+      `SELECT valid_from, reason, reason_rental_id FROM v_scooter_status_history
+       WHERE scooter_id = $1 AND valid_from < '2026-09-02' ORDER BY valid_from`,
+      [s],
+    );
+    expect(view.map((r) => [r.valid_from.toISOString().slice(11, 19), r.reason, r.reason_rental_id])).toEqual([
+      ['10:00:00', 'RESERVATION', expired],
+      ['10:30:00', 'RENTAL', failed],
+      // Przed 0014: wygrywała wygasła rezerwacja (kandydat bez końca), bo `started_at` przejazdu jest po 11:00:03.
+      ['11:00:00', 'RENTAL', ride],
+      ['11:00:03', 'RENTAL', ride],
+      // Przed 0014: wygasła rezerwacja i nieudane odblokowanie pasowały do każdego późniejszego przedziału.
+      ['12:00:00', 'SYSTEM', null],
+    ]);
+  });
+
+  it('fn_wallet_balances_at (0014): ostatni wpis po id, jak ciągłość księgi, także przy czasie transakcji z przeszłości', async () => {
+    const w = await user({ createdAt: '2026-04-01T10:00:00Z' });
+    const entry = (type: string, amount: number, after: number, at: string) =>
+      pool.query(
+        `INSERT INTO wallet_ledger (user_id, type, amount, balance_after, created_at)
+         VALUES ($1, $2::ledger_entry_type, $3, $4, $5)`,
+        [w, type, amount, after, at],
+      );
+    // Drugi wpis (większe id) ma wcześniejszy `created_at`: jego transakcja zaczęła się przed zatwierdzeniem pierwszej.
+    await entry('TOPUP', 1000, 1000, '2026-04-10T10:00:02Z');
+    await entry('RIDE_CHARGE', -300, 700, '2026-04-10T10:00:01Z');
+    const balance = async (at: string) =>
+      (
+        await rows<{ balance: string }>(`SELECT balance FROM fn_wallet_balances_at($1) WHERE user_id = $2`, [at, w])
+      ).map((r) => Number(r.balance));
+    // Przed 0014 (porządek po created_at) saldo po obu wpisach wynosiło 1000 zamiast 700.
+    expect(await balance('2026-04-10T10:00:03Z')).toEqual([700]);
+    expect(await balance('2026-04-10T10:00:01.5Z')).toEqual([700]);
+    expect(await balance('2026-04-10T10:00:00Z')).toEqual([]);
+  });
+
+  it('wykorzystanie floty (0014): kategorie z sum narastających, więc ich suma równa się tracked_seconds', async () => {
+    const f = await scooter();
+    // Trzy przedziały po 1,4 s: osobne zaokrąglanie dawało 1 + 1 + 1 = 3 s przy 4,2 s historii (zaokrąglone 4 s).
+    await interval(f, 'IN_USE', true, '2026-09-02T10:00:00Z', '2026-09-02T10:00:01.4Z');
+    await interval(f, 'RESERVED', true, '2026-09-02T10:00:01.4Z', '2026-09-02T10:00:02.8Z');
+    await interval(f, 'AVAILABLE', true, '2026-09-02T10:00:02.8Z', '2026-09-02T10:00:04.2Z');
+    const cols = `tracked_seconds::int AS tracked, in_ride_seconds::int AS in_ride, reserved_seconds::int AS reserved,
+                  available_seconds::int AS available, service_seconds::int AS service, offline_seconds::int AS offline,
+                  retired_seconds::int AS retired`;
+    const byScooter = await one(
+      `SELECT ${cols}, period_seconds::int AS period
+       FROM fn_report_fleet_usage_by_scooter('2026-09-02T10:00:00Z', '2026-09-02T10:00:04.2Z', NULL, $1)`,
+      [f],
+    );
+    expect(byScooter).toEqual({
+      tracked: 4,
+      in_ride: 1,
+      reserved: 2,
+      available: 1,
+      service: 0,
+      offline: 0,
+      retired: 0,
+      period: 4,
+    });
+    const series = await one<{ in_ride: number; reserved: number; available: number }>(
+      `SELECT in_ride_seconds::int AS in_ride, reserved_seconds::int AS reserved, available_seconds::int AS available
+       FROM fn_report_fleet_usage_series('2026-09-01T22:00:00Z', '2026-09-02T22:00:00Z', 'day', NULL, $1)`,
+      [f],
+    );
+    expect(series.in_ride + series.reserved + series.available).toBe(4);
   });
 });

@@ -1,5 +1,6 @@
 import * as shared from '@hulajnogi/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { asStaff, staffToken } from './helpers.js';
 import { operationsContext, type OperationsContext } from './operations-helpers.js';
 
 /**
@@ -511,5 +512,61 @@ describe.skipIf(!process.env.DATABASE_URL)('API: serwis, magazyn i pulpit', () =
     expect((await ctx.staff.technician({ method: 'DELETE', url: `/admin/files/${loose}` })).statusCode).toBe(204);
     const { rows } = await ctx.pool.query(`SELECT status::text FROM files WHERE id = $1`, [loose]);
     expect(rows).toEqual([{ status: 'DELETED' }]);
+  });
+
+  it('pulpit „Wymaga uwagi”: klient przejazdu bez łączności i nieudanej płatności tylko z users.read', async () => {
+    const { pool } = ctx;
+    const scooterId = (
+      await pool.query<{ id: string }>(
+        `INSERT INTO scooters (number, serial_number, variant, model_id, status, online, battery_pct, position)
+         VALUES (500, 'ATT-500', 'GRAFIT', (SELECT id FROM scooter_models WHERE code = 'BASE'), 'IN_USE', false, 60,
+                 ST_SetSRID(ST_MakePoint(18.5, 50.0), 4326))
+         RETURNING id`,
+      )
+    ).rows[0]!.id;
+    const rentalId = (
+      await pool.query<{ id: string }>(
+        `INSERT INTO rentals (user_id, scooter_id, tariff_id, state, started_at)
+         VALUES ($1, $2, (SELECT id FROM tariffs ORDER BY version DESC LIMIT 1), 'ACTIVE', now() - interval '20 minutes')
+         RETURNING id`,
+        [anna.id, scooterId],
+      )
+    ).rows[0]!.id;
+    await pool.query(
+      `INSERT INTO payments (user_id, purpose, method, amount, status, idempotency_key)
+       VALUES ($1, 'TOPUP', 'CARD', 2000, 'FAILED', gen_random_uuid()::text)`,
+      [anna.id],
+    );
+    // Rola z listami przejazdów i płatności, ale bez `users.read`.
+    const viewerId = (
+      await pool.query<{ id: string }>(
+        `WITH r AS (INSERT INTO roles (name) VALUES ('Pulpit bez klientów') RETURNING id),
+              p AS (INSERT INTO role_permissions (role_id, permission_code)
+                    SELECT r.id, code FROM r, unnest(ARRAY['dashboard.read', 'rentals.read', 'payments.read']) code),
+              s AS (INSERT INTO staff (email, name) VALUES ('pulpit@test.local', 'Pulpit') RETURNING id),
+              sr AS (INSERT INTO staff_roles (staff_id, role_id) SELECT s.id, r.id FROM s, r)
+         SELECT id FROM s`,
+      )
+    ).rows[0]!.id;
+    const attention = async (who: (o: { method: 'GET'; url: string }) => ReturnType<typeof ctx.app.inject>) =>
+      (await who({ method: 'GET', url: '/admin/dashboard/attention' })).json<shared.DashboardAttention>();
+    try {
+      const masked = await attention(asStaff(ctx.app, staffToken(ctx.app, viewerId)));
+      expect(masked.offlineInRental!.items.find((i) => i.rentalId === rentalId)).toMatchObject({ userName: null });
+      expect(masked.failedPayments!.items.length).toBeGreaterThanOrEqual(1);
+      expect(masked.failedPayments!.items.every((i) => i.userName === null)).toBe(true);
+      const full = await attention(ctx.staff.admin);
+      expect(full.offlineInRental!.items.find((i) => i.rentalId === rentalId)).toMatchObject({
+        userName: 'Anna Serwisowa',
+      });
+      expect(full.failedPayments!.items.find((i) => i.userId === anna.id)).toMatchObject({
+        userName: 'Anna Serwisowa',
+      });
+    } finally {
+      // Hulajnoga w przejeździe bez łączności nie może zostać dla następnych testów pliku.
+      await pool.query(`UPDATE rentals SET state = 'ENDED', ended_at = now(), end_mode = 'REMOTE' WHERE id = $1`, [
+        rentalId,
+      ]);
+    }
   });
 });

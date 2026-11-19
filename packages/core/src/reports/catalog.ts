@@ -109,6 +109,12 @@ export const REPORT_LIMITS = {
   previewTimeoutMs: 15_000,
   /** Limit czasu zapytań zadania `report.generate` (dłuższy niż podgląd, plansza `raport-stany`). */
   jobQueryTimeoutMs: 60_000,
+  /**
+   * Łączny limit migawki zadania (wszystkie zapytania raportu razem, `REPORT_TIMEOUT`): 45 s migawki + 60 s renderu
+   * + zapis pliku mieszczą się w wygaśnięciu zadania (120 s), więc pg-boss nie oddaje zadania drugiemu wykonaniu,
+   * gdy pierwsze jeszcze liczy dane. Wynik spóźnionego wykonania i tak odrzuca żeton przejęcia (`markRunning`).
+   */
+  jobSnapshotTotalMs: 45_000,
   /** Limit renderu PDF w Gotenbergu (`REPORT_RENDER_TIMEOUT`). */
   renderTimeoutMs: 60_000,
   /** Limit wykonania zadania `report.generate` w pg-boss. */
@@ -287,7 +293,7 @@ const fleetUsage: ReportSpec = {
       key: 'byScooter',
       title: 'Wykorzystanie według hulajnogi',
       description:
-        'Wykorzystanie = czas w przejeździe ÷ czas okresu; dostępność = (dostępna + rezerwacja + przejazd) ÷ czas okresu',
+        'Wykorzystanie = czas w przejeździe ÷ czas z historią stanów poza wyłączeniem z ruchu; dostępność = (dostępna + rezerwacja + przejazd) ÷ ten sam czas',
       sheetName: 'Według hulajnogi',
       columns: [
         ...scooterColumns,
@@ -341,7 +347,7 @@ const ridesByZone: ReportSpec = {
     tile('avgRideSeconds', 'Średni czas przejazdu', 'duration'),
     tile('avgDistance', 'Średni dystans', 'distance'),
     tile('noRideZoneRides', 'Wjazd do strefy zakazu', 'number'),
-    tile('towedRides', 'Zakończenia z odholowaniem', 'number'),
+    tile('towedRides', 'Odholowania (zakończone w okresie)', 'number'),
   ],
   charts: [
     {
