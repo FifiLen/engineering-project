@@ -12,7 +12,7 @@ import {
   type ZoneListItem,
   type ZoneType,
 } from '@hulajnogi/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { t } from '../../../lib/i18n';
 import { AlertIcon, ChevronDownIcon, EyeOffIcon, PlusIcon, PolygonIcon, SearchIcon, SortIcon } from '../icons';
 import { ZONE_TYPE_ORDER, ZoneTypeIcon, zoneDescription } from './zone-format';
@@ -36,6 +36,8 @@ interface ZoneListProps {
   onOpen(id: string): void;
   onCreate(): void;
   onRetry(): void;
+  /** Odnośniki do list technicznych stref i „Eksportuj” (iteracja 8, ADR 0073 i 0076). */
+  tools?: ReactNode;
 }
 
 export function ZoneList({
@@ -49,6 +51,7 @@ export function ZoneList({
   onOpen,
   onCreate,
   onRetry,
+  tools,
 }: ZoneListProps) {
   const [search, setSearch] = useState(query.q ?? '');
 
@@ -84,6 +87,7 @@ export function ZoneList({
           </button>
         )}
       </div>
+      {tools && <div className="zl-tools">{tools}</div>}
 
       <label className="zl-search">
         <SearchIcon />

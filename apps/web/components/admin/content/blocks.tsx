@@ -8,6 +8,7 @@
  */
 import {
   CONTENT_SECTIONS,
+  contentBlocksResource,
   inlineText,
   parseMarkdown,
   type ContentBlockListItem,
@@ -23,6 +24,7 @@ import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, errorMessage } from '../../../lib/api';
 import { t } from '../../../lib/i18n';
 import { Banner } from '../access/common';
+import { ExportButton } from '../list-export';
 import { ChevronDownIcon, ChevronRightIcon, GlobeIcon, GripIcon, MoreIcon, PhoneIcon, SearchIcon } from '../icons';
 import {
   changedAt,
@@ -114,16 +116,38 @@ export function BlocksPage() {
     <>
       <ContentHead
         actions={
-          <label className="search">
-            <SearchIcon />
-            <span className="visually-hidden">{t('list.search')}</span>
-            <input
-              type="search"
-              value={query}
-              placeholder={t('content.blocks.search')}
-              onChange={(e) => setQuery(e.target.value)}
+          <>
+            <label className="search">
+              <SearchIcon />
+              <span className="visually-hidden">{t('list.search')}</span>
+              <input
+                type="search"
+                value={query}
+                placeholder={t('content.blocks.search')}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
+            <ExportButton
+              resource={contentBlocksResource}
+              params={{ client }}
+              rows={blocks.filter((b) => b.client === client).length}
+              filters={[`${t('resource.content-blocks.fields.client')}: ${t.dynamic(`content.clients.${client}`)}`]}
+              columns={[
+                'client',
+                'key',
+                'position',
+                'isHeader',
+                'title',
+                'bodyMd',
+                'buttonLabel',
+                'buttonHref',
+                'mediaKey',
+                'status',
+                'updatedByName',
+                'updatedAt',
+              ]}
             />
-          </label>
+          </>
         }
       />
       {error && <Banner kind="danger">{error}</Banner>}

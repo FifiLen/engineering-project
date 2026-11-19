@@ -24,7 +24,9 @@ import { useStaffFeed } from '../../../lib/realtime';
 import { useSession } from '../../../lib/session';
 import { Banner } from '../access/common';
 import { scooterNumber, StatusPill } from '../fleet/fleet-format';
+import { ScooterCommandsTab } from '../fleet/commands';
 import { ScooterForm } from '../fleet/scooters';
+import { StatusHistoryTab } from '../fleet/status-history';
 import { AlertIcon, BanIcon, DocumentIcon, RestoreIcon, ServiceIcon } from '../icons';
 import { LabelButton } from '../prints/label-dialog';
 import { PrintButton } from '../prints/print-dialog';
@@ -44,12 +46,30 @@ import { TaskCreateDialog } from './task-create-dialog';
 
 const FLEET = '/admin/flota';
 
+type CardTab = 'przeglad' | 'serwis' | 'komendy' | 'historia';
+const CARD_TABS: readonly CardTab[] = ['przeglad', 'serwis', 'komendy', 'historia'];
+const CARD_TAB_LABELS: Record<CardTab, string> = {
+  przeglad: 'overview',
+  serwis: 'service',
+  komendy: 'commands',
+  historia: 'statusHistory',
+};
+
 export function ScooterCard({ id }: { id: string }) {
   const { can } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const serviceTab = can('service.read') && searchParams.get('tab') === 'serwis';
+  // Zakładki karty (makieta hulajnoga-historia-stanow): Przegląd, Serwis, Przejazdy (lista z filtrem), Komendy,
+  // Historia stanów (ADR 0074, ADR 0076).
+  const requested = searchParams.get('tab');
+  const tab: CardTab =
+    requested === 'serwis' && can('service.read')
+      ? 'serwis'
+      : requested === 'komendy' || requested === 'historia'
+        ? requested
+        : 'przeglad';
+  const serviceTab = tab === 'serwis';
   const [scooter, setScooter] = useState<ScooterDetails | null>(null);
   const [summary, setSummary] = useState<ScooterServiceSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +100,8 @@ export function ScooterCard({ id }: { id: string }) {
         .catch(() => setSummary(null));
   }, [id, can, revision]);
 
-  const setTab = (tab: 'serwis' | null) => router.replace(tab ? `${pathname}?tab=${tab}` : pathname, { scroll: false });
+  const setTab = (next: CardTab) =>
+    router.replace(next !== 'przeglad' ? `${pathname}?tab=${next}` : pathname, { scroll: false });
 
   if (!scooter) return error ? <Banner kind="danger">{error}</Banner> : <div className="card" aria-busy="true" />;
 
@@ -148,31 +169,38 @@ export function ScooterCard({ id }: { id: string }) {
         </div>
       </section>
 
-      {can('service.read') && (
-        <nav className="tabs" aria-label={t('scooterService.tabs.label')}>
+      <nav className="tabs" aria-label={t('scooterService.tabs.label')}>
+        {CARD_TABS.filter((item) => item !== 'serwis' || can('service.read')).map((item) => (
           <button
+            key={item}
             type="button"
             className="tab"
-            aria-current={serviceTab ? undefined : 'page'}
-            onClick={() => setTab(null)}
+            aria-current={tab === item ? 'page' : undefined}
+            onClick={() => setTab(item)}
           >
-            {t('scooterService.tabs.overview')}
+            {t.dynamic(`scooterService.tabs.${CARD_TAB_LABELS[item]}`)}
           </button>
-          <button
-            type="button"
-            className="tab"
-            aria-current={serviceTab ? 'page' : undefined}
-            onClick={() => setTab('serwis')}
-          >
-            {t('scooterService.tabs.service')}
-          </button>
-        </nav>
-      )}
+        ))}
+        {can('rentals.read') && (
+          <Link className="tab" href={`/admin/przejazdy?scooterId=${id}`}>
+            {t('scooterService.tabs.rentals')}
+          </Link>
+        )}
+        {can('telemetry.read') && (
+          <Link className="tab" href={`/admin/flota/telemetria?scooterId=${id}`}>
+            {t('scooterService.tabs.telemetry')}
+          </Link>
+        )}
+      </nav>
 
       {notice && <Banner kind="ok">{notice}</Banner>}
       {error && <Banner kind="danger">{error}</Banner>}
 
-      {serviceTab ? (
+      {tab === 'komendy' ? (
+        <ScooterCommandsTab scooterId={id} revision={revision} />
+      ) : tab === 'historia' ? (
+        <StatusHistoryTab scooterId={id} />
+      ) : serviceTab ? (
         summary ? (
           <ServiceTab scooter={scooter} summary={summary} />
         ) : (

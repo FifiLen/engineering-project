@@ -32,6 +32,8 @@ export function PaymentsTabs() {
     { href: `${PAYMENTS_BASE}/metody`, label: t('payments.tabs.methods') },
     { href: `${PAYMENTS_BASE}/webhooki`, label: t('payments.tabs.webhooks') },
     { href: `${PAYMENTS_BASE}/zwroty`, label: t('payments.tabs.refunds') },
+    // Iteracja 8 (ADR 0076): powiązania klientów z operatorem płatności.
+    { href: `${PAYMENTS_BASE}/klienci-operatora`, label: t('areas.payments.customers') },
   ];
   // Szczegóły płatności (`/admin/platnosci/{id}`) należą do pierwszej zakładki.
   const active = tabs.slice(1).find((tab) => pathname.startsWith(tab.href))?.href ?? PAYMENTS_BASE;

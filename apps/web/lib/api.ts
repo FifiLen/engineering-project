@@ -100,6 +100,61 @@ export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blo
   }
 }
 
+/** Nazwa pliku z nagłówka `content-disposition` (`filename*=UTF-8''…` ma pierwszeństwo przed `filename="…"`). */
+export function dispositionFileName(header: string | null): string | null {
+  if (!header) return null;
+  const encoded = /filename\*\s*=\s*(?:UTF-8|utf-8)''([^;]+)/.exec(header);
+  if (encoded?.[1]) {
+    try {
+      return decodeURIComponent(encoded[1].trim());
+    } catch {
+      // Niepoprawne kodowanie: zostaje zwykła nazwa.
+    }
+  }
+  const plain = /filename\s*=\s*"([^"]*)"|filename\s*=\s*([^;]+)/.exec(header);
+  return (plain?.[1] ?? plain?.[2])?.trim() || null;
+}
+
+/**
+ * Plik z treścią żądania (eksport list, ADR 0073: `POST /admin/{zasób}/export`): odpowiedź jako `Blob` z nazwą
+ * z `content-disposition` (API wystawia ten nagłówek w CORS). Błąd ma format jak w `api()`, także po odświeżeniu sesji.
+ */
+export async function apiDownload(
+  path: string,
+  init: { json?: unknown; signal?: AbortSignal } = {},
+): Promise<{ blob: Blob; fileName: string | null }> {
+  const once = async () => {
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}${path}`, {
+        method: 'POST',
+        credentials: 'omit',
+        signal: init.signal,
+        headers: {
+          'content-type': 'application/json',
+          ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify(init.json ?? {}),
+      });
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') throw error;
+      throw new ApiRequestError(0, 'NETWORK');
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new ApiRequestError(res.status, body?.code ?? 'INTERNAL_ERROR', body?.details);
+    }
+    return { blob: await res.blob(), fileName: dispositionFileName(res.headers.get('content-disposition')) };
+  };
+  try {
+    return await once();
+  } catch (error) {
+    if (!(error instanceof ApiRequestError) || error.code !== 'UNAUTHENTICATED') throw error;
+    if (!(await refreshSession())) throw error;
+    return once();
+  }
+}
+
 /** Pełny adres pliku z adresu względnego API (`/files/{id}?exp&sig`, ADR 0057). */
 export const fileUrl = (url: string) => (/^https?:\/\//.test(url) ? url : `${API_URL}${url}`);
 

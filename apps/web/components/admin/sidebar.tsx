@@ -110,7 +110,7 @@ const groups: Array<{ label?: string; items: NavItem[] }> = [
         label: t('admin.nav.staff'),
         Icon: ShieldIcon,
         permission: 'staff.read',
-        also: ['/admin/role', '/admin/dziennik'],
+        also: ['/admin/role', '/admin/dziennik', '/admin/uprawnienia'],
       },
     ],
   },

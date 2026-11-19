@@ -4,7 +4,7 @@
  * „Cennik i zasady” (makieta cennik-wersje, ADR 0053): wersje cennika ze stanem, szczegóły wybranej wersji,
  * podgląd jak w aplikacji i usunięcie zaplanowanej, jeszcze nieużytej wersji. Wersji się nie edytuje.
  */
-import { formatPln, type ListResponse, type TariffVersionItem } from '@hulajnogi/shared';
+import { formatPln, tariffsResource, type ListResponse, type TariffVersionItem } from '@hulajnogi/shared';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
@@ -14,6 +14,7 @@ import { useSession } from '../../../lib/session';
 import { Banner } from '../access/common';
 import { ConfirmDialog } from '../confirm-dialog';
 import { ClockIcon, HistoryIcon, PlusIcon, TrashIcon } from '../icons';
+import { ExportButton } from '../list-export';
 import { useApiRecord } from '../payments/payment-format';
 import { fieldLabel, formatValue, TARIFF_SECTIONS, VAT_FIELD } from './tariff-fields';
 
@@ -95,6 +96,31 @@ export function TariffsPage() {
           <div className="sub">{t('tariffs.sub')}</div>
         </div>
         <div className="actions">
+          <ExportButton
+            resource={tariffsResource}
+            params={{}}
+            rows={versions?.length ?? null}
+            filters={[]}
+            columns={[
+              'version',
+              'state',
+              'validFrom',
+              'validTo',
+              'unlockFee',
+              'minuteRate',
+              'pauseMinuteRate',
+              'outOfZoneFee',
+              'freeReservationMinutes',
+              'minWalletBalance',
+              'minBatteryPct',
+              'minUserAge',
+              'vatRate',
+              'rentalsCount',
+              'createdByName',
+              'createdAt',
+            ]}
+            disabled={!versions}
+          />
           {can('audit.read') && (
             <Link className="btn" href="/admin/dziennik?entityType=tariff">
               <HistoryIcon />

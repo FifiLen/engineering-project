@@ -10,6 +10,7 @@ import {
   FAQ_ANSWER_MAX,
   FAQ_CATEGORY_MAX,
   FAQ_QUESTION_MAX,
+  faqItemsResource,
   parseMarkdown,
   type ContentHistoryEntry,
   type ContentIssueView,
@@ -20,6 +21,7 @@ import {
 } from '@hulajnogi/shared';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, errorMessage } from '../../../lib/api';
+import { ExportButton } from '../list-export';
 import { t } from '../../../lib/i18n';
 import { useSession } from '../../../lib/session';
 import { Banner } from '../access/common';
@@ -196,6 +198,23 @@ export function FaqPage() {
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
+            <ExportButton
+              resource={faqItemsResource}
+              params={{}}
+              rows={all.length}
+              filters={[]}
+              columns={[
+                'categoryName',
+                'question',
+                'answerMd',
+                'status',
+                'showOnWeb',
+                'showInApp',
+                'sortOrder',
+                'updatedByName',
+                'updatedAt',
+              ]}
+            />
             {canWrite && (
               <button type="button" className="btn primary" onClick={() => setSelected('new')}>
                 <PlusIcon />

@@ -1,28 +1,13 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { t } from '../../../lib/i18n';
-import { useSession } from '../../../lib/session';
+import { AccessAreaTabs } from '../areas';
 
-/** Zakładki „Operatorzy i role” (makiety dostep-operatorzy, dostep-role, dostep-audyt); ukryte bez uprawnień. */
+/**
+ * Zakładki „Operatorzy i role” (makiety dostep-operatorzy, dostep-role, dostep-audyt, 34-panel-domkniecie): od iteracji 8
+ * także Zaproszenia, Sesje i Uprawnienia (ADR 0076); ukryte bez uprawnień.
+ */
 export function AccessTabs() {
-  const pathname = usePathname();
-  const { can } = useSession();
-  const tabs = [
-    { href: '/admin/operatorzy', label: t('access.tabs.staff'), permission: 'staff.read' },
-    { href: '/admin/role', label: t('access.tabs.roles'), permission: 'staff.read' },
-    { href: '/admin/dziennik', label: t('access.tabs.audit'), permission: 'audit.read' },
-  ].filter((tab) => can(tab.permission));
-  return (
-    <nav className="tabs" aria-label={t('admin.nav.staff')}>
-      {tabs.map((tab) => (
-        <Link key={tab.href} href={tab.href} className="tab" aria-current={pathname.startsWith(tab.href) ? 'page' : undefined}>
-          {tab.label}
-        </Link>
-      ))}
-    </nav>
-  );
+  return <AccessAreaTabs />;
 }
 
 export function initials(name: string | null): string {

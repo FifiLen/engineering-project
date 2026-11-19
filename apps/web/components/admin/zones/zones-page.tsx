@@ -23,13 +23,16 @@ import {
   type ZonePolygon,
   type ZonesChanged,
 } from '@hulajnogi/shared';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiRequestError, errorMessage } from '../../../lib/api';
 import { t } from '../../../lib/i18n';
 import { useStaffFeed } from '../../../lib/realtime';
 import { useSession } from '../../../lib/session';
-import { PencilIcon, PlusIcon, TrashIcon, UndoIcon } from '../icons';
+import { AREA_PATHS } from '../areas';
+import { ListIcon, PencilIcon, PlusIcon, TrashIcon, UndoIcon } from '../icons';
+import { ExportButton, exportParams, exportScope } from '../list-export';
 import { ZoneCard, type FieldErrors, type GeometryProblem, type ZoneForm } from './zone-card';
 import { ZoneImpactDialog, ZoneRemovalDialog, type ImpactChange } from './zone-dialogs';
 import {
@@ -43,6 +46,22 @@ import {
 } from './zone-geometry';
 import { ZoneList, type ListState } from './zone-list';
 import { ZoneMap, type EditorTool, type ZoneMapApi, type ZonesGeoJson } from './zone-map';
+
+/** Kolumny eksportu stref (ADR 0073): bez geometrii (GeoJSON stref poza zakresem iteracji 8). */
+const ZONE_EXPORT_COLUMNS = [
+  'code',
+  'name',
+  'type',
+  'active',
+  'visibleInApp',
+  'speedLimitKmh',
+  'capacity',
+  'areaM2',
+  'scootersInside',
+  'ridesInside',
+  'updatedAt',
+  'updatedByName',
+] as const;
 
 const SELECTION_PARAM = 'strefa';
 const NEW_ZONE = 'nowa';
@@ -646,6 +665,27 @@ export function ZonesScreen() {
         onOpen={(id) => select(id, true)}
         onCreate={() => select(NEW_ZONE)}
         onRetry={() => setListReload((n) => n + 1)}
+        tools={
+          <>
+            <Link className="btn" href={AREA_PATHS.zonePresence}>
+              <ListIcon size={16} />
+              {t('zoneLists.openLists')}
+            </Link>
+            <ExportButton
+              resource={zonesResource}
+              params={exportParams(zonesResource, {
+                ...query,
+                filters: activeFilter ? query.filters : [...query.filters, { field: 'active', op: 'eq', values: [true] }],
+              })}
+              rows={listState.status === 'ready' ? listState.data.total : null}
+              {...exportScope(zonesResource, {
+                ...query,
+                filters: activeFilter ? query.filters : [...query.filters, { field: 'active', op: 'eq', values: [true] }],
+              })}
+              columns={ZONE_EXPORT_COLUMNS}
+            />
+          </>
+        }
       />
 
       <div className="zones-map">
