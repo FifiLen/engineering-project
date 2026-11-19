@@ -15,7 +15,7 @@ Uwagi do eksportu:
 - Plansze z katalogu `00-eksploracja` używały krojów Space Grotesk, JetBrains Mono, Bricolage Grotesque i DM Sans; na zrzutach zastąpiono je krojem systemowym. Obecny kierunek używa tylko Intera.
 - Liczby w makietach (np. 87%, 2,4 km, nazwiska w panelu) są przykładowe.
 
-Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **142**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
+Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **172**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
 
 ## Eksploracja kierunku (archiwum)
 
@@ -475,3 +475,68 @@ Ustalenia z plansz:
 - Pulpit: cztery grupy „Wymaga uwagi” z liczbą i najwyżej czterema pozycjami, odnośnik do listy z tym samym filtrem; każda grupa wymaga uprawnienia listy docelowej, przy zerze „Nic nie czeka”.
 
 Implementacja (18 listopada 2026) odchodzi od plansz w kilku miejscach: bez „Eksportuj XLSX”, Raportów i Wydruków w nawigacji, karta hulajnogi tylko z zakładkami Przegląd i Serwis, cel przewiezienia tylko jako strefa parkowania, szablony bez „Porównaj”, symulator bez tempa i numeru przejazdu, odholowanie bez ulicy, odległości i stawki VAT, a zgłoszenie ma dodatkowe pole „Notatka wewnętrzna”. Pełna lista: [dziennik, iteracja 6](../dziennik.md#iteracja-6-implementacja-18-listopada-2026).
+
+## Panel operatora: treści i wydruki (iteracja 7)
+
+Plansze według odpowiedzi autora do [planu iteracji 7](../iteracje/iteracja-07-tresci-wydruki.md) (18 listopada 2026), w nawigacji z `27-panel-serwis`: „Treści” w Konfiguracji z sześcioma zakładkami (Dokumenty prawne, Bloki treści, FAQ, Aktualności, Media, Dane firmy) i „Wydruki” w Analizie (Szablony, Wygenerowane). Zastępują zakładki z `18-panel-dostep/dostep-dokumenty`.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Bloki treści | [PNG](ekrany/28-panel-tresci/tresci-bloki.png) | [HTML](ekrany/28-panel-tresci/tresci-bloki.html) | 1440×900 |
+| Edycja bloku z Markdownem i historią | [PNG](ekrany/28-panel-tresci/tresci-blok-edycja.png) | [HTML](ekrany/28-panel-tresci/tresci-blok-edycja.html) | 1440×900 |
+| Sekcja-lista (zasady przed jazdą) | [PNG](ekrany/28-panel-tresci/tresci-sekcja-lista.png) | [HTML](ekrany/28-panel-tresci/tresci-sekcja-lista.html) | 1440×900 |
+| FAQ z kolejnością i edycją | [PNG](ekrany/28-panel-tresci/tresci-faq.png) | [HTML](ekrany/28-panel-tresci/tresci-faq.html) | 1440×900 |
+| Aktualności z planowaniem | [PNG](ekrany/28-panel-tresci/tresci-aktualnosci.png) | [HTML](ekrany/28-panel-tresci/tresci-aktualnosci.html) | 1440×900 |
+| Biblioteka mediów | [PNG](ekrany/28-panel-tresci/tresci-media.png) | [HTML](ekrany/28-panel-tresci/tresci-media.html) | 1440×900 |
+| Wysyłka grafik z walidacją | [PNG](ekrany/28-panel-tresci/tresci-media-wysylka.png) | [HTML](ekrany/28-panel-tresci/tresci-media-wysylka.html) | 1440×900 |
+| Wybór grafiki | [PNG](ekrany/28-panel-tresci/tresci-wybor-grafiki.png) | [HTML](ekrany/28-panel-tresci/tresci-wybor-grafiki.html) | 1440×900 |
+| Dane firmy | [PNG](ekrany/28-panel-tresci/tresci-dane-firmy.png) | [HTML](ekrany/28-panel-tresci/tresci-dane-firmy.html) | 1440×900 |
+| Szablony wydruków | [PNG](ekrany/29-panel-wydruki/wydruki-szablony.png) | [HTML](ekrany/29-panel-wydruki/wydruki-szablony.html) | 1440×900 |
+| Szablon: wersje, walidacja, podgląd | [PNG](ekrany/29-panel-wydruki/wydruki-szablon-wersja.png) | [HTML](ekrany/29-panel-wydruki/wydruki-szablon-wersja.html) | 1440×900 |
+| Wgranie szablonu z błędami | [PNG](ekrany/29-panel-wydruki/wydruki-wgranie-bledy.png) | [HTML](ekrany/29-panel-wydruki/wydruki-wgranie-bledy.html) | 1440×900 |
+| Okno „Drukuj” ze stanami | [PNG](ekrany/29-panel-wydruki/wydruki-drukuj.png) | [HTML](ekrany/29-panel-wydruki/wydruki-drukuj.html) | 1440×900 |
+| Wygenerowane dokumenty | [PNG](ekrany/29-panel-wydruki/wydruki-wygenerowane.png) | [HTML](ekrany/29-panel-wydruki/wydruki-wygenerowane.html) | 1440×900 |
+| Naklejka z kodem QR | [PNG](ekrany/29-panel-wydruki/wydruki-naklejka-qr.png) | [HTML](ekrany/29-panel-wydruki/wydruki-naklejka-qr.html) | 1440×900 |
+
+Ustalenia z plansz:
+
+- Sekcji nie dodaje się w panelu (D1); sekcja-lista to nagłówek i elementy z kolejnością zapisywaną razem z sekcją, przy limicie „Dodaj element” jest nieaktywny, a sekcja wymagana (hero) nie schodzi do szkicu ani archiwum. Rejestr sekcji zawęża też składnię Markdown (np. w hero bez nagłówków); błąd podaje wiersz i blokuje zapis, jak w szablonach powiadomień.
+- Zmiana opublikowanego wpisu działa od zapisu; „Przywróć” z historii (dziennik audytu) wczytuje treść do edytora, a zapis tworzy nową wersję z blokadą optymistyczną. FAQ: kolejność zapisywana jawnie („Zapisz kolejność”, „Cofnij”), archiwum zamiast usuwania, osobne przełączniki strona i aplikacja. Aktualności: stan liczony ze statusu i dat, „Zaplanuj” albo „Opublikuj teraz”, daty w czasie polskim.
+- Media: tekst alternatywny należy do grafiki (zmiana działa wszędzie), klucze systemowe (`scooter.*`) tylko do odczytu i blokują usunięcie, „Zastąp plik” zachowuje identyfikator i użycia; wysyłka wielu plików, odrzucone zostają na liście z przyczyną; sekcja może wymagać minimalnej szerokości grafiki (hero: 1200 px).
+- Dane firmy: paragon kopiuje dane w chwili wystawienia; marka [nazwa] nie jest daną firmy.
+- Szablony: wersja z błędem nie powstaje, nieużyte pola katalogu to ostrzeżenie; aktywacja i przywrócenie wymagają `templates.write`; rodzaj bez szablonu nie pokazuje „Drukuj”. Miejsce błędu w DOCX to tabela, wiersz, kolumna albo akapit; numer strony z planszy `wydruki-wgranie-bledy` jest do sprawdzenia przy ADR 0067 (podział na strony powstaje dopiero przy renderowaniu).
+- Drukowanie: zawsze powstaje DOCX, PDF przez Gotenberga; przy błędzie PDF zostaje DOCX, „Spróbuj ponownie” tworzy nowy wiersz; stopka „Wydruk {id} · {szablon} v{n} · data · operator · strona”. Naklejka QR (60 × 80 mm albo arkusz A4 z sześcioma, propozycja) to PDF z HTML poza szablonami, zapisany w Wygenerowanych jako układ wbudowany.
+
+Implementacja (19 listopada 2026) odchodzi od plansz w kilku miejscach: minimalna szerokość grafiki hero to 760 px zamiast 1200 px ([ADR 0070](../adr/0070-minimalna-szerokosc-grafiki-hero.md)), dane firmy mają sekcję „Dane rejestrowe” spoza planszy, stany okna „Drukuj” są w miejscu formularza zamiast kart obok, wyszukiwarka Wygenerowanych jest w pasku filtrów z domyślnym filtrem „Zlecający”, okno wgrania ma pole „Co się zmieniło”, błąd szablonu nie ma numeru strony, „W dokumencie” ma liczby tylko dla zadania, a podgląd naklejki w panelu różni się od PDF. Wydruk z danymi klienta bez `users.read` pokazuje w Wygenerowanych „Dane klienta” zamiast „Pobierz” (poprawka po przeglądzie). Pełna lista: [dziennik, iteracja 7](../dziennik.md#iteracja-7-implementacja-19-listopada-2026).
+
+## Strona i aplikacja: treści (iteracja 7)
+
+Podstrony strony promocyjnej w stylu `14-strona` (nagłówek z pozycją „Aktualności”, stopka z danymi firmy) i ekrany aplikacji w stylu `26-mobile-operacje`.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Dokument (regulamin) | [PNG](ekrany/30-strona-tresci/strona-dokument.png) | [HTML](ekrany/30-strona-tresci/strona-dokument.html) | 1440×900 |
+| Aktualności | [PNG](ekrany/30-strona-tresci/strona-aktualnosci.png) | [HTML](ekrany/30-strona-tresci/strona-aktualnosci.html) | 1440×900 |
+| Artykuł | [PNG](ekrany/30-strona-tresci/strona-aktualnosc.png) | [HTML](ekrany/30-strona-tresci/strona-aktualnosc.html) | 1440×900 |
+| Strona hulajnogi `/h/{numer}` | [PNG](ekrany/30-strona-tresci/strona-hulajnoga.png) | [HTML](ekrany/30-strona-tresci/strona-hulajnoga.html) | 1440×900 |
+| Strona 404 | [PNG](ekrany/30-strona-tresci/strona-404.png) | [HTML](ekrany/30-strona-tresci/strona-404.html) | 1440×900 |
+| Dokument (telefon) | [PNG](ekrany/30-strona-tresci/strona-dokument-mobile.png) | [HTML](ekrany/30-strona-tresci/strona-dokument-mobile.html) | 390×844 |
+| Strona hulajnogi (telefon) | [PNG](ekrany/30-strona-tresci/strona-hulajnoga-mobile.png) | [HTML](ekrany/30-strona-tresci/strona-hulajnoga-mobile.html) | 390×844 |
+| Pomoc | [PNG](ekrany/31-mobile-tresci/pomoc.png) | [HTML](ekrany/31-mobile-tresci/pomoc.html) | 390×844 |
+| Pomoc bez sieci | [PNG](ekrany/31-mobile-tresci/pomoc-offline.png) | [HTML](ekrany/31-mobile-tresci/pomoc-offline.html) | 390×844 |
+| Paragon: przygotowanie PDF | [PNG](ekrany/31-mobile-tresci/paragon-pdf.png) | [HTML](ekrany/31-mobile-tresci/paragon-pdf.html) | 390×844 |
+| Paragon: PDF gotowy | [PNG](ekrany/31-mobile-tresci/paragon-pdf-gotowy.png) | [HTML](ekrany/31-mobile-tresci/paragon-pdf-gotowy.html) | 390×844 |
+| Paragon: błąd PDF | [PNG](ekrany/31-mobile-tresci/paragon-pdf-blad.png) | [HTML](ekrany/31-mobile-tresci/paragon-pdf-blad.html) | 390×844 |
+| Pobierz moje dane | [PNG](ekrany/31-mobile-tresci/moje-dane.png) | [HTML](ekrany/31-mobile-tresci/moje-dane.html) | 390×844 |
+| Moje dane: przygotowanie | [PNG](ekrany/31-mobile-tresci/moje-dane-przygotowanie.png) | [HTML](ekrany/31-mobile-tresci/moje-dane-przygotowanie.html) | 390×844 |
+| Moje dane: plik gotowy | [PNG](ekrany/31-mobile-tresci/moje-dane-gotowe.png) | [HTML](ekrany/31-mobile-tresci/moje-dane-gotowe.html) | 390×844 |
+
+Ustalenia z plansz:
+
+- Strona: przyciski grafitowe jak „Pobierz aplikację”, kobalt dla odnośników i liczb. Spis treści dokumentu z nagłówków `##` (kotwice bez znaków diakrytycznych); data obowiązywania to `published_at`, wersja archiwalna pod `/regulamin/wersja/{n}`; dokumenty prawne bez „Pobierz PDF”.
+- Aktualności: data z `publish_from`, zajawka wymagana, podpis grafiki z biblioteki, zaplanowana albo wygasła daje 404, stronicowanie co [12].
+- `/h/{numer}`: bez dostępności, baterii i położenia (cache strony), `/h/7` przekierowuje na `/h/0007`, zły numer daje 404; dokąd prowadzi „Mam aplikację, otwórz hulajnogę” rozstrzyga ADR 0065.
+- Pomoc: kilka pytań otwartych naraz, bez sieci treść z pamięci telefonu z czasem ostatniego pobrania, „Moje zgłoszenia” nieaktywne, kontakt działa. „Pomoc i zgłoszenia” w profilu otwiera Pomoc.
+- Paragon PDF: przycisk u dołu ekranu, zadanie trwa po wyjściu z ekranu, aplikacja czeka na `document.ready` (odpytywanie co [2] s, błąd po [30] s), wersja web otwiera PDF w nowej karcie. „Pobierz moje dane”: limit 24 h od zlecenia (nieudane się nie liczy), plik ważny 7 dni, drugie zlecenie daje `DATA_EXPORT_LIMIT`.
+
+Implementacja (19 listopada 2026) odchodzi od plansz w kilku miejscach. Strona: sekcja stref bez grafiki (rysunek ozdobny), sekcja aplikacji bez makiety telefonu, aktualność bez grafiki na szarym tle, lista aktualności na wspólnym wzorcu, `/h/{numer}` na telefonie z renderem nad numerem i bez „Jak ruszyć”, a 404 spoza tras ma stopkę bez danych firmy. Aplikacja: ikony zasad z planszy panelu zamiast `konto-zasady`, wstęp Pomocy między zgłoszeniami a FAQ, komunikat `mobile.notice` niewyświetlany, przycisk paragonu w stopce ekranu bez gradientu, karty błędu i wygaśnięcia eksportu bez plansz, a wersja web przy zablokowanym oknie pokazuje arkusz z „Otwórz”. Powiadomienie o gotowym eksporcie otwiera `/profil/moje-dane`. Pełna lista: [dziennik, iteracja 7](../dziennik.md#iteracja-7-implementacja-19-listopada-2026).

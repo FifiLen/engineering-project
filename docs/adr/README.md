@@ -65,3 +65,12 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0059 | [Symulator sterowany z panelu](0059-symulator-sterowany-z-panelu.md) | zaakceptowana |
 | 0060 | [Opłata za odholowanie](0060-oplata-za-odholowanie.md) | zaakceptowana |
 | 0061 | [Opłata za odholowanie jako kara umowna](0061-oplata-za-odholowanie-jako-kara-umowna.md) | zaakceptowana |
+| 0062 | [Moduł treści: sekcje, publikacja i dane firmy](0062-modul-tresci-sekcje-publikacja-dane-firmy.md) | zaakceptowana |
+| 0063 | [Markdown w treściach](0063-markdown-w-tresciach.md) | zaakceptowana |
+| 0064 | [Biblioteka mediów](0064-biblioteka-mediow.md) | zaakceptowana |
+| 0065 | [Strona promocyjna z treści z bazy](0065-strona-promocyjna-z-tresci.md) | zaakceptowana |
+| 0066 | [Silnik dokumentów: Gotenberg i zadania](0066-silnik-dokumentow-gotenberg-i-zadania.md) | zaakceptowana |
+| 0067 | [Szablony wydruków DOCX: wersje i walidacja](0067-szablony-wydrukow-docx.md) | zaakceptowana |
+| 0068 | [Wydruki w procesach](0068-wydruki-w-procesach.md) | zaakceptowana |
+| 0069 | [Eksport danych klienta](0069-eksport-danych-klienta.md) | zaakceptowana |
+| 0070 | [Minimalna szerokość grafiki hero](0070-minimalna-szerokosc-grafiki-hero.md) | zaakceptowana |

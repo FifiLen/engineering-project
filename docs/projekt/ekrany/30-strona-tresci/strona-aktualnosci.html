@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Strona – aktualności</title>
+<!-- Strona promocyjna, lista aktualności (iteracja 7, pytania 7 i 11; ADR 0062, 0064, 0065). Adres /aktualnosci, dane z GET /news (widok v_published_news: status PUBLISHED, publish_from ≤ teraz < publish_to), od najnowszej według publish_from. Pierwsza aktualność wyróżniona (grafika z lewej, tytuł, lead, „Czytaj dalej”), kolejne w siatce po trzy; cała karta jest odnośnikiem do /aktualnosci/{slug}. Data to publish_from (nie updated_at). Grafika z media_assets przez publiczny adres (D3) z alt_text z biblioteki; aktualność bez grafiki dostaje kartę z samym tytułem na tle #E3E3DE (karta „Nowy cennik” pokazuje zamiennik z dużą liczbą zamiast zdjęcia). Lead obowiązkowy w formularzu panelu (kolumna news.lead dziś dopuszcza NULL). Po [12] aktualnościach „Starsze aktualności” (stronicowanie ?strona=2). Zaplanowanych i wygasłych strona nie pokazuje; zadanie przy publish_from i publish_to odświeża stronę o czasie (D2). Aktualności są tylko na stronie, nie w aplikacji (pytanie 12). Plansza 1440×900 (pierwszy ekran). Dane przykładowe; wartości nieustalone w nawiasach ([nazwa], [CENA], [WIEK], [dane firmy]). Teksty nawigacji i etykiety z apps/web/messages/pl.json, treści z bazy (wymaganie 17, ADR 0027). Nagłówek i stopka jak 14-strona; na podstronach nagłówek ma kreskę u dołu i pozycję „Aktualności” w nawigacji. Strona bez ciasteczek i banera zgody (pytanie 11). Wartości z docs/projekt/tokens.json. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:#2B3FF5;text-decoration:none}
+.site{width:1440px;height:900px;overflow:hidden;position:relative;background:#F6F6F3;color:#16181D;font-family:Inter,system-ui,sans-serif;display:flex;flex-direction:column}
+.site.m{width:390px;height:844px}
+.num{font-weight:500}
+.muted{color:#6B6E75}
+svg{flex-shrink:0}
+.hdr{height:76px;padding:0 64px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid #E3E3DE}
+.m .hdr{height:64px;padding:0 20px}
+.brand{display:flex;align-items:center;gap:12px;font-size:19px;font-weight:600;color:#16181D}
+.m .brand{gap:10px;font-size:17px}
+.logo{width:34px;height:34px;border-radius:8px;background:#2B3FF5;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.m .logo{width:30px;height:30px;border-radius:7px}
+.nav{display:flex;gap:36px}
+.nav a{font-size:15px;color:#16181D}
+.nav a.on{font-weight:600;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:10px}
+.cta{height:40px;padding:0 18px;border-radius:20px;background:#16181D;color:#FFFFFF;display:inline-flex;align-items:center;font-size:14px;font-weight:600}
+.menu{width:44px;height:44px;border:none;background:transparent;padding:0;display:flex;align-items:center;justify-content:center}
+.store{height:56px;padding:0 22px;border-radius:28px;background:#16181D;color:#FFFFFF;display:inline-flex;align-items:center;gap:12px;line-height:1.15}
+.store .t{display:flex;flex-direction:column}
+.store .s1{font-size:11px;opacity:.75}
+.store .s2{font-size:17px;font-weight:600}
+.pbtn{height:56px;padding:0 26px;border-radius:28px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:17px;font-weight:600;white-space:nowrap}
+.pbtn.dark{background:#16181D;color:#FFFFFF}
+.pbtn.sec{background:#E3E3DE;color:#16181D}
+.pills{display:flex;gap:8px;flex-wrap:nowrap}
+.pill{height:40px;padding:0 16px;border-radius:20px;font-size:15px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap;background:#FFFFFF;border:1px solid #E3E3DE;color:#16181D}
+.pill.on{background:#16181D;border-color:#16181D;color:#F6F6F3}
+.wrap{width:1120px;margin:0 auto}
+.card{background:#FFFFFF;border:1px solid #E3E3DE;border-radius:20px}
+.md h2{margin:0;font-size:28px;font-weight:600;letter-spacing:-0.02em;line-height:1.2}
+.md p{margin:0;font-size:17px;line-height:1.65}
+.md ol,.md ul{margin:0;padding-left:24px;font-size:17px;line-height:1.65}
+.md li+li{margin-top:8px}
+.md li::marker{color:#6B6E75;font-weight:500}
+.md strong{font-weight:600}
+.md a{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.foot{background:#16181D;color:#F6F6F3;padding:48px 64px 32px;display:flex;flex-direction:column;gap:28px;flex-shrink:0}
+.foot .cols{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:32px}
+.foot .col{display:flex;flex-direction:column;gap:10px;font-size:14px}
+.foot .col b{font-weight:600;color:#F6F6F3}
+.foot .col a,.foot .col span{color:#A3A6AD}
+.foot .bar{padding-top:20px;border-top:1px solid #2E323B;font-size:13px;color:#A3A6AD;display:flex;justify-content:space-between}
+</style>
+</head>
+<body>
+<div class="site">
+<header class="hdr"><a href="#" class="brand"><div class="logo"><svg width="27" height="27" viewBox="0 0 1024 1024" fill="none" stroke="#FFFFFF" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="314" cy="668" r="88"></circle><circle cx="710" cy="668" r="88"></circle><path d="M402 668 H622M710 668 L614 268M534 268 H684"></path></svg></div><span>[nazwa]</span></a><nav class="nav" aria-label="Główna"><a href="#">Jak to działa</a><a href="#">Cennik</a><a href="#">Bezpieczeństwo</a><a href="#">Pytania</a><a href="#" class="on" aria-current="page">Aktualności</a></nav><a href="#" class="cta">Pobierz aplikację</a></header>
+<main class="wrap" style="padding-top:48px;display:flex;flex-direction:column">
+<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:40px">
+<h1 style="margin:0;font-size:64px;font-weight:600;letter-spacing:-0.04em;line-height:1">Aktualności</h1>
+<p style="margin:0;font-size:18px;line-height:1.5;color:#6B6E75;max-width:420px">Nowe strefy, zmiany w cenniku i to, co dzieje się z hulajnogami w Rybniku.</p>
+</div>
+<a href="#" style="margin-top:36px;display:grid;grid-template-columns:1.25fr 1fr;gap:56px;align-items:center;color:#16181D">
+<div style="height:300px;border-radius:28px;overflow:hidden"><svg viewBox="0 0 560 420" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa: nowa strefa parkowania przy dworcu"><rect width="560" height="420" fill="#EFEFEC"></rect><rect x="40" y="40" width="130" height="110" rx="18" fill="#E5E8E1"></rect><path d="M0 300 L560 270" stroke="#D5D5CF" stroke-width="10" fill="none" stroke-dasharray="2 14"></path><path d="M0 80 L560 64 M140 0 L156 420 M0 210 L560 196 M440 0 L456 420" stroke="#FAFAF8" stroke-width="6" fill="none"></path><path d="M0 150 L560 128 M300 0 L318 420" stroke="#FFFFFF" stroke-width="12" fill="none"></path><rect x="236" y="196" width="150" height="80" rx="16" fill="#2B3FF5" fill-opacity="0.16" stroke="#2B3FF5" stroke-width="2.5"></rect><text x="311" y="246" text-anchor="middle" font-family="Inter, sans-serif" font-size="26" font-weight="600" fill="#2B3FF5">P</text><circle cx="270" cy="232" r="7" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="356" cy="250" r="7" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="200" cy="100" r="7" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="480" cy="340" r="7" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="90" cy="330" r="7" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle></svg></div>
+<div style="display:flex;flex-direction:column;gap:14px">
+<span style="font-size:15px;color:#6B6E75"><span class="num">18</span> listopada <span class="num">2026</span></span>
+<span style="font-size:40px;font-weight:600;letter-spacing:-0.03em;line-height:1.1">Nowa strefa parkowania przy Dworcu PKP</span>
+<span style="font-size:18px;line-height:1.55;color:#6B6E75">Od dziś zostawisz hulajnogę tuż przy wejściu na perony. Strefa P-02 ma miejsce na [LICZBA] hulajnóg.</span>
+<span style="font-size:16px;font-weight:600;color:#2B3FF5;margin-top:6px">Czytaj dalej</span>
+</div>
+</a>
+<div style="margin-top:44px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px">
+<a href="#" style="display:flex;flex-direction:column;gap:14px;color:#16181D">
+<div style="height:180px;border-radius:24px;overflow:hidden"><svg viewBox="0 0 560 360" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa: strefa zakazu jazdy w parku"><rect width="560" height="360" fill="#EFEFEC"></rect><path d="M-20 270 C 140 230 300 320 580 290" stroke="#DFE3E8" stroke-width="26" fill="none"></path><path d="M0 60 L560 44 M110 0 L128 360 M0 190 L560 172 M430 0 L448 360" stroke="#FAFAF8" stroke-width="6" fill="none"></path><path d="M0 120 L560 100 M250 0 L272 360" stroke="#FFFFFF" stroke-width="12" fill="none"></path><rect x="300" y="128" width="190" height="130" rx="20" fill="#E5E8E1"></rect><path d="M300 128 L490 128 L490 258 L300 258 Z" fill="#C62F2F" fill-opacity="0.12" stroke="#C62F2F" stroke-width="2.5"></path><rect x="80" y="210" width="56" height="38" rx="10" fill="#2B3FF5" fill-opacity="0.16" stroke="#2B3FF5" stroke-width="2"></rect><text x="108" y="235" text-anchor="middle" font-family="Inter, sans-serif" font-size="17" font-weight="600" fill="#2B3FF5">P</text><circle cx="180" cy="80" r="7" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="60" cy="150" r="7" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle><circle cx="520" cy="300" r="7" fill="#16181D" stroke="#FFFFFF" stroke-width="2.5"></circle></svg></div>
+<span style="font-size:14px;color:#6B6E75"><span class="num">12</span> listopada <span class="num">2026</span></span>
+<span style="font-size:22px;font-weight:600;letter-spacing:-0.02em;line-height:1.25;margin-top:-6px">Park im. św. Jana Sarkandra bez hulajnóg</span>
+<span style="font-size:16px;line-height:1.5;color:#6B6E75">W parku jazda jest wyłączona. Hulajnoga łagodnie się zatrzyma.</span>
+</a>
+<a href="#" style="display:flex;flex-direction:column;gap:14px;color:#16181D">
+<div style="height:180px;border-radius:24px;overflow:hidden"><div style="width:100%;height:100%;background:#FFFFFF;border:1px solid #E3E3DE;border-radius:24px;display:flex;flex-direction:column;justify-content:center;padding:0 32px;gap:6px"><span style="font-size:15px;color:#6B6E75">Minuta jazdy od <span class="num">1</span> grudnia</span><span style="font-size:56px;font-weight:500;letter-spacing:-0.035em;line-height:1">[CENA] zł</span></div></div>
+<span style="font-size:14px;color:#6B6E75"><span class="num">5</span> listopada <span class="num">2026</span></span>
+<span style="font-size:22px;font-weight:600;letter-spacing:-0.02em;line-height:1.25;margin-top:-6px">Nowy cennik od <span class="num">1</span> grudnia</span>
+<span style="font-size:16px;line-height:1.5;color:#6B6E75">Odblokowanie bez zmian, inna cena minuty jazdy.</span>
+</a>
+<a href="#" style="display:flex;flex-direction:column;gap:14px;color:#16181D">
+<div style="height:180px;border-radius:24px;overflow:hidden"><div style="width:100%;height:100%;background:#16181D;display:flex;align-items:center;justify-content:center"><img src="../../rendery/hulajnoga-beton-trzy.png" alt="Hulajnoga w wariancie Beton" style="height:92%;object-fit:contain"></div></div>
+<span style="font-size:14px;color:#6B6E75"><span class="num">2</span> października <span class="num">2026</span></span>
+<span style="font-size:22px;font-weight:600;letter-spacing:-0.02em;line-height:1.25;margin-top:-6px">Ruszamy w Rybniku</span>
+<span style="font-size:16px;line-height:1.5;color:#6B6E75">[LICZBA] hulajnóg w pięciu strefach parkowania w centrum.</span>
+</a>
+</div>
+</main>
+</div>
+</body>
+</html>

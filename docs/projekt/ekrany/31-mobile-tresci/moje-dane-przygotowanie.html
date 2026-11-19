@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Pobierz moje dane – przygotowanie</title>
+<!-- Aplikacja mobilna, eksport danych w toku (iteracja 7, pytanie 14; ADR 0069). Stan zlecenia z GET /me/data-export (najnowsze zlecenie klienta): karta ze wskaźnikiem w odznace w kolorze akcji, czas zlecenia, zachęta do zamknięcia ekranu. Po zakończeniu zadania powiadomienie push z szablonu (nowy kod w NOTIFICATION_TEMPLATES, np. data_export_ready, bez przełącznika w ustawieniach, jak odpowiedź na zgłoszenie) i zdarzenie Socket.IO do klienta, więc otwarty ekran przechodzi w moje-dane-gotowe bez odświeżania. Przycisk nieaktywny z czasem następnego zlecenia (limit liczony od czasu zlecenia, 24 h, nie od północy). Błąd zadania: karta z czerwoną odznaką „Nie udało się przygotować pliku”, przycisk znowu aktywny, a nieudane zlecenie nie wlicza się do limitu. Dane przykładowe: klientka Anna, hulajnoga #0027, zgłoszenie Z-1046, paragon PAR/2026/000123 (jak w 24-mobile-platnosci i 26-mobile-operacje). Etykiety z apps/mobile/src/i18n/pl.json (ADR 0032), treści (FAQ, dane firmy) z bazy przez GET /content/mobile (wymaganie 17, ADR 0027, 0062). Wartości nieustalone w nawiasach. Plansza 390×844 px, PNG w skali 2, wartości z docs/projekt/tokens.json. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+.phone{width:390px;height:844px;position:relative;overflow:hidden;background:#F6F6F3;color:#16181D;font-family:Inter,system-ui,sans-serif}
+.page{padding:20px 24px 32px;display:flex;flex-direction:column}
+.page.list{padding:20px 20px 28px}
+.page > *{flex-shrink:0}
+.header{display:flex;align-items:center;gap:14px}
+.round{width:44px;height:44px;border-radius:22px;border:none;background:#E3E3DE;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.btn{height:56px;border-radius:28px;border:none;padding:0 20px;font-family:Inter,sans-serif;font-size:17px;font-weight:600;width:100%;white-space:nowrap;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn.primary{background:#2B3FF5;color:#FFFFFF}
+.btn.secondary{background:#E3E3DE;color:#16181D}
+.btn.busy{background:#E3E3DE;color:#6B6E75}
+.btn.disabled{background:#E3E3DE;color:#A3A6AD}
+.btns{display:flex;flex-direction:column;gap:10px}
+.badge{border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.b40{width:40px;height:40px}
+.b44{width:44px;height:44px}
+.b48{width:48px;height:48px}
+.neutral{background:#E3E3DE} .danger{background:#FBE3E3} .warn{background:#FFF1DB} .accent{background:#EEF0FE}
+.alert-title{font-size:19px;font-weight:600;letter-spacing:-0.01em}
+.b-title{font-size:16px;font-weight:600}
+.b-body{font-size:14px;line-height:1.45;color:#6B6E75}
+.muted{color:#6B6E75}
+.num{font-weight:500}
+h1.heading{margin:0;font-size:22px;font-weight:600;letter-spacing:-0.02em}
+.section-label{font-size:14px;font-weight:600;color:#6B6E75;margin:0 0 0 4px}
+.lead{margin:0;font-size:16px;line-height:1.5;color:#6B6E75}
+svg{flex-shrink:0}
+.group{background:#FFFFFF;border-radius:20px;border:1px solid #E3E3DE;overflow:hidden}
+.grow{display:flex;align-items:center;gap:14px;min-height:54px;padding:0 16px;font-size:16px}
+.grow + .grow{border-top:1px solid #E3E3DE}
+.grow .txt{flex-grow:1;display:flex;flex-direction:column;gap:2px;min-width:0;padding:12px 0}
+.grow .s{font-size:13px;color:#6B6E75}
+.ico{width:24px;display:flex;justify-content:center;flex-shrink:0}
+.faq{display:block}
+.faq + .faq{border-top:1px solid #E3E3DE}
+.faq .q{display:flex;align-items:center;gap:12px;min-height:54px;padding:12px 16px;font-size:16px;line-height:1.35}
+.faq .q span{flex-grow:1}
+.faq .a{padding:0 16px 16px;font-size:15px;line-height:1.5;color:#3E4148;display:flex;flex-direction:column;gap:8px}
+.faq .a b{font-weight:600;color:#16181D}
+.faq.open .q{font-weight:600}
+.note{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.45;color:#6B6E75}
+.spinner{width:20px;height:20px;border-radius:10px;border:3px solid #D5D5CF;border-top-color:#2B3FF5;transform:rotate(45deg);flex-shrink:0}
+.scrim{position:absolute;inset:0;background:rgba(22,24,29,0.32)}
+.bottom-sheet{position:absolute;left:0;right:0;bottom:0;background:#F6F6F3;border-radius:32px 32px 0 0;padding:12px 24px 32px;display:flex;flex-direction:column}
+.grabber{width:36px;height:5px;border-radius:3px;background:#D5D5CF;align-self:center}
+.items > div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;font-size:15px}
+.items .txt{display:flex;flex-direction:column;gap:2px}
+.items .s{font-size:13px;color:#6B6E75}
+.sums{display:flex;flex-direction:column;gap:7px;font-size:15px}
+.sums > div{display:flex;justify-content:space-between;gap:12px}
+.dash{border-top:1px dashed #D5D5CF}
+.bar{position:absolute;left:0;right:0;bottom:0;padding:28px 20px 28px;background:linear-gradient(to bottom,rgba(246,246,243,0),#F6F6F3 28px)}
+</style>
+</head>
+<body>
+<div class="phone page list">
+<div class="header"><button type="button" class="round" aria-label="Wróć"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button><h1 class="heading" style="flex-grow:1">Pobierz moje dane</h1></div>
+<div class="group" style="margin-top:20px;padding:18px 16px;display:flex;gap:14px;align-items:flex-start">
+<div class="badge b44 accent"><span class="spinner" style="width:22px;height:22px;border-radius:11px"></span></div>
+<div style="display:flex;flex-direction:column;gap:4px;padding-top:1px"><span class="b-title">Przygotowujemy plik</span><span class="b-body">Zlecono dziś o <span class="num">14:32</span>. Zwykle trwa to kilka minut. Możesz zamknąć ten ekran, wyślemy powiadomienie, gdy plik będzie gotowy.</span></div>
+</div>
+<div class="section-label" style="margin-top:24px">W pliku znajdziesz</div><div class="group" style="margin-top:10px"><div class="grow" style="min-height:50px"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0116 0"></path></svg></span><span style="flex-grow:1">Profil, zgody i ustawienia</span></div><div class="grow" style="min-height:50px"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="17" r="3"></circle><circle cx="18" cy="17" r="3"></circle><path d="M9 17h6M18 17l-3-10h-3"></path></svg></span><span style="flex-grow:1">Przejazdy z trasami</span></div><div class="grow" style="min-height:50px"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3"></rect><path d="M16 12.5h2M3 10h18"></path></svg></span><span style="flex-grow:1">Portfel, płatności i paragony</span></div><div class="grow" style="min-height:50px"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4.5a4.5 4.5 0 00-5.6 5.8L3.5 15.7a2 2 0 002.8 2.8l5.4-5.4a4.5 4.5 0 005.8-5.6l-2.7 2.7-2.6-.6-.6-2.6z"></path></svg></span><span style="flex-grow:1">Zgłoszenia i odpowiedzi</span></div><div class="grow" style="min-height:50px"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0112 0v5l2 2H4z"></path><path d="M10 21a2 2 0 004 0"></path></svg></span><span style="flex-grow:1">Wysłane powiadomienia</span></div></div>
+<div style="flex-grow:1"></div>
+<button type="button" class="btn disabled" disabled>Przygotuj plik</button>
+<span style="margin-top:10px;font-size:13px;color:#6B6E75;text-align:center">Kolejny plik zlecisz jutro od <span class="num">14:32</span>.</span>
+</div>
+</body>
+</html>
