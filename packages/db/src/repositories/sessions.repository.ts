@@ -48,10 +48,30 @@ abstract class DrizzleSessionRepository implements SessionRepository {
     return row ?? null;
   }
 
+  /**
+   * Blokada doradcza rodziny (albo właściciela) do końca transakcji. Rotacja i unieważnienie rodziny (albo wszystkich
+   * sesji właściciela) idą po kolei: bez niej unieważnienie w `READ COMMITTED` czekało na wiersz poprzednika, ale nie
+   * widziało następcy wstawionego przez równoległą rotację, więc następca zostawał ważny (wyścig „Wyloguj” z
+   * odświeżeniem tokenu). Pierwszy klucz to nazwa tabeli i rodzaju, drugi skrót identyfikatora.
+   */
+  private async lock(db: DbExecutor, kind: 'family' | 'owner', id: string): Promise<void> {
+    await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`${this.lockName}:${kind}`}), hashtext(${id}::text))`);
+  }
+
+  protected abstract readonly lockName: 'sessions' | 'staff_sessions';
+
   async rotate(previousId: string, next: NewSession, now: Date): Promise<{ id: string; familyId: string } | null> {
     const t = this.table;
+    // Serwis wykonuje całość w jednej transakcji, więc blokady trwają do jej zatwierdzenia (kolejność: właściciel,
+    // potem rodzina; unieważnienia biorą tylko jedną z nich, więc nie ma cyklu).
+    const familyId =
+      next.familyId ??
+      (await this.db.select({ familyId: t.familyId }).from(t).where(eq(t.id, previousId)))[0]?.familyId;
+    if (!familyId) return null;
+    await this.lock(this.db, 'owner', next.ownerId);
+    await this.lock(this.db, 'family', familyId);
     // Najpierw unieważnienie poprzednika: przy dwóch równoległych rotacjach wygrywa jedna, a druga
-    // nie tworzy osieroconego następcy. Serwis wykonuje całość w jednej transakcji.
+    // nie tworzy osieroconego następcy.
     const claimed = await this.db
       .update(t)
       .set({ revokedAt: now, lastUsedAt: now })
@@ -71,22 +91,34 @@ abstract class DrizzleSessionRepository implements SessionRepository {
       .where(and(eq(t.id, id), isNull(t.revokedAt)));
   }
 
+  /**
+   * Unieważnia rodzinę pod blokadą rodziny: zapytanie zaczyna się po zatwierdzeniu równoległej rotacji, więc widzi
+   * jej następcę. Wywołane poza transakcją otwiera własną (blokada `xact` musi trwać do końca zapytania), w transakcji
+   * działa w punkcie zapisu tej transakcji.
+   */
   async revokeFamily(familyId: string, now: Date): Promise<number> {
     const t = this.table;
-    const rows = await this.db
-      .update(t)
-      .set({ revokedAt: now })
-      .where(and(eq(t.familyId, familyId), isNull(t.revokedAt)))
-      .returning({ id: t.id });
-    return rows.length;
+    return this.db.transaction(async (tx) => {
+      await this.lock(tx, 'family', familyId);
+      const rows = await tx
+        .update(t)
+        .set({ revokedAt: now })
+        .where(and(eq(t.familyId, familyId), isNull(t.revokedAt)))
+        .returning({ id: t.id });
+      return rows.length;
+    });
   }
 
+  /** Wszystkie sesje właściciela pod blokadą właściciela (ta sama ochrona przed równoległą rotacją). */
   async revokeAllForOwner(ownerId: string): Promise<number> {
-    const result = await this.db.execute<{ revoked_count: number }>(
-      // Procedura z migracji 0004 (ADR 0026); nazwa pochodzi z klasy, a nie z danych wejściowych.
-      sqlCall(this.revokeAllProcedure, ownerId),
-    );
-    return Number(result.rows[0]?.revoked_count ?? 0);
+    return this.db.transaction(async (tx) => {
+      await this.lock(tx, 'owner', ownerId);
+      const result = await tx.execute<{ revoked_count: number }>(
+        // Procedura z migracji 0004 (ADR 0026); nazwa pochodzi z klasy, a nie z danych wejściowych.
+        sqlCall(this.revokeAllProcedure, ownerId),
+      );
+      return Number(result.rows[0]?.revoked_count ?? 0);
+    });
   }
 
   /** Aktywne sesje właściciela do karty klienta albo operatora w panelu. */
@@ -118,6 +150,7 @@ function sqlCall(procedure: 'sp_revoke_user_sessions' | 'sp_revoke_staff_session
 
 export class DrizzleCustomerSessionRepository extends DrizzleSessionRepository {
   protected readonly table = sessions;
+  protected readonly lockName = 'sessions' as const;
   protected readonly revokeAllProcedure = 'sp_revoke_user_sessions' as const;
   protected ownerColumn() {
     return sessions.userId;
@@ -148,6 +181,7 @@ export class DrizzleCustomerSessionRepository extends DrizzleSessionRepository {
 
 export class DrizzleStaffSessionRepository extends DrizzleSessionRepository {
   protected readonly table = staffSessions;
+  protected readonly lockName = 'staff_sessions' as const;
   protected readonly revokeAllProcedure = 'sp_revoke_staff_sessions' as const;
   protected ownerColumn() {
     return staffSessions.staffId;

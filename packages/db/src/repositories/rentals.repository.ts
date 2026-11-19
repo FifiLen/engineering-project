@@ -25,6 +25,7 @@ import {
   type RentalStats,
   type RentalTimelineEntry,
   type ScooterVariant,
+  type ResourceDefinition,
 } from '@hulajnogi/shared';
 import { inArray, sql } from 'drizzle-orm';
 import { runListQuery, type ListSource } from '../admin/list-query.js';
@@ -738,8 +739,12 @@ export class DrizzleRentalRepository {
 
   // --- Panel --------------------------------------------------------------------------------
 
-  list(query: ListQuery): Promise<ListResponse<RentalListItem>> {
-    return runListQuery<RentalField, RentalListItem>(this.db, rentalsResource, listSource, query);
+  /** `def` z wyszukiwaniem bez pól osobowych podaje maskowanie danych klienta (operator bez `users.read`). */
+  list(
+    query: ListQuery,
+    def: ResourceDefinition<RentalField> = rentalsResource,
+  ): Promise<ListResponse<RentalListItem>> {
+    return runListQuery<RentalField, RentalListItem>(this.db, def, listSource, query);
   }
 
   async listItem(id: string): Promise<RentalListItem | null> {

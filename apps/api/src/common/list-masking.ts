@@ -22,3 +22,8 @@ export async function listWithCustomerData<T, D extends ResourceDefinition>(
   const hidden = Object.fromEntries(fields.map((f) => [f, null]));
   return { ...result, items: result.items.map((item) => ({ ...item, ...hidden }) as T) };
 }
+
+/** Szczegóły rekordu bez danych klienta (te same pola co na liście, `null` bez `users.read`). */
+export function withoutCustomerData<T extends object>(item: T, fields: readonly (keyof T & string)[]): T {
+  return { ...item, ...Object.fromEntries(fields.map((f) => [f, null])) };
+}

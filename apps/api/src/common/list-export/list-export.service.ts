@@ -5,8 +5,10 @@ import {
   csvCellText,
   csvLine,
   DomainError,
+  ensureListExportSlot,
   ensureListExportWithinLimit,
   LIST_EXPORT_BATCH,
+  LIST_EXPORT_CONCURRENCY,
   LIST_EXPORT_CONTENT_TYPES,
   LIST_EXPORT_LIMIT,
   listCellValue,
@@ -37,12 +39,6 @@ import { createSpreadsheetWriter } from '../spreadsheet/exceljs-writer.js';
 /** Funkcja listy zasobu z wykonawcą zapytań: ta sama co w `GET` listy, ale w transakcji eksportu. */
 export type ExportListFn<T> = (db: DbExecutor, query: ListQuery) => Promise<ListResponse<T>>;
 
-/** Wiersze do zapisu: liczba (limit sprawdzany przed wysłaniem nagłówków) i strony w stałej kolejności. */
-export interface ExportSource<T> {
-  count: number;
-  pages: AsyncIterable<readonly T[]>;
-}
-
 export interface ExportJob<T> {
   staffId: string;
   /** Nazwa zasobu: nazwa pliku i arkusza, zasób we wpisie `list.exported`. */
@@ -53,8 +49,10 @@ export interface ExportJob<T> {
   /** Zapytanie do wpisu w dzienniku audytu (filtry, wyszukiwanie, sortowanie albo zakres telemetrii). */
   query: Record<string, unknown>;
   limit?: number;
-  /** Otwiera źródło w transakcji `REPEATABLE READ READ ONLY`. */
-  open(tx: DbExecutor): Promise<ExportSource<T>>;
+  /** Liczba wierszy przed otwarciem transakcji odczytu (limit i `rowCount` wpisu w dzienniku audytu). */
+  count(db: DbExecutor): Promise<number>;
+  /** Strony w stałej kolejności z transakcji `REPEATABLE READ READ ONLY`. */
+  pages(tx: DbExecutor): AsyncIterable<readonly T[]>;
 }
 
 const READ_ONLY = { isolationLevel: 'repeatable read', accessMode: 'read only' } as const;
@@ -62,15 +60,20 @@ const READ_ONLY = { isolationLevel: 'repeatable read', accessMode: 'read only' }
 /**
  * Eksport list do XLSX i CSV (ADR 0073). Każdy kontroler listy wystawia `POST /admin/{zasób}/export` i woła `list`
  * z tą samą funkcją listy co `GET`, więc plik ma te same wiersze, kolejność, warunek stały i maskowanie danych
- * klienta. Kolejność kroków: kolumny z definicji zasobu, zapytanie listy z treści żądania (bez stronicowania),
- * transakcja tylko do odczytu, liczba wierszy z pierwszej strony i limit (422 `LIST_EXPORT_LIMIT` przed wysłaniem
- * nagłówków), wpis `list.exported` w dzienniku audytu, potem zapis strumieniem do odpowiedzi partiami po 1000.
+ * klienta. Kolejność kroków: miejsce w limicie równoległych eksportów (`429 LIST_EXPORT_BUSY`), kolumny z definicji
+ * zasobu, zapytanie listy z treści żądania (bez stronicowania), liczba wierszy i limit (`422 LIST_EXPORT_LIMIT`),
+ * wpis `list.exported` w dzienniku audytu we własnej krótkiej transakcji, dopiero potem transakcja tylko do odczytu
+ * i zapis strumieniem do odpowiedzi partiami po 1000. Eksport trzyma więc najwyżej jedno połączenie z puli naraz
+ * (wcześniej wpis w drugiej transakcji w trakcie pierwszej mógł przy pełnej puli zakleszczyć eksporty).
  */
 @Injectable()
 export class ListExportService {
   private readonly logger = new Logger(ListExportService.name);
   /** Limit wierszy; testy zmniejszają go, żeby sprawdzić 422 bez 50 000 rekordów. */
   limit = LIST_EXPORT_LIMIT;
+  /** Limit równoległych eksportów (testy go zmieniają). */
+  concurrency = LIST_EXPORT_CONCURRENCY;
+  private active = 0;
 
   constructor(
     @Inject(DB) private readonly db: Database,
@@ -89,48 +92,53 @@ export class ListExportService {
     if (!parsed.ok) {
       throw new ApiError(HttpStatus.BAD_REQUEST, 'VALIDATION_ERROR', 'Nieprawidłowe parametry listy', parsed.issues);
     }
-    const query = parsed.query;
+    const query = { ...parsed.query, facets: [] };
     await this.run(reply, {
       staffId,
       resource: def.name,
       def,
       request,
       query: { q: query.q ?? null, filters: query.filters, sort: query.sort },
-      open: async (tx) => {
-        const first = await list(tx, { ...query, page: 1, pageSize: LIST_EXPORT_BATCH, facets: [] });
-        // Pierwsza strona już odczytana: `listPages` dostaje ją z pamięci, kolejne strony czyta z tej samej migawki.
-        const cached: ExportListFn<T> = (db, q) => (q.page === 1 ? Promise.resolve(first) : list(db, q));
-        return {
-          count: first.total,
-          pages: listPages((q) => cached(tx, q), { ...query, facets: [] }, LIST_EXPORT_BATCH),
-        };
-      },
+      // Ta sama funkcja listy (warunek stały, maskowanie, 403 za filtr po danych klienta) z jednym wierszem.
+      count: async (db) => (await list(db, { ...query, page: 1, pageSize: 1 })).total,
+      // Kolejne strony bez `count(*)`: liczba jest już znana, a partia krótsza od `batch` kończy odczyt.
+      pages: (tx) => listPages((q) => list(tx, { ...q, withTotal: false }), query, LIST_EXPORT_BATCH),
     });
   }
 
   /** Wspólny przebieg eksportu (listy i zakres telemetrii). */
   async run<T>(reply: FastifyReply, job: ExportJob<T>): Promise<void> {
+    ensureListExportSlot(this.active, this.concurrency);
+    this.active++;
+    try {
+      await this.export(reply, job);
+    } finally {
+      this.active--;
+    }
+  }
+
+  private async export<T>(reply: FastifyReply, job: ExportJob<T>): Promise<void> {
     const columns = exportColumns(job.def, job.request);
     const limit = job.limit ?? this.limit;
+    const count = await job.count(this.db);
+    ensureListExportWithinLimit(count, limit);
+    await this.audited.run(job.staffId, ({ audit }) =>
+      audit({
+        action: 'list.exported',
+        entityType: 'list',
+        entityId: null,
+        data: {
+          resource: job.resource,
+          format: job.request.format,
+          ...job.query,
+          columns: columns.map((c) => c.field),
+          rowCount: count,
+        },
+      }),
+    );
     let stream: PassThrough | undefined;
     try {
       await this.db.transaction(async (tx) => {
-        const source = await job.open(tx);
-        ensureListExportWithinLimit(source.count, limit);
-        await this.audited.run(job.staffId, ({ audit }) =>
-          audit({
-            action: 'list.exported',
-            entityType: 'list',
-            entityId: null,
-            data: {
-              resource: job.resource,
-              format: job.request.format,
-              ...job.query,
-              columns: columns.map((c) => c.field),
-              rowCount: source.count,
-            },
-          }),
-        );
         const now = new Date();
         const out = new PassThrough();
         stream = out;
@@ -143,8 +151,9 @@ export class ListExportService {
           )
           .header('cache-control', 'private, no-store')
           .send(out);
-        if (job.request.format === 'csv') await writeCsv(out, columns, source.pages);
-        else await writeXlsx(out, job.resource, columns, source.pages, now);
+        const pages = job.pages(tx);
+        if (job.request.format === 'csv') await writeCsv(out, columns, pages);
+        else await writeXlsx(out, job.resource, columns, pages, now);
       }, READ_ONLY);
     } catch (error) {
       // Przed wysłaniem nagłówków błąd idzie przez filtr wyjątków ({ code, message, details }); później zostaje
@@ -198,6 +207,8 @@ async function writeXlsx(
   for await (const rows of pages) {
     if (out.destroyed) return;
     for (const row of rows) await sheet.addRow(columns.map((c) => listCellValue(c, cell(row, c.field))));
+    // ExcelJS pisze do strumienia bez sprawdzania wyniku `write`: po partii czekamy, aż klient odbierze bufor.
+    await drained(out);
   }
   await sheet.commit();
   // `commit` skoroszytu kończy archiwum ZIP i zamyka strumień odpowiedzi.
@@ -207,5 +218,14 @@ async function writeXlsx(
 /** Zapis z poszanowaniem przepływu: przy pełnym buforze czeka na `drain` albo zamknięcie przez klienta. */
 async function write(out: PassThrough, chunk: string): Promise<void> {
   if (out.destroyed || !chunk) return;
-  if (!out.write(chunk)) await Promise.race([once(out, 'drain'), once(out, 'close')]);
+  if (!out.write(chunk)) await waitForDrain(out);
+}
+
+/** Pełny bufor strumienia (np. po wierszach zapisanych przez ExcelJS): czeka na `drain` albo zamknięcie. */
+export async function drained(out: PassThrough): Promise<void> {
+  if (!out.destroyed && out.writableNeedDrain) await waitForDrain(out);
+}
+
+function waitForDrain(out: PassThrough): Promise<unknown> {
+  return Promise.race([once(out, 'drain'), once(out, 'close')]);
 }

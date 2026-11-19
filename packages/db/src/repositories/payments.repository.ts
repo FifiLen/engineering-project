@@ -40,6 +40,7 @@ import {
   type WalletListItem,
   type WebhookEventItem,
   type WebhookResult,
+  type ResourceDefinition,
 } from '@hulajnogi/shared';
 import { sql } from 'drizzle-orm';
 import { runListQuery, type ListSource } from '../admin/list-query.js';
@@ -53,6 +54,9 @@ import {
   vWalletBalances,
   vWalletLedger,
 } from '../schema/schema.js';
+
+/** Definicja zasobu listy; maskowanie danych klienta podaje ją bez pól osobowych w wyszukiwaniu. */
+type Definition<R extends ResourceDefinition> = ResourceDefinition<Fields<R>>;
 
 type Row = Record<string, unknown>;
 const iso = (v: unknown) => (v === null || v === undefined ? null : new Date(v as string).toISOString());
@@ -1001,28 +1005,48 @@ export class DrizzlePaymentRepository {
 
   // --- Listy w panelu ------------------------------------------------------------------------------------
 
-  listPayments(query: ListQuery): Promise<ListResponse<PaymentListItem>> {
-    return runListQuery(this.db, paymentsResource, paymentsSource, query);
+  listPayments(
+    query: ListQuery,
+    def: Definition<typeof paymentsResource> = paymentsResource,
+  ): Promise<ListResponse<PaymentListItem>> {
+    return runListQuery<Fields<typeof paymentsResource>, PaymentListItem>(this.db, def, paymentsSource, query);
   }
 
   async paymentItem(id: string): Promise<PaymentListItem | null> {
     return (await this.listPayments(byId('id', id))).items[0] ?? null;
   }
 
-  listLedger(query: ListQuery): Promise<ListResponse<WalletLedgerItem>> {
-    return runListQuery(this.db, walletLedgerResource, ledgerSource, query);
+  listLedger(
+    query: ListQuery,
+    def: Definition<typeof walletLedgerResource> = walletLedgerResource,
+  ): Promise<ListResponse<WalletLedgerItem>> {
+    return runListQuery<Fields<typeof walletLedgerResource>, WalletLedgerItem>(this.db, def, ledgerSource, query);
   }
 
-  listWallets(query: ListQuery): Promise<ListResponse<WalletListItem>> {
-    return runListQuery(this.db, walletsResource, walletsSource, query);
+  listWallets(
+    query: ListQuery,
+    def: Definition<typeof walletsResource> = walletsResource,
+  ): Promise<ListResponse<WalletListItem>> {
+    return runListQuery<Fields<typeof walletsResource>, WalletListItem>(this.db, def, walletsSource, query);
   }
 
-  listReceipts(query: ListQuery): Promise<ListResponse<ReceiptListItem>> {
-    return runListQuery(this.db, receiptsResource, receiptsSource, query);
+  listReceipts(
+    query: ListQuery,
+    def: Definition<typeof receiptsResource> = receiptsResource,
+  ): Promise<ListResponse<ReceiptListItem>> {
+    return runListQuery<Fields<typeof receiptsResource>, ReceiptListItem>(this.db, def, receiptsSource, query);
   }
 
-  listPaymentMethods(query: ListQuery): Promise<ListResponse<PaymentMethodAdminItem>> {
-    return runListQuery(this.db, paymentMethodsResource, methodsSource, query);
+  listPaymentMethods(
+    query: ListQuery,
+    def: Definition<typeof paymentMethodsResource> = paymentMethodsResource,
+  ): Promise<ListResponse<PaymentMethodAdminItem>> {
+    return runListQuery<Fields<typeof paymentMethodsResource>, PaymentMethodAdminItem>(
+      this.db,
+      def,
+      methodsSource,
+      query,
+    );
   }
 
   async userPaymentMethods(userId: string): Promise<PaymentMethodAdminItem[]> {
@@ -1033,8 +1057,11 @@ export class DrizzlePaymentRepository {
     return result.items.filter((m) => m.state !== 'REMOVED');
   }
 
-  listWebhooks(query: ListQuery): Promise<ListResponse<WebhookEventItem>> {
-    return runListQuery(this.db, webhookEventsResource, webhooksSource, query);
+  listWebhooks(
+    query: ListQuery,
+    def: Definition<typeof webhookEventsResource> = webhookEventsResource,
+  ): Promise<ListResponse<WebhookEventItem>> {
+    return runListQuery<Fields<typeof webhookEventsResource>, WebhookEventItem>(this.db, def, webhooksSource, query);
   }
 
   async webhooksForPayment(paymentId: string): Promise<WebhookEventItem[]> {
@@ -1042,7 +1069,10 @@ export class DrizzlePaymentRepository {
       .items;
   }
 
-  listRefunds(query: ListQuery): Promise<ListResponse<RefundListItem>> {
-    return runListQuery(this.db, refundsResource, refundsSource, query);
+  listRefunds(
+    query: ListQuery,
+    def: Definition<typeof refundsResource> = refundsResource,
+  ): Promise<ListResponse<RefundListItem>> {
+    return runListQuery<Fields<typeof refundsResource>, RefundListItem>(this.db, def, refundsSource, query);
   }
 }

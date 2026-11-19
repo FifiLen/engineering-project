@@ -120,7 +120,8 @@ export const rentalEventListSource: ListSource<Fields<typeof rentalEventsResourc
 // Obecność ma klucz (hulajnoga, strefa), a sterowanie strefami jeden wiersz na hulajnogę w przejeździe.
 export const zonePresenceListSource: ListSource<Fields<typeof zonePresenceResource>> = {
   from: vZonePresenceList,
-  id: vZonePresenceList.zoneId,
+  // Klucz tabeli `scooter_zone_presence` to (hulajnoga, strefa): sama strefa nie rozstrzyga kolejności stron.
+  id: [vZonePresenceList.scooterId, vZonePresenceList.zoneId],
   columns: columns(vZonePresenceList, keys(zonePresenceResource)),
 };
 
@@ -132,7 +133,8 @@ export const zoneControlListSource: ListSource<Fields<typeof zoneControlResource
 
 export const paymentCustomerListSource: ListSource<Fields<typeof paymentCustomersResource>> = {
   from: vPaymentCustomerList,
-  id: vPaymentCustomerList.providerCustomerId,
+  // Unikalne jest (operator, identyfikator klienta u operatora).
+  id: [vPaymentCustomerList.provider, vPaymentCustomerList.providerCustomerId],
   columns: columns(vPaymentCustomerList, keys(paymentCustomersResource)),
 };
 
@@ -420,8 +422,15 @@ export class DrizzleAdminListsRepository {
    */
   async telemetryReadings(query: TelemetryReadingsQuery): Promise<TelemetryReadingsPage> {
     const newer = query.direction === 'newer' && query.cursor !== undefined;
-    const from = newer ? sql`${query.cursor}::timestamptz + interval '1 microsecond'` : sql`${query.from}::timestamptz`;
-    const to = !newer && query.cursor ? sql`${query.cursor}::timestamptz` : sql`${query.to}::timestamptz`;
+    // Granice z kursora przycięte do zakresu (schemat zapytania odrzuca kursor spoza `[from, to)`; tu druga ochrona,
+    // żeby kursor nie wyprowadził odczytu poza zakres i okno retencji).
+    const from = newer
+      ? sql`GREATEST(${query.cursor}::timestamptz + interval '1 microsecond', ${query.from}::timestamptz)`
+      : sql`${query.from}::timestamptz`;
+    const to =
+      !newer && query.cursor
+        ? sql`LEAST(${query.cursor}::timestamptz, ${query.to}::timestamptz)`
+        : sql`${query.to}::timestamptz`;
     const limit = query.pageSize + 1;
     const { rows } = await this.db.execute<Record<string, unknown>>(sql`
       SELECT t.*, to_char(t.recorded_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor

@@ -14,6 +14,7 @@ import {
   type MapPoint,
   type ZoneCollection,
 } from '../components/map/map-layers';
+import { ContentNotice, useContentNotice } from '../components/content-notice';
 import { MapView } from '../components/map/map-view';
 import { OfflineState } from '../components/offline';
 import { ScooterRender } from '../components/scooter';
@@ -90,6 +91,9 @@ export default function MapScreen() {
       await reserve(id, payment);
     },
   });
+  // Komunikat z treści `mobile.notice` (makieta 31-mobile-tresci/komunikat) i jego wysokość do odstępu mapy.
+  const contentNotice = useContentNotice();
+  const [noticeHeight, setNoticeHeight] = useState(0);
 
   const user = location.position;
   const area = useMemo(() => serviceAreaCenter(zones), [zones]);
@@ -421,6 +425,8 @@ export default function MapScreen() {
     </RoundButton>
   );
 
+  // Komunikat tylko w widoku podstawowym: nie zasłania legendy, celu ani karty rezerwacji.
+  const showNotice = !!contentNotice && !legend && !destination && !reservation;
   let header: ReactNode;
   if (legend) {
     // Legenda (makieta mapa-strefy): wstecz i nazwa widoku.
@@ -469,7 +475,8 @@ export default function MapScreen() {
       </View>
     );
   } else {
-    // Pasek „Dokąd jedziesz?” z profilem (makieta produkt-mapa), pod nim legenda stref i położenie.
+    // Pasek „Dokąd jedziesz?” z profilem (makieta produkt-mapa), pod nim komunikat z treści (bez rezerwacji), legenda
+    // stref i położenie.
     header = (
       <View style={{ position: 'absolute', left: 16, right: 16, top, gap: 12 }}>
         <View
@@ -516,6 +523,11 @@ export default function MapScreen() {
             )}
           </Pressable>
         </View>
+        {showNotice && (
+          <View onLayout={(e) => setNoticeHeight(Math.round(e.nativeEvent.layout.height))}>
+            <ContentNotice notice={contentNotice.notice} onDismiss={contentNotice.dismiss} />
+          </View>
+        )}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Pressable
             accessibilityRole="button"
@@ -542,7 +554,12 @@ export default function MapScreen() {
           userStyle={walkId ? 'ring' : 'dot'}
           guide={guide}
           destination={destination}
-          padding={{ top: top + (legend || destination ? 60 : 116), bottom: legend ? 300 : 360, left: 24, right: 24 }}
+          padding={{
+            top: top + (legend || destination ? 60 : 116 + (showNotice ? noticeHeight + 12 : 0)),
+            bottom: legend ? 300 : 360,
+            left: 24,
+            right: 24,
+          }}
           onScooterPress={(id) => {
             if (reservation) return;
             setLegend(false);

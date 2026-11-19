@@ -250,7 +250,7 @@ function RentalDrawer({ id, revision, onClose }: { id: string; revision: number;
                   {customerName(rental)}
                 </Link>
               ) : (
-                customerName(rental)
+                t('service.customer')
               )}
               {' · '}
               {t('rentals.scooter')}{' '}

@@ -1,4 +1,4 @@
-import { LIST_EXPORT_CONTENT_TYPES, LIST_EXPORT_LIMIT } from '@hulajnogi/core';
+import { LIST_EXPORT_CONCURRENCY, LIST_EXPORT_CONTENT_TYPES, LIST_EXPORT_LIMIT } from '@hulajnogi/core';
 import { LIST_EXPORT_FORMATS, listExportRequestSchema } from '@hulajnogi/shared';
 import { applyDecorators, HttpCode, Post } from '@nestjs/common';
 import { ApiBody, ApiOkResponse, ApiOperation, ApiProduces } from '@nestjs/swagger';
@@ -47,7 +47,7 @@ export function ListExport(what: string, path = 'export') {
     Post(path),
     HttpCode(200),
     ApiOperation({
-      summary: `Eksport listy (${what}) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej ${LIST_EXPORT_LIMIT} wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported`,
+      summary: `Eksport listy (${what}) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej ${LIST_EXPORT_LIMIT} wierszy 422 LIST_EXPORT_LIMIT, ponad ${LIST_EXPORT_CONCURRENCY} eksporty naraz 429 LIST_EXPORT_BUSY, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported`,
     }),
     ApiBody({ schema: BODY_SCHEMA as never }),
     ApiProduces(LIST_EXPORT_CONTENT_TYPES.xlsx, LIST_EXPORT_CONTENT_TYPES.csv),

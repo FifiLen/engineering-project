@@ -1,6 +1,7 @@
 import {
   countRoleManagers,
   diffForAudit,
+  DomainError,
   ensureCanInvite,
   ensureNotSelf,
   ensureRoleManagerRemains,
@@ -93,17 +94,19 @@ export class StaffService {
     const now = new Date();
     const token = generateToken();
     await this.transaction.run(actorId, async ({ tx, audit }) => {
+      // Blokada operatora przed odczytem: równoczesne ponowienia idą po kolei, a drugie widzi stan po pierwszym.
+      if (!(await new DrizzleStaffRepository(tx).lockForUpdate(id))) throw notFound('staff', id);
       const record =
         version === null ? await new DrizzleStaffRepository(tx).findAuthById(id) : await this.load(tx, id, version);
       if (!record) throw notFound('staff', id);
       ensureCanInvite(record);
-      const invitation = await new DrizzleInvitationRepository(tx).create(
-        id,
-        hashToken(token),
-        invitationExpiresAt(now),
-        actorId,
-        now,
-      );
+      const invitations = new DrizzleInvitationRepository(tx);
+      // Ponowienie z wiersza listy: zaproszenie z wiersza musi nadal czekać (nie przyjęte, nie zastąpione przez
+      // równoczesne ponowienie), inaczej `replaces` we wpisie wskazywałoby nieaktualne zaproszenie.
+      if (context.replaces && !(await invitations.isOpen(context.replaces, id))) {
+        throw new DomainError('INVITATION_NOT_PENDING');
+      }
+      const invitation = await invitations.create(id, hashToken(token), invitationExpiresAt(now), actorId, now);
       await audit({
         action: 'staff.invitation_resent',
         entityType: 'staff',

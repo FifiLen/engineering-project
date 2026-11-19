@@ -372,6 +372,49 @@ describe.skipIf(!adminUrl)('API: nowe listy i polecenia z domknięcia macierzy o
     });
   });
 
+  it('zaproszenia: dwa równoczesne „Wyślij ponownie” tego samego zaproszenia — jedno wysłane, drugie 409, jedno otwarte', async () => {
+    const roleId = (await ctx.pool.query<{ id: string }>(`SELECT id FROM roles WHERE name = 'Serwisant'`)).rows[0]!.id;
+    const invited = await ctx.staff.admin({
+      method: 'POST',
+      url: '/admin/staff',
+      payload: { email: 'rownoczesny@test.local', name: 'Równoczesny Serwisant', roleIds: [roleId] },
+    });
+    const staffId = invited.json<shared.StaffInvitationResult>().staff.id;
+    const [open] = await items<shared.StaffInvitationListItem>(
+      ctx.staff.admin,
+      `/admin/staff-invitations?staffId=${staffId}`,
+    );
+    // Wcześniej oba ponowienia unieważniały to samo zaproszenie, a drugie wstawienie trafiało w indeks
+    // `staff_invitations_one_open` (500) albo zapisywało `replaces` wskazujące już zastąpione zaproszenie.
+    const results = await Promise.all(
+      [1, 2, 3].map(() => ctx.staff.admin({ method: 'POST', url: `/admin/staff-invitations/${open!.id}/resend` })),
+    );
+    expect(results.map((r) => r.statusCode).sort()).toEqual([200, 409, 409]);
+    expect(results.find((r) => r.statusCode === 409)!.json()).toMatchObject({ code: 'INVITATION_NOT_PENDING' });
+    const after = await items<shared.StaffInvitationListItem>(
+      ctx.staff.admin,
+      `/admin/staff-invitations?staffId=${staffId}&sort=-createdAt`,
+    );
+    expect(after.map((i) => i.state)).toEqual(['PENDING', 'REPLACED']);
+    // Ponowienie z karty operatora (bez wiersza listy) po ponowieniu z listy zastępuje nowe zaproszenie.
+    const { version } = (await ctx.staff.admin({ method: 'GET', url: `/admin/staff/${staffId}` })).json<{
+      version: number;
+    }>();
+    const fromCard = await Promise.all(
+      [1, 2].map(() =>
+        ctx.staff.admin({ method: 'POST', url: `/admin/staff/${staffId}/invitation`, payload: { version } }),
+      ),
+    );
+    expect(fromCard.map((r) => r.statusCode)).toEqual([200, 200]);
+    const open2 = (
+      await ctx.pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM staff_invitations WHERE staff_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL`,
+        [staffId],
+      )
+    ).rows[0]!.n;
+    expect(open2).toBe(1);
+  });
+
   it('uprawnienia: lista z grupą i rolami, opis z blokadą optymistyczną i wpisem permission.updated', async () => {
     const reports = await items<shared.PermissionListItem>(
       ctx.staff.admin,

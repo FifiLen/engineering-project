@@ -162,6 +162,10 @@ const DOMAIN_STATUS: Record<string, HttpStatus> = {
   // wycofanie zgody innej niż marketingowa, unieważnienie zaproszenia, które nie czeka, dezaktywacja domyślnego
   // szablonu z aktywną wersją, zajęta nazwa szablonu i zmiana historii stanów to konflikty stanu (409).
   LIST_EXPORT_LIMIT: HttpStatus.UNPROCESSABLE_ENTITY,
+  // Poprawki iteracji 8: limit równoległych eksportów list (429 z `Retry-After`) i drugie otwarte zaproszenie
+  // operatora z równoczesnego ponowienia (409).
+  LIST_EXPORT_BUSY: HttpStatus.TOO_MANY_REQUESTS,
+  INVITATION_ALREADY_OPEN: HttpStatus.CONFLICT,
   CONSENT_NOT_REVOCABLE: HttpStatus.CONFLICT,
   INVITATION_NOT_PENDING: HttpStatus.CONFLICT,
   TEMPLATE_IS_DEFAULT: HttpStatus.CONFLICT,

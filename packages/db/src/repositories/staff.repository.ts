@@ -90,6 +90,15 @@ export class DrizzleStaffRepository implements StaffRepository {
     return row ? toAuth(row) : null;
   }
 
+  /**
+   * Blokada wiersza operatora do końca transakcji (`FOR UPDATE`): równoczesne „Wyślij ponownie” tego samego
+   * zaproszenia czekają na siebie, więc drugie widzi zaproszenie pierwszego i nie trafia w `staff_invitations_one_open`.
+   */
+  async lockForUpdate(id: string): Promise<boolean> {
+    const rows = await this.db.select({ id: staff.id }).from(staff).where(eq(staff.id, id)).for('update');
+    return rows.length > 0;
+  }
+
   async findAuthById(id: string): Promise<StaffAuthRecord | null> {
     const [row] = await this.db.select(authColumns).from(staff).where(eq(staff.id, id));
     return row ? toAuth(row) : null;
@@ -236,6 +245,22 @@ export class DrizzleInvitationRepository implements InvitationRepository {
         .where(inArray(staffInvitations.id, replaced.map((r) => r.id)));
     }
     return row!;
+  }
+
+  /** Zaproszenie operatora, które nie zostało przyjęte ani unieważnione (także zastąpione); wygasłe można wysłać ponownie. */
+  async isOpen(id: string, staffId: string): Promise<boolean> {
+    const rows = await this.db
+      .select({ id: staffInvitations.id })
+      .from(staffInvitations)
+      .where(
+        and(
+          eq(staffInvitations.id, id),
+          eq(staffInvitations.staffId, staffId),
+          isNull(staffInvitations.acceptedAt),
+          isNull(staffInvitations.revokedAt),
+        ),
+      );
+    return rows.length > 0;
   }
 
   async findByTokenHash(tokenHash: string): Promise<InvitationRecord | null> {

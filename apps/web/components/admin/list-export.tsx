@@ -3,11 +3,12 @@
 /**
  * Eksport listy do XLSX i CSV (ADR 0073, makieta 34-panel-domkniecie/lista-eksport): okno z formatem, zakresem
  * (liczba wierszy z `total` listy, filtry, wyszukiwanie, sortowanie, kolumny), ostrzeżeniem o danych osobowych tylko
- * przy kolumnach `personal` i limitem `LIST_EXPORT_LIMIT` sprawdzanym przed wysłaniem (API sprawdza ponownie:
- * `422 LIST_EXPORT_LIMIT`). Plik powstaje w API strumieniem z tym samym zapytaniem co lista (`POST /admin/{zasób}/export`
+ * przy kolumnach `personal` i limitem `LIST_EXPORT_LIMIT` (albo `limit`) sprawdzanym przed wysłaniem (API sprawdza
+ * ponownie: `422 LIST_EXPORT_LIMIT`). Plik powstaje w API strumieniem z tym samym zapytaniem co lista (`POST /admin/{zasób}/export`
  * z etykietami kolumn z `pl.json`), a panel zapisuje go przez `saveBlob` pod nazwą z `content-disposition`.
  */
 import {
+  customerDataFields,
   LIST_EXPORT_LIMIT,
   personalFields,
   toSearchParams,
@@ -70,10 +71,6 @@ export function exportColumns(resource: ResourceDefinition, fields: readonly str
     });
 }
 
-/** Pole klienta maskowane bez `users.read` (API wstawia „Klient” tak jak w liście). */
-const customerField = (resource: ResourceDefinition, field: string) =>
-  field.startsWith('user') || resource.permissions.read === 'users.read';
-
 /** „przejazdy-2026-11-19-1435.xlsx”: nazwa jak w API (czas polski), do podpowiedzi przed pobraniem. */
 function expectedFileName(name: string, format: ListExportFormat): string {
   const parts = Object.fromEntries(
@@ -100,6 +97,8 @@ export interface ListExportProps {
   params: ExportParams;
   /** Liczba wierszy z `total` listy; `null`: nieznana (telemetria liczy tylko w API). */
   rows: number | null;
+  /** Limit wierszy, gdy inny niż `LIST_EXPORT_LIMIT` (telemetria: 17 280); API podaje go w `details.limit`. */
+  limit?: number;
   /** Tekst wiersza „Wiersze”, gdy liczba jest nieznana. */
   rowsText?: string;
   filters: string[];
@@ -160,12 +159,18 @@ export function ListExportDialog(props: ListExportProps & { onClose: () => void 
 
   const cols = exportColumns(resource, columns);
   const personal = new Set(personalFields(resource));
-  const masked = !can('users.read');
+  // Bez `users.read` API zostawia kolumny z danymi klienta puste (w liście „Klient”); lista z odczytem `users.read`
+  // nie maskuje, bo operator i tak ma to uprawnienie.
+  const hidden = new Set(
+    can('users.read') || resource.permissions.read === 'users.read' ? [] : customerDataFields(resource),
+  );
   const personalCols = cols.filter((c) => personal.has(c.field));
-  const visiblePersonal = personalCols.filter((c) => !(masked && customerField(resource, c.field)));
-  const maskedPersonal = masked && personalCols.some((c) => customerField(resource, c.field));
+  const visiblePersonal = personalCols.filter((c) => !hidden.has(c.field));
+  const maskedCols = cols.filter((c) => hidden.has(c.field));
+  const maxRows = props.limit ?? LIST_EXPORT_LIMIT;
   const limitCount = phase.kind === 'error' && phase.limit !== undefined ? (phase.count ?? rows) : null;
-  const overLimit = (rows !== null && rows > LIST_EXPORT_LIMIT) || limitCount !== null;
+  const shownLimit = phase.kind === 'error' && phase.limit !== undefined ? phase.limit : maxRows;
+  const overLimit = (rows !== null && rows > maxRows) || limitCount !== null;
   const empty = rows === 0;
   const formatName = t.dynamic(`listExport.formats.${format}.short`);
   const noun = t.has(`listExport.nouns.${resource.name}`)
@@ -196,7 +201,7 @@ export function ListExportDialog(props: ListExportProps & { onClose: () => void 
         kind: 'error',
         message: errorMessage(error),
         ...(error instanceof ApiRequestError && error.code === 'LIST_EXPORT_LIMIT'
-          ? { limit: details.limit ?? LIST_EXPORT_LIMIT, count: details.count }
+          ? { limit: details.limit ?? maxRows, count: details.count }
           : {}),
       });
     }
@@ -284,9 +289,7 @@ export function ListExportDialog(props: ListExportProps & { onClose: () => void 
               </span>
               <span className="stack">
                 <b>{t('listExport.limitTitle')}</b>
-                <span>
-                  {t('listExport.limitBody', { count: limitCount ?? rows ?? 0, limit: LIST_EXPORT_LIMIT })}
-                </span>
+                <span>{t('listExport.limitBody', { count: limitCount ?? rows ?? 0, limit: shownLimit })}</span>
               </span>
             </div>
           )}
@@ -310,12 +313,12 @@ export function ListExportDialog(props: ListExportProps & { onClose: () => void 
               </span>
             </div>
           )}
-          {maskedPersonal && !overLimit && (
+          {maskedCols.length > 0 && !overLimit && (
             <div className="notice info lx-notice">
               <span className="ic" aria-hidden="true">
                 <ShieldIcon size={16} />
               </span>
-              <span>{t('listExport.masked')}</span>
+              <span>{t('listExport.masked', { fields: maskedCols.map((c) => c.label.toLowerCase()).join(', ') })}</span>
             </div>
           )}
           {phase.kind === 'error' && phase.limit === undefined && (

@@ -3,7 +3,18 @@
 /** Wspólne formaty nowych list iteracji 8 (makiety 34-panel-domkniecie): chwile, czasy trwania, odstępy. */
 import type { ReactNode } from 'react';
 import { formatClock, formatDate, formatDateTime, formatTime, isToday, t } from '../../lib/i18n';
+import { useSession } from '../../lib/session';
 import { InfoIcon } from './icons';
+
+/**
+ * Imię klienta na karcie rekordu: bez `users.read` API zwraca `null` (dane klienta ukryte), więc „Klient”;
+ * z uprawnieniem `null` znaczy klienta bez imienia.
+ */
+export function useCustomerLabel(): (name: string | null | undefined) => string {
+  const { can } = useSession();
+  const sees = can('users.read');
+  return (name) => name ?? (sees ? t('access.users.noName') : t('service.customer'));
+}
 
 /** „14:31:08” dziś, „18 lis, 09:12” wcześniej; pełna data w dymku. */
 export function When({ at, seconds = false, sub }: { at: string | null; seconds?: boolean; sub?: ReactNode }) {

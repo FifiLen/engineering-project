@@ -29,13 +29,13 @@ import { RentalSettlementCard, settlementPill } from './rental-settlement';
 import { RefundDialog } from './refund-dialog';
 import { valueLabel } from '../labels';
 import { useRentalDetails } from './rental-data';
+import { useCustomerLabel } from '../list-format';
 import {
   buildTimeline,
   CommandResponse,
   CommandResult,
   commandLabel,
   commandRows,
-  customerName,
   liveCounters,
   problemPill,
   REMOTE_END_STATES,
@@ -52,6 +52,7 @@ type LiveScooter = Pick<FleetMapScooter, 'lat' | 'lon' | 'speedKmh' | 'online' |
 
 export function RentalDetailsPage({ id }: { id: string }) {
   const { can } = useSession();
+  const customerLabel = useCustomerLabel();
   const [revision, setRevision] = useState(0);
   const { rental, receivedAt, error, apply, refresh } = useRentalDetails(id, revision);
   const [scooter, setScooter] = useState<ScooterDetails | null>(null);
@@ -121,7 +122,7 @@ export function RentalDetailsPage({ id }: { id: string }) {
   };
 
   const sub = [
-    customerName(rental),
+    customerLabel(rental.userName),
     `${t('rentals.scooter')} ${scooterNumber(rental.scooterNumber)}`,
     rental.reservedAt && t('rentals.sub.reserved', { date: formatDateTime(rental.reservedAt) }),
     rental.startedAt &&
@@ -366,7 +367,7 @@ export function RentalDetailsPage({ id }: { id: string }) {
                 {initials(rental.userName)}
               </span>
               <span className="stack grow">
-                <span className="name">{customerName(rental)}</span>
+                <span className="name">{customerLabel(rental.userName)}</span>
                 <small>
                   {[rental.userPhone, t('rentals.people.rides', { count: rental.userRidesCount })]
                     .filter(Boolean)

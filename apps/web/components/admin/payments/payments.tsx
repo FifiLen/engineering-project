@@ -34,6 +34,7 @@ import {
   providerLabel,
   useApiRecord,
 } from './payment-format';
+import { useCustomerLabel } from '../list-format';
 
 const customer = (p: Pick<PaymentListItem, 'userName'>) => p.userName ?? t('access.users.noName');
 
@@ -168,6 +169,7 @@ function PaymentDrawer({ id, onClose }: { id: string; onClose: () => void }) {
 /** Strona płatności (`/admin/platnosci/{id}`): odnośnik z przejazdu, webhooka albo księgi. */
 export function PaymentPage({ id }: { id: string }) {
   const { data: payment, error } = useApiRecord<PaymentAdminDetails>(`/admin/payments/${id}`);
+  const customerLabel = useCustomerLabel();
   if (!payment) return error ? <Banner kind="danger">{error}</Banner> : <div className="card" aria-busy="true" />;
   return (
     <>
@@ -183,7 +185,7 @@ export function PaymentPage({ id }: { id: string }) {
             <PaymentStatusPill status={payment.status} />
           </h1>
           <div className="sub">
-            {payment.userName ?? t('access.users.noName')}
+            {customerLabel(payment.userName)}
             {' · '}
             {formatDateTime(payment.createdAt)}
           </div>
@@ -200,6 +202,7 @@ export function PaymentPage({ id }: { id: string }) {
 }
 
 function PaymentHead({ payment }: { payment: PaymentAdminDetails | null }) {
+  const customerLabel = useCustomerLabel();
   if (!payment) return <h2 className="rd-title">{t('common.loading')}</h2>;
   return (
     <div>
@@ -208,7 +211,7 @@ function PaymentHead({ payment }: { payment: PaymentAdminDetails | null }) {
         <PaymentStatusPill status={payment.status} />
       </div>
       <div className="rd-sub">
-        <CustomerLink id={payment.userId} name={payment.userName ?? t('access.users.noName')} />
+        <CustomerLink id={payment.userId} name={customerLabel(payment.userName)} />
         {' · '}
         {formatDateTime(payment.createdAt)}
       </div>

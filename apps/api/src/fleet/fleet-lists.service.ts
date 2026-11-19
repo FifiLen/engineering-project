@@ -105,24 +105,21 @@ export class FleetListsService {
       request,
       query: { scooterId, from, to, batteryBelow: batteryBelow ?? null, inRide: inRide ?? false },
       limit: TELEMETRY_EXPORT_LIMIT,
-      open: async (tx) => {
-        const repo = this.repo(tx);
-        const count = await repo.telemetryCount(query);
-        async function* pages() {
-          let cursor: string | undefined;
-          for (;;) {
-            const page = await repo.telemetryReadings({
-              ...query,
-              direction: 'older',
-              cursor,
-              pageSize: TELEMETRY_EXPORT_BATCH,
-            });
-            if (page.items.length) yield page.items;
-            if (!page.olderCursor) return;
-            cursor = page.olderCursor;
-          }
+      count: (db) => this.repo(db).telemetryCount(query),
+      pages: async function* (tx) {
+        const repo = new DrizzleAdminListsRepository(tx);
+        let cursor: string | undefined;
+        for (;;) {
+          const page = await repo.telemetryReadings({
+            ...query,
+            direction: 'older',
+            cursor,
+            pageSize: TELEMETRY_EXPORT_BATCH,
+          });
+          if (page.items.length) yield page.items;
+          if (!page.olderCursor) return;
+          cursor = page.olderCursor;
         }
-        return { count, pages: pages() };
       },
     });
   }

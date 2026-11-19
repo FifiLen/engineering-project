@@ -530,6 +530,7 @@ Podstrony strony promocyjnej w stylu `14-strona` (nagłówek z pozycją „Aktua
 | Pobierz moje dane | [PNG](ekrany/31-mobile-tresci/moje-dane.png) | [HTML](ekrany/31-mobile-tresci/moje-dane.html) | 390×844 |
 | Moje dane: przygotowanie | [PNG](ekrany/31-mobile-tresci/moje-dane-przygotowanie.png) | [HTML](ekrany/31-mobile-tresci/moje-dane-przygotowanie.html) | 390×844 |
 | Moje dane: plik gotowy | [PNG](ekrany/31-mobile-tresci/moje-dane-gotowe.png) | [HTML](ekrany/31-mobile-tresci/moje-dane-gotowe.html) | 390×844 |
+| Komunikat na mapie (`mobile.notice`, iteracja 8) | [PNG](ekrany/31-mobile-tresci/komunikat.png) | [HTML](ekrany/31-mobile-tresci/komunikat.html) | 390×844 |
 
 Ustalenia z plansz:
 
@@ -537,6 +538,7 @@ Ustalenia z plansz:
 - Aktualności: data z `publish_from`, zajawka wymagana, podpis grafiki z biblioteki, zaplanowana albo wygasła daje 404, stronicowanie co [12].
 - `/h/{numer}`: bez dostępności, baterii i położenia (cache strony), `/h/7` przekierowuje na `/h/0007`, zły numer daje 404; dokąd prowadzi „Mam aplikację, otwórz hulajnogę” rozstrzyga ADR 0065.
 - Pomoc: kilka pytań otwartych naraz, bez sieci treść z pamięci telefonu z czasem ostatniego pobrania, „Moje zgłoszenia” nieaktywne, kontakt działa. „Pomoc i zgłoszenia” w profilu otwiera Pomoc.
+- Komunikat `mobile.notice` (dodany w iteracji 8): szklana karta pod paskiem „Dokąd jedziesz?” tylko w widoku podstawowym mapy, treść inline z bazy i opcjonalny przycisk tekstowy (`https:`, `mailto:`, `tel:`), ✕ chowa go dla tej wersji treści (skrót w pamięci telefonu), zmiana treści w panelu pokazuje go ponownie.
 - Paragon PDF: przycisk u dołu ekranu, zadanie trwa po wyjściu z ekranu, aplikacja czeka na `document.ready` (odpytywanie co [2] s, błąd po [30] s), wersja web otwiera PDF w nowej karcie. „Pobierz moje dane”: limit 24 h od zlecenia (nieudane się nie liczy), plik ważny 7 dni, drugie zlecenie daje `DATA_EXPORT_LIMIT`.
 
 Implementacja (19 listopada 2026) odchodzi od plansz w kilku miejscach. Strona: sekcja stref bez grafiki (rysunek ozdobny), sekcja aplikacji bez makiety telefonu, aktualność bez grafiki na szarym tle, lista aktualności na wspólnym wzorcu, `/h/{numer}` na telefonie z renderem nad numerem i bez „Jak ruszyć”, a 404 spoza tras ma stopkę bez danych firmy. Aplikacja: ikony zasad z planszy panelu zamiast `konto-zasady`, wstęp Pomocy między zgłoszeniami a FAQ, komunikat `mobile.notice` niewyświetlany, przycisk paragonu w stopce ekranu bez gradientu, karty błędu i wygaśnięcia eksportu bez plansz, a wersja web przy zablokowanym oknie pokazuje arkusz z „Otwórz”. Powiadomienie o gotowym eksporcie otwiera `/profil/moje-dane`. Pełna lista: [dziennik, iteracja 7](../dziennik.md#iteracja-7-implementacja-19-listopada-2026).

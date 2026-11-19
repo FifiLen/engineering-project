@@ -5,7 +5,7 @@
  */
 import type { FieldDefinition, ListFilter, ListQuery, ListResponse, ResourceDefinition } from '@hulajnogi/shared';
 import { and, asc, count, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
-import type { AnyPgColumn, PgTable, PgView } from 'drizzle-orm/pg-core';
+import { PgTransaction, type AnyPgColumn, type PgTable, type PgView } from 'drizzle-orm/pg-core';
 import type { DbExecutor } from '../client.js';
 
 export type ColumnMap<F extends string> = Record<F, AnyPgColumn>;
@@ -13,8 +13,11 @@ export type ColumnMap<F extends string> = Record<F, AnyPgColumn>;
 export interface ListSource<F extends string> {
   from: PgView | PgTable;
   columns: ColumnMap<F>;
-  /** Klucz dopisywany na końcu sortowania, żeby kolejność stron była stabilna. */
-  id: AnyPgColumn;
+  /**
+   * Klucz dopisywany na końcu sortowania, żeby kolejność stron była stabilna; klucz złożony (np. obecność w strefach:
+   * hulajnoga i strefa) jako lista kolumn w kolejności rozstrzygania.
+   */
+  id: AnyPgColumn | readonly AnyPgColumn[];
   /** Warunek stały źródła, np. ukrycie rekordów usuniętych. */
   where?: SQL;
 }
@@ -89,26 +92,46 @@ export async function runListQuery<F extends string, T = Record<F, unknown>>(
   const orderBy = [
     // Puste wartości zawsze na końcu, niezależnie od kierunku.
     ...query.sort.map((s) => sql`${columns[s.field]} ${s.desc ? sql`desc` : sql`asc`} nulls last`),
-    asc(source.id),
+    ...(Array.isArray(source.id) ? source.id : [source.id as AnyPgColumn]).map((column) => asc(column)),
   ];
 
-  const [rows, totals, ...facetRows] = await Promise.all([
+  const offset = (query.page - 1) * query.pageSize;
+  const page = () =>
     db
       .select(columns)
       .from(source.from)
       .where(where)
       .orderBy(...orderBy)
       .limit(query.pageSize)
-      .offset((query.page - 1) * query.pageSize),
-    db.select({ total: count() }).from(source.from).where(where),
-    ...query.facets.map((name) =>
-      db
-        .select({ value: columns[name]!, count: count() })
-        .from(source.from)
-        .where(conditions(name))
-        .groupBy(columns[name]!),
-    ),
-  ]);
+      .offset(offset);
+  const total = () =>
+    query.withTotal === false
+      ? Promise.resolve(null)
+      : db
+          .select({ total: count() })
+          .from(source.from)
+          .where(where)
+          .then((r) => r[0]!.total);
+  const facet = (name: string) =>
+    db
+      .select({ value: columns[name]!, count: count() })
+      .from(source.from)
+      .where(conditions(name))
+      .groupBy(columns[name]!);
+
+  // Transakcja ma jedno połączenie: zapytania po kolei (równoległe `query` na jednym kliencie `pg` są przestarzałe
+  // i i tak czekają w kolejce); poza transakcją każde zapytanie bierze własne połączenie z puli.
+  let rows: Awaited<ReturnType<typeof page>>;
+  let totalCount: number | null;
+  let facetRows: Awaited<ReturnType<typeof facet>>[];
+  if (db instanceof PgTransaction) {
+    rows = await page();
+    totalCount = await total();
+    facetRows = [];
+    for (const name of query.facets) facetRows.push(await facet(name));
+  } else {
+    [rows, totalCount, ...facetRows] = await Promise.all([page(), total(), ...query.facets.map(facet)]);
+  }
 
   const facets: ListResponse<T>['facets'] = {};
   query.facets.forEach((name, i) => {
@@ -119,7 +142,7 @@ export async function runListQuery<F extends string, T = Record<F, unknown>>(
     items: rows.map((r) => normalize(def, r) as T),
     page: query.page,
     pageSize: query.pageSize,
-    total: totals[0]!.total,
+    total: totalCount ?? offset + rows.length,
     facets,
   };
 }
@@ -127,7 +150,8 @@ export async function runListQuery<F extends string, T = Record<F, unknown>>(
 /**
  * Wszystkie strony listy partiami (eksport list, ADR 0073): to samo zapytanie, sortowanie listy z identyfikatorem
  * na końcu i strony po `batch` wierszy, bez liczników. Wywołujący otwiera transakcję `REPEATABLE READ READ ONLY`,
- * więc partie widzą te same dane, a limit wierszy sprawdza przed odczytem z `total` pierwszego wywołania.
+ * więc partie widzą te same dane, a limit wierszy sprawdza wcześniej osobnym zliczeniem; funkcja listy może
+ * pominąć `count(*)` (`withTotal: false`), bo koniec wyznacza partia krótsza od `batch`.
  */
 export async function* listPages<T>(
   list: (query: ListQuery) => Promise<ListResponse<T>>,

@@ -5,6 +5,7 @@ import { Text } from 'react-native';
 import { Body, Button, CodeInput, ErrorBox, Lead, Screen, Title, TopBar, useTheme } from '../components/ui';
 import { t } from '../i18n';
 import { api, ApiError, errorMessage, formatPhone } from '../lib/api';
+import { otpDeviceFields } from '../lib/device-info';
 import { homeFor, useSession } from '../lib/session';
 
 const RESEND_SECONDS = 60;
@@ -32,7 +33,7 @@ export default function CodeScreen() {
     try {
       const session = await api<CustomerSession>('/auth/otp/verify', {
         method: 'POST',
-        json: { phone: telefon, code: value, device: null },
+        json: { phone: telefon, code: value, ...otpDeviceFields() },
       });
       await signIn(session);
       router.replace(homeFor(session.me));
