@@ -113,6 +113,10 @@ export const sessionsResource = {
   permissions: { read: 'users.read', write: 'users.manage' },
 } as const satisfies ResourceDefinition;
 
+/** Unieważnienie rodziny sesji klienta albo operatora z panelu (`session.revoked`), powód opcjonalny. */
+export const sessionRevokeSchema = z.object({ reason: z.string().trim().min(1).max(300).optional() });
+export type SessionRevoke = z.infer<typeof sessionRevokeSchema>;
+
 export interface SessionListItem {
   id: string;
   shortId: string;
@@ -245,6 +249,14 @@ export const otpCodesResource = {
   deleteMode: 'none',
   permissions: { read: 'users.read', write: 'users.manage', delete: 'users.manage' },
 } as const satisfies ResourceDefinition;
+
+/** „Usuń wygasłe kody”: podgląd liczby (warunek procedury) i faktyczna liczba po wykonaniu (`otp.purged`). */
+export interface OtpPurgePreview {
+  count: number;
+}
+export interface OtpPurgeResult {
+  deleted: number;
+}
 
 export interface OtpCodeListItem {
   id: string;

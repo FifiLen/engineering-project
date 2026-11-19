@@ -57,6 +57,9 @@ export class DrizzleTelemetryRepository implements TelemetryRepository {
               position: point(reading),
               batteryPct: reading.batteryPct,
               speedKmh: reading.speedKmh,
+              // Pola kontraktu MQTT (Telemetry) do listy Flota → Telemetria (migracja 0013, ADR 0076).
+              locked: reading.locked,
+              buffered: reading.buffered,
               // Punkt należy do przejazdu w trakcie jazdy (dystans i trasa przejazdu, ADR 0042).
               rentalId: sql`(SELECT id FROM rentals WHERE scooter_id = ${scooterId} AND state IN ('ACTIVE', 'PAUSED', 'ENDING'))`,
             })),

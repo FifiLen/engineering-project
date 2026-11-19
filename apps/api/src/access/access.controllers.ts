@@ -13,10 +13,11 @@ import {
   type StaffAction,
   type StaffInvite,
   type StaffUpdate,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
 import { notFound } from '@hulajnogi/core';
 import { type Database, DrizzleAuditLogRepository } from '@hulajnogi/db';
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { EntityHistory } from '../audit/entity-history.service.js';
@@ -27,6 +28,9 @@ import { DB } from '../database/database.module.js';
 import { idParam, versionQuery } from '../fleet/scooters.controller.js';
 import { RolesService } from './roles.service.js';
 import { StaffService } from './staff.service.js';
+import type { FastifyReply } from 'fastify';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 /** Zasób panelu `staff`: operatorzy (ADR 0028, ADR 0031). */
 @ApiTags('panel: operatorzy i role')
@@ -35,12 +39,23 @@ export class StaffController {
   constructor(
     private readonly staff: StaffService,
     private readonly history: EntityHistory,
+    private readonly exporter: ListExportService,
   ) {}
 
   @RequirePermission('staff.read')
   @Get()
   list(@Query(new ListQueryPipe(staffResource)) query: ListQuery) {
     return this.staff.list(query);
+  }
+
+  @RequirePermission('staff.read')
+  @ListExport('operatorzy')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, staffResource, body, (db, query) => this.staff.list(query, db));
   }
 
   @RequirePermission('staff.read')
@@ -122,11 +137,14 @@ export class RolesController {
   constructor(
     private readonly roles: RolesService,
     private readonly history: EntityHistory,
+    private readonly exporter: ListExportService,
   ) {}
 
   @RequirePermission('staff.read')
-  @Get('permissions')
-  @ApiOperation({ summary: 'Katalog uprawnień z modułami i opisami' })
+  @Get('permissions/catalog')
+  @ApiOperation({
+    summary: 'Katalog uprawnień z modułami i opisami (macierz roli; lista z filtrami to GET /admin/permissions)',
+  })
   catalog() {
     return this.roles.catalog();
   }
@@ -135,6 +153,16 @@ export class RolesController {
   @Get('roles')
   list(@Query(new ListQueryPipe(rolesResource)) query: ListQuery) {
     return this.roles.list(query);
+  }
+
+  @RequirePermission('staff.read')
+  @ListExport('role', 'roles/export')
+  exportRoles(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, rolesResource, body, (db, query) => this.roles.list(query, db));
   }
 
   @RequirePermission('staff.read')
@@ -184,7 +212,10 @@ export class RolesController {
 export class AuditLogController {
   private readonly audit: DrizzleAuditLogRepository;
 
-  constructor(@Inject(DB) db: Database) {
+  constructor(
+    @Inject(DB) db: Database,
+    private readonly exporter: ListExportService,
+  ) {
     this.audit = new DrizzleAuditLogRepository(db);
   }
 
@@ -192,6 +223,18 @@ export class AuditLogController {
   @Get()
   list(@Query(new ListQueryPipe(auditLogResource)) query: ListQuery) {
     return this.audit.list(query);
+  }
+
+  @RequirePermission('audit.read')
+  @ListExport('dziennik audytu')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, auditLogResource, body, (db, query) =>
+      new DrizzleAuditLogRepository(db).list(query),
+    );
   }
 
   @RequirePermission('audit.read')

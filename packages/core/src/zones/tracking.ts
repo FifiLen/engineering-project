@@ -102,6 +102,19 @@ export interface ZoneControlCommand {
 }
 
 /**
+ * Strefa, która wymusza komendę strefy (`scooter_commands.zone_id`, ADR 0076): zatrzymanie od strefy zakazu, limit od
+ * strefy wolnej jazdy z tym limitem. `null`, gdy przyczyną nie jest jedna strefa: zatrzymanie poza obszarem usługi,
+ * limit krytycznej baterii, zdjęcie limitu albo przywrócenie napędu po wyjeździe.
+ */
+export function zoneCommandZone(zones: readonly Zone[], command: ZoneControlCommand): Zone | null {
+  if (command.type === 'STOP_GRADUALLY') return zones.find((z) => z.type === 'NO_RIDE') ?? null;
+  if (command.type === 'SPEED_LIMIT' && command.speedLimitKmh != null) {
+    return zones.find((z) => z.type === 'SLOW' && z.speedLimitKmh === command.speedLimitKmh) ?? null;
+  }
+  return null;
+}
+
+/**
  * Uzgadnianie stanu docelowego (ADR 0044): komenda tylko przy różnicy albo po nieudanej poprzedniej.
  * Zatrzymanie ma pierwszeństwo, ale limit też jest wysyłany, żeby po wyjeździe ze strefy zakazu obowiązywał.
  */

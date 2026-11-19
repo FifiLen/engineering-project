@@ -1,5 +1,5 @@
 import { DomainError, ensureNoScheduledTariff, notFound, tariffChanges, validateTariffInput } from '@hulajnogi/core';
-import { type Database, DrizzleTariffRepository, tariffValues } from '@hulajnogi/db';
+import { type Database, type DbExecutor, DrizzleTariffRepository, tariffValues } from '@hulajnogi/db';
 import type { ListQuery, NewTariff, TariffDetailsView, TariffVersionItem } from '@hulajnogi/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { AuditedTransaction } from '../audit/audited-transaction.js';
@@ -24,8 +24,8 @@ export class TariffsService {
     return tariff;
   }
 
-  list(query: ListQuery) {
-    return new DrizzleTariffRepository(this.db).list(query);
+  list(query: ListQuery, db: DbExecutor = this.db) {
+    return new DrizzleTariffRepository(db).list(query);
   }
 
   async item(id: string): Promise<TariffVersionItem> {

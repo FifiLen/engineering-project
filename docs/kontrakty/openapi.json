@@ -54,6 +54,91 @@
         ]
       }
     },
+    "/admin/audit-log/export": {
+      "post": {
+        "operationId": "AuditLogController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (dziennik audytu) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
     "/admin/auth/invitations/{token}": {
       "get": {
         "operationId": "StaffAuthController_invitation",
@@ -218,6 +303,130 @@
         ]
       }
     },
+    "/admin/consents": {
+      "get": {
+        "operationId": "ConsentsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zgody klientów (typ, wersja dokumentu, źródło, stan liczony w widoku) według wzorca listy",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
+    "/admin/consents/{id}/revoke": {
+      "post": {
+        "operationId": "ConsentsController_revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Wycofanie zgody marketingowej z powodem (wpis consent.revoked); regulamin, polityka i wiek to 409 CONSENT_NOT_REVOCABLE",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
+    "/admin/consents/export": {
+      "post": {
+        "operationId": "ConsentsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (zgody) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
     "/admin/content-blocks": {
       "get": {
         "operationId": "ContentBlocksController_list",
@@ -228,6 +437,91 @@
           }
         },
         "summary": "Bloki treści według wzorca listy z licznikami sekcji (elementy, opublikowane, szkice)",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
+    "/admin/content-blocks/export": {
+      "post": {
+        "operationId": "ContentBlocksController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (bloki treści) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: treści"
         ]
@@ -348,6 +642,91 @@
         ]
       }
     },
+    "/admin/data-exports/export": {
+      "post": {
+        "operationId": "AdminDataExportsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (eksporty danych klientów) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: użytkownicy"
+        ]
+      }
+    },
     "/admin/document-templates": {
       "get": {
         "operationId": "DocumentTemplatesController_list",
@@ -370,7 +749,7 @@
             "description": ""
           }
         },
-        "summary": "Nowy szablon rodzaju z katalogu (bez wersji); nazwa unikalna w rodzaju (409 ALREADY_EXISTS)",
+        "summary": "Nowy szablon rodzaju z katalogu (bez wersji); nazwa unikalna w rodzaju (409 TEMPLATE_NAME_TAKEN)",
         "tags": [
           "panel: wydruki"
         ]
@@ -398,6 +777,52 @@
         "tags": [
           "panel: wydruki"
         ]
+      },
+      "patch": {
+        "operationId": "DocumentTemplatesController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Nazwa i opis szablonu z blokadą optymistyczną (409 CONFLICT); zajęta nazwa w rodzaju 409 TEMPLATE_NAME_TAKEN; wpis document_template.updated",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-templates/{id}/deactivate": {
+      "post": {
+        "operationId": "DocumentTemplatesController_deactivate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Dezaktywacja szablonu (znika z „Drukuj”, wersje i wydruki zostają); domyślny z aktywną wersją 409 TEMPLATE_IS_DEFAULT; wpis document_template.deactivated",
+        "tags": [
+          "panel: wydruki"
+        ]
       }
     },
     "/admin/document-templates/{id}/default": {
@@ -419,6 +844,30 @@
           }
         },
         "summary": "Szablon domyślny rodzaju (409 TEMPLATE_NO_ACTIVE_VERSION, TEMPLATE_INACTIVE)",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-templates/{id}/reactivate": {
+      "post": {
+        "operationId": "DocumentTemplatesController_reactivate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "„Aktywuj ponownie”: szablon wraca jako aktywny, bez roli domyślnego",
         "tags": [
           "panel: wydruki"
         ]
@@ -595,6 +1044,91 @@
           }
         },
         "summary": "Podgląd PDF na danych przykładowych (synchronicznie, limit 30 s; zapamiętany przy wersji); RENDER_TIMEOUT 504, RENDERER_UNAVAILABLE 503, RENDER_FAILED 502",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/document-templates/export": {
+      "post": {
+        "operationId": "DocumentTemplatesController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (szablony wydruków) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: wydruki"
         ]
@@ -841,6 +1375,91 @@
         ]
       }
     },
+    "/admin/faq-categories/export": {
+      "post": {
+        "operationId": "FaqCategoriesController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (kategorie FAQ) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
     "/admin/faq-categories/order": {
       "put": {
         "operationId": "FaqCategoriesController_reorder",
@@ -972,6 +1591,91 @@
         ]
       }
     },
+    "/admin/faq-items/export": {
+      "post": {
+        "operationId": "FaqItemsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (pytania FAQ) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
     "/admin/faq-items/order": {
       "put": {
         "operationId": "FaqItemsController_reorder",
@@ -1026,6 +1730,91 @@
         ]
       }
     },
+    "/admin/files/export": {
+      "post": {
+        "operationId": "AdminFilesController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (pliki) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: pliki"
+        ]
+      }
+    },
     "/admin/fleet/map": {
       "get": {
         "operationId": "FleetMapController_map",
@@ -1050,6 +1839,91 @@
           }
         },
         "summary": "Wygenerowane dokumenty według wzorca listy (liczniki stanów, filtry rodzaju, stanu, formatu i zlecającego); q z 8 znaków szuka identyfikatora ze stopki",
+        "tags": [
+          "panel: wydruki"
+        ]
+      }
+    },
+    "/admin/generated-documents/export": {
+      "post": {
+        "operationId": "GeneratedDocumentsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (wygenerowane dokumenty) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: wydruki"
         ]
@@ -1372,6 +2246,91 @@
         ]
       }
     },
+    "/admin/media/export": {
+      "post": {
+        "operationId": "MediaController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (media) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
     "/admin/news": {
       "get": {
         "operationId": "NewsController_list",
@@ -1488,6 +2447,91 @@
         ]
       }
     },
+    "/admin/news/export": {
+      "post": {
+        "operationId": "NewsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (aktualności) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: treści"
+        ]
+      }
+    },
     "/admin/notification-templates": {
       "get": {
         "operationId": "AdminNotificationTemplatesController_list",
@@ -1596,6 +2640,91 @@
         ]
       }
     },
+    "/admin/notification-templates/export": {
+      "post": {
+        "operationId": "AdminNotificationTemplatesController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (szablony powiadomień) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: powiadomienia"
+        ]
+      }
+    },
     "/admin/notifications": {
       "get": {
         "operationId": "AdminNotificationsController_list",
@@ -1608,6 +2737,319 @@
         "summary": "Wysłane powiadomienia ze stanem wysyłki; bez users.read bez imienia i telefonu klienta (userName = null)",
         "tags": [
           "panel: powiadomienia"
+        ]
+      }
+    },
+    "/admin/notifications/export": {
+      "post": {
+        "operationId": "AdminNotificationsController_exportNotifications",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (wysłane powiadomienia) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: powiadomienia"
+        ]
+      }
+    },
+    "/admin/otp-codes": {
+      "get": {
+        "operationId": "OtpCodesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Kody SMS (cel, stan, próby; numer zamaskowany w bazie) według wzorca listy",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
+    "/admin/otp-codes/export": {
+      "post": {
+        "operationId": "OtpCodesController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (kody SMS) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
+    "/admin/otp-codes/purge": {
+      "get": {
+        "operationId": "OtpCodesController_purgeable",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Podgląd „Usuń wygasłe kody”: liczba kodów wygasłych ponad dobę temu (warunek procedury)",
+        "tags": [
+          "panel: klienci"
+        ]
+      },
+      "post": {
+        "operationId": "OtpCodesController_purge",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "„Usuń wygasłe kody” (sp_purge_expired_otp): faktyczna liczba usuniętych, wpis otp.purged",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
+    "/admin/payment-customers": {
+      "get": {
+        "operationId": "PaymentCustomersController_customers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Klienci u operatora płatności według wzorca listy; bez users.read userName = null",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/payment-customers/export": {
+      "post": {
+        "operationId": "PaymentCustomersController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (klienci operatora płatności) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: płatności"
         ]
       }
     },
@@ -1626,6 +3068,91 @@
         ]
       }
     },
+    "/admin/payment-methods/export": {
+      "post": {
+        "operationId": "AdminPaymentsController_exportMethods",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (karty klientów) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
     "/admin/payment-webhook-events": {
       "get": {
         "operationId": "AdminPaymentsController_webhooks",
@@ -1636,6 +3163,91 @@
           }
         },
         "summary": "Webhooki operatora z wynikiem przetworzenia i liczbą dostarczeń",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/payment-webhook-events/export": {
+      "post": {
+        "operationId": "AdminPaymentsController_exportWebhooks",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (webhooki operatora) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: płatności"
         ]
@@ -1679,7 +3291,131 @@
         ]
       }
     },
+    "/admin/payments/export": {
+      "post": {
+        "operationId": "AdminPaymentsController_exportPayments",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (płatności) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
     "/admin/permissions": {
+      "get": {
+        "operationId": "PermissionsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Uprawnienia (kod, grupa, opis, role) według wzorca listy; katalog do macierzy: /catalog",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/permissions/{code}": {
+      "patch": {
+        "operationId": "PermissionsController_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Opis uprawnienia (do 160 znaków) z blokadą optymistyczną (409 CONFLICT); wpis permission.updated",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/permissions/catalog": {
       "get": {
         "operationId": "RolesController_catalog",
         "parameters": [],
@@ -1688,7 +3424,92 @@
             "description": ""
           }
         },
-        "summary": "Katalog uprawnień z modułami i opisami",
+        "summary": "Katalog uprawnień z modułami i opisami (macierz roli; lista z filtrami to GET /admin/permissions)",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/permissions/export": {
+      "post": {
+        "operationId": "PermissionsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (uprawnienia) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: operatorzy i role"
         ]
@@ -1704,6 +3525,91 @@
           }
         },
         "summary": "Tokeny push klientów ze stanem sesji",
+        "tags": [
+          "panel: powiadomienia"
+        ]
+      }
+    },
+    "/admin/push-tokens/export": {
+      "post": {
+        "operationId": "AdminNotificationsController_exportPushTokens",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (tokeny push) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: powiadomienia"
         ]
@@ -1747,6 +3653,91 @@
         ]
       }
     },
+    "/admin/receipts/export": {
+      "post": {
+        "operationId": "AdminPaymentsController_exportReceipts",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (paragony) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
     "/admin/refunds": {
       "get": {
         "operationId": "AdminPaymentsController_refunds",
@@ -1759,6 +3750,191 @@
         "summary": "Zwroty za przejazdy i zwroty salda ze stanem u operatora",
         "tags": [
           "panel: płatności"
+        ]
+      }
+    },
+    "/admin/refunds/export": {
+      "post": {
+        "operationId": "AdminPaymentsController_exportRefunds",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (zwroty) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/rental-events": {
+      "get": {
+        "operationId": "RentalEventsController_events",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zdarzenia przejazdów (typ, przejazd, hulajnoga, strefa) według wzorca listy; bez users.read userName = null",
+        "tags": [
+          "panel: przejazdy"
+        ]
+      }
+    },
+    "/admin/rental-events/export": {
+      "post": {
+        "operationId": "RentalEventsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (zdarzenia przejazdów) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: przejazdy"
         ]
       }
     },
@@ -1843,6 +4019,91 @@
           }
         },
         "summary": "Zwrot za przejazd według źródła płatności (pytanie 11): portfel od razu, karta u operatora; suma zwrotów nie większa niż zapłata",
+        "tags": [
+          "panel: przejazdy"
+        ]
+      }
+    },
+    "/admin/rentals/export": {
+      "post": {
+        "operationId": "AdminRentalsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (przejazdy) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: przejazdy"
         ]
@@ -1964,6 +4225,315 @@
         ]
       }
     },
+    "/admin/roles/export": {
+      "post": {
+        "operationId": "RolesController_exportRoles",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (role) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/saved-places": {
+      "get": {
+        "operationId": "SavedPlacesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zapisane miejsca klientów (na karcie klienta z filtrem userId) według wzorca listy",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
+    "/admin/saved-places/{id}": {
+      "delete": {
+        "operationId": "SavedPlacesController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie zapisanego miejsca klienta (wpis saved_place.deleted)",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
+    "/admin/saved-places/export": {
+      "post": {
+        "operationId": "SavedPlacesController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (zapisane miejsca) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
+    "/admin/scooter-commands": {
+      "get": {
+        "operationId": "ScooterCommandsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Komendy hulajnóg (źródło, strefa, operator, przejazd, czas odpowiedzi) według wzorca listy",
+        "tags": [
+          "panel: flota"
+        ]
+      }
+    },
+    "/admin/scooter-commands/export": {
+      "post": {
+        "operationId": "ScooterCommandsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (komendy hulajnóg) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: flota"
+        ]
+      }
+    },
     "/admin/scooter-models": {
       "get": {
         "operationId": "ScooterModelsController_list",
@@ -2075,6 +4645,191 @@
             "description": ""
           }
         },
+        "tags": [
+          "panel: flota"
+        ]
+      }
+    },
+    "/admin/scooter-models/export": {
+      "post": {
+        "operationId": "ScooterModelsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (modele hulajnóg) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: flota"
+        ]
+      }
+    },
+    "/admin/scooter-status-history": {
+      "get": {
+        "operationId": "ScooterStatusHistoryController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Przedziały stanu i łączności z przyczyną według wzorca listy; opcjonalny okres from/to wybiera przedziały nachodzące na niego (także otwarte)",
+        "tags": [
+          "panel: flota"
+        ]
+      }
+    },
+    "/admin/scooter-status-history/export": {
+      "post": {
+        "operationId": "ScooterStatusHistoryController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (historia stanów hulajnóg) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: flota"
         ]
@@ -2313,6 +5068,115 @@
         ]
       }
     },
+    "/admin/scooters/{id}/status-time": {
+      "get": {
+        "operationId": "ScooterStatusTimeController_statusTime",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Przedziały przycięte do okresu (do 92 dni), sekundy w kategoriach czasu, wykorzystanie, dostępność i udziały (definicje z core)",
+        "tags": [
+          "panel: flota"
+        ]
+      }
+    },
+    "/admin/scooters/export": {
+      "post": {
+        "operationId": "ScootersController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (hulajnogi) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: flota"
+        ]
+      }
+    },
     "/admin/service-tasks": {
       "get": {
         "operationId": "ServiceTasksController_list",
@@ -2530,6 +5394,91 @@
         ]
       }
     },
+    "/admin/service-tasks/export": {
+      "post": {
+        "operationId": "ServiceTasksController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (zadania serwisowe) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: serwis"
+        ]
+      }
+    },
     "/admin/service-tasks/mine": {
       "get": {
         "operationId": "ServiceTasksController_mine",
@@ -2542,6 +5491,130 @@
         "summary": "Moje zadania: lista z wykonawcą ustawionym na zalogowanego operatora",
         "tags": [
           "panel: serwis"
+        ]
+      }
+    },
+    "/admin/sessions": {
+      "get": {
+        "operationId": "SessionsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Sesje klientów (jedna na logowanie, bez skrótów tokenów) według wzorca listy",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
+    "/admin/sessions/{id}/revoke": {
+      "post": {
+        "operationId": "SessionsController_revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unieważnienie rodziny sesji (id z listy) z opcjonalnym powodem; token dostępu działa do 15 min; wpis session.revoked",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
+    "/admin/sessions/export": {
+      "post": {
+        "operationId": "SessionsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (sesje klientów) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: klienci"
         ]
       }
     },
@@ -2584,6 +5657,91 @@
           }
         },
         "summary": "Ruchy magazynowe (przyjęcie, korekta, użycie, zwrot) tylko do odczytu",
+        "tags": [
+          "panel: magazyn"
+        ]
+      }
+    },
+    "/admin/spare-part-movements/export": {
+      "post": {
+        "operationId": "SparePartsController_exportMovements",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (ruchy magazynowe) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: magazyn"
         ]
@@ -2755,6 +5913,91 @@
         ]
       }
     },
+    "/admin/spare-parts/export": {
+      "post": {
+        "operationId": "SparePartsController_exportParts",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (części zamienne) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: magazyn"
+        ]
+      }
+    },
     "/admin/staff": {
       "get": {
         "operationId": "StaffController_list",
@@ -2777,6 +6020,278 @@
           }
         },
         "summary": "Zaproszenie operatora: konto bez hasła z rolami i link aktywacji (72 h)",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/staff-invitations": {
+      "get": {
+        "operationId": "StaffInvitationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Zaproszenia operatorów (stan, ponowne wysłanie, zastąpienie) według wzorca listy",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/staff-invitations/{id}/resend": {
+      "post": {
+        "operationId": "StaffInvitationsController_resend",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Ponowne wysłanie: nowe zaproszenie zastępuje otwarte (replaced_by), link pokazywany raz; wpis staff.invitation_resent",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/staff-invitations/{id}/revoke": {
+      "post": {
+        "operationId": "StaffInvitationsController_revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unieważnienie oczekującego zaproszenia (409 INVITATION_NOT_PENDING); wpis staff.invitation_revoked",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/staff-invitations/export": {
+      "post": {
+        "operationId": "StaffInvitationsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (zaproszenia operatorów) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/staff-sessions": {
+      "get": {
+        "operationId": "StaffSessionsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Sesje operatorów (przeglądarka, zapamiętanie urządzenia, stan) według wzorca listy",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/staff-sessions/{id}/revoke": {
+      "post": {
+        "operationId": "StaffSessionsController_revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Unieważnienie rodziny sesji operatora; token dostępu działa do 15 min; wpis session.revoked",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
+    "/admin/staff-sessions/export": {
+      "post": {
+        "operationId": "StaffSessionsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (sesje operatorów) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: operatorzy i role"
         ]
@@ -2942,6 +6457,91 @@
         ]
       }
     },
+    "/admin/staff/export": {
+      "post": {
+        "operationId": "StaffController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (operatorzy) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: operatorzy i role"
+        ]
+      }
+    },
     "/admin/tariffs": {
       "get": {
         "operationId": "AdminTariffsController_list",
@@ -3012,6 +6612,191 @@
         },
         "tags": [
           "panel: cennik"
+        ]
+      }
+    },
+    "/admin/tariffs/export": {
+      "post": {
+        "operationId": "AdminTariffsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (cennik) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: cennik"
+        ]
+      }
+    },
+    "/admin/telemetry": {
+      "get": {
+        "operationId": "TelemetryAdminController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Odczyty hulajnogi w zakresie (najwyżej 24 h, w oknie retencji 90 dni) od najnowszych, kursor older/newer, filtry baterii i przejazdu, bez total",
+        "tags": [
+          "panel: flota"
+        ]
+      }
+    },
+    "/admin/telemetry/export": {
+      "post": {
+        "operationId": "TelemetryAdminController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (telemetria hulajnogi w zakresie) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: flota"
         ]
       }
     },
@@ -3165,6 +6950,91 @@
           }
         },
         "summary": "Zmiana statusu (NEW, IN_PROGRESS, RESOLVED) i odpowiedź dla klienta (D7); RESOLVED zgłoszenia klienta wymaga odpowiedzi",
+        "tags": [
+          "panel: zgłoszenia"
+        ]
+      }
+    },
+    "/admin/tickets/export": {
+      "post": {
+        "operationId": "AdminTicketsController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (zgłoszenia) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: zgłoszenia"
         ]
@@ -3393,6 +7263,91 @@
         ]
       }
     },
+    "/admin/users/export": {
+      "post": {
+        "operationId": "UsersController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (klienci) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: klienci"
+        ]
+      }
+    },
     "/admin/wallet-ledger": {
       "get": {
         "operationId": "AdminPaymentsController_ledger",
@@ -3403,6 +7358,91 @@
           }
         },
         "summary": "Księga portfeli (tylko do dopisywania) z saldem po operacji",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/wallet-ledger/export": {
+      "post": {
+        "operationId": "AdminPaymentsController_exportLedger",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (księga portfeli) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
         "tags": [
           "panel: płatności"
         ]
@@ -3420,6 +7460,291 @@
         "summary": "Portfele z saldem z pamięci podręcznej porównanym z księgą (`outOfSync`)",
         "tags": [
           "panel: płatności"
+        ]
+      }
+    },
+    "/admin/wallets/export": {
+      "post": {
+        "operationId": "AdminPaymentsController_exportWallets",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (portfele) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: płatności"
+        ]
+      }
+    },
+    "/admin/zone-control": {
+      "get": {
+        "operationId": "ZoneListsController_control",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Sterowanie strefami hulajnóg w przejeździe (limit, zatrzymanie, wynik ostatnich komend)",
+        "tags": [
+          "panel: strefy"
+        ]
+      }
+    },
+    "/admin/zone-control/export": {
+      "post": {
+        "operationId": "ZoneListsController_exportControl",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (komendy stref) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: strefy"
+        ]
+      }
+    },
+    "/admin/zone-presence": {
+      "get": {
+        "operationId": "ZoneListsController_presence",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obecność hulajnóg w strefach w trakcie przejazdu (od kiedy, odczyty poza strefą)",
+        "tags": [
+          "panel: strefy"
+        ]
+      }
+    },
+    "/admin/zone-presence/export": {
+      "post": {
+        "operationId": "ZoneListsController_exportPresence",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (obecność w strefach) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: strefy"
         ]
       }
     },
@@ -3590,6 +7915,91 @@
         ]
       }
     },
+    "/admin/zones/export": {
+      "post": {
+        "operationId": "AdminZonesController_export",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "columns": {
+                    "items": {
+                      "properties": {
+                        "field": {
+                          "description": "Pole z definicji zasobu",
+                          "type": "string"
+                        },
+                        "label": {
+                          "description": "Nagłówek kolumny z pl.json panelu",
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "values": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Teksty wartości pola enum (kod → etykieta)",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "label"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 80,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "format": {
+                    "enum": [
+                      "xlsx",
+                      "csv"
+                    ],
+                    "type": "string"
+                  },
+                  "query": {
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      ]
+                    },
+                    "description": "Parametry listy jak w adresie GET (q, filtry, sort); page, pageSize i facets są pomijane",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "format",
+                  "columns"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plik z nagłówkiem content-disposition: attachment; filename=\"{zasób}-{data}.{xlsx|csv}\""
+          }
+        },
+        "summary": "Eksport listy (strefy) do XLSX albo CSV z filtrami i sortowaniem listy; powyżej 50000 wierszy 422 LIST_EXPORT_LIMIT, kolumna spoza definicji 400 VALIDATION_FAILED, wpis list.exported",
+        "tags": [
+          "panel: strefy"
+        ]
+      }
+    },
     "/admin/zones/impact": {
       "post": {
         "operationId": "AdminZonesController_impactNew",
@@ -3643,7 +8053,7 @@
             "description": ""
           }
         },
-        "summary": "Potwierdza kod; zakłada konto przy pierwszym logowaniu i zwraca tokeny oraz następny ekran",
+        "summary": "Potwierdza kod; zakłada konto przy pierwszym logowaniu i zwraca tokeny oraz następny ekran (opcjonalnie urządzenie, platforma i wersja aplikacji do listy sesji)",
         "tags": [
           "aplikacja: konto"
         ]

@@ -77,6 +77,19 @@ export const documentTemplateCreateSchema = z.object({
 });
 export type DocumentTemplateCreate = z.infer<typeof documentTemplateCreateSchema>;
 
+/**
+ * Nazwa i opis szablonu (ADR 0076): `PATCH /admin/document-templates/{id}` z wersją rekordu; rodzaj jest niezmienny.
+ * Zajęta nazwa w rodzaju to `409 TEMPLATE_NAME_TAKEN` z `details.field = name`.
+ */
+export const documentTemplateUpdateSchema = z
+  .object({
+    version: z.number().int().min(1),
+    name: documentTemplateCreateSchema.shape.name.optional(),
+    description: z.string().trim().max(500).nullable().optional(),
+  })
+  .refine((v) => v.name !== undefined || v.description !== undefined, { message: 'Brak zmian', path: ['name'] });
+export type DocumentTemplateUpdate = z.infer<typeof documentTemplateUpdateSchema>;
+
 /** Pola formularza `multipart/form-data` wgrania wersji obok pola `file`. */
 export const templateVersionUploadFieldsSchema = z.object({
   note: z.string().trim().max(300).nullable().default(null),

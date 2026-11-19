@@ -688,11 +688,17 @@ export class DrizzleRentalRepository {
     ttlMs: number;
     /** Parametry komendy MQTT (limit prędkości strefy; `speed_limit` bez `kmh` zdejmuje limit). */
     params?: { kmh?: number };
+    /**
+     * Komenda strefy (ADR 0076): źródło `ZONE` i strefa, która ją wymusza (`null` bez jednej strefy). Bez tego źródło
+     * uzupełnia wyzwalacz `scooter_commands_source` (przejazd albo system).
+     */
+    zone?: { zoneId: string | null };
   }): Promise<RentalCommandRecord> {
+    const source = input.zone ? sql`'ZONE'::command_source` : sql`NULL`;
     const row = await this.one(sql`
-      INSERT INTO scooter_commands (scooter_id, rental_id, type, payload, expires_at)
+      INSERT INTO scooter_commands (scooter_id, rental_id, type, payload, expires_at, source, zone_id)
       VALUES (${input.scooterId}, ${input.rentalId}, ${input.type}, ${JSON.stringify(input.params ?? {})}::jsonb,
-              now() + make_interval(secs => ${input.ttlMs / 1000}))
+              now() + make_interval(secs => ${input.ttlMs / 1000}), ${source}, ${input.zone?.zoneId ?? null}::uuid)
       RETURNING id`);
     return (await this.command(row!.id as string))!;
   }

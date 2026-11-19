@@ -15,8 +15,17 @@ export class DrizzleOtpRepository implements OtpRepository {
     return rows.map((r) => r.createdAt);
   }
 
-  async create(phone: string, codeHash: string, expiresAt: Date): Promise<{ id: string }> {
-    const [row] = await this.db.insert(otpCodes).values({ phone, codeHash, expiresAt }).returning({ id: otpCodes.id });
+  /** Cel kodu (ADR 0076): `REGISTER`, gdy numer nie ma jeszcze konta, inaczej logowanie. */
+  async create(
+    phone: string,
+    codeHash: string,
+    expiresAt: Date,
+    purpose: 'LOGIN' | 'REGISTER' = 'LOGIN',
+  ): Promise<{ id: string }> {
+    const [row] = await this.db
+      .insert(otpCodes)
+      .values({ phone, codeHash, expiresAt, purpose })
+      .returning({ id: otpCodes.id });
     return row!;
   }
 

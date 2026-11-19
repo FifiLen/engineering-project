@@ -9,6 +9,7 @@ import { PAYMENT_PROVIDER, type PaymentProvider } from './provider/payment-provi
 import { StripePaymentProvider } from './provider/stripe-payment-provider.js';
 import { TariffsService } from './tariffs.service.js';
 import { PaymentDataExport } from './payment-data-export.js';
+import { PaymentCustomersController } from './payment-customers.controller.js';
 
 /** Operator płatności z konfiguracji (D1): atrapa domyślnie, Stripe po wpisaniu kluczy testowych. */
 export function createPaymentProvider(config: AppConfig): PaymentProvider {
@@ -37,6 +38,7 @@ export function createPaymentProvider(config: AppConfig): PaymentProvider {
     FakeProviderController,
     AdminPaymentsController,
     AdminTariffsController,
+    PaymentCustomersController,
   ],
   providers: [
     { provide: PAYMENT_PROVIDER, inject: [CONFIG], useFactory: createPaymentProvider },

@@ -10,6 +10,7 @@ import { FilesModule } from './files/files.module.js';
 import { FleetModule } from './fleet/fleet.module.js';
 import { HealthController } from './health/health.controller.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { ListExportModule } from './common/list-export/list-export.module.js';
 import { MqttModule } from './mqtt/mqtt.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { OperationsModule } from './operations/operations.module.js';
@@ -32,6 +33,7 @@ export class AppModule {
         NotificationsModule,
         AuthModule,
         AccessModule,
+        ListExportModule,
         MqttModule,
         RealtimeModule,
         FilesModule,

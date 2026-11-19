@@ -3,6 +3,7 @@ import {
   type ContentBlockFields,
   type ContentBlockRecord,
   type Database,
+  type DbExecutor,
   DrizzleContentRepository,
   DrizzleMediaRepository,
   type HistoryRow,
@@ -117,8 +118,8 @@ export class SectionsService {
     private readonly publisher: ContentPublisher,
   ) {}
 
-  listBlocks(query: ListQuery): Promise<ListResponse<ContentBlockListItem>> {
-    return new DrizzleContentRepository(this.db).listBlocks(query);
+  listBlocks(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<ContentBlockListItem>> {
+    return new DrizzleContentRepository(db).listBlocks(query);
   }
 
   /** Sekcje z rejestru w jego kolejności ze stanem nagłówka i licznikami elementów. */

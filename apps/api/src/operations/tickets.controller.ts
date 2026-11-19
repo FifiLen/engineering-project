@@ -11,8 +11,9 @@ import {
   type TicketAssign,
   type TicketPhotoAdd,
   type TicketStatusChange,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import {
@@ -26,6 +27,9 @@ import {
 import { ListQueryPipe } from '../common/list-query.pipe.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { TicketsService } from './tickets.service.js';
+import type { FastifyReply } from 'fastify';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 const idParam = new ZodPipe(z.uuid());
 
@@ -67,7 +71,10 @@ export class CustomerTicketsController {
 @ApiTags('panel: zgłoszenia')
 @Controller('admin/tickets')
 export class AdminTicketsController {
-  constructor(private readonly tickets: TicketsService) {}
+  constructor(
+    private readonly tickets: TicketsService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('tickets.read')
   @Get()
@@ -76,6 +83,18 @@ export class AdminTicketsController {
   })
   list(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(ticketsResource)) query: ListQuery) {
     return this.tickets.list(staff.staffId, query);
+  }
+
+  @RequirePermission('tickets.read')
+  @ListExport('zgłoszenia')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, ticketsResource, body, (db, query) =>
+      this.tickets.list(staff.staffId, query, db),
+    );
   }
 
   @RequirePermission('tickets.read')

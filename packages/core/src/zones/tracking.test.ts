@@ -13,6 +13,7 @@ import {
   desiredZoneControl,
   detectZoneChanges,
   RESET_ZONE_CONTROL,
+  zoneCommandZone,
   zoneControlCommands,
   type ZonePresence,
   type ZoneReading,
@@ -203,5 +204,18 @@ describe('edycja strefy (ADR 0047)', () => {
       'SERVICE_AREA_REQUIRED',
     );
     expect(error(() => ensureZoneCanDeactivate({ type: 'PARKING', active: true }))).toBeNull();
+  });
+});
+
+describe('strefa komendy strefy (ADR 0076)', () => {
+  it('zatrzymanie od strefy zakazu, limit od strefy wolnej jazdy z tym limitem, reszta bez strefy', () => {
+    const SLOW_15 = zone('S-02', 'SLOW', 15);
+    const zones = [AREA, SLOW, SLOW_15, NO_RIDE];
+    expect(zoneCommandZone(zones, { type: 'STOP_GRADUALLY' })).toBe(NO_RIDE);
+    expect(zoneCommandZone([SLOW], { type: 'STOP_GRADUALLY' })).toBeNull();
+    expect(zoneCommandZone(zones, { type: 'SPEED_LIMIT', speedLimitKmh: 15 })).toBe(SLOW_15);
+    expect(zoneCommandZone(zones, { type: 'SPEED_LIMIT', speedLimitKmh: 6 })).toBeNull();
+    expect(zoneCommandZone(zones, { type: 'SPEED_LIMIT', speedLimitKmh: null })).toBeNull();
+    expect(zoneCommandZone(zones, { type: 'RELEASE_STOP' })).toBeNull();
   });
 });

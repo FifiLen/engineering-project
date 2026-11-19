@@ -179,6 +179,49 @@ export interface ScooterStatusHistoryItem {
   reasonStaffName: string | null;
 }
 
+/**
+ * Udziały czasu hulajnogi za okres (karta hulajnogi → Historia stanów, ADR 0074): `GET /admin/scooters/{id}/status-time`
+ * z okresem najwyżej `STATUS_HISTORY_MAX_DAYS` dni; przedziały przycięte do okresu, sekundy w kategoriach i wskaźniki
+ * z core (wykorzystanie = przejazd ÷ czas okresu, dostępność = dostępna + rezerwacja + przejazd ÷ czas okresu).
+ */
+export const STATUS_HISTORY_MAX_DAYS = 92;
+export const scooterStatusTimeQuerySchema = z
+  .object({ from: z.iso.datetime({ offset: true }), to: z.iso.datetime({ offset: true }) })
+  .refine((q) => Date.parse(q.to) > Date.parse(q.from), { path: ['to'], message: 'Koniec okresu przed początkiem' })
+  .refine((q) => Date.parse(q.to) - Date.parse(q.from) <= STATUS_HISTORY_MAX_DAYS * 86_400_000, {
+    path: ['to'],
+    message: 'Okres najwyżej 92 dni',
+  });
+export type ScooterStatusTimeQuery = z.infer<typeof scooterStatusTimeQuerySchema>;
+
+export interface ScooterStatusTimeInterval {
+  status: ScooterStatus;
+  online: boolean;
+  category: ScooterTimeCategory;
+  /** Granice przycięte do okresu (oś czasu); przedział otwarty kończy się na `now`. */
+  from: string;
+  to: string;
+  /** `true`: przedział trwa (`valid_to` puste). */
+  open: boolean;
+}
+
+export interface ScooterStatusTime {
+  scooterId: string;
+  from: string;
+  to: string;
+  /** Chwila odczytu: okres trwający liczy się do niej. */
+  now: string;
+  /** Czas okresu w sekundach do `min(to, now)`. */
+  periodSeconds: number;
+  /** Początek historii hulajnogi (`null`: brak przedziałów w okresie i wcześniej). */
+  historySince: string | null;
+  intervals: ScooterStatusTimeInterval[];
+  totals: Record<ScooterTimeCategory, number>;
+  utilization: number | null;
+  availability: number | null;
+  shares: Record<ScooterTimeCategory, number | null>;
+}
+
 // --- Zdarzenia przejazdów ------------------------------------------------------------------------------------
 
 export const rentalEventsResource = {
@@ -385,6 +428,30 @@ export interface TelemetryReadingView {
   /** Odstęp od poprzedniego odczytu tej hulajnogi (do doby wstecz). */
   gapSeconds: number | null;
 }
+
+/**
+ * Kolumny eksportu telemetrii (`POST /admin/telemetry/export`, ADR 0073): pola odczytu do walidacji kolumn i typów
+ * komórek. Lista telemetrii nie ma kontraktu list, więc definicja nie ma filtrów ani sortowania i nie jest w rejestrze.
+ */
+export const telemetryReadingsResource = {
+  name: 'telemetry',
+  fields: {
+    recordedAt: { type: 'datetime' },
+    lat: { type: 'decimal' },
+    lon: { type: 'decimal' },
+    batteryPct: { type: 'integer' },
+    speedKmh: { type: 'decimal' },
+    rentalId: { type: 'uuid' },
+    rentalNumber: { type: 'integer' },
+    locked: { type: 'boolean' },
+    buffered: { type: 'boolean' },
+    gapSeconds: { type: 'decimal' },
+  },
+  search: [],
+  defaultSort: [],
+  deleteMode: 'none',
+  permissions: { read: 'telemetry.read' },
+} as const satisfies ResourceDefinition;
 
 export interface TelemetryReadingsPage {
   items: TelemetryReadingView[];

@@ -6,8 +6,9 @@ import {
   type ListQuery,
   type ScooterCreate,
   type ScooterUpdate,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { CurrentStaff, RequirePermission, type StaffPrincipal } from '../auth/decorators.js';
@@ -16,6 +17,9 @@ import { ListQueryPipe } from '../common/list-query.pipe.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { CommandsService } from './commands.service.js';
 import { ScootersService } from './scooters.service.js';
+import type { FastifyReply } from 'fastify';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 export const idParam = new ZodPipe(z.uuid());
 export const versionQuery = new ZodPipe(z.object({ version: z.coerce.number().int().min(1) }));
@@ -28,6 +32,7 @@ export class ScootersController {
     private readonly scooters: ScootersService,
     private readonly commands: CommandsService,
     private readonly history: EntityHistory,
+    private readonly exporter: ListExportService,
   ) {}
 
   @RequirePermission('scooters.read')
@@ -35,6 +40,18 @@ export class ScootersController {
   @ApiOperation({ summary: 'Lista floty z filtrami, sortowaniem, stronicowaniem i licznikami (kontrakt list)' })
   list(@Query(new ListQueryPipe(scootersResource)) query: ListQuery) {
     return this.scooters.list(query);
+  }
+
+  @RequirePermission('scooters.read')
+  @ListExport('hulajnogi')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, scootersResource, body, (db, query) =>
+      this.scooters.list(query, db),
+    );
   }
 
   @RequirePermission('scooters.read')

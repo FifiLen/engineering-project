@@ -22,8 +22,8 @@ export class UsersService {
     private readonly transaction: AuditedTransaction,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<UserListItem>> {
-    return new DrizzleCustomerRepository(this.db).list(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<UserListItem>> {
+    return new DrizzleCustomerRepository(db).list(query);
   }
 
   async details(id: string, db: DbExecutor = this.db): Promise<UserDetails> {

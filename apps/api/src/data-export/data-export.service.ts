@@ -13,6 +13,7 @@ import {
 import {
   type Database,
   type DataExportRecord,
+  type DbExecutor,
   DrizzleDataExportRepository,
   DrizzleFileRepository,
 } from '@hulajnogi/db';
@@ -90,8 +91,8 @@ export class DataExportService implements OnModuleInit {
     return { export: latest ? this.view(latest, now) : null, nextAllowedAt: next?.toISOString() ?? null };
   }
 
-  list(query: ListQuery): Promise<ListResponse<DataExportListItem>> {
-    return new DrizzleDataExportRepository(this.db).list(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<DataExportListItem>> {
+    return new DrizzleDataExportRepository(db).list(query);
   }
 
   private view(exp: DataExportRecord, now = new Date()): DataExportView {

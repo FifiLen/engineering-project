@@ -85,8 +85,8 @@ export class FaqService {
     private readonly publisher: ContentPublisher,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<FaqItemView>> {
-    return new DrizzleContentRepository(this.db).listFaq(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<FaqItemView>> {
+    return new DrizzleContentRepository(db).listFaq(query);
   }
 
   async details(id: string, executor: DbExecutor = this.db): Promise<FaqItemView> {
@@ -224,8 +224,8 @@ export class FaqService {
 
   // --- Kategorie ----------------------------------------------------------------------------------
 
-  listCategories(query: ListQuery): Promise<ListResponse<FaqCategoryListItem>> {
-    return new DrizzleContentRepository(this.db).listCategories(query);
+  listCategories(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<FaqCategoryListItem>> {
+    return new DrizzleContentRepository(db).listCategories(query);
   }
 
   async categoryDetails(id: string, executor: DbExecutor = this.db): Promise<FaqCategoryView> {

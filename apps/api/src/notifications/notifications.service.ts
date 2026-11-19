@@ -354,8 +354,8 @@ export class NotificationsService implements OnModuleInit {
   // --- Panel ---------------------------------------------------------------------------------------
 
   /** „Wysłane”: bez `users.read` bez imienia i telefonu klienta i bez wyszukiwania po nich (jak zgłoszenia). */
-  async list(staffId: string, query: ListQuery): Promise<ListResponse<NotificationListItem>> {
-    const repo = new DrizzleNotificationRepository(this.db);
+  async list(staffId: string, query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<NotificationListItem>> {
+    const repo = new DrizzleNotificationRepository(db);
     if ((await this.permissions.get(staffId)).permissions.has('users.read')) return repo.list(query);
     const personal = (field: string) => (NOTIFICATION_PERSONAL_FIELDS as readonly string[]).includes(field);
     if (query.filters.some((f) => personal(f.field)) || query.sort.some((s) => personal(s.field))) {
@@ -368,8 +368,8 @@ export class NotificationsService implements OnModuleInit {
     return { ...result, items: result.items.map((item) => ({ ...item, userName: null, userPhone: null })) };
   }
 
-  listPushTokens(query: ListQuery): Promise<ListResponse<PushTokenListItem>> {
-    return new DrizzleNotificationRepository(this.db).listPushTokens(query);
+  listPushTokens(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<PushTokenListItem>> {
+    return new DrizzleNotificationRepository(db).listPushTokens(query);
   }
 }
 

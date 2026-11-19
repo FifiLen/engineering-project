@@ -8,7 +8,7 @@ import {
   type StaffRepository,
 } from '@hulajnogi/core';
 import { staffResource, type ListQuery, type ListResponse, type StaffListItem } from '@hulajnogi/shared';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { runListQuery, type ListSource } from '../admin/list-query.js';
 import type { DbExecutor } from '../client.js';
@@ -212,7 +212,9 @@ export class DrizzleInvitationRepository implements InvitationRepository {
     invitedBy: string | null,
     now: Date,
   ): Promise<{ id: string }> {
-    await this.db
+    // Ponowne wysłanie unieważnia otwarte zaproszenie i wskazuje następcę (`replaced_by`, ADR 0076), więc lista
+    // odróżnia zastąpienie od ręcznego unieważnienia.
+    const replaced = await this.db
       .update(staffInvitations)
       .set({ revokedAt: now })
       .where(
@@ -221,11 +223,18 @@ export class DrizzleInvitationRepository implements InvitationRepository {
           isNull(staffInvitations.acceptedAt),
           isNull(staffInvitations.revokedAt),
         ),
-      );
+      )
+      .returning({ id: staffInvitations.id });
     const [row] = await this.db
       .insert(staffInvitations)
       .values({ staffId, tokenHash, expiresAt, invitedBy })
       .returning({ id: staffInvitations.id });
+    if (replaced.length) {
+      await this.db
+        .update(staffInvitations)
+        .set({ replacedBy: row!.id })
+        .where(inArray(staffInvitations.id, replaced.map((r) => r.id)));
+    }
     return row!;
   }
 

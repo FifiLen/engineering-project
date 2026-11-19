@@ -7,14 +7,18 @@ import {
   type ZoneImpactRequest,
   type ZoneInput,
   type ZoneUpdate,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { CurrentStaff, RequirePermission, type StaffPrincipal } from '../auth/decorators.js';
 import { ListQueryPipe } from '../common/list-query.pipe.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { AdminZonesService } from './admin-zones.service.js';
+import type { FastifyReply } from 'fastify';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 const idParam = new ZodPipe(z.uuid());
 const versionBody = new ZodPipe(z.object({ version: z.number().int().min(1) }));
@@ -23,13 +27,26 @@ const versionBody = new ZodPipe(z.object({ version: z.number().int().min(1) }));
 @ApiTags('panel: strefy')
 @Controller('admin/zones')
 export class AdminZonesController {
-  constructor(private readonly zones: AdminZonesService) {}
+  constructor(
+    private readonly zones: AdminZonesService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('zones.read')
   @Get()
   @ApiOperation({ summary: 'Lista stref z filtrami typu i aktywności, wyszukiwaniem, sortowaniem i licznikami' })
   list(@Query(new ListQueryPipe(zonesResource)) query: ListQuery) {
     return this.zones.list(query);
+  }
+
+  @RequirePermission('zones.read')
+  @ListExport('strefy')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, zonesResource, body, (db, query) => this.zones.list(query, db));
   }
 
   @RequirePermission('zones.read')

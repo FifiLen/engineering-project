@@ -1,5 +1,5 @@
 import { notFound, RentalStateMachine, rentalFigures } from '@hulajnogi/core';
-import { type Database, DrizzlePaymentRepository, DrizzleRentalRepository } from '@hulajnogi/db';
+import { type Database, type DbExecutor, DrizzlePaymentRepository, DrizzleRentalRepository } from '@hulajnogi/db';
 import type { ListQuery, RentalAdminDetails, RentalRefund, RemoteEnd } from '@hulajnogi/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { DB } from '../database/database.module.js';
@@ -22,8 +22,8 @@ export class AdminRentalsService {
     private readonly operations: OperationsService,
   ) {}
 
-  list(query: ListQuery) {
-    return new DrizzleRentalRepository(this.db).list(query);
+  list(query: ListQuery, db: DbExecutor = this.db) {
+    return new DrizzleRentalRepository(db).list(query);
   }
 
   async details(id: string): Promise<RentalAdminDetails> {

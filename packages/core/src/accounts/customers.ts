@@ -104,3 +104,12 @@ export function ensureAcceptingCurrentVersion(acceptedVersionId: string, current
 export function ensureConsentRevocable(type: ConsentType): void {
   if ((REQUIRED_CONSENTS as readonly ConsentType[]).includes(type)) throw new DomainError('CONSENT_REQUIRED_FOR_ACCOUNT');
 }
+
+/**
+ * Operator wycofuje tylko zgodę marketingową (ADR 0076): regulamin, polityka prywatności i wiek są warunkami konta,
+ * więc ich wycofanie z panelu to `CONSENT_NOT_REVOCABLE`. Zgoda już wycofana niczego nie zmienia (bez wpisu).
+ */
+export function staffConsentRevocation(type: ConsentType, revokedAt: Date | null): 'REVOKE' | 'UNCHANGED' {
+  if (type !== 'MARKETING') throw new DomainError('CONSENT_NOT_REVOCABLE', { type });
+  return revokedAt ? 'UNCHANGED' : 'REVOKE';
+}

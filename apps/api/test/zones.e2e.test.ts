@@ -349,6 +349,27 @@ describe.skipIf(!adminUrl)('API: strefy', () => {
     expect(
       details.timeline.filter((e) => e.kind === 'COMMAND' && e.type === 'SPEED_LIMIT').length,
     ).toBeGreaterThanOrEqual(4);
+
+    // Flota → Komendy (ADR 0076): komendy stref mają źródło ZONE i strefę, która je wymusza (zdjęcie limitu
+    // i przywrócenie napędu bez strefy), odblokowanie i blokada przejazdu źródło RENTAL.
+    const commands = (
+      await asAdmin({
+        method: 'GET',
+        url: `/admin/scooter-commands?rentalId=${rental.id}&sort=sentAt&pageSize=100`,
+      })
+    ).json<shared.ListResponse<shared.ScooterCommandListItem>>().items;
+    const bySource = commands.map((c) => `${c.type}:${c.source}:${c.zoneCode ?? '-'}`);
+    expect(bySource[0]).toBe('UNLOCK:RENTAL:-');
+    expect(bySource).toContain('SPEED_LIMIT:ZONE:S-01');
+    expect(bySource).toContain('STOP_GRADUALLY:ZONE:Z-01');
+    expect(bySource).toContain('SPEED_LIMIT:ZONE:-');
+    expect(bySource).toContain('RELEASE_STOP:ZONE:-');
+    expect(bySource).toContain('LOCK:RENTAL:-');
+    const zoneSources = await pool.query<{ source: string; zone_id: string | null }>(
+      `SELECT source::text, zone_id FROM scooter_commands WHERE rental_id = $1 AND type = 'STOP_GRADUALLY'`,
+      [rental.id],
+    );
+    expect(zoneSources.rows).toEqual([{ source: 'ZONE', zone_id: await zoneId('Z-01') }]);
   });
 
   it('zmiana limitu w panelu działa w trwającym przejeździe; koniec przejazdu kończy śledzenie stref', async () => {

@@ -5,14 +5,18 @@ import {
   type ListQuery,
   type RemoteEnd,
   type RentalRefund,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { CurrentStaff, RequirePermission, type StaffPrincipal } from '../auth/decorators.js';
 import { ListQueryPipe } from '../common/list-query.pipe.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { AdminRentalsService } from './admin-rentals.service.js';
+import type { FastifyReply } from 'fastify';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 const idParam = new ZodPipe(z.uuid());
 
@@ -20,13 +24,26 @@ const idParam = new ZodPipe(z.uuid());
 @ApiTags('panel: przejazdy')
 @Controller('admin/rentals')
 export class AdminRentalsController {
-  constructor(private readonly rentals: AdminRentalsService) {}
+  constructor(
+    private readonly rentals: AdminRentalsService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('rentals.read')
   @Get()
   @ApiOperation({ summary: 'Lista przejazdów z filtrami, sortowaniem, stronicowaniem i licznikami (kontrakt list)' })
   list(@Query(new ListQueryPipe(rentalsResource)) query: ListQuery) {
     return this.rentals.list(query);
+  }
+
+  @RequirePermission('rentals.read')
+  @ListExport('przejazdy')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, rentalsResource, body, (db, query) => this.rentals.list(query, db));
   }
 
   @RequirePermission('rentals.read')

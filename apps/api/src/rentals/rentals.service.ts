@@ -35,6 +35,7 @@ import {
   RentalStateMachine,
   reservationExpiresAt,
   unavailableReason,
+  zoneCommandZone,
   zoneControlCommands,
   type CommandType,
   type EndMode,
@@ -741,12 +742,11 @@ export class RentalsService implements OnModuleInit {
     const applied = await zones.control(rental.scooterId);
     if (!applied || applied.rentalId !== rental.id) return;
     const batteryCritical = (await repo.batteryThresholds(rental.id)).includes('CRITICAL');
-    const desired = desiredZoneControl(
-      (await zones.presence(rental.scooterId)).map((p) => p.zone),
-      { batteryCritical },
-    );
+    const current = (await zones.presence(rental.scooterId)).map((p) => p.zone);
+    const desired = desiredZoneControl(current, { batteryCritical });
     for (const command of zoneControlCommands(applied, desired)) {
       const kmh = command.type === 'SPEED_LIMIT' ? command.speedLimitKmh : null;
+      // Źródło `ZONE` i strefa, która wymusza komendę, na liście Flota → Komendy (ADR 0076).
       const sent = await this.sendCommand(
         repo,
         tx,
@@ -755,6 +755,7 @@ export class RentalsService implements OnModuleInit {
         rental.id,
         command.type,
         kmh ? { kmh } : undefined,
+        { zone: { zoneId: zoneCommandZone(current, command)?.id ?? null } },
       );
       await zones.applyControl(
         rental.scooterId,
@@ -1062,11 +1063,11 @@ export class RentalsService implements OnModuleInit {
     rentalId: string | null,
     type: CommandType,
     params?: { kmh?: number },
-    options: { ttlMs?: number } = {},
+    options: { ttlMs?: number; zone?: { zoneId: string | null } } = {},
   ): Promise<RentalCommandRecord> {
     // Blokada przy zakończeniu bez łączności czeka 10 min (ADR 0056); pozostałe komendy 10 s (ADR 0038).
     const ttlMs = options.ttlMs ?? COMMAND_ACK_TIMEOUT_MS;
-    const command = await repo.createCommand({ scooterId, rentalId, type, ttlMs, params });
+    const command = await repo.createCommand({ scooterId, rentalId, type, ttlMs, params, zone: options.zone });
     await this.jobs.sendInTransaction(tx, JOBS.commandAckTimeout, { commandId: command.id }, command.expiresAt!);
     effects.commands.push(command);
     return command;

@@ -32,8 +32,9 @@ import {
   type MediaUpdate,
   type NewsCreate,
   type NewsUpdate,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { CurrentStaff, RequirePermission, type StaffPrincipal } from '../auth/decorators.js';
@@ -44,6 +45,9 @@ import { FaqService } from './faq.service.js';
 import { MediaService } from './media.service.js';
 import { NewsService } from './news.service.js';
 import { SectionsService } from './sections.service.js';
+import type { FastifyReply } from 'fastify';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 const sectionKeyParam = new ZodPipe(contentSectionKeyParamSchema);
 const idParam = new ZodPipe(z.uuid());
@@ -53,13 +57,28 @@ const versionQuery = new ZodPipe(z.object({ version: z.coerce.number().int().min
 @ApiTags('panel: treści')
 @Controller('admin/content-blocks')
 export class ContentBlocksController {
-  constructor(private readonly sections: SectionsService) {}
+  constructor(
+    private readonly sections: SectionsService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('content.read')
   @Get()
   @ApiOperation({ summary: 'Bloki treści według wzorca listy z licznikami sekcji (elementy, opublikowane, szkice)' })
   list(@Query(new ListQueryPipe(contentBlocksResource)) query: ListQuery) {
     return this.sections.listBlocks(query);
+  }
+
+  @RequirePermission('content.read')
+  @ListExport('bloki treści')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, contentBlocksResource, body, (db, query) =>
+      this.sections.listBlocks(query, db),
+    );
   }
 }
 
@@ -109,12 +128,25 @@ export class ContentSectionsController {
 @ApiTags('panel: treści')
 @Controller('admin/faq-items')
 export class FaqItemsController {
-  constructor(private readonly faq: FaqService) {}
+  constructor(
+    private readonly faq: FaqService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('content.read')
   @Get()
   list(@Query(new ListQueryPipe(faqItemsResource)) query: ListQuery) {
     return this.faq.list(query);
+  }
+
+  @RequirePermission('content.read')
+  @ListExport('pytania FAQ')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, faqItemsResource, body, (db, query) => this.faq.list(query, db));
   }
 
   @RequirePermission('content.write')
@@ -170,12 +202,27 @@ export class FaqItemsController {
 @ApiTags('panel: treści')
 @Controller('admin/faq-categories')
 export class FaqCategoriesController {
-  constructor(private readonly faq: FaqService) {}
+  constructor(
+    private readonly faq: FaqService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('content.read')
   @Get()
   list(@Query(new ListQueryPipe(faqCategoriesResource)) query: ListQuery) {
     return this.faq.listCategories(query);
+  }
+
+  @RequirePermission('content.read')
+  @ListExport('kategorie FAQ')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, faqCategoriesResource, body, (db, query) =>
+      this.faq.listCategories(query, db),
+    );
   }
 
   @RequirePermission('content.write')
@@ -230,12 +277,25 @@ export class FaqCategoriesController {
 @ApiTags('panel: treści')
 @Controller('admin/news')
 export class NewsController {
-  constructor(private readonly news: NewsService) {}
+  constructor(
+    private readonly news: NewsService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('content.read')
   @Get()
   list(@Query(new ListQueryPipe(newsResource)) query: ListQuery) {
     return this.news.list(query);
+  }
+
+  @RequirePermission('content.read')
+  @ListExport('aktualności')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, newsResource, body, (db, query) => this.news.list(query, db));
   }
 
   @RequirePermission('content.read')
@@ -287,13 +347,26 @@ export class NewsController {
 @ApiTags('panel: treści')
 @Controller('admin/media')
 export class MediaController {
-  constructor(private readonly media: MediaService) {}
+  constructor(
+    private readonly media: MediaService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('content.read')
   @Get()
   @ApiOperation({ summary: 'Grafiki według wzorca listy; „Używane” usages.gte=1, „Nieużywane” usages.lte=0' })
   list(@Query(new ListQueryPipe(mediaResource)) query: ListQuery) {
     return this.media.list(query);
+  }
+
+  @RequirePermission('content.read')
+  @ListExport('media')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, mediaResource, body, (db, query) => this.media.list(query, db));
   }
 
   @RequirePermission('content.read')

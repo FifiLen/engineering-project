@@ -231,11 +231,15 @@ export class DocumentsService implements OnModuleInit {
    * ze stopki wydruku. Wiersz z `customerDataVisible` bez `users.read` zostaje na liście (że wydruk powstał), ale
    * szczegóły i pliki dają 404, więc panel nie pokazuje przy nim „Pobierz”.
    */
-  async list(staffId: string, query: ListQuery): Promise<ListResponse<GeneratedDocumentListItem>> {
+  async list(
+    staffId: string,
+    query: ListQuery,
+    db: DbExecutor = this.db,
+  ): Promise<ListResponse<GeneratedDocumentListItem>> {
     const { permissions } = await this.permissions.get(staffId);
     permissions.require('documents.generate');
     const types = visibleDocumentTypes(permissions, DOCUMENT_TYPES);
-    const repo = new DrizzleDocumentRepository(this.db);
+    const repo = new DrizzleDocumentRepository(db);
     const idPrefix = query.q && SHORT_ID.test(query.q.trim()) ? query.q.trim().toLowerCase() : undefined;
     const effective = idPrefix ? { ...query, q: undefined } : query;
     if (permissions.has('users.read')) return repo.listGenerated(effective, types, { idPrefix });

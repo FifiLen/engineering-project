@@ -34,8 +34,8 @@ export class RolesService {
     private readonly permissions: StaffPermissionsService,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<RoleListItem>> {
-    return new DrizzleRoleRepository(this.db).list(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<RoleListItem>> {
+    return new DrizzleRoleRepository(db).list(query);
   }
 
   catalog(): Promise<PermissionView[]> {

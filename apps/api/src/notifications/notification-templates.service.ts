@@ -97,8 +97,8 @@ export class NotificationTemplatesService {
 
   // --- Panel ----------------------------------------------------------------------------------
 
-  list(query: ListQuery): Promise<ListResponse<NotificationTemplateListItem>> {
-    return new DrizzleNotificationRepository(this.db).listTemplates(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<NotificationTemplateListItem>> {
+    return new DrizzleNotificationRepository(db).listTemplates(query);
   }
 
   async details(id: string): Promise<NotificationTemplateDetails> {

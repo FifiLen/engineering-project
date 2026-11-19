@@ -15,7 +15,14 @@ const UNIQUE_FIELDS: Record<string, string> = {
   faq_categories_name_key: 'name',
   media_assets_key_key: 'key',
   news_slug_key: 'slug',
-  document_templates_document_type_name_key: 'name',
+};
+
+/**
+ * Unikalność z własnym kodem błędu: nazwa szablonu wydruku w rodzaju (ADR 0076) daje `TEMPLATE_NAME_TAKEN` z polem,
+ * żeby panel pokazał błąd pod polem nazwy przy tworzeniu i przy zmianie nazwy.
+ */
+const UNIQUE_CODES: Record<string, { code: string; field: string }> = {
+  document_templates_document_type_name_key: { code: 'TEMPLATE_NAME_TAKEN', field: 'name' },
 };
 
 /**
@@ -29,6 +36,8 @@ export function rethrowUniqueViolation(error: unknown): never {
   if (cause?.code === '23505' && cause.constraint && UNIQUE_FIELDS[cause.constraint]) {
     throw new DomainError('ALREADY_EXISTS', { field: UNIQUE_FIELDS[cause.constraint] });
   }
+  const unique = cause?.code === '23505' && cause.constraint ? UNIQUE_CODES[cause.constraint] : undefined;
+  if (unique) throw new DomainError(unique.code, { field: unique.field });
   throw error;
 }
 

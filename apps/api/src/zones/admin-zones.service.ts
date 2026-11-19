@@ -6,7 +6,7 @@ import {
   validateZoneInput,
   type Ring,
 } from '@hulajnogi/core';
-import { type Database, DrizzleZoneRepository, type ZoneDraft } from '@hulajnogi/db';
+import { type Database, type DbExecutor, DrizzleZoneRepository, type ZoneDraft } from '@hulajnogi/db';
 import type {
   ListQuery,
   ListResponse,
@@ -54,8 +54,8 @@ export class AdminZonesService {
     private readonly tracker: ZoneTracker,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<ZoneListItem>> {
-    return new DrizzleZoneRepository(this.db).list(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<ZoneListItem>> {
+    return new DrizzleZoneRepository(db).list(query);
   }
 
   async details(id: string): Promise<ZoneDetails> {

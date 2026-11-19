@@ -143,6 +143,15 @@ const DOMAIN_STATUS: Record<string, HttpStatus> = {
   // Eksport danych klienta (ADR 0069): limit zleceń to 429 z `details.nextAllowedAt`, zlecenie w toku 409.
   DATA_EXPORT_LIMIT: HttpStatus.TOO_MANY_REQUESTS,
   DATA_EXPORT_IN_PROGRESS: HttpStatus.CONFLICT,
+  // Eksport list (ADR 0073): ponad limit wierszy 422 z `details: { count, limit }`. Domknięcie macierzy (ADR 0076):
+  // wycofanie zgody innej niż marketingowa, unieważnienie zaproszenia, które nie czeka, dezaktywacja domyślnego
+  // szablonu z aktywną wersją, zajęta nazwa szablonu i zmiana historii stanów to konflikty stanu (409).
+  LIST_EXPORT_LIMIT: HttpStatus.UNPROCESSABLE_ENTITY,
+  CONSENT_NOT_REVOCABLE: HttpStatus.CONFLICT,
+  INVITATION_NOT_PENDING: HttpStatus.CONFLICT,
+  TEMPLATE_IS_DEFAULT: HttpStatus.CONFLICT,
+  TEMPLATE_NAME_TAKEN: HttpStatus.CONFLICT,
+  STATUS_HISTORY_APPEND_ONLY: HttpStatus.CONFLICT,
 };
 
 @Catch()
