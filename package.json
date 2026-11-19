@@ -19,6 +19,7 @@
     "db:places": "pnpm --filter @hulajnogi/db run places",
     "db:pull": "pnpm --filter @hulajnogi/db run pull",
     "db:staff:create": "pnpm --filter @hulajnogi/db run staff:create",
+    "db:history": "pnpm --filter @hulajnogi/db run history",
     "api:openapi": "pnpm --filter @hulajnogi/api run openapi"
   },
   "devDependencies": {

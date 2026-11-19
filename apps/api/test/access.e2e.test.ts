@@ -435,13 +435,15 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
     it('dziennik audytu wymaga audit.read i ma liczniki rodzajów obiektów', async () => {
       const list = await adminApi({ method: 'GET', url: '/admin/audit-log?facets=entityType&sort=-createdAt' });
       expect(list.statusCode).toBe(200);
-      // Wpisy systemu z danych startowych treści (migracja 0011, ADR 0062): historia zaczyna się od „Dane startowe”.
+      // Wpisy systemu z danych startowych treści (migracja 0011, ADR 0062): historia zaczyna się od „Dane startowe”;
+      // definicje raportów z katalogu w core mają wpis `report_definition.created` (ADR 0071).
       expect(Object.keys(list.json().facets.entityType).sort()).toEqual([
         'company_profile',
         'content_block',
         'faq_item',
         'legal_document',
         'news',
+        'report_definition',
         'role',
         'scooter',
         'staff',

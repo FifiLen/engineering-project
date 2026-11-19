@@ -355,7 +355,8 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     const list = await audit.list(parse(auditLogResource, 'entityType=staff&facets=entityType'));
     expect(list.items.map((i) => i.action)).toEqual(['staff.invited']);
     // Liczniki pola pomijają jego własny filtr, żeby szybkie filtry pokazywały wszystkie wartości. Dane startowe
-    // treści (0011) mają własne wpisy systemu („Dane startowe” w historii bloków, FAQ, aktualności i danych firmy).
+    // treści (0011) mają własne wpisy systemu („Dane startowe” w historii bloków, FAQ, aktualności i danych firmy),
+    // a definicje raportów z katalogu w core wpis `report_definition.created` (0013, ADR 0071).
     expect(list.facets.entityType).toEqual({
       staff: 1,
       scooter: 1,
@@ -363,6 +364,7 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
       faq_item: expect.any(Number),
       news: expect.any(Number),
       company_profile: 1,
+      report_definition: 6,
     });
     expect((await audit.details(list.items[0]!.id))!.data).toEqual({ invitationToken: '[REDACTED]' });
   });

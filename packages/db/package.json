@@ -19,6 +19,7 @@
     "seed": "tsx src/cli/seed.ts",
     "places": "tsx src/cli/places.ts",
     "staff:create": "tsx src/cli/staff-create.ts",
+    "history": "tsx src/cli/history.ts",
     "pull": "drizzle-kit pull && node scripts/postprocess-schema.mjs && prettier --write src/schema"
   },
   "dependencies": {

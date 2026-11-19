@@ -1160,8 +1160,10 @@ describe.skipIf(!adminUrl)('raporty i domknięcie panelu w bazie (0013)', () => 
   it('report_runs: chwila danych, kod błędu, plik usunięty po retencji, bez CSV; widoki historii i definicji', async () => {
     const staff = await staffId();
     await pool.query(
+      // Seed synchronizuje definicje z katalogu w core (ADR 0071); wstawienie zostaje dla bazy bez seeda.
       `INSERT INTO report_definitions (code, name, description, permission_code, formats)
-       VALUES ('revenue', 'Przychody', 'Sprzedaż i wpływy', 'reports.revenue', '{PDF,XLSX}')`,
+       VALUES ('revenue', 'Przychody', 'Sprzedaż i wpływy', 'reports.revenue', '{PDF,XLSX}')
+       ON CONFLICT (code) DO NOTHING`,
     );
     const run = (format = 'PDF') =>
       id(

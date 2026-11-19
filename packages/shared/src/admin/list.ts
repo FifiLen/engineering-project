@@ -23,6 +23,14 @@ export interface FieldDefinition {
    * mają którąkolwiek z podanych wartości; pole tablicowe nie ma sortowania ani liczników.
    */
   array?: boolean;
+  /**
+   * Dane osobowe (ADR 0073): imię i nazwisko, telefon, e-mail i miejsca klienta oraz dane kontaktowe operatora
+   * na listach operatorów. Okno eksportu listy ostrzega, gdy plik zawiera takie kolumny; maskowanie bez
+   * `users.read` robi API tak samo jak w liście. Autor zmiany albo wykonawca (np. `updatedByName`) nie jest oznaczony.
+   */
+  personal?: boolean;
+  /** Kwota w groszach (`integer`): eksport XLSX zapisuje ją jako liczbę w złotych z formatem `#,##0.00 "zł"`. */
+  money?: boolean;
 }
 
 /** Usuwanie: zwykłe, archiwizacja (rekord zostaje, znika z oferty), wycofanie z floty, brak. */
@@ -183,6 +191,12 @@ export function parseListQuery(def: ResourceDefinition, params: Params): ListQue
 
   return issues.length ? { ok: false, issues } : { ok: true, query };
 }
+
+/** Pola z danymi osobowymi w definicji zasobu (ostrzeżenie w oknie eksportu, ADR 0073). */
+export const personalFields = (def: ResourceDefinition): string[] =>
+  Object.entries<FieldDefinition>(def.fields as Record<string, FieldDefinition>)
+    .filter(([, field]) => field.personal)
+    .map(([name]) => name);
 
 /** Odwrotność `parseListQuery`: parametry adresu dla stanu listy (pomija wartości domyślne). */
 export function toSearchParams(def: ResourceDefinition, query: Partial<ListQuery>): URLSearchParams {

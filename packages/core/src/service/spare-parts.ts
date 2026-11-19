@@ -68,7 +68,7 @@ export const partsCost = (items: ReadonlyArray<{ quantity: number; unitCost: num
 
 /**
  * „Poniżej minimum” jak lista magazynu (`v_spare_part_list.below_minimum`): stan mniejszy niż minimum.
- * Starszy widok `v_low_stock_parts` (migracja 0002) liczy też stan równy minimum.
+ * Tę samą regułę ma od migracji 0013 widok `v_low_stock_parts` (wcześniej liczył też stan równy minimum).
  */
 export const isBelowMinimum = (part: { stockQty: number; minStockQty: number }): boolean =>
   part.stockQty < part.minStockQty;

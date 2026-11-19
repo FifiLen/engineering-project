@@ -123,3 +123,20 @@ export async function runListQuery<F extends string, T = Record<F, unknown>>(
     facets,
   };
 }
+
+/**
+ * Wszystkie strony listy partiami (eksport list, ADR 0073): to samo zapytanie, sortowanie listy z identyfikatorem
+ * na końcu i strony po `batch` wierszy, bez liczników. Wywołujący otwiera transakcję `REPEATABLE READ READ ONLY`,
+ * więc partie widzą te same dane, a limit wierszy sprawdza przed odczytem z `total` pierwszego wywołania.
+ */
+export async function* listPages<T>(
+  list: (query: ListQuery) => Promise<ListResponse<T>>,
+  query: ListQuery,
+  batch = 1000,
+): AsyncGenerator<T[]> {
+  for (let page = 1; ; page++) {
+    const result = await list({ ...query, page, pageSize: batch, facets: [] });
+    if (result.items.length) yield result.items;
+    if (result.items.length < batch) return;
+  }
+}

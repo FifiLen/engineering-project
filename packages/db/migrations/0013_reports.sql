@@ -1452,3 +1452,9 @@ SELECT sp.id, sp.user_id, u.name AS user_name, sp.label, sp.name, ST_X(sp.positi
 FROM saved_places sp
 JOIN users u ON u.id = sp.user_id;
 CREATE INDEX saved_places_user_idx ON saved_places (user_id, created_at DESC);
+
+-- Wyjazd ze strefy w `fn_report_rides_zone_entries` (podzapytanie na każdy wjazd: pierwszy `ZONE_EXITED` tej strefy
+-- w przejeździe po wjeździe). Pomiar na danych generatora (ADR 0075, 90 dób, ok. 48 tys. wjazdów): 1,9 s → 0,6 s
+-- przy domyślnym JIT i 0,50 s → 0,27 s bez JIT.
+CREATE INDEX IF NOT EXISTS rental_events_zone_exit_idx ON rental_events (rental_id, zone_id, created_at)
+    WHERE type = 'ZONE_EXITED';

@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import { priceRental, rideReceiptItems, type RentalPrice } from '@hulajnogi/core';
 import type { Place, PlacesFile } from './places.js';
 import { seedContent, type SeedContentFiles } from './seed-content.js';
+import { seedReportDefinitions } from './seed-reports.js';
 
 /**
  * Wartości deweloperskie cennika. To NIE są decyzje biznesowe (w makietach nadal [CENA] itd.),
@@ -304,6 +305,7 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
 
     await seedSpareParts(client);
     await seedNotificationTemplates(client);
+    await seedReportDefinitions(client);
     if (options.sampleOperations) await seedSampleOperations(client, admin.email);
     await seedContent(client, options.contentFiles);
 

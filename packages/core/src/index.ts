@@ -48,3 +48,4 @@ export * from './documents/docx-package.js';
 export * from './documents/catalog.js';
 export * from './documents/prints.js';
 export * from './data-export/data-export.js';
+export * from './reports/index.js';
