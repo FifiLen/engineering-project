@@ -1,3 +1,5 @@
+import { DomainError, visibleReportCodes } from '@hulajnogi/core';
+import { type Database, DrizzleReportRunsRepository } from '@hulajnogi/db';
 import {
   REPORT_CODES,
   reportDefinitionsReorderSchema,
@@ -5,16 +7,22 @@ import {
   reportDefinitionUpdateSchema,
   reportRunCreateSchema,
   reportRunsResource,
+  type ListExportRequest,
   type ListQuery,
   type ReportDefinitionsReorder,
   type ReportDefinitionUpdate,
   type ReportRunCreate,
 } from '@hulajnogi/shared';
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import type { FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { CurrentStaff, RequirePermission, StaffAuth, type StaffPrincipal } from '../auth/decorators.js';
+import { StaffPermissionsService } from '../auth/staff-permissions.service.js';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 import { ListQueryPipe } from '../common/list-query.pipe.js';
+import { DB } from '../database/database.module.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { ReportDefinitionsService } from './report-definitions.service.js';
 import { ReportsService } from './reports.service.js';
@@ -88,7 +96,12 @@ export class ReportsController {
 @ApiTags('panel: raporty')
 @Controller('admin/report-runs')
 export class ReportRunsController {
-  constructor(private readonly reports: ReportsService) {}
+  constructor(
+    private readonly reports: ReportsService,
+    @Inject(DB) private readonly db: Database,
+    private readonly permissions: StaffPermissionsService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @StaffAuth()
   @Get()
@@ -97,6 +110,24 @@ export class ReportRunsController {
   })
   list(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(reportRunsResource)) query: ListQuery) {
     return this.reports.list(staff.staffId, query);
+  }
+
+  /**
+   * Eksport historii (ADR 0073): ta sama lista co `GET` (raporty z uprawnieniem `reports.<kod>` operatora, bez
+   * żadnego 403) z wykonawcą zapytań transakcji eksportu.
+   */
+  @StaffAuth()
+  @ListExport('historia raportów')
+  async exportList(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const codes = visibleReportCodes((await this.permissions.get(staff.staffId)).permissions);
+    if (!codes.length) throw new DomainError('FORBIDDEN', { permission: 'reports.*' });
+    return this.exporter.list(reply, staff.staffId, reportRunsResource, body, (db, query) =>
+      new DrizzleReportRunsRepository(db).list(query, codes),
+    );
   }
 
   @StaffAuth()

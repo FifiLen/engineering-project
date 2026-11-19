@@ -293,6 +293,9 @@
       "placeholder": "Dokąd jedziesz?",
       "open": "Szukaj celu przejazdu"
     },
+    "notice": {
+      "close": "Zamknij komunikat"
+    },
     "zonesChip": "Strefy",
     "zonesLabel": "Pokaż legendę stref",
     "legend": {
@@ -1189,7 +1192,7 @@
       "title": "Kontakt",
       "call": "Zadzwoń",
       "write": "Napisz",
-      "hours": "Pomoc odpowiada {hours}."
+      "hours": "Godziny pomocy: {hours}"
     }
   },
   "content": {

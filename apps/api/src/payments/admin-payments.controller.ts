@@ -39,9 +39,12 @@ export class AdminPaymentsController {
 
   @RequirePermission('payments.read')
   @Get('payments')
-  @ApiOperation({ summary: 'Płatności u operatora (doładowania i przejazdy kartą) według wzorca listy' })
-  list(@Query(new ListQueryPipe(paymentsResource)) query: ListQuery) {
-    return this.payments.listPayments(query);
+  @ApiOperation({
+    summary:
+      'Płatności u operatora (doładowania i przejazdy kartą) według wzorca listy; bez users.read userName i userPhone = null',
+  })
+  list(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(paymentsResource)) query: ListQuery) {
+    return this.payments.listPayments(staff.staffId, query);
   }
 
   @RequirePermission('payments.read')
@@ -52,22 +55,24 @@ export class AdminPaymentsController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     return this.exporter.list(reply, staff.staffId, paymentsResource, body, (db, query) =>
-      this.payments.listPayments(query, db),
+      this.payments.listPayments(staff.staffId, query, db),
     );
   }
 
   @RequirePermission('payments.read')
   @Get('payments/:id')
-  @ApiOkResponse({ description: 'Płatność z webhookami operatora i zwrotami' })
-  payment(@Param('id', idParam) id: string) {
-    return this.payments.payment(id);
+  @ApiOkResponse({ description: 'Płatność z webhookami operatora i zwrotami; bez users.read bez danych klienta' })
+  payment(@CurrentStaff() staff: StaffPrincipal, @Param('id', idParam) id: string) {
+    return this.payments.payment(staff.staffId, id);
   }
 
   @RequirePermission('payments.read')
   @Get('wallet-ledger')
-  @ApiOperation({ summary: 'Księga portfeli (tylko do dopisywania) z saldem po operacji' })
-  ledger(@Query(new ListQueryPipe(walletLedgerResource)) query: ListQuery) {
-    return this.payments.listLedger(query);
+  @ApiOperation({
+    summary: 'Księga portfeli (tylko do dopisywania) z saldem po operacji; bez users.read userName i userPhone = null',
+  })
+  ledger(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(walletLedgerResource)) query: ListQuery) {
+    return this.payments.listLedger(staff.staffId, query);
   }
 
   @RequirePermission('payments.read')
@@ -78,15 +83,18 @@ export class AdminPaymentsController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     return this.exporter.list(reply, staff.staffId, walletLedgerResource, body, (db, query) =>
-      this.payments.listLedger(query, db),
+      this.payments.listLedger(staff.staffId, query, db),
     );
   }
 
   @RequirePermission('payments.read')
   @Get('wallets')
-  @ApiOperation({ summary: 'Portfele z saldem z pamięci podręcznej porównanym z księgą (`outOfSync`)' })
-  wallets(@Query(new ListQueryPipe(walletsResource)) query: ListQuery) {
-    return this.payments.listWallets(query);
+  @ApiOperation({
+    summary:
+      'Portfele z saldem z pamięci podręcznej porównanym z księgą (`outOfSync`); bez users.read name i phone = null',
+  })
+  wallets(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(walletsResource)) query: ListQuery) {
+    return this.payments.listWallets(staff.staffId, query);
   }
 
   @RequirePermission('payments.read')
@@ -97,15 +105,15 @@ export class AdminPaymentsController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     return this.exporter.list(reply, staff.staffId, walletsResource, body, (db, query) =>
-      this.payments.listWallets(query, db),
+      this.payments.listWallets(staff.staffId, query, db),
     );
   }
 
   @RequirePermission('payments.read')
   @Get('receipts')
-  @ApiOperation({ summary: 'Paragony i korekty z VAT i netto' })
-  receipts(@Query(new ListQueryPipe(receiptsResource)) query: ListQuery) {
-    return this.payments.listReceipts(query);
+  @ApiOperation({ summary: 'Paragony i korekty z VAT i netto; bez users.read buyerName i buyerPhone = null' })
+  receipts(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(receiptsResource)) query: ListQuery) {
+    return this.payments.listReceipts(staff.staffId, query);
   }
 
   @RequirePermission('payments.read')
@@ -116,22 +124,26 @@ export class AdminPaymentsController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     return this.exporter.list(reply, staff.staffId, receiptsResource, body, (db, query) =>
-      this.payments.listReceipts(query, db),
+      this.payments.listReceipts(staff.staffId, query, db),
     );
   }
 
   @RequirePermission('payments.read')
   @Get('receipts/:id')
-  @ApiOkResponse({ description: 'Paragon z pozycjami, sprzedawcą, nabywcą i korektami' })
-  receipt(@Param('id', idParam) id: string) {
-    return this.payments.receipt(id);
+  @ApiOkResponse({
+    description: 'Paragon z pozycjami, sprzedawcą, nabywcą i korektami; bez users.read nabywca bez imienia i telefonu',
+  })
+  receipt(@CurrentStaff() staff: StaffPrincipal, @Param('id', idParam) id: string) {
+    return this.payments.receipt(staff.staffId, id);
   }
 
   @RequirePermission('payments.read')
   @Get('payment-methods')
-  @ApiOperation({ summary: 'Karty klientów (tylko do odczytu, D5) ze stanem ważności' })
-  methods(@Query(new ListQueryPipe(paymentMethodsResource)) query: ListQuery) {
-    return this.payments.listPaymentMethods(query);
+  @ApiOperation({
+    summary: 'Karty klientów (tylko do odczytu, D5) ze stanem ważności; bez users.read userName i userPhone = null',
+  })
+  methods(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(paymentMethodsResource)) query: ListQuery) {
+    return this.payments.listPaymentMethods(staff.staffId, query);
   }
 
   @RequirePermission('payments.read')
@@ -142,15 +154,17 @@ export class AdminPaymentsController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     return this.exporter.list(reply, staff.staffId, paymentMethodsResource, body, (db, query) =>
-      this.payments.listPaymentMethods(query, db),
+      this.payments.listPaymentMethods(staff.staffId, query, db),
     );
   }
 
   @RequirePermission('payments.read')
   @Get('payment-webhook-events')
-  @ApiOperation({ summary: 'Webhooki operatora z wynikiem przetworzenia i liczbą dostarczeń' })
-  webhooks(@Query(new ListQueryPipe(webhookEventsResource)) query: ListQuery) {
-    return this.payments.listWebhooks(query);
+  @ApiOperation({
+    summary: 'Webhooki operatora z wynikiem przetworzenia i liczbą dostarczeń; bez users.read userName = null',
+  })
+  webhooks(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(webhookEventsResource)) query: ListQuery) {
+    return this.payments.listWebhooks(staff.staffId, query);
   }
 
   @RequirePermission('payments.read')
@@ -161,15 +175,17 @@ export class AdminPaymentsController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     return this.exporter.list(reply, staff.staffId, webhookEventsResource, body, (db, query) =>
-      this.payments.listWebhooks(query, db),
+      this.payments.listWebhooks(staff.staffId, query, db),
     );
   }
 
   @RequirePermission('payments.read')
   @Get('refunds')
-  @ApiOperation({ summary: 'Zwroty za przejazdy i zwroty salda ze stanem u operatora' })
-  refunds(@Query(new ListQueryPipe(refundsResource)) query: ListQuery) {
-    return this.payments.listRefunds(query);
+  @ApiOperation({
+    summary: 'Zwroty za przejazdy i zwroty salda ze stanem u operatora; bez users.read userName i userPhone = null',
+  })
+  refunds(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(refundsResource)) query: ListQuery) {
+    return this.payments.listRefunds(staff.staffId, query);
   }
 
   @RequirePermission('payments.read')
@@ -180,7 +196,7 @@ export class AdminPaymentsController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     return this.exporter.list(reply, staff.staffId, refundsResource, body, (db, query) =>
-      this.payments.listRefunds(query, db),
+      this.payments.listRefunds(staff.staffId, query, db),
     );
   }
 

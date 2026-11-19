@@ -320,7 +320,19 @@
     "CONSENT_NOT_REVOCABLE": "Operator wycofuje tylko obowiązującą zgodę marketingową",
     "INVITATION_NOT_PENDING": "Zaproszenie nie czeka już na przyjęcie. Odśwież listę.",
     "TEMPLATE_IS_DEFAULT": "To domyślny szablon z aktywną wersją; najpierw ustaw jako domyślny inny szablon tego rodzaju",
-    "TEMPLATE_NAME_TAKEN": "Ta nazwa jest już zajęta w tym rodzaju dokumentu"
+    "TEMPLATE_NAME_TAKEN": "Ta nazwa jest już zajęta w tym rodzaju dokumentu",
+    "LIST_EXPORT_BUSY": "Trwa już {limit} eksportów list. Spróbuj ponownie za chwilę.",
+    "INVITATION_ALREADY_OPEN": "Inne zaproszenie tego operatora zostało właśnie wysłane. Odśwież listę.",
+    "STATUS_HISTORY_APPEND_ONLY": "Historii stanów nie można zmieniać ani usuwać; zapisuje ją system.",
+    "TASK_ALREADY_OPEN": "Ta hulajnoga ma już otwarte zadanie tego rodzaju.",
+    "AUTO_TICKET_ALREADY_OPEN": "Ta hulajnoga ma już otwarte zgłoszenie automatyczne tego rodzaju.",
+    "PART_QUANTITY_INVALID": "Liczba części musi być dodatnią liczbą całkowitą.",
+    "PLACES_UNAVAILABLE": "Wyszukiwanie miejsc jest chwilowo niedostępne.",
+    "FILE_SIGNATURE_INVALID": "Adres pliku jest nieprawidłowy. Odśwież stronę.",
+    "RECEIPT_ALREADY_ISSUED": "Paragon za ten przejazd został już wystawiony.",
+    "RENTAL_ALREADY_CHARGED": "Ten przejazd został już rozliczony.",
+    "SCOOTER_UNAVAILABLE": "Hulajnoga jest zajęta innym przejazdem.",
+    "NOTIFICATION_DUPLICATE": "To powiadomienie zostało już wysłane."
   },
   "fleetStatus": {
     "AVAILABLE": "Dostępna",
@@ -1464,7 +1476,8 @@
           "MEDIA": "Media",
           "DOCUMENT_TEMPLATE": "Szablon dokumentu",
           "GENERATED_DOCUMENT": "Wydruk",
-          "REPORT_EXPORT": "Raport"
+          "REPORT_EXPORT": "Raport",
+          "DATA_EXPORT": "Eksport danych klienta"
         },
         "status": {
           "READY": "Dostępny",
@@ -1502,6 +1515,16 @@
         "channel": {
           "PUSH": "Push",
           "SMS": "SMS"
+        },
+        "code": {
+          "reservation_ending": "Koniec rezerwacji",
+          "ride_ended": "Przejazd zakończony",
+          "payment_failed": "Płatność nieudana",
+          "battery_low": "Niska bateria",
+          "ticket_received": "Zgłoszenie przyjęte",
+          "ticket_status_changed": "Zmiana stanu zgłoszenia",
+          "login_code": "Kod logowania",
+          "data_export_ready": "Dane gotowe do pobrania"
         }
       }
     },
@@ -1550,6 +1573,16 @@
           "PREFERENCE_DISABLED": "Wyłączone w preferencjach",
           "NO_PUSH_TOKEN": "Brak tokenu push",
           "DeviceNotRegistered": "Urządzenie wyrejestrowane"
+        },
+        "templateCode": {
+          "reservation_ending": "Koniec rezerwacji",
+          "ride_ended": "Przejazd zakończony",
+          "payment_failed": "Płatność nieudana",
+          "battery_low": "Niska bateria",
+          "ticket_received": "Zgłoszenie przyjęte",
+          "ticket_status_changed": "Zmiana stanu zgłoszenia",
+          "login_code": "Kod logowania",
+          "data_export_ready": "Dane gotowe do pobrania"
         }
       },
       "summary": "{count, plural, one {# powiadomienie} few {# powiadomienia} other {# powiadomień}}"
@@ -1622,6 +1655,20 @@
           "WEB": "Strona",
           "MOBILE": "Aplikacja",
           "ADMIN": "Panel"
+        },
+        "icon": {
+          "rider-single": "Jedna osoba",
+          "bike-lane": "Droga dla rowerów",
+          "parking": "Parking",
+          "helmet": "Kask",
+          "no-alcohol": "Bez alkoholu",
+          "map": "Mapa",
+          "scan": "Skanowanie",
+          "wallet": "Portfel",
+          "battery": "Bateria",
+          "zone-slow": "Strefa wolnej jazdy",
+          "zone-no-ride": "Strefa zakazu",
+          "phone": "Telefon"
         }
       }
     },
@@ -1947,6 +1994,29 @@
         "active": {
           "true": "Aktywny",
           "false": "Wyłączony"
+        },
+        "code": {
+          "revenue": "Przychody",
+          "fleet_usage": "Wykorzystanie floty",
+          "rides_by_zone": "Przejazdy według stref i godzin",
+          "reliability": "Awaryjność",
+          "users": "Użytkownicy",
+          "wallet": "Portfel"
+        },
+        "formats": {
+          "PDF": "PDF",
+          "XLSX": "XLSX"
+        },
+        "lastRunFormat": {
+          "PDF": "PDF",
+          "XLSX": "XLSX"
+        },
+        "lastRunState": {
+          "QUEUED": "W kolejce",
+          "RUNNING": "W toku",
+          "SUCCEEDED": "Gotowy",
+          "FAILED": "Błąd",
+          "FILE_DELETED": "Plik usunięty"
         }
       }
     },
@@ -6252,7 +6322,7 @@
     "limitBody": "Lista ma {count, number} wierszy, a eksport mieści najwyżej {limit, number}. Zawęź filtry, na przykład okres albo stan, i eksportuj w częściach.",
     "empty": "Lista jest pusta przy tych filtrach; nie ma czego eksportować.",
     "personal": "Plik zawiera dane osobowe ({fields}). Przechowuj go tylko tak długo, jak to potrzebne. Eksport trafi do dziennika audytu z filtrami i liczbą wierszy.",
-    "masked": "Bez uprawnienia users.read kolumna klienta ma wartość „Klient”, jak w liście.",
+    "masked": "Bez uprawnienia users.read kolumny z danymi klienta ({fields}) będą w pliku puste; lista pokazuje w nich „Klient”.",
     "failed": "Nie udało się pobrać pliku: {message}",
     "fileHint": "{file} · {hint}",
     "loading": "Pobieranie {format}…",

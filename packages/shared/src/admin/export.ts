@@ -43,7 +43,8 @@ export function validateExportColumns(
   const seen = new Set<string>();
   const issues: ListExportColumnIssue[] = [];
   for (const column of columns) {
-    const field = fields[column.field];
+    // Tylko własne pola definicji: `constructor` albo `toString` z prototypu obiektu nie są polami zasobu.
+    const field = Object.hasOwn(fields, column.field) ? fields[column.field] : undefined;
     if (!field) issues.push({ field: column.field, code: 'UNKNOWN_FIELD' });
     else if (seen.has(column.field)) issues.push({ field: column.field, code: 'DUPLICATE_FIELD' });
     else if (column.values && Object.keys(column.values).some((v) => !field.values?.includes(v)))

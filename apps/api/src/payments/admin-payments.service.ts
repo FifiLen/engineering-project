@@ -1,16 +1,34 @@
 import { decideRefund, ensureAdjustment, notFound, planPayout } from '@hulajnogi/core';
 import { type Database, type DbExecutor, DrizzleCustomerRepository, DrizzlePaymentRepository } from '@hulajnogi/db';
-import type {
-  CustomerWalletAdmin,
-  ListQuery,
-  PaymentAdminDetails,
-  ReceiptAdminDetails,
-  RentalRefund,
-  WalletAdjustment,
-  WalletPayoutResult,
+import {
+  paymentMethodsResource,
+  paymentsResource,
+  receiptsResource,
+  refundsResource,
+  walletLedgerResource,
+  walletsResource,
+  webhookEventsResource,
+  type CustomerWalletAdmin,
+  type ListQuery,
+  type ListResponse,
+  type PaymentAdminDetails,
+  type PaymentListItem,
+  type PaymentMethodAdminItem,
+  type ReceiptAdminDetails,
+  type ReceiptListItem,
+  type RefundListItem,
+  type RentalRefund,
+  type ResourceDefinition,
+  type WalletAdjustment,
+  type WalletLedgerItem,
+  type WalletListItem,
+  type WalletPayoutResult,
+  type WebhookEventItem,
 } from '@hulajnogi/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { AuditedTransaction } from '../audit/audited-transaction.js';
+import { StaffPermissionsService } from '../auth/staff-permissions.service.js';
+import { listWithCustomerData, withoutCustomerData } from '../common/list-masking.js';
 import { DB } from '../database/database.module.js';
 import { PaymentEffects, PaymentsService } from './payments.service.js';
 
@@ -24,52 +42,101 @@ export class AdminPaymentsService {
     @Inject(DB) private readonly db: Database,
     private readonly payments: PaymentsService,
     private readonly audited: AuditedTransaction,
+    private readonly permissions: StaffPermissionsService,
   ) {}
 
   private get repo() {
     return new DrizzlePaymentRepository(this.db);
   }
 
-  listPayments(query: ListQuery, db: DbExecutor = this.db) {
-    return new DrizzlePaymentRepository(db).listPayments(query);
+  /**
+   * Listy płatności bez `users.read` są bez danych klienta (imię i nazwisko, telefon `null`, filtr i sortowanie po nich
+   * `403`, wyszukiwanie je pomija), jak zgłoszenia i wydruki (ADR 0055, ADR 0068); ta sama ścieżka obsługuje eksport.
+   */
+  private async masked<T, D extends ResourceDefinition>(
+    staffId: string,
+    def: D,
+    query: ListQuery,
+    run: (query: ListQuery, def: D) => Promise<ListResponse<T>>,
+  ): Promise<ListResponse<T>> {
+    return listWithCustomerData(def, query, await this.seesCustomers(staffId), run);
   }
 
-  listLedger(query: ListQuery, db: DbExecutor = this.db) {
-    return new DrizzlePaymentRepository(db).listLedger(query);
+  async seesCustomers(staffId: string): Promise<boolean> {
+    return (await this.permissions.get(staffId)).permissions.has('users.read');
   }
 
-  listWallets(query: ListQuery, db: DbExecutor = this.db) {
-    return new DrizzlePaymentRepository(db).listWallets(query);
+  listPayments(staffId: string, query: ListQuery, db: DbExecutor = this.db) {
+    return this.masked<PaymentListItem, typeof paymentsResource>(staffId, paymentsResource, query, (q, def) =>
+      new DrizzlePaymentRepository(db).listPayments(q, def),
+    );
   }
 
-  listReceipts(query: ListQuery, db: DbExecutor = this.db) {
-    return new DrizzlePaymentRepository(db).listReceipts(query);
+  listLedger(staffId: string, query: ListQuery, db: DbExecutor = this.db) {
+    return this.masked<WalletLedgerItem, typeof walletLedgerResource>(staffId, walletLedgerResource, query, (q, def) =>
+      new DrizzlePaymentRepository(db).listLedger(q, def),
+    );
   }
 
-  listPaymentMethods(query: ListQuery, db: DbExecutor = this.db) {
-    return new DrizzlePaymentRepository(db).listPaymentMethods(query);
+  listWallets(staffId: string, query: ListQuery, db: DbExecutor = this.db) {
+    return this.masked<WalletListItem, typeof walletsResource>(staffId, walletsResource, query, (q, def) =>
+      new DrizzlePaymentRepository(db).listWallets(q, def),
+    );
   }
 
-  listWebhooks(query: ListQuery, db: DbExecutor = this.db) {
-    return new DrizzlePaymentRepository(db).listWebhooks(query);
+  listReceipts(staffId: string, query: ListQuery, db: DbExecutor = this.db) {
+    return this.masked<ReceiptListItem, typeof receiptsResource>(staffId, receiptsResource, query, (q, def) =>
+      new DrizzlePaymentRepository(db).listReceipts(q, def),
+    );
   }
 
-  listRefunds(query: ListQuery, db: DbExecutor = this.db) {
-    return new DrizzlePaymentRepository(db).listRefunds(query);
+  listPaymentMethods(staffId: string, query: ListQuery, db: DbExecutor = this.db) {
+    return this.masked<PaymentMethodAdminItem, typeof paymentMethodsResource>(
+      staffId,
+      paymentMethodsResource,
+      query,
+      (q, def) => new DrizzlePaymentRepository(db).listPaymentMethods(q, def),
+    );
   }
 
-  async payment(id: string): Promise<PaymentAdminDetails> {
+  listWebhooks(staffId: string, query: ListQuery, db: DbExecutor = this.db) {
+    return this.masked<WebhookEventItem, typeof webhookEventsResource>(
+      staffId,
+      webhookEventsResource,
+      query,
+      (q, def) => new DrizzlePaymentRepository(db).listWebhooks(q, def),
+    );
+  }
+
+  listRefunds(staffId: string, query: ListQuery, db: DbExecutor = this.db) {
+    return this.masked<RefundListItem, typeof refundsResource>(staffId, refundsResource, query, (q, def) =>
+      new DrizzlePaymentRepository(db).listRefunds(q, def),
+    );
+  }
+
+  /** Szczegóły płatności; bez `users.read` bez danych klienta także w webhookach i zwrotach (jak lista). */
+  async payment(staffId: string, id: string): Promise<PaymentAdminDetails> {
     const repo = this.repo;
     const item = await repo.paymentItem(id);
     if (!item) throw notFound('payment', id);
-    const [webhooks, refunds] = await Promise.all([repo.webhooksForPayment(id), repo.refundItems({ paymentId: id })]);
-    return { ...item, webhooks, refunds };
+    const [webhooks, refunds, seesCustomers] = await Promise.all([
+      repo.webhooksForPayment(id),
+      repo.refundItems({ paymentId: id }),
+      this.seesCustomers(staffId),
+    ]);
+    if (seesCustomers) return { ...item, webhooks, refunds };
+    return {
+      ...withoutCustomerData(item, ['userName', 'userPhone']),
+      webhooks: webhooks.map((w) => withoutCustomerData(w, ['userName'])),
+      refunds: refunds.map(refundWithoutCustomer),
+    };
   }
 
-  async receipt(id: string): Promise<ReceiptAdminDetails> {
-    const receipt = await this.repo.receipt(id);
+  /** Paragon; bez `users.read` nabywca bez imienia i telefonu (dane sprzedawcy i pozycje zostają). */
+  async receipt(staffId: string, id: string): Promise<ReceiptAdminDetails> {
+    const [receipt, seesCustomers] = await Promise.all([this.repo.receipt(id), this.seesCustomers(staffId)]);
     if (!receipt) throw notFound('receipt', id);
-    return receipt;
+    return seesCustomers ? receipt : { ...receipt, buyer: { ...receipt.buyer, name: null, phone: null } };
   }
 
   /** Portfel na karcie klienta (makieta `klient-portfel`). */
@@ -220,4 +287,9 @@ export class AdminPaymentsService {
       wallet: await this.customerWallet(userId),
     };
   }
+}
+
+/** Zwrot bez danych klienta (szczegóły płatności i przejazdu dla operatora bez `users.read`). */
+export function refundWithoutCustomer(refund: RefundListItem): RefundListItem {
+  return withoutCustomerData(refund, ['userName', 'userPhone']);
 }

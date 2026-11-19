@@ -210,12 +210,13 @@ export function TelemetryPage() {
           {subtitle && <div className="sub">{subtitle}</div>}
         </div>
         <div className="actions">
-          {query && p.from && p.to && (
+          {query && p.from && p.to && can('telemetry.read') && (
             <ExportButton
               resource={telemetryReadingsResource}
               endpoint="/admin/telemetry/export"
               params={exportParams}
               rows={null}
+              limit={MAX_EXPORT_ROWS}
               rowsText={t('fleetLists.telemetry.exportRows', { max: MAX_EXPORT_ROWS })}
               filters={[
                 t('fleetLists.telemetry.exportRange', {

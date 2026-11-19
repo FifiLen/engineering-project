@@ -8,6 +8,7 @@
  * „Eksportuj” (ADR 0073) zapisuje bieżący widok (filtry, wyszukiwanie, sortowanie, kolumny listy) do XLSX albo CSV.
  */
 import {
+  customerDataFields,
   PAGE_SIZES,
   parseListQuery,
   toSearchParams,
@@ -114,6 +115,20 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
   const router = useRouter();
   // Panel ukrywa operacje bez uprawnień; decyzję podejmuje API (ADR 0028).
   const { can } = useSession();
+  // Bez `users.read` API zwraca pola klienta jako `null` i odrzuca sortowanie po nich (403): kolumna bez sortowania
+  // i z tekstem „Klient” (lista z odczytem `users.read` nie maskuje).
+  const maskedFields = useMemo(
+    () => new Set(can('users.read') || resource.permissions.read === 'users.read' ? [] : customerDataFields(resource)),
+    [can, resource],
+  );
+  const cell = (item: T, field: string, render?: (item: T) => ReactNode, empty = t('common.none')): ReactNode =>
+    maskedFields.has(field) ? (
+      <span className="muted">{t('service.customer')}</span>
+    ) : render ? (
+      render(item)
+    ) : (
+      String((item as Record<string, unknown>)[field] ?? empty)
+    );
   const canWrite = can(resource.permissions.write) && createLabel !== null;
   const canDelete = resource.deleteMode !== 'none' && can(resource.permissions.delete ?? resource.permissions.write);
   const pathname = usePathname();
@@ -424,7 +439,7 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
                     {header}
                   </span>
                 );
-              const sortable = resource.fields[field]?.sortable;
+              const sortable = resource.fields[field]?.sortable && !maskedFields.has(field);
               const active = sortInfo?.field === field;
               return (
                 <span
@@ -557,20 +572,16 @@ export function ResourceList<T extends ListRecord>(props: ResourceListProps<T>) 
                     {i === 0 && onOpen ? (
                       // Podgląd obok tabeli: pierwsza kolumna jest przyciskiem, więc działa też z klawiatury.
                       <button type="button" className="row-open strong" onClick={() => onOpen(item)}>
-                        {render ? render(item) : String((item as Record<string, unknown>)[field] ?? '')}
+                        {cell(item, field, render, '')}
                       </button>
                     ) : i === 0 && href ? (
                       <Link href={href} className="strong" style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {render ? render(item) : String((item as Record<string, unknown>)[field] ?? '')}
+                        {cell(item, field, render, '')}
                       </Link>
                     ) : i === 0 ? (
-                      <span className="strong">
-                        {render ? render(item) : String((item as Record<string, unknown>)[field] ?? '')}
-                      </span>
-                    ) : render ? (
-                      render(item)
+                      <span className="strong">{cell(item, field, render, '')}</span>
                     ) : (
-                      String((item as Record<string, unknown>)[field] ?? t('common.none'))
+                      cell(item, field, render)
                     )}
                   </span>
                 ))}

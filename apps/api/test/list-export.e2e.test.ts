@@ -3,6 +3,7 @@ import { warsawWallClock } from '@hulajnogi/core';
 import type * as shared from '@hulajnogi/shared';
 import ExcelJS from 'exceljs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { StaffPermissionsService } from '../src/auth/staff-permissions.service.js';
 import { ListExportService } from '../src/common/list-export/list-export.service.js';
 import { asStaff, staffToken } from './helpers.js';
 import { operationsContext, type OperationsContext } from './operations-helpers.js';
@@ -339,6 +340,7 @@ describe.skipIf(!adminUrl)('API: eksport list do XLSX i CSV (ADR 0073)', () => {
       'permissions',
       'saved-places',
       'scooter-status-history',
+      'report-runs',
     ];
     const { adminResource } = await import('@hulajnogi/shared');
     for (const name of resources) {
@@ -352,5 +354,140 @@ describe.skipIf(!adminUrl)('API: eksport list do XLSX i CSV (ADR 0073)', () => {
       expect({ name, status: res.statusCode }).toEqual({ name, status: 200 });
       expect(csvRows(res.body)[0]).toEqual(['Kolumna']);
     }
+  });
+  it('bez users.read przejazdy i płatności są bez danych klienta: lista, eksport, wyszukiwanie, sortowanie, szczegóły', async () => {
+    const rentalId = await ctx.ride(customer.token, 1);
+    await ctx.endRide(customer.token, 1);
+    // Księgowość (payments.read) dostaje też odczyt przejazdów, nadal bez users.read.
+    await ctx.pool.query(
+      `INSERT INTO role_permissions (role_id, permission_code) SELECT id, 'rentals.read' FROM roles WHERE name = 'Księgowość'`,
+    );
+    ctx.app.get(StaffPermissionsService).invalidate(accountantId);
+
+    // Eksport księgi roli z samym payments.read: wcześniej plik miał imię i telefon klienta.
+    const ledger = await exportList(accountantApi, 'wallet-ledger', {
+      query: { userId: customer.id, sort: '-id' },
+      format: 'csv',
+      columns: [
+        { field: 'userName', label: 'Klient' },
+        { field: 'userPhone', label: 'Telefon' },
+        { field: 'amount', label: 'Kwota' },
+      ],
+    });
+    expect(ledger.statusCode).toBe(200);
+    const ledgerRows = csvRows(ledger.body).slice(1);
+    expect(ledgerRows.length).toBeGreaterThanOrEqual(3);
+    for (const row of ledgerRows) expect(row.slice(0, 2)).toEqual(['', '']);
+    const adminLedger = await exportList(ctx.staff.admin, 'wallet-ledger', {
+      query: { userId: customer.id, sort: '-id' },
+      format: 'csv',
+      columns: [{ field: 'userName', label: 'Klient' }],
+    });
+    expect(csvRows(adminLedger.body)[1]).toEqual(['Anna Eksportowa']);
+
+    const lists: Array<[string, string[]]> = [
+      ['rentals', ['userName', 'userPhone']],
+      ['payments', ['userName', 'userPhone']],
+      ['wallet-ledger', ['userName', 'userPhone']],
+      ['wallets', ['name', 'phone']],
+      ['receipts', ['buyerName', 'buyerPhone']],
+      ['payment-methods', ['userName', 'userPhone']],
+      ['payment-webhook-events', ['userName']],
+      ['refunds', ['userName', 'userPhone']],
+    ];
+    for (const [resource, fields] of lists) {
+      const res = await accountantApi({ method: 'GET', url: `/admin/${resource}?pageSize=100` });
+      expect({ resource, status: res.statusCode }).toEqual({ resource, status: 200 });
+      for (const item of res.json<shared.ListResponse<Record<string, unknown>>>().items) {
+        for (const field of fields)
+          expect({ resource, field, value: item[field] }).toEqual({ resource, field, value: null });
+      }
+    }
+    const adminRentals = (await ctx.staff.admin({ method: 'GET', url: `/admin/rentals?userId=${customer.id}` })).json<
+      shared.ListResponse<shared.RentalListItem>
+    >();
+    expect(adminRentals.items[0]).toMatchObject({ userName: 'Anna Eksportowa', userPhone: '+48500100001' });
+
+    // Wyszukiwanie pomija pola klienta, sortowanie i filtr po nich to 403 (jak zgłoszenia).
+    const searched = (await accountantApi({ method: 'GET', url: '/admin/rentals?q=Anna' })).json<
+      shared.ListResponse<shared.RentalListItem>
+    >();
+    expect(searched.total).toBe(0);
+    expect(
+      (await ctx.staff.admin({ method: 'GET', url: '/admin/rentals?q=Anna' })).json<{ total: number }>().total,
+    ).toBe(1);
+    for (const url of [
+      '/admin/rentals?sort=userName',
+      '/admin/receipts?sort=buyerName',
+      '/admin/wallets?phone.contains=500',
+    ]) {
+      const res = await accountantApi({ method: 'GET', url });
+      expect({ url, status: res.statusCode }).toEqual({ url, status: 403 });
+    }
+
+    // Szczegóły przejazdu i paragonu: te same pola klienta ukryte.
+    const rental = (
+      await accountantApi({ method: 'GET', url: `/admin/rentals/${rentalId}` })
+    ).json<shared.RentalAdminDetails>();
+    expect(rental).toMatchObject({ id: rentalId, userName: null, userPhone: null });
+    expect(
+      (await ctx.staff.admin({ method: 'GET', url: `/admin/rentals/${rentalId}` })).json<shared.RentalAdminDetails>(),
+    ).toMatchObject({ userName: 'Anna Eksportowa' });
+    const receiptId = (
+      await ctx.pool.query<{ id: string }>(`SELECT id FROM receipts WHERE rental_id = $1 AND kind = 'SALE'`, [rentalId])
+    ).rows[0]!.id;
+    const receipt = (
+      await accountantApi({ method: 'GET', url: `/admin/receipts/${receiptId}` })
+    ).json<shared.ReceiptAdminDetails>();
+    expect(receipt.buyer).toMatchObject({ name: null, phone: null });
+    expect(receipt.seller.name).not.toBeNull();
+    expect(
+      (await ctx.staff.admin({ method: 'GET', url: `/admin/receipts/${receiptId}` })).json<shared.ReceiptAdminDetails>()
+        .buyer.name,
+    ).toBe('Anna Eksportowa');
+  });
+
+  it('eksporty naraz: najwyżej `concurrency` (429 LIST_EXPORT_BUSY), więcej niż pula połączeń bez zakleszczenia', async () => {
+    const exporter = ctx.app.get(ListExportService);
+    const payload = { query: {}, format: 'csv', columns: [{ field: 'number', label: 'Numer' }] };
+    exporter.concurrency = 0;
+    try {
+      const busy = await exportList(ctx.staff.admin, 'scooters', payload);
+      expect(busy.statusCode).toBe(429);
+      expect(busy.json()).toMatchObject({ code: 'LIST_EXPORT_BUSY', details: { limit: 0 } });
+      expect(busy.headers['retry-after']).toBeDefined();
+    } finally {
+      exporter.concurrency = 3;
+    }
+    // 12 eksportów przy puli 10 połączeń: wcześniej każdy trzymał transakcję odczytu i czekał na drugie połączenie
+    // na wpis w dzienniku audytu, więc pełna pula zakleszczała wszystkie.
+    exporter.concurrency = 12;
+    try {
+      const results = await Promise.all(
+        Array.from({ length: 12 }, () => exportList(ctx.staff.admin, 'scooters', payload)),
+      );
+      expect(results.map((r) => r.statusCode)).toEqual(Array(12).fill(200));
+    } finally {
+      exporter.concurrency = 3;
+    }
+  }, 30_000);
+
+  it('historia raportów: eksport tą samą listą co GET (tylko raporty z uprawnieniem), bez reports.* 403', async () => {
+    const res = await exportList(ctx.staff.technician, 'report-runs', {
+      query: {},
+      format: 'csv',
+      columns: [
+        { field: 'reportCode', label: 'Raport' },
+        { field: 'state', label: 'Stan' },
+      ],
+    });
+    expect(res.statusCode).toBe(200);
+    expect(csvRows(res.body)[0]).toEqual(['Raport', 'Stan']);
+    const denied = await exportList(accountantApi, 'report-runs', {
+      query: {},
+      format: 'csv',
+      columns: [{ field: 'reportCode', label: 'Raport' }],
+    });
+    expect(denied.statusCode).toBe(403);
   });
 });

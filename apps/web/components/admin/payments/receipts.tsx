@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { formatClock, formatDate, formatDateTime, formatTime, isToday, startOfToday, t } from '../../../lib/i18n';
 import { useSession } from '../../../lib/session';
+import { useCustomerLabel } from '../list-format';
 import { Banner } from '../access/common';
 import type { FilterSpec } from '../filter-drawer';
 import { rentalNumber } from '../fleet/fleet-format';
@@ -241,6 +242,7 @@ function itemQuantity(item: ReceiptItemView): string {
 
 /** Potwierdzenie sprzedaży albo korekta (makieta paragony-lista): ten sam dokument, który widzi klient. */
 export function ReceiptDocument({ receipt }: { receipt: ReceiptAdminDetails }) {
+  const customerLabel = useCustomerLabel();
   const seller = [
     receipt.seller.name,
     receipt.seller.address,
@@ -262,7 +264,7 @@ export function ReceiptDocument({ receipt }: { receipt: ReceiptAdminDetails }) {
         <div className="rc-sum">
           <span className="muted">{t('receipt.buyer')}</span>
           <span className="right">
-            {receipt.buyer.name ?? t('access.users.noName')}
+            {customerLabel(receipt.buyer.name)}
             {receipt.buyer.phone && (
               <>
                 <br />

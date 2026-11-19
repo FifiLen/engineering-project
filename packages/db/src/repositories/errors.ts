@@ -168,6 +168,9 @@ const RENTAL_CONSTRAINTS: Record<string, string> = {
   data_exports_one_open: 'DATA_EXPORT_IN_PROGRESS',
   document_template_versions_one_active: 'TEMPLATE_ALREADY_ACTIVE',
   document_templates_one_default: 'TEMPLATE_ALREADY_DEFAULT',
+  // Poprawki iteracji 8: drugie otwarte zaproszenie operatora z równoczesnego „Wyślij ponownie” (blokada wiersza
+  // operatora w `resendInvitation` temu zapobiega; mapowanie zostaje na wypadek innej ścieżki zapisu).
+  staff_invitations_one_open: 'INVITATION_ALREADY_OPEN',
 };
 
 /** Klucze obce, które chronią rekord w użyciu (migracja 0011): grafika w bloku, aktualności albo modelu, kategoria z pytaniami. */

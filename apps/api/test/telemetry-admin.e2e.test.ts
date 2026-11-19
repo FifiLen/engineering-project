@@ -127,6 +127,30 @@ describe.skipIf(!adminUrl)('API: Flota → Telemetria (ADR 0076)', () => {
     ).toBe(403);
   });
 
+  it('kursor spoza zakresu [from, to) to 400: nie przesuwa granicy odczytu poza zakres', async () => {
+    // Zakres obejmuje tylko trzy ostatnie odczyty, a kursor `newer` wskazuje chwilę przed pierwszym odczytem:
+    // wcześniej zapytanie czytało od kursora, czyli odczyty spoza zakresu (i spoza sprawdzenia retencji).
+    const narrow = { from: at(9).toISOString(), to: new Date(at(11).getTime() + 1000).toISOString() };
+    const outside = new Date(base - 30_000).toISOString();
+    for (const direction of ['newer', 'older']) {
+      const res = await ctx.staff.technician({
+        method: 'GET',
+        url: url({ scooterId, ...narrow, cursor: outside, direction }),
+      });
+      expect({ direction, status: res.statusCode }).toEqual({ direction, status: 400 });
+      expect(res.json()).toMatchObject({ code: 'VALIDATION_ERROR' });
+    }
+    const after = await ctx.staff.technician({
+      method: 'GET',
+      url: url({ scooterId, ...narrow, cursor: narrow.to, direction: 'older' }),
+    });
+    expect(after.statusCode).toBe(400);
+    const inside = (
+      await ctx.staff.technician({ method: 'GET', url: url({ scooterId, ...narrow }) })
+    ).json<shared.TelemetryReadingsPage>();
+    expect(inside.items.map((i) => i.recordedAt)).toEqual([at(11), at(10), at(9)].map((d) => d.toISOString()));
+  });
+
   it('eksport zakresu: wszystkie odczyty od najnowszych, tak/nie w CSV, wpis list.exported z zakresem', async () => {
     const res = await ctx.staff.technician({
       method: 'POST',

@@ -44,13 +44,15 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
   let pool: Pool;
   let db: Database;
   let adminId: string;
+  let databaseUrl: string;
 
   beforeAll(async () => {
     admin = new Pool({ connectionString: adminUrl });
     await admin.query(`CREATE DATABASE ${dbName}`);
     const url = new URL(adminUrl!);
     url.pathname = `/${dbName}`;
-    pool = new Pool({ connectionString: url.toString() });
+    databaseUrl = url.toString();
+    pool = new Pool({ connectionString: databaseUrl });
     pool.on('error', () => undefined);
     await runMigrations(pool);
     await seedDatabase(pool, {
@@ -164,6 +166,97 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     expect(await staffSessions.revokeAllForOwner(adminId)).toBe(1);
   });
 
+  it('sesje: unieważnienie rodziny albo wszystkich sesji w trakcie rotacji obejmuje następcę (dwa połączenia)', async () => {
+    const { record } = await new DrizzleCustomerRepository(db).createOrGet('+48500300301');
+    const sessions = new DrizzleCustomerSessionRepository(db);
+
+    /** Rotacja w otwartej transakcji, która czeka po wstawieniu następcy, aż test wywoła drugie połączenie. */
+    async function raceRotation(tokenHash: string, revoke: () => Promise<number>) {
+      const first = await sessions.create({ ownerId: record.id, tokenHash, expiresAt: after(86400), device: null });
+      let inserted!: () => void;
+      const ready = new Promise<void>((resolve) => (inserted = resolve));
+      let finish!: () => void;
+      const gate = new Promise<void>((resolve) => (finish = resolve));
+      const rotation = db.transaction(async (tx) => {
+        const next = await new DrizzleCustomerSessionRepository(tx).rotate(
+          first.id,
+          {
+            ownerId: record.id,
+            familyId: first.familyId,
+            tokenHash: `${tokenHash}-next`,
+            expiresAt: after(86400),
+            device: null,
+          },
+          t0,
+        );
+        inserted();
+        await gate;
+        return next;
+      });
+      await ready;
+      // Drugie połączenie: unieważnienie startuje, gdy rotacja jeszcze trwa (następca wstawiony, bez zatwierdzenia).
+      const revoked = revoke();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      finish();
+      const next = await rotation;
+      return { next: next!, count: await revoked };
+    }
+
+    // Wcześniej unieważnienie czekało na wiersz poprzednika i nie widziało następcy, więc następca zostawał ważny.
+    const family = await raceRotation('race-family', async () => {
+      const found = await sessions.findByTokenHash('race-family');
+      return sessions.revokeFamily(found!.familyId, after(1));
+    });
+    expect(family.count).toBe(1);
+    expect((await sessions.findByTokenHash('race-family-next'))!.revokedAt).toEqual(after(1));
+
+    const owner = await raceRotation('race-owner', () => sessions.revokeAllForOwner(record.id));
+    expect(owner.count).toBe(1);
+    expect((await sessions.findByTokenHash('race-owner-next'))!.revokedAt).not.toBeNull();
+    expect(await sessions.active(record.id, t0)).toEqual([]);
+  });
+
+  it('listy w transakcji: zapytania po kolei na jednym połączeniu, kolejne partie bez count(*)', async () => {
+    const spyPool = new Pool({ connectionString: databaseUrl });
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const counts: string[] = [];
+    spyPool.on('connect', (client) => {
+      const query = client.query.bind(client) as (...args: unknown[]) => unknown;
+      (client as unknown as { query: (...args: unknown[]) => unknown }).query = (...args: unknown[]) => {
+        const text = typeof args[0] === 'string' ? args[0] : ((args[0] as { text?: string })?.text ?? '');
+        if (/count\(\*\)/.test(text)) counts.push(text);
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        const result = query(...args);
+        if (result && typeof (result as Promise<unknown>).finally === 'function') {
+          return (result as Promise<unknown>).finally(() => inFlight--);
+        }
+        inFlight--;
+        return result;
+      };
+    });
+    try {
+      const spyDb = createDb(spyPool);
+      const query = parse(staffResource, 'facets=status,totpEnabled');
+      const inTx = await spyDb.transaction((tx) => new DrizzleStaffRepository(tx).list(query));
+      // Na transakcji (jedno połączenie) wcześniej `Promise.all` wysyłał wiersze, liczbę i liczniki naraz.
+      expect(maxInFlight).toBe(1);
+      expect(inTx.total).toBeGreaterThan(0);
+      expect(Object.keys(inTx.facets)).toEqual(['status', 'totpEnabled']);
+
+      counts.length = 0;
+      const page = await spyDb.transaction((tx) =>
+        new DrizzleStaffRepository(tx).list({ ...query, facets: [], page: 1, pageSize: 1, withTotal: false }),
+      );
+      expect(counts).toEqual([]);
+      expect(page.items).toHaveLength(1);
+      expect(page.total).toBe(1);
+    } finally {
+      await spyPool.end();
+    }
+  });
+
   it('zgody: dokumenty do akceptacji, idempotentny zapis i nowa wersja dokumentu', async () => {
     const { record } = await new DrizzleCustomerRepository(db).createOrGet('+48500400400');
     const consentsRepo = new DrizzleConsentRepository(db);
@@ -223,19 +316,23 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
   });
 
   it('zaproszenie administratora z terminala: konto z rolą, link jednorazowy, ponowne zaproszenie', async () => {
-    const first = await inviteAdministrator(pool, { email: ' Nowy.Admin@Operator.pl ', name: 'Nowy Admin' }, t0);
+    // Chwila zaproszenia względem bieżącego czasu: `CHECK (expires_at > created_at)` porównuje termin z `now()` bazy,
+    // więc stała data testu (t0 + 72 h) przestaje przechodzić po trzech dniach.
+    const base = new Date(Date.now() + 60_000);
+    const at = (seconds: number) => new Date(base.getTime() + seconds * 1000);
+    const first = await inviteAdministrator(pool, { email: ' Nowy.Admin@Operator.pl ', name: 'Nowy Admin' }, at(0));
     expect(first.created).toBe(true);
     const invitations = new DrizzleInvitationRepository(db);
     const found = (await invitations.findByTokenHash(hashToken(first.token)))!;
     expect(found).toMatchObject({
       staffEmail: 'nowy.admin@operator.pl',
       invitedByName: null,
-      expiresAt: after(72 * 3600),
+      expiresAt: at(72 * 3600),
     });
 
-    const again = await inviteAdministrator(pool, { email: 'nowy.admin@operator.pl', name: 'Nowy Admin' }, after(60));
+    const again = await inviteAdministrator(pool, { email: 'nowy.admin@operator.pl', name: 'Nowy Admin' }, at(60));
     expect(again).toMatchObject({ staffId: first.staffId, created: false });
-    expect((await invitations.findByTokenHash(hashToken(first.token)))!.revokedAt).toEqual(after(60));
+    expect((await invitations.findByTokenHash(hashToken(first.token)))!.revokedAt).toEqual(at(60));
 
     const staffRepo = new DrizzleStaffRepository(db);
     expect(await staffRepo.permissions(first.staffId)).toEqual([...PERMISSIONS].sort());
@@ -245,8 +342,8 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     ]);
 
     const invitation = (await invitations.findByTokenHash(hashToken(again.token)))!;
-    expect(await invitations.accept(invitation.id, after(120))).toBe(true);
-    expect(await invitations.accept(invitation.id, after(120))).toBe(false);
+    expect(await invitations.accept(invitation.id, at(120))).toBe(true);
+    expect(await invitations.accept(invitation.id, at(120))).toBe(false);
     await staffRepo.setPassword(first.staffId, 'argon2-hash');
     await expect(inviteAdministrator(pool, { email: 'nowy.admin@operator.pl', name: 'X' })).rejects.toThrow(
       expect.objectContaining({ code: 'STAFF_ALREADY_ACTIVATED' }),

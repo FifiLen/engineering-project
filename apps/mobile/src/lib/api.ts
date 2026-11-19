@@ -5,6 +5,7 @@
  */
 import type { CustomerTokens } from '@hulajnogi/shared';
 import { t } from '../i18n';
+import { refreshDeviceFields } from './device-info';
 import { readRefreshToken, saveRefreshToken } from './storage';
 
 /** Symulator iOS i przeglądarka widzą API na localhost; telefon w sieci wymaga adresu komputera. */
@@ -37,7 +38,12 @@ export function refreshTokens(): Promise<boolean> {
     const refreshToken = await readRefreshToken();
     if (!refreshToken) return false;
     try {
-      await storeTokens(await request<CustomerTokens>('/auth/refresh', { method: 'POST', json: { refreshToken } }));
+      await storeTokens(
+        await request<CustomerTokens>('/auth/refresh', {
+          method: 'POST',
+          json: { refreshToken, ...refreshDeviceFields() },
+        }),
+      );
       return true;
     } catch (error) {
       // Sieć niedostępna: zostawiamy token, żeby spróbować ponownie; odrzucona sesja jest usuwana.

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { consentRevokeSchema, consentsResource, permissionUpdateSchema, sessionsResource } from './accounts.js';
 import { exportListParams, listExportRequestSchema, validateExportColumns } from './export.js';
-import { parseListQuery, personalFields, type FieldDefinition } from './list.js';
+import { customerDataFields, parseListQuery, personalFields, type FieldDefinition } from './list.js';
 import { rentalsResource } from './rentals.js';
+import { receiptsResource, walletsResource } from './payments.js';
 import { ADMIN_RESOURCES, adminResource } from './registry.js';
 import { reportRunsResource } from './reports.js';
 import { scooterStatusHistoryResource, telemetryReadingsQuerySchema } from './system-lists.js';
@@ -37,6 +38,29 @@ describe('rejestr zasobów (ADR 0031, ADR 0076)', () => {
     expect(personalFields(reportRunsResource)).toEqual([]);
     expect(personalFields(adminResource('users')!)).toEqual(['name', 'phone', 'email']);
     expect(personalFields(adminResource('roles')!)).toEqual([]);
+  });
+
+  it('pola klienta maskowane bez users.read: bez danych kontaktowych operatora', () => {
+    expect(customerDataFields(walletsResource)).toEqual(['name', 'phone']);
+    expect(customerDataFields(receiptsResource)).toEqual(['buyerName', 'buyerPhone']);
+    expect(customerDataFields(adminResource('staff')!)).toEqual([]);
+    expect(customerDataFields(adminResource('staff-sessions')!)).toEqual([]);
+    expect(customerDataFields(adminResource('audit-log')!)).toEqual([]);
+  });
+
+  it('pola z prototypu obiektu nie są polami zasobu (constructor, toString)', () => {
+    expect(validateExportColumns(rentalsResource, [{ field: 'constructor', label: 'x' }])).toEqual([
+      { field: 'constructor', code: 'UNKNOWN_FIELD' },
+    ]);
+    expect(validateExportColumns(rentalsResource, [{ field: 'toString', label: 'x' }])).toEqual([
+      { field: 'toString', code: 'UNKNOWN_FIELD' },
+    ]);
+    const filter = parseListQuery(rentalsResource, { constructor: 'x' });
+    expect(filter.ok || filter.issues).toEqual([
+      expect.objectContaining({ param: 'constructor', code: 'UNKNOWN_PARAM' }),
+    ]);
+    const sort = parseListQuery(rentalsResource, { sort: 'constructor' });
+    expect(sort.ok || sort.issues).toEqual([expect.objectContaining({ param: 'sort', code: 'UNKNOWN_SORT' })]);
   });
 
   it('historia stanów i zgody: filtry i sortowania z widoków 0013', () => {
@@ -100,5 +124,21 @@ describe('telemetria z kursorem (ADR 0076)', () => {
     expect(
       telemetryReadingsQuerySchema.safeParse({ ...base, to: '2026-11-19T11:00:00Z', inRide: '1' }).data?.inRide,
     ).toBe(true);
+  });
+
+  it('kursor tylko z zakresu [from, to)', () => {
+    const base = {
+      scooterId: '0b6f1c2e-6b3a-4c39-9d5e-2a6c3d6f7a10',
+      from: '2026-11-19T10:00:00Z',
+      to: '2026-11-19T11:00:00Z',
+    };
+    const parse = (cursor: string, direction = 'older') =>
+      telemetryReadingsQuerySchema.safeParse({ ...base, cursor, direction }).success;
+    expect(parse('2026-11-19T10:30:00.123456Z')).toBe(true);
+    expect(parse('2026-11-19T10:00:00.000000Z')).toBe(true);
+    // Kursor sprzed zakresu z `newer` czytałby odczyty sprzed `from` (i spoza okna retencji).
+    expect(parse('2026-11-01T10:00:00.000000Z', 'newer')).toBe(false);
+    expect(parse('2026-11-19T11:00:00.000000Z')).toBe(false);
+    expect(parse('2026-11-19T12:00:00.000000Z', 'newer')).toBe(false);
   });
 });

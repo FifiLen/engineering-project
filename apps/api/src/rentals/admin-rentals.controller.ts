@@ -31,9 +31,12 @@ export class AdminRentalsController {
 
   @RequirePermission('rentals.read')
   @Get()
-  @ApiOperation({ summary: 'Lista przejazdów z filtrami, sortowaniem, stronicowaniem i licznikami (kontrakt list)' })
-  list(@Query(new ListQueryPipe(rentalsResource)) query: ListQuery) {
-    return this.rentals.list(query);
+  @ApiOperation({
+    summary:
+      'Lista przejazdów z filtrami, sortowaniem, stronicowaniem i licznikami (kontrakt list); bez users.read userName i userPhone = null',
+  })
+  list(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(rentalsResource)) query: ListQuery) {
+    return this.rentals.list(staff.staffId, query);
   }
 
   @RequirePermission('rentals.read')
@@ -43,14 +46,18 @@ export class AdminRentalsController {
     @Body(listExportBody) body: ListExportRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    return this.exporter.list(reply, staff.staffId, rentalsResource, body, (db, query) => this.rentals.list(query, db));
+    return this.exporter.list(reply, staff.staffId, rentalsResource, body, (db, query) =>
+      this.rentals.list(staff.staffId, query, db),
+    );
   }
 
   @RequirePermission('rentals.read')
   @Get(':id')
-  @ApiOkResponse({ description: 'Szczegóły przejazdu: liczniki, kwota, oś czasu z komendami, trasa' })
-  details(@Param('id', idParam) id: string) {
-    return this.rentals.details(id);
+  @ApiOkResponse({
+    description: 'Szczegóły przejazdu: liczniki, kwota, oś czasu z komendami, trasa; bez users.read bez danych klienta',
+  })
+  details(@CurrentStaff() staff: StaffPrincipal, @Param('id', idParam) id: string) {
+    return this.rentals.details(staff.staffId, id);
   }
 
   @RequirePermission('rentals.manage')

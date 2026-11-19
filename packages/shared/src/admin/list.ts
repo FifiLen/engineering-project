@@ -71,6 +71,11 @@ export interface ListQuery {
   page: number;
   pageSize: number;
   facets: string[];
+  /**
+   * `false`: bez `count(*)` (kolejne partie eksportu listy, ADR 0073); `total` jest wtedy liczbą wierszy do końca
+   * tej strony, nie liczbą wszystkich. Nie pochodzi z adresu listy.
+   */
+  withTotal?: boolean;
 }
 
 export interface ListResponse<T> {
@@ -135,6 +140,8 @@ export function parseListQuery(def: ResourceDefinition, params: Params): ListQue
   const issues: ListIssue[] = [];
   const query: ListQuery = { filters: [], sort: [], page: 1, pageSize: DEFAULT_PAGE_SIZE, facets: [] };
   const fields = def.fields as Record<string, FieldDefinition>;
+  // Tylko własne pola definicji (nie `constructor` ani `toString` z prototypu obiektu).
+  const own = (name: string): FieldDefinition | undefined => (Object.hasOwn(fields, name) ? fields[name] : undefined);
   let sortParam: string | undefined;
 
   for (const [key, raw] of entries(params)) {
@@ -150,7 +157,7 @@ export function parseListQuery(def: ResourceDefinition, params: Params): ListQue
       }
       if (key === 'facets') {
         for (const name of raw.split(',').filter(Boolean)) {
-          if (!fields[name]?.facet)
+          if (!own(name)?.facet)
             issues.push({ param: key, code: 'UNKNOWN_FACET', message: `Brak liczników dla pola ${name}` });
           else if (!query.facets.includes(name)) query.facets.push(name);
         }
@@ -163,7 +170,7 @@ export function parseListQuery(def: ResourceDefinition, params: Params): ListQue
     const isOperator = (OPERATORS as readonly string[]).includes(suffix);
     const name = isOperator ? key.slice(0, dot) : key;
     const op: FilterOperator = isOperator ? (suffix as FilterOperator) : 'eq';
-    const field = fields[name];
+    const field = own(name);
     if (!field) {
       issues.push({ param: key, code: 'UNKNOWN_PARAM', message: `Nieznany parametr ${key}` });
       continue;
@@ -184,7 +191,7 @@ export function parseListQuery(def: ResourceDefinition, params: Params): ListQue
   for (const key of (sortParam ?? def.defaultSort.join(',')).split(',').filter(Boolean)) {
     const desc = key.startsWith('-');
     const name = desc ? key.slice(1) : key;
-    if (!fields[name]?.sortable)
+    if (!own(name)?.sortable)
       issues.push({ param: 'sort', code: 'UNKNOWN_SORT', message: `Nie można sortować po ${name}` });
     else if (!query.sort.some((s) => s.field === name)) query.sort.push({ field: name, desc });
   }
@@ -197,6 +204,14 @@ export const personalFields = (def: ResourceDefinition): string[] =>
   Object.entries<FieldDefinition>(def.fields as Record<string, FieldDefinition>)
     .filter(([, field]) => field.personal)
     .map(([name]) => name);
+
+/**
+ * Pola z danymi klienta, które API maskuje bez `users.read` (ADR 0055, ADR 0073): pola `personal` bez danych
+ * kontaktowych operatora (`staff*` i zasób `staff`, chronione uprawnieniem `staff.read`). Panel nie sortuje po nich
+ * bez `users.read` i pokazuje w nich „Klient”; okno eksportu mówi, że te kolumny będą puste.
+ */
+export const customerDataFields = (def: ResourceDefinition): string[] =>
+  def.name === 'staff' ? [] : personalFields(def).filter((name) => !name.startsWith('staff'));
 
 /** Odwrotność `parseListQuery`: parametry adresu dla stanu listy (pomija wartości domyślne). */
 export function toSearchParams(def: ResourceDefinition, query: Partial<ListQuery>): URLSearchParams {

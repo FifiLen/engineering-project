@@ -22,6 +22,17 @@ export const LIST_EXPORT_CONTENT_TYPES: Record<ListExportFormat, string> = {
   csv: 'text/csv; charset=utf-8',
 };
 
+/**
+ * Najwięcej eksportów list naraz w jednej instancji API: każdy trzyma połączenie z puli na czas transakcji odczytu,
+ * więc kolejny dostaje `429 LIST_EXPORT_BUSY` z `details: { limit, retryAfterSeconds }` zamiast czekać na połączenie.
+ */
+export const LIST_EXPORT_CONCURRENCY = 3;
+
+/** Wolne miejsce na eksport albo `LIST_EXPORT_BUSY` (429 z nagłówkiem `Retry-After`). */
+export function ensureListExportSlot(active: number, limit: number = LIST_EXPORT_CONCURRENCY): void {
+  if (active >= limit) throw new DomainError('LIST_EXPORT_BUSY', { limit, retryAfterSeconds: 5 });
+}
+
 /** Powyżej limitu `LIST_EXPORT_LIMIT` (422) z `details: { count, limit }`; panel wyłącza przycisk przy `total`. */
 export function ensureListExportWithinLimit(count: number, limit: number = LIST_EXPORT_LIMIT): void {
   if (count > limit) throw new DomainError('LIST_EXPORT_LIMIT', { count, limit });

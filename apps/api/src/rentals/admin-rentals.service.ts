@@ -1,12 +1,20 @@
 import { notFound, RentalStateMachine, rentalFigures } from '@hulajnogi/core';
 import { type Database, type DbExecutor, DrizzlePaymentRepository, DrizzleRentalRepository } from '@hulajnogi/db';
-import type { ListQuery, RentalAdminDetails, RentalRefund, RemoteEnd } from '@hulajnogi/shared';
+import {
+  rentalsResource,
+  type ListQuery,
+  type RentalAdminDetails,
+  type RentalListItem,
+  type RentalRefund,
+  type RemoteEnd,
+} from '@hulajnogi/shared';
 import { Inject, Injectable } from '@nestjs/common';
+import { listWithCustomerData, withoutCustomerData } from '../common/list-masking.js';
 import { DB } from '../database/database.module.js';
 import { FilesService } from '../files/files.service.js';
 import { OperationsEffects, OperationsService } from '../operations/operations.service.js';
 import { TicketsService } from '../operations/tickets.service.js';
-import { AdminPaymentsService } from '../payments/admin-payments.service.js';
+import { AdminPaymentsService, refundWithoutCustomer } from '../payments/admin-payments.service.js';
 import { tariffView } from './rental-view.js';
 import { RentalsService } from './rentals.service.js';
 
@@ -22,11 +30,30 @@ export class AdminRentalsService {
     private readonly operations: OperationsService,
   ) {}
 
-  list(query: ListQuery, db: DbExecutor = this.db) {
-    return new DrizzleRentalRepository(db).list(query);
+  /**
+   * Bez `users.read` bez imienia i telefonu klienta (`null`, filtr i sortowanie po nich `403`, wyszukiwanie je
+   * pomija), jak zgłoszenia i wydruki; ta sama ścieżka obsługuje eksport.
+   */
+  async list(staffId: string, query: ListQuery, db: DbExecutor = this.db) {
+    return listWithCustomerData<RentalListItem, typeof rentalsResource>(
+      rentalsResource,
+      query,
+      await this.payments.seesCustomers(staffId),
+      (q, def) => new DrizzleRentalRepository(db).list(q, def),
+    );
   }
 
-  async details(id: string): Promise<RentalAdminDetails> {
+  /** Karta przejazdu; bez `users.read` bez danych klienta (także w zwrotach), jak lista. */
+  async details(staffId: string, id: string): Promise<RentalAdminDetails> {
+    const details = await this.load(id);
+    if (await this.payments.seesCustomers(staffId)) return details;
+    return {
+      ...withoutCustomerData(details, ['userName', 'userPhone']),
+      refunds: details.refunds.map(refundWithoutCustomer),
+    };
+  }
+
+  private async load(id: string): Promise<RentalAdminDetails> {
     const repo = new DrizzleRentalRepository(this.db);
     const [item, rental] = await Promise.all([repo.listItem(id), repo.find(id)]);
     if (!item || !rental) throw notFound('rental', id);
@@ -104,11 +131,11 @@ export class AdminRentalsService {
       ticketId ? (tx, refundId) => this.tickets.linkRefund(tx, ticketId, id, refundId, effects) : undefined,
     );
     await this.operations.afterCommit(effects);
-    return this.details(id);
+    return this.details(staffId, id);
   }
 
   async remoteEnd(staffId: string, id: string, body: RemoteEnd): Promise<RentalAdminDetails> {
     await this.rentals.remoteEnd(staffId, id, body);
-    return this.details(id);
+    return this.details(staffId, id);
   }
 }

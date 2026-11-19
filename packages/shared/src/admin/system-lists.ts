@@ -411,7 +411,17 @@ export const telemetryReadingsQuerySchema = z
   .refine((q) => Date.parse(q.to) - Date.parse(q.from) <= TELEMETRY_MAX_RANGE_HOURS * 3_600_000, {
     path: ['to'],
     message: 'Zakres najwyżej 24 h',
-  });
+  })
+  // Kursor to chwila odczytu z tej listy, więc leży w zakresie `[from, to)`; inny kursor (np. z innego zakresu)
+  // przesunąłby granicę zapytania poza zakres i poza sprawdzenie retencji.
+  .refine(
+    (q) =>
+      q.cursor === undefined || (Date.parse(q.cursor) >= Date.parse(q.from) && Date.parse(q.cursor) < Date.parse(q.to)),
+    {
+      path: ['cursor'],
+      message: 'Kursor poza zakresem',
+    },
+  );
 export type TelemetryReadingsQuery = z.infer<typeof telemetryReadingsQuerySchema>;
 
 export interface TelemetryReadingView {
