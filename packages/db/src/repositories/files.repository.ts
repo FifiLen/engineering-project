@@ -1,4 +1,4 @@
-import type { AttachableFile, FileContentType, UploadFilePurpose } from '@hulajnogi/core';
+import type { AttachableFile, FileContentType, StaffUploadFilePurpose } from '@hulajnogi/core';
 import {
   filesResource,
   type FileListItem,
@@ -47,24 +47,32 @@ export interface FileRecord {
   uploadedByStaff: string | null;
   createdAt: Date;
   deletedAt: Date | null;
+  /** Wymiary grafiki (cel `MEDIA`); `null` dla innych plików. */
+  width: number | null;
+  height: number | null;
+  originalName: string | null;
 }
 
 export interface NewFile {
   id: string;
   storageKey: string;
-  purpose: UploadFilePurpose;
+  purpose: StaffUploadFilePurpose;
   contentType: FileContentType;
   sizeBytes: number;
   sha256: string;
   originalName: string | null;
   uploadedBy: string | null;
   uploadedByStaff: string | null;
+  /** Wymiary grafiki biblioteki mediów (core `readImageInfo`, ADR 0064); inne pliki ich nie mają. */
+  width?: number | null;
+  height?: number | null;
 }
 
 type Row = Record<string, unknown>;
 
 const fileSql = sql`SELECT f.id, f.storage_key, f.purpose::text AS purpose, f.content_type, f.size_bytes, f.sha256,
-                           f.status::text AS status, f.uploaded_by, f.uploaded_by_staff, f.created_at, f.deleted_at
+                           f.status::text AS status, f.uploaded_by, f.uploaded_by_staff, f.created_at, f.deleted_at,
+                           f.width, f.height, f.original_name
                     FROM files f`;
 const toFile = (r: Row): FileRecord => ({
   id: r.id as string,
@@ -78,11 +86,21 @@ const toFile = (r: Row): FileRecord => ({
   uploadedByStaff: (r.uploaded_by_staff as string | null) ?? null,
   createdAt: new Date(r.created_at as string),
   deletedAt: r.deleted_at ? new Date(r.deleted_at as string) : null,
+  width: r.width === null || r.width === undefined ? null : Number(r.width),
+  height: r.height === null || r.height === undefined ? null : Number(r.height),
+  originalName: (r.original_name as string | null) ?? null,
 });
 
-/** Plik przypięty do przejazdu (zdjęcie parkowania) albo do zgłoszenia (zdjęcie zgłoszenia). */
+/**
+ * Plik przypięty do rekordu: zdjęcie parkowania przejazdu, zdjęcie zgłoszenia, plik grafiki biblioteki mediów albo
+ * plik wersji szablonu wydruku (iteracja 7). Plik bez przypięcia usuwa `files.cleanup` po 24 h, także stary plik
+ * grafiki po „Zastąp plik” (ADR 0064).
+ */
 const ATTACHED = sql`(EXISTS (SELECT 1 FROM rentals r WHERE r.parking_photo_id = f.id)
-                      OR EXISTS (SELECT 1 FROM ticket_photos p WHERE p.file_id = f.id))`;
+                      OR EXISTS (SELECT 1 FROM ticket_photos p WHERE p.file_id = f.id)
+                      OR EXISTS (SELECT 1 FROM media_assets m WHERE m.file_id = f.id)
+                      OR EXISTS (SELECT 1 FROM document_template_versions v
+                                 WHERE v.file_id = f.id OR v.preview_file_id = f.id))`;
 
 /**
  * Zdjęcie parkowania jest dowodem w sprawie: przejazd, do którego je przypięto, ma zgłoszenie (np. reklamację
@@ -153,9 +171,34 @@ export class DrizzleFileRepository {
   /** Wiersz po zapisaniu obiektu w magazynie: plik od razu `READY`, jeszcze nieprzypięty. */
   async insert(file: NewFile): Promise<FileRecord> {
     await this.db.execute(sql`
-      INSERT INTO files (id, storage_key, purpose, content_type, size_bytes, sha256, original_name, uploaded_by, uploaded_by_staff)
+      INSERT INTO files (id, storage_key, purpose, content_type, size_bytes, sha256, original_name, uploaded_by,
+                         uploaded_by_staff, width, height)
       VALUES (${file.id}, ${file.storageKey}, ${file.purpose}::file_purpose, ${file.contentType}, ${file.sizeBytes},
-              ${file.sha256}, ${file.originalName}, ${file.uploadedBy}, ${file.uploadedByStaff})`);
+              ${file.sha256}, ${file.originalName}, ${file.uploadedBy}, ${file.uploadedByStaff}, ${file.width ?? null},
+              ${file.height ?? null})`);
+    return (await this.find(file.id))!;
+  }
+
+  /**
+   * Plik wytworzony przez API (iteracja 7): wersja szablonu (`DOCUMENT_TEMPLATE`), wydruk (`GENERATED_DOCUMENT`)
+   * albo eksport danych (`DATA_EXPORT`). Typ nie jest obrazem, więc nie przechodzi przez reguły wysyłki zdjęć.
+   */
+  async insertStored(file: {
+    id: string;
+    storageKey: string;
+    purpose: 'DOCUMENT_TEMPLATE' | 'GENERATED_DOCUMENT' | 'DATA_EXPORT';
+    contentType: string;
+    sizeBytes: number;
+    sha256: string;
+    originalName: string | null;
+    uploadedBy?: string | null;
+    uploadedByStaff?: string | null;
+  }): Promise<FileRecord> {
+    await this.db.execute(sql`
+      INSERT INTO files (id, storage_key, purpose, content_type, size_bytes, sha256, original_name, uploaded_by,
+                         uploaded_by_staff)
+      VALUES (${file.id}, ${file.storageKey}, ${file.purpose}::file_purpose, ${file.contentType}, ${file.sizeBytes},
+              ${file.sha256}, ${file.originalName}, ${file.uploadedBy ?? null}, ${file.uploadedByStaff ?? null})`);
     return (await this.find(file.id))!;
   }
 
@@ -181,11 +224,15 @@ export class DrizzleFileRepository {
     };
   }
 
-  /** Pliki z wysyłki (`PARKING_PHOTO`, `TICKET_PHOTO`) nieprzypięte do niczego od chwili `before` (`files.cleanup`). */
+  /**
+   * Pliki z wysyłki (`PARKING_PHOTO`, `TICKET_PHOTO`, `MEDIA`) i szablony (`DOCUMENT_TEMPLATE`) nieprzypięte do niczego
+   * od chwili `before` (`files.cleanup`; ADR 0064: także plik grafiki zastąpiony nowym).
+   */
   async unattached(before: Date, limit = 200): Promise<FileRecord[]> {
     const rows = await this.rows(sql`
       ${fileSql}
-      WHERE f.status = 'READY' AND f.purpose IN ('PARKING_PHOTO', 'TICKET_PHOTO') AND f.created_at < ${before}
+      WHERE f.status = 'READY' AND f.purpose IN ('PARKING_PHOTO', 'TICKET_PHOTO', 'MEDIA', 'DOCUMENT_TEMPLATE')
+        AND f.created_at < ${before}
         AND NOT ${ATTACHED}
       ORDER BY f.created_at LIMIT ${limit}`);
     return rows.map(toFile);

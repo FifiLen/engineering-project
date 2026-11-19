@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { priceRental, rideReceiptItems, type RentalPrice } from '@hulajnogi/core';
 import type { Place, PlacesFile } from './places.js';
+import { seedContent, type SeedContentFiles } from './seed-content.js';
 
 /**
  * Wartości deweloperskie cennika. To NIE są decyzje biznesowe (w makietach nadal [CENA] itd.),
@@ -100,6 +101,14 @@ export const DEV_NOTIFICATION_TEMPLATES = [
     body: '[nazwa]: {code} to Twój kod logowania. Nie podawaj go nikomu.',
     description: 'SMS z kodem logowania do aplikacji. Parametry: code.',
   },
+  {
+    code: 'data_export_ready',
+    channel: 'PUSH',
+    title: 'Twoje dane są gotowe',
+    body: 'Plik z Twoimi danymi jest gotowy do pobrania do {expiresAt}. Znajdziesz go w ustawieniach aplikacji: Pobierz moje dane.',
+    description:
+      'Wysyłany po przygotowaniu eksportu danych klienta (ADR 0069), zawsze, bez preferencji. Parametry: expiresAt.',
+  },
 ] as const;
 
 export interface SeedStaff {
@@ -130,6 +139,11 @@ export interface SeedOptions {
   sampleRentals?: number;
   /** Przykładowe zgłoszenia i zadania serwisowe (iteracja 6), tylko w bazie bez zgłoszeń. */
   sampleOperations?: boolean;
+  /**
+   * Grafiki biblioteki i szablony startowe DOCX z magazynem plików (iteracja 7). Bez nich seed zakłada treści
+   * (sekcje, FAQ, aktualności) bez grafik i bez szablonów wydruków, np. w testach API bez magazynu.
+   */
+  contentFiles?: SeedContentFiles;
 }
 
 export interface SeedSummary {
@@ -291,6 +305,7 @@ export async function seedDatabase(pool: Pool, options: SeedOptions): Promise<Se
     await seedSpareParts(client);
     await seedNotificationTemplates(client);
     if (options.sampleOperations) await seedSampleOperations(client, admin.email);
+    await seedContent(client, options.contentFiles);
 
     await client.query('COMMIT');
     const zones = await pool.query<{ count: string }>('SELECT count(*) FROM zones');

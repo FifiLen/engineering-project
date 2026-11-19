@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 import { SCOOTER_STATUS_REASONS, type ScooterStatusReason } from '../service.js';
+import type { MediaRef } from '../content/content.js';
 import type { ResourceDefinition } from './list.js';
 
 export const SCOOTER_STATUSES = ['AVAILABLE', 'RESERVED', 'IN_USE', 'MAINTENANCE', 'RETIRED'] as const;
@@ -160,6 +161,8 @@ const scooterModelFields = {
   weightKg: z.number().min(0.1).max(999.9).multipleOf(0.1).nullable(),
   description: z.string().trim().max(2000).nullable(),
   active: z.boolean(),
+  /** Zdjęcie z biblioteki mediów (ADR 0064, okno wyboru grafiki w formularzu modelu). */
+  photoMediaId: z.uuid().nullable(),
 };
 
 export const scooterModelCreateSchema = z.object({
@@ -171,6 +174,7 @@ export const scooterModelCreateSchema = z.object({
   weightKg: scooterModelFields.weightKg.default(null),
   description: scooterModelFields.description.default(null),
   active: scooterModelFields.active.default(true),
+  photoMediaId: scooterModelFields.photoMediaId.default(null),
 });
 export type ScooterModelCreate = z.infer<typeof scooterModelCreateSchema>;
 
@@ -224,6 +228,9 @@ export interface ScooterModelListItem {
 export interface ScooterModelDetails extends ScooterModelListItem {
   description: string | null;
   createdAt: string;
+  photoMediaId: string | null;
+  /** Opis zdjęcia z biblioteki (adres `/media/…`, tekst alternatywny, wymiary). */
+  photo: MediaRef | null;
 }
 
 /** Wynik usunięcia rekordu: usunięty albo zarchiwizowany (ADR 0031). */

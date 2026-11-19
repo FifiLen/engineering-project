@@ -12,6 +12,7 @@ export const NOTIFICATION_TEMPLATE_CODES = [
   'ticket_received',
   'ticket_status_changed',
   'login_code',
+  'data_export_ready',
 ] as const;
 export type NotificationTemplateCode = (typeof NOTIFICATION_TEMPLATE_CODES)[number];
 

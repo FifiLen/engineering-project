@@ -44,6 +44,7 @@ const DRAFT_FIELDS = [
   'weightKg',
   'description',
   'active',
+  'photoMediaId',
 ] as const satisfies ReadonlyArray<keyof ScooterModelDraft>;
 
 /** Tylko pola modelu (bez nadmiarowych właściwości obiektu); numeric(4,1) w Drizzle to tekst. */
@@ -61,17 +62,22 @@ export class DrizzleScooterModelRepository implements ScooterModelRepository {
     return runListQuery<ModelField, ScooterModelListItem>(this.db, scooterModelsResource, listSource, query);
   }
 
-  async details(id: string): Promise<ScooterModelDetails | null> {
+  /** Szczegóły bez opisu zdjęcia (`photo` dokłada API z biblioteki mediów). */
+  async details(id: string): Promise<Omit<ScooterModelDetails, 'photo'> | null> {
     const [row] = await this.db
       .select({
         ...listSource.columns,
         description: vScooterModels.description,
         createdAt: vScooterModels.createdAt,
+        photoMediaId: vScooterModels.photoMediaId,
       })
       .from(vScooterModels)
       .where(eq(vScooterModels.id, id));
     if (!row) return null;
-    return { ...row, weightKg: row.weightKg === null ? null : Number(row.weightKg) } as unknown as ScooterModelDetails;
+    return { ...row, weightKg: row.weightKg === null ? null : Number(row.weightKg) } as unknown as Omit<
+      ScooterModelDetails,
+      'photo'
+    >;
   }
 
   async findState(id: string): Promise<ScooterModelState | null> {

@@ -23,7 +23,7 @@ const uuid = '6f1c2d0e-3b1a-4b8e-9b55-0a1f4c2e7d10';
 const uuid2 = '0b7e4a35-91d2-4f3c-8a64-2c5d1e9f7a21';
 
 describe('rejestr szablonów powiadomień (ADR 0058)', () => {
-  it('ma dokładnie kody zdarzeń iteracji 6 z kanałem i parametrami', () => {
+  it('ma dokładnie kody zdarzeń iteracji 6 i 7 z kanałem i parametrami', () => {
     expect(NOTIFICATION_TEMPLATE_CODES).toEqual([
       'reservation_ending',
       'ride_ended',
@@ -32,6 +32,7 @@ describe('rejestr szablonów powiadomień (ADR 0058)', () => {
       'ticket_received',
       'ticket_status_changed',
       'login_code',
+      'data_export_ready',
     ]);
     const params = (code: keyof typeof NOTIFICATION_TEMPLATES) =>
       NOTIFICATION_TEMPLATES[code].params.map((p) => `${p.name}:${p.type}`);
@@ -48,6 +49,9 @@ describe('rejestr szablonów powiadomień (ADR 0058)', () => {
     expect(params('ticket_status_changed')).toEqual(['ticketNumber:text', 'status:select', 'reply:text']);
     expect(params('login_code')).toEqual(['code:text']);
     expect(NOTIFICATION_TEMPLATES.login_code.channel).toBe('SMS');
+    expect(params('data_export_ready')).toEqual(['expiresAt:text']);
+    expect(NOTIFICATION_TEMPLATES.data_export_ready.preference).toBeNull();
+    expect(notificationPath('data_export_ready')).toBe('/profil/moje-dane');
   });
 
   it('parametry są poprawne: nazwy bez powtórzeń, typy z listy, wybór z wartościami', () => {

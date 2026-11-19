@@ -11,6 +11,11 @@ const UNIQUE_FIELDS: Record<string, string> = {
   roles_name_key: 'name',
   zones_code_key: 'code',
   spare_parts_sku_key: 'sku',
+  // Treści i wydruki (migracja 0011).
+  faq_categories_name_key: 'name',
+  media_assets_key_key: 'key',
+  news_slug_key: 'slug',
+  document_templates_document_type_name_key: 'name',
 };
 
 /**
@@ -63,6 +68,20 @@ const DATABASE_RULES = [
   'PART_RETURN_EXCEEDS',
   'PART_ADJUST_NO_CHANGE',
   'PART_MOVEMENTS_APPEND_ONLY',
+  // Treści, media, szablony wydruków i eksport danych (migracja 0011, ADR 0062–0069): szczegół grafiki systemowej
+  // to jej klucz, zablokowanego adresu aktualności slug, a limitu eksportu czas następnego zlecenia (ISO 8601).
+  'CONTENT_DELETE_PUBLISHED',
+  'NEWS_SLUG_LOCKED',
+  'COMPANY_PROFILE_REQUIRED',
+  'MEDIA_SYSTEM',
+  'MEDIA_KEY_IMMUTABLE',
+  'MEDIA_FILE_INVALID',
+  'TEMPLATE_FILE_INVALID',
+  'TEMPLATE_VERSION_IMMUTABLE',
+  'TEMPLATE_VERSION_NOT_PENDING',
+  'TEMPLATE_INACTIVE',
+  'TEMPLATE_NO_ACTIVE_VERSION',
+  'DATA_EXPORT_LIMIT',
 ] as const;
 
 /** Szczegół błędu z bazy (`DETAIL`) w odpowiedzi API: kod strefy albo kwota do zwrotu. */
@@ -76,6 +95,10 @@ const RULE_DETAILS: Partial<Record<(typeof DATABASE_RULES)[number], (detail: str
   INVALID_TASK_TRANSITION: (transition) => transitionDetails(transition),
   PART_OUT_OF_STOCK: (available) => ({ available: Number(available) }),
   PART_RETURN_EXCEEDS: (quantity) => ({ quantity: Number(quantity) }),
+  NEWS_SLUG_LOCKED: (slug) => ({ slug }),
+  MEDIA_SYSTEM: (key) => ({ key }),
+  MEDIA_KEY_IMMUTABLE: (key) => ({ key }),
+  DATA_EXPORT_LIMIT: (nextAllowedAt) => ({ nextAllowedAt }),
 };
 
 /** `OPEN->DONE` z wyzwalacza przejść; nowy rekord nie ma stanu wyjściowego (`->DONE`). */
@@ -94,6 +117,9 @@ const NOT_FOUND_RULES: Record<string, string> = {
   PART_NOT_FOUND: 'spare_part',
   TASK_NOT_FOUND: 'service_task',
   TASK_PART_NOT_FOUND: 'service_task_part',
+  USER_NOT_FOUND: 'user',
+  TEMPLATE_NOT_FOUND: 'document_template',
+  TEMPLATE_VERSION_NOT_FOUND: 'document_template_version',
 };
 
 /**
@@ -120,6 +146,20 @@ const RENTAL_CONSTRAINTS: Record<string, string> = {
   rentals_parking_photo_unique: 'FILE_ALREADY_ATTACHED',
   ticket_photos_file_unique: 'FILE_ALREADY_ATTACHED',
   ticket_photos_pkey: 'FILE_ALREADY_ATTACHED',
+  // Treści i wydruki (migracja 0011): druga pozycja sekcji przy zatwierdzeniu (ograniczenie odroczone), drugie
+  // zlecenie eksportu w toku i druga aktywna wersja szablonu (wyścig, którego nie wyłapała blokada szablonu).
+  content_blocks_key_position: 'CONTENT_POSITION_TAKEN',
+  data_exports_one_open: 'DATA_EXPORT_IN_PROGRESS',
+  document_template_versions_one_active: 'TEMPLATE_ALREADY_ACTIVE',
+  document_templates_one_default: 'TEMPLATE_ALREADY_DEFAULT',
+};
+
+/** Klucze obce, które chronią rekord w użyciu (migracja 0011): grafika w bloku, aktualności albo modelu, kategoria z pytaniami. */
+const FOREIGN_KEYS: Record<string, string> = {
+  content_blocks_media_id_fkey: 'MEDIA_IN_USE',
+  news_media_id_fkey: 'MEDIA_IN_USE',
+  scooter_models_photo_media_id_fkey: 'MEDIA_IN_USE',
+  faq_items_category_id_fkey: 'FAQ_CATEGORY_NOT_EMPTY',
 };
 
 /** Ograniczenia CHECK geometrii i pól strefy (`ST_IsValid` z 0001, limit tylko w wolnej jeździe z 0006). */
@@ -144,6 +184,24 @@ const CHECK_CONSTRAINTS: Record<string, string> = {
   notification_templates_body_length: 'TEMPLATE_TOO_LONG',
   // Przyczyna stanu niezgodna ze stanem hulajnogi (ADR 0055); wyzwalacz z 0009 dopasowuje ją przy zmianie stanu.
   scooters_status_reason_matches: 'VALIDATION_FAILED',
+  // Treści (migracja 0011): adres przycisku spoza dozwolonych schematów, ikona spoza listy, klucz sekcji innego
+  // klienta, pytanie niewidoczne nigdzie, zajawka i tekst alternatywny poza limitem, dane firmy w złym formacie.
+  content_blocks_cta_url: 'CONTENT_LINK_SCHEME',
+  content_blocks_icon: 'CONTENT_ICON_UNKNOWN',
+  content_blocks_icon_item: 'VALIDATION_FAILED',
+  content_blocks_key_client: 'VALIDATION_FAILED',
+  content_blocks_check: 'VALIDATION_FAILED',
+  content_blocks_has_content: 'VALIDATION_FAILED',
+  faq_items_visible_somewhere: 'FAQ_NOT_VISIBLE',
+  news_lead_length: 'VALIDATION_FAILED',
+  media_assets_alt_text_length: 'VALIDATION_FAILED',
+  media_assets_system_key: 'VALIDATION_FAILED',
+  company_profile_address: 'VALIDATION_FAILED',
+  company_profile_postal_code_check: 'VALIDATION_FAILED',
+  company_profile_tax_id_check: 'VALIDATION_FAILED',
+  company_profile_regon_check: 'VALIDATION_FAILED',
+  company_profile_krs_check: 'VALIDATION_FAILED',
+  company_profile_support_hours_check: 'VALIDATION_FAILED',
 };
 
 export function rethrowDatabaseRule(error: unknown): never {
@@ -161,6 +219,9 @@ export function rethrowDatabaseRule(error: unknown): never {
   }
   if (cause?.code === '23505' && cause.constraint && RENTAL_CONSTRAINTS[cause.constraint]) {
     throw new DomainError(RENTAL_CONSTRAINTS[cause.constraint]!);
+  }
+  if (cause?.code === '23503' && cause.constraint && FOREIGN_KEYS[cause.constraint]) {
+    throw new DomainError(FOREIGN_KEYS[cause.constraint]!);
   }
   rethrowUniqueViolation(error);
 }

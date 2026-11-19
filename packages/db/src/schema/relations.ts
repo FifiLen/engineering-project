@@ -21,18 +21,18 @@ import {
   walletLedger,
   refunds,
   auditLog,
-  contentPages,
   mediaAssets,
-  contentBlocks,
-  faqItems,
+  contentPages,
   notificationTemplates,
-  news,
+  contentBlocks,
+  faqCategories,
+  faqItems,
   permissions,
   reportDefinitions,
   reportRuns,
+  news,
   documentTemplates,
   documentTemplateVersions,
-  generatedDocuments,
   receipts,
   serviceTasks,
   tickets,
@@ -44,6 +44,9 @@ import {
   sparePartMovements,
   notifications,
   notificationTemplateVersions,
+  generatedDocuments,
+  companyProfile,
+  dataExports,
   rolePermissions,
   roles,
   ticketPhotos,
@@ -70,12 +73,13 @@ export const usersRelations = relations(users, ({ many }) => ({
   wallets: many(wallets),
   paymentMethods: many(paymentMethods),
   rentals: many(rentals),
-  generatedDocuments: many(generatedDocuments),
   receipts: many(receipts),
   refunds: many(refunds),
   tickets: many(tickets),
   files: many(files),
   notifications: many(notifications),
+  generatedDocuments: many(generatedDocuments),
+  dataExports: many(dataExports),
   paymentCustomers: many(paymentCustomers),
 }));
 
@@ -116,27 +120,31 @@ export const staffRelations = relations(staff, ({ many }) => ({
   zones: many(zones),
   walletLedgers: many(walletLedger),
   auditLogs: many(auditLog),
-  contentPageVersions: many(contentPageVersions),
   mediaAssets: many(mediaAssets),
+  contentPageVersions: many(contentPageVersions),
+  notificationTemplates: many(notificationTemplates),
   contentBlocks: many(contentBlocks),
   faqItems: many(faqItems),
-  notificationTemplates: many(notificationTemplates),
+  reportDefinitions: many(reportDefinitions),
+  reportRuns: many(reportRuns),
   news_createdBy: many(news, {
     relationName: 'news_createdBy_staff_id',
   }),
   news_updatedBy: many(news, {
     relationName: 'news_updatedBy_staff_id',
   }),
-  reportDefinitions: many(reportDefinitions),
-  reportRuns: many(reportRuns),
   documentTemplates_createdBy: many(documentTemplates, {
     relationName: 'documentTemplates_createdBy_staff_id',
   }),
   documentTemplates_updatedBy: many(documentTemplates, {
     relationName: 'documentTemplates_updatedBy_staff_id',
   }),
-  documentTemplateVersions: many(documentTemplateVersions),
-  generatedDocuments: many(generatedDocuments),
+  documentTemplateVersions_activatedBy: many(documentTemplateVersions, {
+    relationName: 'documentTemplateVersions_activatedBy_staff_id',
+  }),
+  documentTemplateVersions_uploadedBy: many(documentTemplateVersions, {
+    relationName: 'documentTemplateVersions_uploadedBy_staff_id',
+  }),
   serviceTasks_assigneeId: many(serviceTasks, {
     relationName: 'serviceTasks_assigneeId_staff_id',
   }),
@@ -158,6 +166,8 @@ export const staffRelations = relations(staff, ({ many }) => ({
   sparePartMovements: many(sparePartMovements),
   files: many(files),
   notificationTemplateVersions: many(notificationTemplateVersions),
+  generatedDocuments: many(generatedDocuments),
+  companyProfiles: many(companyProfile),
   staffRoles_assignedBy: many(staffRoles, {
     relationName: 'staffRoles_assignedBy_staff_id',
   }),
@@ -334,12 +344,11 @@ export const filesRelations = relations(files, ({ one, many }) => ({
   rentals: many(rentals),
   mediaAssets: many(mediaAssets),
   reportRuns: many(reportRuns),
-  documentTemplateVersions: many(documentTemplateVersions),
-  generatedDocuments_docxFileId: many(generatedDocuments, {
-    relationName: 'generatedDocuments_docxFileId_files_id',
+  documentTemplateVersions_fileId: many(documentTemplateVersions, {
+    relationName: 'documentTemplateVersions_fileId_files_id',
   }),
-  generatedDocuments_pdfFileId: many(generatedDocuments, {
-    relationName: 'generatedDocuments_pdfFileId_files_id',
+  documentTemplateVersions_previewFileId: many(documentTemplateVersions, {
+    relationName: 'documentTemplateVersions_previewFileId_files_id',
   }),
   user: one(users, {
     fields: [files.uploadedBy],
@@ -349,6 +358,13 @@ export const filesRelations = relations(files, ({ one, many }) => ({
     fields: [files.uploadedByStaff],
     references: [staff.id],
   }),
+  generatedDocuments_docxFileId: many(generatedDocuments, {
+    relationName: 'generatedDocuments_docxFileId_files_id',
+  }),
+  generatedDocuments_pdfFileId: many(generatedDocuments, {
+    relationName: 'generatedDocuments_pdfFileId_files_id',
+  }),
+  dataExports: many(dataExports),
   ticketPhotos: many(ticketPhotos),
 }));
 
@@ -407,10 +423,6 @@ export const auditLogRelations = relations(auditLog, ({ one }) => ({
   }),
 }));
 
-export const contentPagesRelations = relations(contentPages, ({ many }) => ({
-  contentPageVersions: many(contentPageVersions),
-}));
-
 export const mediaAssetsRelations = relations(mediaAssets, ({ one, many }) => ({
   file: one(files, {
     fields: [mediaAssets.fileId],
@@ -425,6 +437,18 @@ export const mediaAssetsRelations = relations(mediaAssets, ({ one, many }) => ({
   scooterModels: many(scooterModels),
 }));
 
+export const contentPagesRelations = relations(contentPages, ({ many }) => ({
+  contentPageVersions: many(contentPageVersions),
+}));
+
+export const notificationTemplatesRelations = relations(notificationTemplates, ({ one, many }) => ({
+  staff: one(staff, {
+    fields: [notificationTemplates.updatedBy],
+    references: [staff.id],
+  }),
+  notificationTemplateVersions: many(notificationTemplateVersions),
+}));
+
 export const contentBlocksRelations = relations(contentBlocks, ({ one }) => ({
   mediaAsset: one(mediaAssets, {
     fields: [contentBlocks.mediaId],
@@ -437,35 +461,18 @@ export const contentBlocksRelations = relations(contentBlocks, ({ one }) => ({
 }));
 
 export const faqItemsRelations = relations(faqItems, ({ one }) => ({
+  faqCategory: one(faqCategories, {
+    fields: [faqItems.categoryId],
+    references: [faqCategories.id],
+  }),
   staff: one(staff, {
     fields: [faqItems.updatedBy],
     references: [staff.id],
   }),
 }));
 
-export const notificationTemplatesRelations = relations(notificationTemplates, ({ one, many }) => ({
-  staff: one(staff, {
-    fields: [notificationTemplates.updatedBy],
-    references: [staff.id],
-  }),
-  notificationTemplateVersions: many(notificationTemplateVersions),
-}));
-
-export const newsRelations = relations(news, ({ one }) => ({
-  staff_createdBy: one(staff, {
-    fields: [news.createdBy],
-    references: [staff.id],
-    relationName: 'news_createdBy_staff_id',
-  }),
-  mediaAsset: one(mediaAssets, {
-    fields: [news.mediaId],
-    references: [mediaAssets.id],
-  }),
-  staff_updatedBy: one(staff, {
-    fields: [news.updatedBy],
-    references: [staff.id],
-    relationName: 'news_updatedBy_staff_id',
-  }),
+export const faqCategoriesRelations = relations(faqCategories, ({ many }) => ({
+  faqItems: many(faqItems),
 }));
 
 export const reportDefinitionsRelations = relations(reportDefinitions, ({ one, many }) => ({
@@ -500,6 +507,23 @@ export const reportRunsRelations = relations(reportRuns, ({ one }) => ({
   }),
 }));
 
+export const newsRelations = relations(news, ({ one }) => ({
+  staff_createdBy: one(staff, {
+    fields: [news.createdBy],
+    references: [staff.id],
+    relationName: 'news_createdBy_staff_id',
+  }),
+  mediaAsset: one(mediaAssets, {
+    fields: [news.mediaId],
+    references: [mediaAssets.id],
+  }),
+  staff_updatedBy: one(staff, {
+    fields: [news.updatedBy],
+    references: [staff.id],
+    relationName: 'news_updatedBy_staff_id',
+  }),
+}));
+
 export const documentTemplatesRelations = relations(documentTemplates, ({ one, many }) => ({
   staff_createdBy: one(staff, {
     fields: [documentTemplates.createdBy],
@@ -515,44 +539,31 @@ export const documentTemplatesRelations = relations(documentTemplates, ({ one, m
 }));
 
 export const documentTemplateVersionsRelations = relations(documentTemplateVersions, ({ one, many }) => ({
-  file: one(files, {
+  staff_activatedBy: one(staff, {
+    fields: [documentTemplateVersions.activatedBy],
+    references: [staff.id],
+    relationName: 'documentTemplateVersions_activatedBy_staff_id',
+  }),
+  file_fileId: one(files, {
     fields: [documentTemplateVersions.fileId],
     references: [files.id],
+    relationName: 'documentTemplateVersions_fileId_files_id',
+  }),
+  file_previewFileId: one(files, {
+    fields: [documentTemplateVersions.previewFileId],
+    references: [files.id],
+    relationName: 'documentTemplateVersions_previewFileId_files_id',
   }),
   documentTemplate: one(documentTemplates, {
     fields: [documentTemplateVersions.templateId],
     references: [documentTemplates.id],
   }),
-  staff: one(staff, {
+  staff_uploadedBy: one(staff, {
     fields: [documentTemplateVersions.uploadedBy],
     references: [staff.id],
+    relationName: 'documentTemplateVersions_uploadedBy_staff_id',
   }),
   generatedDocuments: many(generatedDocuments),
-}));
-
-export const generatedDocumentsRelations = relations(generatedDocuments, ({ one }) => ({
-  file_docxFileId: one(files, {
-    fields: [generatedDocuments.docxFileId],
-    references: [files.id],
-    relationName: 'generatedDocuments_docxFileId_files_id',
-  }),
-  file_pdfFileId: one(files, {
-    fields: [generatedDocuments.pdfFileId],
-    references: [files.id],
-    relationName: 'generatedDocuments_pdfFileId_files_id',
-  }),
-  staff: one(staff, {
-    fields: [generatedDocuments.requestedByStaff],
-    references: [staff.id],
-  }),
-  user: one(users, {
-    fields: [generatedDocuments.requestedByUser],
-    references: [users.id],
-  }),
-  documentTemplateVersion: one(documentTemplateVersions, {
-    fields: [generatedDocuments.templateVersionId],
-    references: [documentTemplateVersions.id],
-  }),
 }));
 
 export const receiptsRelations = relations(receipts, ({ one, many }) => ({
@@ -737,6 +748,57 @@ export const notificationTemplateVersionsRelations = relations(notificationTempl
   notificationTemplate: one(notificationTemplates, {
     fields: [notificationTemplateVersions.templateId],
     references: [notificationTemplates.id],
+  }),
+}));
+
+export const generatedDocumentsRelations = relations(generatedDocuments, ({ one, many }) => ({
+  file_docxFileId: one(files, {
+    fields: [generatedDocuments.docxFileId],
+    references: [files.id],
+    relationName: 'generatedDocuments_docxFileId_files_id',
+  }),
+  file_pdfFileId: one(files, {
+    fields: [generatedDocuments.pdfFileId],
+    references: [files.id],
+    relationName: 'generatedDocuments_pdfFileId_files_id',
+  }),
+  staff: one(staff, {
+    fields: [generatedDocuments.requestedByStaff],
+    references: [staff.id],
+  }),
+  user: one(users, {
+    fields: [generatedDocuments.requestedByUser],
+    references: [users.id],
+  }),
+  generatedDocument: one(generatedDocuments, {
+    fields: [generatedDocuments.retryOf],
+    references: [generatedDocuments.id],
+    relationName: 'generatedDocuments_retryOf_generatedDocuments_id',
+  }),
+  generatedDocuments: many(generatedDocuments, {
+    relationName: 'generatedDocuments_retryOf_generatedDocuments_id',
+  }),
+  documentTemplateVersion: one(documentTemplateVersions, {
+    fields: [generatedDocuments.templateVersionId],
+    references: [documentTemplateVersions.id],
+  }),
+}));
+
+export const companyProfileRelations = relations(companyProfile, ({ one }) => ({
+  staff: one(staff, {
+    fields: [companyProfile.updatedBy],
+    references: [staff.id],
+  }),
+}));
+
+export const dataExportsRelations = relations(dataExports, ({ one }) => ({
+  file: one(files, {
+    fields: [dataExports.fileId],
+    references: [files.id],
+  }),
+  user: one(users, {
+    fields: [dataExports.userId],
+    references: [users.id],
   }),
 }));
 

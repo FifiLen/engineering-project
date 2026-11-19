@@ -334,9 +334,12 @@ export interface DocumentVersionDetails {
   title: string;
   bodyMd: string;
   changeSummary: string | null;
+  /** Blokada optymistyczna wersji roboczej (ADR 0062, dług z iteracji 2): zapis podaje bieżącą wartość. */
+  version: number;
 }
 
 export const documentDraftUpdateSchema = z.object({
+  version: z.number().int().min(1),
   title: z.string().trim().min(1).max(200).optional(),
   bodyMd: z.string().max(100_000).optional(),
   changeSummary: z.string().trim().max(300).nullable().optional(),

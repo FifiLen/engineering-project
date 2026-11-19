@@ -4,6 +4,9 @@
  */
 import type { CommandView, FleetStatus } from './admin/fleet.js';
 import type { RentalListItem } from './admin/rentals.js';
+import type { ContentClient } from './content/sections.js';
+import type { DataExportState } from './data-export.js';
+import type { DocumentFileLink, DocumentFormat, DocumentType, JobStatus } from './documents.js';
 import type { NotificationView } from './notifications.js';
 import type { WalletSummary } from './payments.js';
 import type { RentalView } from './rentals.js';
@@ -23,6 +26,8 @@ export const SERVICE_ROOM = 'service';
 export const SIMULATOR_ROOM = 'simulator';
 /** Pokój klienta: jego przejazdy na wszystkich urządzeniach (ADR 0012). */
 export const userRoom = (userId: string): string => `user:${userId}`;
+/** Pokój operatora: jego wydruki (`document.ready`); gniazdo operatora dołącza przy połączeniu (ADR 0066). */
+export const staffRoom = (staffId: string): string => `staff:${staffId}`;
 
 /** Hulajnoga na mapie floty: punkt początkowy z `GET /admin/fleet/map` i aktualizacje na żywo. */
 export interface FleetMapScooter {
@@ -64,6 +69,43 @@ export interface ServerToClientEvents {
   'simulator.status': (status: SimulatorStatusView) => void;
   /** Panel (pokój `simulator`): wynik polecenia z `simulator/control/result`. */
   'simulator.result': (result: SimulatorResult) => void;
+  /**
+   * Wszyscy połączeni: treści się zmieniły (ADR 0062); aplikacja pobiera `GET /content/mobile` z `If-None-Match`,
+   * gdy rewizja jest wyższa niż w pamięci. Strona dostaje odświeżenie wywołaniem HTTP, nie przez Socket.IO.
+   */
+  'content.updated': (event: ContentUpdated) => void;
+  /** Operator (pokój `staff:{id}`) i klient (pokój `user:{id}`): wydruk w stanie końcowym (ADR 0066). */
+  'document.ready': (document: DocumentReady) => void;
+  /** Klient (pokój `user:{id}`): eksport danych gotowy albo nieudany (ADR 0069). */
+  'data-export.ready': (event: DataExportReady) => void;
+}
+
+export interface ContentUpdated {
+  /**
+   * `fn_content_revision()` po zmianie; wspólny licznik strony i aplikacji. Klient po zdarzeniu zawsze pobiera treść
+   * od nowa (żądanie warunkowe), bez porównywania rewizji: o świeżości decyduje skrót treści (`PublicContent.hash`).
+   */
+  revision: number;
+  clients: ContentClient[];
+  at: string;
+}
+
+export interface DocumentReady {
+  id: string;
+  documentType: DocumentType;
+  status: Extract<JobStatus, 'SUCCEEDED' | 'FAILED'>;
+  format: DocumentFormat;
+  errorCode?: string;
+  /** Adresy z podpisem na 10 min; przy błędzie PDF zostaje DOCX. */
+  files: { docx?: DocumentFileLink; pdf?: DocumentFileLink };
+}
+
+export interface DataExportReady {
+  id: string;
+  status: Extract<JobStatus, 'SUCCEEDED' | 'FAILED'>;
+  state: Extract<DataExportState, 'SUCCEEDED' | 'FAILED'>;
+  sizeBytes: number | null;
+  expiresAt: string | null;
 }
 
 export interface TicketUpdated {

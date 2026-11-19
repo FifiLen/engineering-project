@@ -100,6 +100,13 @@ export const NOTIFICATION_TEMPLATES = {
     path: null,
     preference: null,
   },
+  data_export_ready: {
+    channel: 'PUSH',
+    // Eksport danych klienta (ADR 0069): data ważności pliku sformatowana przez API; zawsze wysyłane.
+    params: [text('expiresAt')],
+    path: '/profil/moje-dane',
+    preference: null,
+  },
 } as const satisfies Record<string, NotificationTemplateDefinition>;
 
 export type NotificationTemplateCode = keyof typeof NOTIFICATION_TEMPLATES;

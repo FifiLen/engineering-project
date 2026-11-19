@@ -38,6 +38,7 @@ const versionColumns = {
   title: contentPageVersions.title,
   bodyMd: contentPageVersions.bodyMd,
   changeSummary: contentPageVersions.changeSummary,
+  version: contentPageVersions.version,
 };
 
 /**
@@ -118,8 +119,9 @@ export class DrizzleLegalDocumentRepository implements LegalDocumentRepository {
     };
   }
 
-  async findVersion(versionId: string): Promise<DocumentVersionRecord | null> {
-    const [row] = await this.db.select(versionColumns).from(contentPageVersions).where(eq(contentPageVersions.id, versionId));
+  async findVersion(versionId: string, options: { lock?: boolean } = {}): Promise<DocumentVersionRecord | null> {
+    const query = this.db.select(versionColumns).from(contentPageVersions).where(eq(contentPageVersions.id, versionId));
+    const [row] = options.lock ? await query.for('update') : await query;
     return row ?? null;
   }
 
@@ -136,16 +138,28 @@ export class DrizzleLegalDocumentRepository implements LegalDocumentRepository {
     return row!;
   }
 
+  /**
+   * Zapis wersji roboczej z blokadą optymistyczną (`version`, ADR 0062); `false`, gdy wersja się nie zgadza albo
+   * wersja nie jest już robocza.
+   */
   async updateDraft(
     versionId: string,
+    expectedVersion: number,
     changes: Partial<Pick<DocumentVersionState, 'title' | 'bodyMd' | 'changeSummary'>>,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const set = Object.fromEntries(Object.entries(changes).filter(([, v]) => v !== undefined));
-    if (Object.keys(set).length === 0) return;
-    await this.db
+    const rows = await this.db
       .update(contentPageVersions)
-      .set(set)
-      .where(and(eq(contentPageVersions.id, versionId), eq(contentPageVersions.status, 'DRAFT')));
+      .set({ ...set, version: sql`${contentPageVersions.version} + 1` })
+      .where(
+        and(
+          eq(contentPageVersions.id, versionId),
+          eq(contentPageVersions.status, 'DRAFT'),
+          eq(contentPageVersions.version, expectedVersion),
+        ),
+      )
+      .returning({ id: contentPageVersions.id });
+    return rows.length > 0;
   }
 
   async publish(versionId: string, now: Date): Promise<void> {

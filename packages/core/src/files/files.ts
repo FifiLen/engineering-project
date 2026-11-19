@@ -8,6 +8,10 @@ import { DomainError } from '../errors.js';
 export const UPLOAD_FILE_PURPOSES = ['PARKING_PHOTO', 'TICKET_PHOTO'] as const;
 export type UploadFilePurpose = (typeof UPLOAD_FILE_PURPOSES)[number];
 
+/** Cele wysyłane przez operatora: także grafiki biblioteki mediów (ADR 0064, `content.write`, 5 MB). */
+export const STAFF_UPLOAD_FILE_PURPOSES = ['PARKING_PHOTO', 'TICKET_PHOTO', 'MEDIA'] as const;
+export type StaffUploadFilePurpose = (typeof STAFF_UPLOAD_FILE_PURPOSES)[number];
+
 export const FILE_MAX_BYTES = 10 * 1024 * 1024;
 export const FILE_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export type FileContentType = (typeof FILE_CONTENT_TYPES)[number];
@@ -44,7 +48,7 @@ export function ensureUpload(input: { sizeBytes: number; head: Uint8Array; trunc
 
 /** Klucz obiektu `{cel}/{rrrr}/{mm}/{uuid}.{rozszerzenie}` (czas UTC). */
 export function fileStorageKey(input: {
-  purpose: UploadFilePurpose;
+  purpose: StaffUploadFilePurpose;
   id: string;
   contentType: FileContentType;
   at: Date;
@@ -56,7 +60,8 @@ export function fileStorageKey(input: {
 }
 
 /** Uprawnienie operatora do wysyłki pliku danego celu (klient wysyła zawsze własne zdjęcia). */
-export function uploadPermission(purpose: UploadFilePurpose): Permission {
+export function uploadPermission(purpose: StaffUploadFilePurpose): Permission {
+  if (purpose === 'MEDIA') return 'content.write';
   return purpose === 'TICKET_PHOTO' ? 'tickets.manage' : 'rentals.manage';
 }
 
@@ -77,7 +82,7 @@ export interface AttachableFile {
 export function ensureFileAttachable(
   file: AttachableFile | null,
   owner: { userId?: string; staffId?: string },
-  purpose: UploadFilePurpose,
+  purpose: StaffUploadFilePurpose,
   fileId: string,
 ): void {
   const own = owner.userId ? file?.uploadedBy === owner.userId : file?.uploadedByStaff === owner.staffId;

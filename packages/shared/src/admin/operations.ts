@@ -367,6 +367,7 @@ export const FILE_PURPOSES = [
   'DOCUMENT_TEMPLATE',
   'GENERATED_DOCUMENT',
   'REPORT_EXPORT',
+  'DATA_EXPORT',
 ] as const;
 export type FilePurpose = (typeof FILE_PURPOSES)[number];
 

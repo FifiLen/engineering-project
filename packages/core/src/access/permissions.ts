@@ -31,6 +31,8 @@ export const PERMISSIONS = [
   'audit.read',
   'content.read',
   'content.write',
+  // Dane firmy trafiają na dokumenty sprzedaży, więc zapis ma tylko Administrator (ADR 0062, migracja 0011).
+  'company.write',
   'reports.revenue',
   'reports.fleet_usage',
   'reports.rides_by_zone',

@@ -43,6 +43,7 @@ export const commandType = pgEnum('command_type', [
 export const consentType = pgEnum('consent_type', ['TERMS', 'PRIVACY', 'MARKETING', 'AGE']);
 export const contentClient = pgEnum('content_client', ['WEB', 'MOBILE', 'ADMIN']);
 export const contentStatus = pgEnum('content_status', ['DRAFT', 'PUBLISHED', 'ARCHIVED']);
+export const documentFormat = pgEnum('document_format', ['DOCX', 'PDF']);
 export const documentType = pgEnum('document_type', [
   'RENTAL_CONFIRMATION',
   'SERVICE_PROTOCOL',
@@ -50,6 +51,7 @@ export const documentType = pgEnum('document_type', [
   'INCIDENT_REPORT',
   'WALLET_ADJUSTMENT',
   'RECEIPT',
+  'SCOOTER_LABEL',
 ]);
 export const filePurpose = pgEnum('file_purpose', [
   'PARKING_PHOTO',
@@ -58,6 +60,7 @@ export const filePurpose = pgEnum('file_purpose', [
   'DOCUMENT_TEMPLATE',
   'GENERATED_DOCUMENT',
   'REPORT_EXPORT',
+  'DATA_EXPORT',
 ]);
 export const fileStatus = pgEnum('file_status', ['READY', 'DELETED']);
 export const jobStatus = pgEnum('job_status', ['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED']);
@@ -927,40 +930,6 @@ export const auditLog = pgTable(
   ],
 );
 
-export const contentPageVersions = pgTable(
-  'content_page_versions',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    pageId: uuid('page_id').notNull(),
-    versionNo: integer('version_no').notNull(),
-    title: text().notNull(),
-    bodyMd: text('body_md').notNull(),
-    status: contentStatus().default('DRAFT').notNull(),
-    publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date' }),
-    createdBy: uuid('created_by'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    changeSummary: text('change_summary'),
-  },
-  (table) => [
-    uniqueIndex('content_page_versions_one_published')
-      .using('btree', table.pageId.asc().nullsLast().op('uuid_ops'))
-      .where(sql`(status = 'PUBLISHED'::content_status)`),
-    foreignKey({
-      columns: [table.createdBy],
-      foreignColumns: [staff.id],
-      name: 'content_page_versions_created_by_fkey',
-    }),
-    foreignKey({
-      columns: [table.pageId],
-      foreignColumns: [contentPages.id],
-      name: 'content_page_versions_page_id_fkey',
-    }),
-    unique('content_page_versions_page_id_version_no_key').on(table.pageId, table.versionNo),
-    check('content_page_versions_check', sql`(status = 'DRAFT'::content_status) OR (published_at IS NOT NULL)`),
-    check('content_page_versions_version_no_check', sql`version_no > 0`),
-  ],
-);
-
 export const roles = pgTable(
   'roles',
   {
@@ -997,6 +966,8 @@ export const mediaAssets = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     version: integer().default(1).notNull(),
+    name: text().notNull(),
+    isSystem: boolean('is_system').default(false).notNull(),
   },
   (table) => [
     foreignKey({
@@ -1011,7 +982,11 @@ export const mediaAssets = pgTable(
     }),
     unique('media_assets_key_key').on(table.key),
     unique('media_assets_file_id_key').on(table.fileId),
+    check('media_assets_alt_text_length', sql`(char_length(alt_text) >= 3) AND (char_length(alt_text) <= 250)`),
+    check('media_assets_caption_length', sql`(caption IS NULL) OR (char_length(caption) <= 200)`),
     check('media_assets_key_check', sql`key ~ '^[a-z0-9_.-]+$'::text`),
+    check('media_assets_name_check', sql`(btrim(name) <> ''::text) AND (char_length(name) <= 200)`),
+    check('media_assets_system_key', sql`is_system = (key ~~ 'scooter.%'::text)`),
   ],
 );
 
@@ -1033,74 +1008,38 @@ export const contentPages = pgTable(
   ],
 );
 
-export const contentBlocks = pgTable(
-  'content_blocks',
+export const contentPageVersions = pgTable(
+  'content_page_versions',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    key: text().notNull(),
-    client: contentClient().notNull(),
-    title: text(),
-    bodyMd: text('body_md'),
-    mediaId: uuid('media_id'),
-    ctaLabel: text('cta_label'),
-    ctaUrl: text('cta_url'),
-    sortOrder: integer('sort_order').default(0).notNull(),
+    pageId: uuid('page_id').notNull(),
+    versionNo: integer('version_no').notNull(),
+    title: text().notNull(),
+    bodyMd: text('body_md').notNull(),
     status: contentStatus().default('DRAFT').notNull(),
-    updatedBy: uuid('updated_by'),
+    publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date' }),
+    createdBy: uuid('created_by'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    changeSummary: text('change_summary'),
     version: integer().default(1).notNull(),
   },
   (table) => [
-    index('content_blocks_client_idx').using(
-      'btree',
-      table.client.asc().nullsLast().op('int4_ops'),
-      table.status.asc().nullsLast().op('int4_ops'),
-      table.sortOrder.asc().nullsLast().op('int4_ops'),
-    ),
+    uniqueIndex('content_page_versions_one_published')
+      .using('btree', table.pageId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(status = 'PUBLISHED'::content_status)`),
     foreignKey({
-      columns: [table.mediaId],
-      foreignColumns: [mediaAssets.id],
-      name: 'content_blocks_media_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.updatedBy],
+      columns: [table.createdBy],
       foreignColumns: [staff.id],
-      name: 'content_blocks_updated_by_fkey',
+      name: 'content_page_versions_created_by_fkey',
     }),
-    unique('content_blocks_key_key').on(table.key),
-    check('content_blocks_check', sql`(cta_label IS NULL) = (cta_url IS NULL)`),
-    check('content_blocks_check1', sql`num_nonnulls(title, body_md, media_id) > 0`),
-    check('content_blocks_key_check', sql`key ~ '^[a-z0-9_.-]+$'::text`),
-  ],
-);
-
-export const faqItems = pgTable(
-  'faq_items',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    category: text().notNull(),
-    question: text().notNull(),
-    answerMd: text('answer_md').notNull(),
-    sortOrder: integer('sort_order').default(0).notNull(),
-    status: contentStatus().default('DRAFT').notNull(),
-    updatedBy: uuid('updated_by'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    version: integer().default(1).notNull(),
-  },
-  (table) => [
-    index('faq_items_status_idx').using(
-      'btree',
-      table.status.asc().nullsLast().op('enum_ops'),
-      table.category.asc().nullsLast().op('int4_ops'),
-      table.sortOrder.asc().nullsLast().op('enum_ops'),
-    ),
     foreignKey({
-      columns: [table.updatedBy],
-      foreignColumns: [staff.id],
-      name: 'faq_items_updated_by_fkey',
+      columns: [table.pageId],
+      foreignColumns: [contentPages.id],
+      name: 'content_page_versions_page_id_fkey',
     }),
+    unique('content_page_versions_page_id_version_no_key').on(table.pageId, table.versionNo),
+    check('content_page_versions_check', sql`(status = 'DRAFT'::content_status) OR (published_at IS NOT NULL)`),
+    check('content_page_versions_version_no_check', sql`version_no > 0`),
   ],
 );
 
@@ -1139,47 +1078,96 @@ END`,
   ],
 );
 
-export const news = pgTable(
-  'news',
+export const contentBlocks = pgTable(
+  'content_blocks',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    slug: text().notNull(),
-    title: text().notNull(),
-    lead: text(),
-    bodyMd: text('body_md').notNull(),
+    key: text().notNull(),
+    client: contentClient().notNull(),
+    title: text(),
+    bodyMd: text('body_md'),
     mediaId: uuid('media_id'),
+    ctaLabel: text('cta_label'),
+    ctaUrl: text('cta_url'),
     status: contentStatus().default('DRAFT').notNull(),
-    publishFrom: timestamp('publish_from', { withTimezone: true, mode: 'date' }),
-    publishTo: timestamp('publish_to', { withTimezone: true, mode: 'date' }),
-    createdBy: uuid('created_by'),
     updatedBy: uuid('updated_by'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     version: integer().default(1).notNull(),
+    position: integer().default(0).notNull(),
+    icon: text(),
   },
   (table) => [
-    index('news_published_idx')
-      .using('btree', table.publishFrom.desc().nullsFirst().op('timestamptz_ops'))
-      .where(sql`(status = 'PUBLISHED'::content_status)`),
-    foreignKey({
-      columns: [table.createdBy],
-      foreignColumns: [staff.id],
-      name: 'news_created_by_fkey',
-    }),
+    index('content_blocks_client_idx').using(
+      'btree',
+      table.client.asc().nullsLast().op('enum_ops'),
+      table.key.asc().nullsLast().op('text_ops'),
+      table.position.asc().nullsLast().op('int4_ops'),
+    ),
+    index('content_blocks_media_idx')
+      .using('btree', table.mediaId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(media_id IS NOT NULL)`),
     foreignKey({
       columns: [table.mediaId],
       foreignColumns: [mediaAssets.id],
-      name: 'news_media_id_fkey',
+      name: 'content_blocks_media_id_fkey',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.updatedBy],
+      foreignColumns: [staff.id],
+      name: 'content_blocks_updated_by_fkey',
+    }),
+    unique('content_blocks_key_position').on(table.key, table.position),
+    check('content_blocks_check', sql`(cta_label IS NULL) = (cta_url IS NULL)`),
+    check(
+      'content_blocks_cta_url',
+      sql`(char_length(cta_url) <= 2000) AND (cta_url !~ '[[:cntrl:]]'::text) AND (cta_url ~ '^(https://[^/[:space:]\\][^[:space:]\\]*|mailto:[^[:space:]\\]+|tel:\+?[0-9][0-9-]*|#[^[:space:]\\]*|/([^/[:space:]\\][^[:space:]\\]*)?)$'::text)`,
+    ),
+    check('content_blocks_has_content', sql`("position" = 0) OR (num_nonnulls(title, body_md, media_id) > 0)`),
+    check(
+      'content_blocks_icon',
+      sql`icon = ANY (ARRAY['rider-single'::text, 'bike-lane'::text, 'parking'::text, 'helmet'::text, 'no-alcohol'::text, 'map'::text, 'scan'::text, 'wallet'::text, 'battery'::text, 'zone-slow'::text, 'zone-no-ride'::text, 'phone'::text])`,
+    ),
+    check('content_blocks_icon_item', sql`(icon IS NULL) OR ("position" > 0)`),
+    check('content_blocks_key_check', sql`key ~ '^[a-z0-9_.-]+$'::text`),
+    check('content_blocks_key_client', sql`key ~~ (lower((client)::text) || '.%'::text)`),
+    check('content_blocks_position_check', sql`"position" >= 0`),
+  ],
+);
+
+export const faqItems = pgTable(
+  'faq_items',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    question: text().notNull(),
+    answerMd: text('answer_md').notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    status: contentStatus().default('DRAFT').notNull(),
+    updatedBy: uuid('updated_by'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    version: integer().default(1).notNull(),
+    categoryId: uuid('category_id').notNull(),
+    showOnWeb: boolean('show_on_web').default(true).notNull(),
+    showInApp: boolean('show_in_app').default(true).notNull(),
+  },
+  (table) => [
+    index('faq_items_category_idx').using(
+      'btree',
+      table.categoryId.asc().nullsLast().op('uuid_ops'),
+      table.sortOrder.asc().nullsLast().op('int4_ops'),
+    ),
+    foreignKey({
+      columns: [table.categoryId],
+      foreignColumns: [faqCategories.id],
+      name: 'faq_items_category_id_fkey',
     }),
     foreignKey({
       columns: [table.updatedBy],
       foreignColumns: [staff.id],
-      name: 'news_updated_by_fkey',
+      name: 'faq_items_updated_by_fkey',
     }),
-    unique('news_slug_key').on(table.slug),
-    check('news_check', sql`(status <> 'PUBLISHED'::content_status) OR (publish_from IS NOT NULL)`),
-    check('news_check1', sql`(publish_to IS NULL) OR (publish_from IS NULL) OR (publish_to > publish_from)`),
-    check('news_slug_check', sql`slug ~ '^[a-z0-9-]+$'::text`),
+    check('faq_items_visible_somewhere', sql`show_on_web OR show_in_app`),
   ],
 );
 
@@ -1260,6 +1248,56 @@ export const reportRuns = pgTable(
   ],
 );
 
+export const news = pgTable(
+  'news',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    slug: text().notNull(),
+    title: text().notNull(),
+    lead: text().notNull(),
+    bodyMd: text('body_md').notNull(),
+    mediaId: uuid('media_id'),
+    status: contentStatus().default('DRAFT').notNull(),
+    publishFrom: timestamp('publish_from', { withTimezone: true, mode: 'date' }),
+    publishTo: timestamp('publish_to', { withTimezone: true, mode: 'date' }),
+    createdBy: uuid('created_by'),
+    updatedBy: uuid('updated_by'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    version: integer().default(1).notNull(),
+    firstPublishedAt: timestamp('first_published_at', { withTimezone: true, mode: 'date' }),
+  },
+  (table) => [
+    index('news_media_idx')
+      .using('btree', table.mediaId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(media_id IS NOT NULL)`),
+    index('news_published_idx')
+      .using('btree', table.publishFrom.desc().nullsFirst().op('timestamptz_ops'))
+      .where(sql`(status = 'PUBLISHED'::content_status)`),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [staff.id],
+      name: 'news_created_by_fkey',
+    }),
+    foreignKey({
+      columns: [table.mediaId],
+      foreignColumns: [mediaAssets.id],
+      name: 'news_media_id_fkey',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.updatedBy],
+      foreignColumns: [staff.id],
+      name: 'news_updated_by_fkey',
+    }),
+    unique('news_slug_key').on(table.slug),
+    check('news_check', sql`(status <> 'PUBLISHED'::content_status) OR (publish_from IS NOT NULL)`),
+    check('news_check1', sql`(publish_to IS NULL) OR (publish_from IS NULL) OR (publish_to > publish_from)`),
+    check('news_first_published', sql`(status <> 'PUBLISHED'::content_status) OR (first_published_at IS NOT NULL)`),
+    check('news_lead_length', sql`(char_length(lead) >= 1) AND (char_length(lead) <= 280)`),
+    check('news_slug_check', sql`slug ~ '^[a-z0-9-]+$'::text`),
+  ],
+);
+
 export const documentTemplates = pgTable(
   'document_templates',
   {
@@ -1291,99 +1329,7 @@ export const documentTemplates = pgTable(
     }),
     unique('document_templates_document_type_name_key').on(table.documentType, table.name),
     check('document_templates_check', sql`active OR (NOT is_default)`),
-  ],
-);
-
-export const documentTemplateVersions = pgTable(
-  'document_template_versions',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    templateId: uuid('template_id').notNull(),
-    versionNo: integer('version_no').notNull(),
-    fileId: uuid('file_id').notNull(),
-    fields: text().array().default(['']).notNull(),
-    isActive: boolean('is_active').default(false).notNull(),
-    note: text(),
-    uploadedBy: uuid('uploaded_by').notNull(),
-    uploadedAt: timestamp('uploaded_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-  },
-  (table) => [
-    uniqueIndex('document_template_versions_one_active')
-      .using('btree', table.templateId.asc().nullsLast().op('uuid_ops'))
-      .where(sql`is_active`),
-    foreignKey({
-      columns: [table.fileId],
-      foreignColumns: [files.id],
-      name: 'document_template_versions_file_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.templateId],
-      foreignColumns: [documentTemplates.id],
-      name: 'document_template_versions_template_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.uploadedBy],
-      foreignColumns: [staff.id],
-      name: 'document_template_versions_uploaded_by_fkey',
-    }),
-    unique('document_template_versions_template_id_version_no_key').on(table.templateId, table.versionNo),
-    unique('document_template_versions_file_id_key').on(table.fileId),
-    check('document_template_versions_version_no_check', sql`version_no > 0`),
-  ],
-);
-
-export const generatedDocuments = pgTable(
-  'generated_documents',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    documentType: documentType('document_type').notNull(),
-    templateVersionId: uuid('template_version_id').notNull(),
-    entityRef: text('entity_ref').notNull(),
-    params: jsonb().default({}).notNull(),
-    status: jobStatus().default('QUEUED').notNull(),
-    docxFileId: uuid('docx_file_id'),
-    pdfFileId: uuid('pdf_file_id'),
-    requestedByStaff: uuid('requested_by_staff'),
-    requestedByUser: uuid('requested_by_user'),
-    error: text(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
-  },
-  (table) => [
-    index('generated_documents_entity_idx').using(
-      'btree',
-      table.documentType.asc().nullsLast().op('timestamptz_ops'),
-      table.entityRef.asc().nullsLast().op('enum_ops'),
-      table.createdAt.desc().nullsFirst().op('text_ops'),
-    ),
-    foreignKey({
-      columns: [table.docxFileId],
-      foreignColumns: [files.id],
-      name: 'generated_documents_docx_file_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.pdfFileId],
-      foreignColumns: [files.id],
-      name: 'generated_documents_pdf_file_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.requestedByStaff],
-      foreignColumns: [staff.id],
-      name: 'generated_documents_requested_by_staff_fkey',
-    }),
-    foreignKey({
-      columns: [table.requestedByUser],
-      foreignColumns: [users.id],
-      name: 'generated_documents_requested_by_user_fkey',
-    }),
-    foreignKey({
-      columns: [table.templateVersionId],
-      foreignColumns: [documentTemplateVersions.id],
-      name: 'generated_documents_template_version_id_fkey',
-    }),
-    check('generated_documents_check', sql`num_nonnulls(requested_by_staff, requested_by_user) = 1`),
-    check('generated_documents_check1', sql`(status <> 'SUCCEEDED'::job_status) OR (docx_file_id IS NOT NULL)`),
-    check('generated_documents_check2', sql`(status <> 'FAILED'::job_status) OR (error IS NOT NULL)`),
+    check('document_templates_not_built_in', sql`(document_type)::text <> 'SCOOTER_LABEL'::text`),
   ],
 );
 
@@ -1406,16 +1352,79 @@ export const scooterModels = pgTable(
     version: integer().default(1).notNull(),
   },
   (table) => [
+    index('scooter_models_photo_media_idx')
+      .using('btree', table.photoMediaId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(photo_media_id IS NOT NULL)`),
     foreignKey({
       columns: [table.photoMediaId],
       foreignColumns: [mediaAssets.id],
       name: 'scooter_models_photo_media_id_fkey',
-    }),
+    }).onDelete('restrict'),
     unique('scooter_models_code_key').on(table.code),
     check('scooter_models_battery_wh_check', sql`battery_wh > 0`),
     check('scooter_models_max_speed_kmh_check', sql`max_speed_kmh > 0`),
     check('scooter_models_range_km_check', sql`range_km > 0`),
     check('scooter_models_weight_kg_check', sql`weight_kg > (0)::numeric`),
+  ],
+);
+
+export const documentTemplateVersions = pgTable(
+  'document_template_versions',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    templateId: uuid('template_id').notNull(),
+    versionNo: integer('version_no').notNull(),
+    fileId: uuid('file_id').notNull(),
+    fields: text().array().default(['']).notNull(),
+    isActive: boolean('is_active').default(false).notNull(),
+    note: text(),
+    uploadedBy: uuid('uploaded_by'),
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    activatedAt: timestamp('activated_at', { withTimezone: true, mode: 'date' }),
+    activatedBy: uuid('activated_by'),
+    warnings: jsonb().default([]).notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    uncompressedBytes: bigint('uncompressed_bytes', { mode: 'number' }).notNull(),
+    previewFileId: uuid('preview_file_id'),
+  },
+  (table) => [
+    uniqueIndex('document_template_versions_one_active')
+      .using('btree', table.templateId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`is_active`),
+    foreignKey({
+      columns: [table.activatedBy],
+      foreignColumns: [staff.id],
+      name: 'document_template_versions_activated_by_fkey',
+    }),
+    foreignKey({
+      columns: [table.fileId],
+      foreignColumns: [files.id],
+      name: 'document_template_versions_file_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.previewFileId],
+      foreignColumns: [files.id],
+      name: 'document_template_versions_preview_file_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.templateId],
+      foreignColumns: [documentTemplates.id],
+      name: 'document_template_versions_template_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.uploadedBy],
+      foreignColumns: [staff.id],
+      name: 'document_template_versions_uploaded_by_fkey',
+    }),
+    unique('document_template_versions_template_id_version_no_key').on(table.templateId, table.versionNo),
+    unique('document_template_versions_file_id_key').on(table.fileId),
+    check('document_template_versions_activated_by', sql`(activated_by IS NULL) OR (activated_at IS NOT NULL)`),
+    check('document_template_versions_active_activated', sql`(NOT is_active) OR (activated_at IS NOT NULL)`),
+    check('document_template_versions_size_bytes_check', sql`size_bytes > 0`),
+    check('document_template_versions_uncompressed_bytes_check', sql`uncompressed_bytes > 0`),
+    check('document_template_versions_version_no_check', sql`version_no > 0`),
+    check('document_template_versions_warnings_check', sql`jsonb_typeof(warnings) = 'array'::text`),
   ],
 );
 
@@ -2064,6 +2073,8 @@ export const files = pgTable(
     status: fileStatus().default('READY').notNull(),
     sha256: text(),
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+    width: integer(),
+    height: integer(),
   },
   (table) => [
     index('files_ready_purpose_idx')
@@ -2085,6 +2096,10 @@ export const files = pgTable(
     }),
     unique('files_storage_key_key').on(table.storageKey),
     check('files_deleted_at', sql`(status = 'DELETED'::file_status) = (deleted_at IS NOT NULL)`),
+    check(
+      'files_dimensions',
+      sql`((width IS NULL) = (height IS NULL)) AND ((width IS NULL) OR ((width > 0) AND (height > 0)))`,
+    ),
     check('files_one_uploader', sql`num_nonnulls(uploaded_by, uploaded_by_staff) <= 1`),
     check('files_sha256_check', sql`sha256 ~ '^[0-9a-f]{64}$'::text`),
   ],
@@ -2184,6 +2199,247 @@ export const notificationTemplateVersions = pgTable(
     }),
     unique('notification_template_versions_template_id_version_key').on(table.templateId, table.version),
     check('notification_template_versions_version_check', sql`version > 0`),
+  ],
+);
+
+export const generatedDocuments = pgTable(
+  'generated_documents',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    documentType: documentType('document_type').notNull(),
+    templateVersionId: uuid('template_version_id'),
+    entityRef: text('entity_ref').notNull(),
+    params: jsonb().default({}).notNull(),
+    status: jobStatus().default('QUEUED').notNull(),
+    docxFileId: uuid('docx_file_id'),
+    pdfFileId: uuid('pdf_file_id'),
+    requestedByStaff: uuid('requested_by_staff'),
+    requestedByUser: uuid('requested_by_user'),
+    error: text(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
+    format: documentFormat().notNull(),
+    entityLabel: text('entity_label').notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+    errorCode: text('error_code'),
+    filesDeletedAt: timestamp('files_deleted_at', { withTimezone: true, mode: 'date' }),
+    retryOf: uuid('retry_of'),
+    customerDataVisible: boolean('customer_data_visible').default(false).notNull(),
+  },
+  (table) => [
+    index('generated_documents_created_idx').using('btree', table.createdAt.desc().nullsFirst().op('timestamptz_ops')),
+    index('generated_documents_entity_idx').using(
+      'btree',
+      table.documentType.asc().nullsLast().op('timestamptz_ops'),
+      table.entityRef.asc().nullsLast().op('enum_ops'),
+      table.createdAt.desc().nullsFirst().op('text_ops'),
+    ),
+    index('generated_documents_open_idx')
+      .using('btree', table.createdAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(status = ANY (ARRAY['QUEUED'::job_status, 'RUNNING'::job_status]))`),
+    uniqueIndex('generated_documents_receipt_reuse')
+      .using(
+        'btree',
+        table.entityRef.asc().nullsLast().op('text_ops'),
+        table.templateVersionId.asc().nullsLast().op('uuid_ops'),
+      )
+      .where(
+        sql`((document_type = 'RECEIPT'::document_type) AND (format = 'PDF'::document_format) AND (requested_by_user IS NOT NULL) AND (status <> 'FAILED'::job_status) AND (files_deleted_at IS NULL))`,
+      ),
+    index('generated_documents_retention_idx')
+      .using('btree', table.finishedAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(files_deleted_at IS NULL)`),
+    index('generated_documents_template_version_idx')
+      .using('btree', table.templateVersionId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(template_version_id IS NOT NULL)`),
+    index('generated_documents_user_idx')
+      .using(
+        'btree',
+        table.requestedByUser.asc().nullsLast().op('uuid_ops'),
+        table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
+      )
+      .where(sql`(requested_by_user IS NOT NULL)`),
+    foreignKey({
+      columns: [table.docxFileId],
+      foreignColumns: [files.id],
+      name: 'generated_documents_docx_file_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.pdfFileId],
+      foreignColumns: [files.id],
+      name: 'generated_documents_pdf_file_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.requestedByStaff],
+      foreignColumns: [staff.id],
+      name: 'generated_documents_requested_by_staff_fkey',
+    }),
+    foreignKey({
+      columns: [table.requestedByUser],
+      foreignColumns: [users.id],
+      name: 'generated_documents_requested_by_user_fkey',
+    }),
+    foreignKey({
+      columns: [table.retryOf],
+      foreignColumns: [table.id],
+      name: 'generated_documents_retry_of_fkey',
+    }),
+    foreignKey({
+      columns: [table.templateVersionId],
+      foreignColumns: [documentTemplateVersions.id],
+      name: 'generated_documents_template_version_id_fkey',
+    }),
+    check('generated_documents_check', sql`num_nonnulls(requested_by_staff, requested_by_user) = 1`),
+    check('generated_documents_docx_no_pdf', sql`(format = 'PDF'::document_format) OR (pdf_file_id IS NULL)`),
+    check('generated_documents_entity_label', sql`btrim(entity_label) <> ''::text`),
+    check('generated_documents_error_code', sql`error_code ~ '^[A-Z_]+$'::text`),
+    check('generated_documents_failed_code', sql`(status <> 'FAILED'::job_status) OR (error_code IS NOT NULL)`),
+    check('generated_documents_files_deleted', sql`(files_deleted_at IS NULL) OR (finished_at IS NOT NULL)`),
+    check(
+      'generated_documents_finished',
+      sql`(status = ANY (ARRAY['SUCCEEDED'::job_status, 'FAILED'::job_status])) = (finished_at IS NOT NULL)`,
+    ),
+    check(
+      'generated_documents_label_pdf',
+      sql`((document_type)::text <> 'SCOOTER_LABEL'::text) OR ((format = 'PDF'::document_format) AND (docx_file_id IS NULL))`,
+    ),
+    check('generated_documents_retry_other', sql`retry_of <> id`),
+    check(
+      'generated_documents_succeeded_file',
+      sql`(status <> 'SUCCEEDED'::job_status) OR
+CASE format
+    WHEN 'PDF'::document_format THEN (pdf_file_id IS NOT NULL)
+    ELSE (docx_file_id IS NOT NULL)
+END`,
+    ),
+    check(
+      'generated_documents_template_version',
+      sql`((document_type)::text = 'SCOOTER_LABEL'::text) = (template_version_id IS NULL)`,
+    ),
+  ],
+);
+
+export const faqCategories = pgTable(
+  'faq_categories',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    name: text().notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    version: integer().default(1).notNull(),
+  },
+  (table) => [
+    uniqueIndex('faq_categories_name_key').using('btree', sql`lower(name)`),
+    index('faq_categories_sort_idx').using('btree', table.sortOrder.asc().nullsLast().op('int4_ops')),
+    check('faq_categories_name_check', sql`(btrim(name) <> ''::text) AND (char_length(name) <= 60)`),
+  ],
+);
+
+export const companyProfile = pgTable(
+  'company_profile',
+  {
+    id: boolean().default(true).primaryKey().notNull(),
+    name: text().notNull(),
+    street: text(),
+    postalCode: text('postal_code'),
+    city: text(),
+    taxId: text('tax_id'),
+    supportEmail: text('support_email').notNull(),
+    supportPhone: text('support_phone').notNull(),
+    supportHours: text('support_hours'),
+    regon: text(),
+    krs: text(),
+    registryCourt: text('registry_court'),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    shareCapitalGrosze: bigint('share_capital_grosze', { mode: 'number' }),
+    version: integer().default(1).notNull(),
+    updatedBy: uuid('updated_by'),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.updatedBy],
+      foreignColumns: [staff.id],
+      name: 'company_profile_updated_by_fkey',
+    }),
+    check('company_profile_address', sql`num_nulls(street, postal_code, city) = ANY (ARRAY[0, 3])`),
+    check('company_profile_city_check', sql`btrim(city) <> ''::text`),
+    check('company_profile_id_check', sql`CHECK (id)`),
+    check('company_profile_krs_check', sql`krs ~ '^\d{10}$'::text`),
+    check('company_profile_name_check', sql`(btrim(name) <> ''::text) AND (char_length(name) <= 200)`),
+    check('company_profile_postal_code_check', sql`postal_code ~ '^\d{2}-\d{3}$'::text`),
+    check('company_profile_registry_court_check', sql`btrim(registry_court) <> ''::text`),
+    check('company_profile_regon_check', sql`regon ~ '^(\d{9}|\d{14})$'::text`),
+    check('company_profile_share_capital_grosze_check', sql`share_capital_grosze > 0`),
+    check('company_profile_street_check', sql`btrim(street) <> ''::text`),
+    check(
+      'company_profile_support_email_check',
+      sql`(btrim(support_email) <> ''::text) AND (char_length(support_email) <= 200)`,
+    ),
+    check('company_profile_support_hours_check', sql`char_length(support_hours) <= 60`),
+    check(
+      'company_profile_support_phone_check',
+      sql`(btrim(support_phone) <> ''::text) AND (char_length(support_phone) <= 40)`,
+    ),
+    check('company_profile_tax_id_check', sql`tax_id ~ '^\d{10}$'::text`),
+  ],
+);
+
+export const dataExports = pgTable(
+  'data_exports',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    userId: uuid('user_id').notNull(),
+    status: jobStatus().default('QUEUED').notNull(),
+    fileId: uuid('file_id'),
+    sizeBytes: integer('size_bytes'),
+    requestedAt: timestamp('requested_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+    finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+    errorCode: text('error_code'),
+    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+  },
+  (table) => [
+    uniqueIndex('data_exports_one_open')
+      .using('btree', table.userId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(status = ANY (ARRAY['QUEUED'::job_status, 'RUNNING'::job_status]))`),
+    index('data_exports_open_idx')
+      .using('btree', table.requestedAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(status = ANY (ARRAY['QUEUED'::job_status, 'RUNNING'::job_status]))`),
+    index('data_exports_purge_idx')
+      .using('btree', table.expiresAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`((status = 'SUCCEEDED'::job_status) AND (deleted_at IS NULL))`),
+    index('data_exports_user_idx').using(
+      'btree',
+      table.userId.asc().nullsLast().op('uuid_ops'),
+      table.requestedAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    foreignKey({
+      columns: [table.fileId],
+      foreignColumns: [files.id],
+      name: 'data_exports_file_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: 'data_exports_user_id_fkey',
+    }),
+    unique('data_exports_file_id_key').on(table.fileId),
+    check('data_exports_deleted_file', sql`(deleted_at IS NULL) OR (file_id IS NOT NULL)`),
+    check('data_exports_error_code_check', sql`error_code ~ '^[A-Z_]+$'::text`),
+    check('data_exports_expires_after', sql`(expires_at IS NULL) OR (expires_at > finished_at)`),
+    check('data_exports_failed_code', sql`(status <> 'FAILED'::job_status) OR (error_code IS NOT NULL)`),
+    check(
+      'data_exports_finished',
+      sql`(status = ANY (ARRAY['SUCCEEDED'::job_status, 'FAILED'::job_status])) = (finished_at IS NOT NULL)`,
+    ),
+    check('data_exports_size_bytes_check', sql`size_bytes > 0`),
+    check(
+      'data_exports_succeeded_file',
+      sql`(status <> 'SUCCEEDED'::job_status) OR ((file_id IS NOT NULL) AND (expires_at IS NOT NULL))`,
+    ),
   ],
 );
 
@@ -2513,19 +2769,6 @@ export const vCurrentDocuments = pgView('v_current_documents', {
   sql`SELECT p.id AS page_id, p.slug, p.consent_type, v.id AS version_id, v.version_no, v.title, v.body_md, v.published_at FROM content_pages p JOIN content_page_versions v ON v.page_id = p.id AND v.status = 'PUBLISHED'::content_status`,
 );
 
-export const vPublishedNews = pgView('v_published_news', {
-  id: uuid(),
-  slug: text(),
-  title: text(),
-  lead: text(),
-  bodyMd: text('body_md'),
-  mediaId: uuid('media_id'),
-  publishFrom: timestamp('publish_from', { withTimezone: true, mode: 'date' }),
-  publishTo: timestamp('publish_to', { withTimezone: true, mode: 'date' }),
-}).as(
-  sql`SELECT id, slug, title, lead, body_md, media_id, publish_from, publish_to FROM news n WHERE status = 'PUBLISHED'::content_status AND publish_from <= now() AND (publish_to IS NULL OR publish_to > now())`,
-);
-
 export const vLowStockParts = pgView('v_low_stock_parts', {
   id: uuid(),
   sku: text(),
@@ -2571,6 +2814,27 @@ export const vStaffOverview = pgView('v_staff_overview', {
   version: integer(),
 }).as(
   sql`SELECT s.id, s.email, s.name, s.active, s.totp_confirmed_at IS NOT NULL AS totp_enabled, COALESCE(array_agg(r.name ORDER BY r.name) FILTER (WHERE r.id IS NOT NULL), '{}'::text[]) AS roles, s.created_at, s.updated_at, CASE WHEN NOT s.active THEN 'DEACTIVATED'::text WHEN s.password_hash IS NULL THEN 'INVITED'::text ELSE 'ACTIVE'::text END AS status, s.last_login_at, s.locked_until, COALESCE(array_agg(r.id ORDER BY r.name) FILTER (WHERE r.id IS NOT NULL), '{}'::uuid[]) AS role_ids, ( SELECT count(*) AS count FROM staff_sessions ss WHERE ss.staff_id = s.id AND ss.revoked_at IS NULL AND ss.expires_at > now()) AS active_sessions, ( SELECT max(i.expires_at) AS max FROM staff_invitations i WHERE i.staff_id = s.id AND i.accepted_at IS NULL AND i.revoked_at IS NULL) AS invitation_expires_at, s.version FROM staff s LEFT JOIN staff_roles sr ON sr.staff_id = s.id LEFT JOIN roles r ON r.id = sr.role_id GROUP BY s.id`,
+);
+
+export const vPublishedNews = pgView('v_published_news', {
+  id: uuid(),
+  slug: text(),
+  title: text(),
+  lead: text(),
+  bodyMd: text('body_md'),
+  mediaId: uuid('media_id'),
+  publishFrom: timestamp('publish_from', { withTimezone: true, mode: 'date' }),
+  publishTo: timestamp('publish_to', { withTimezone: true, mode: 'date' }),
+  mediaKey: text('media_key'),
+  mediaPath: text('media_path'),
+  mediaAltText: text('media_alt_text'),
+  mediaCaption: text('media_caption'),
+  mediaWidth: integer('media_width'),
+  mediaHeight: integer('media_height'),
+  firstPublishedAt: timestamp('first_published_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT n.id, n.slug, n.title, n.lead, n.body_md, n.media_id, n.publish_from, n.publish_to, m.key AS media_key, m.path AS media_path, m.alt_text AS media_alt_text, m.caption AS media_caption, m.width AS media_width, m.height AS media_height, n.first_published_at, n.updated_at FROM news n LEFT JOIN v_public_media m ON m.id = n.media_id WHERE n.status = 'PUBLISHED'::content_status AND n.publish_from <= now() AND (n.publish_to IS NULL OR n.publish_to > now())`,
 );
 
 export const vRolesOverview = pgView('v_roles_overview', {
@@ -3334,4 +3598,567 @@ export const vTicketTimeline = pgView('v_ticket_timeline', {
   data: jsonb(),
 }).as(
   sql`SELECT t.id AS ticket_id, t.created_at AS at, 'CREATED'::text AS kind, 0 AS kind_order, 0::bigint AS seq, t.number::text AS ref, 'ticket.created'::text AS action, 'ticket'::text AS entity_type, t.id AS entity_id, 'CUSTOMER'::text AS actor, NULL::uuid AS staff_id, NULL::text AS staff_name, jsonb_build_object('categories', t.categories, 'rentalId', t.rental_id, 'photos', ( SELECT count(*) AS count FROM ticket_photos p WHERE p.ticket_id = t.id)) AS data FROM tickets t WHERE t.source = 'USER'::ticket_source UNION ALL SELECT x.ticket_id, a.created_at AS at, 'AUDIT'::text AS kind, 1 AS kind_order, a.id AS seq, a.id::text AS ref, a.action, a.entity_type, a.entity_id, a.actor::text AS actor, a.staff_id, s.name AS staff_name, a.data FROM ( SELECT t.id AS ticket_id, 'ticket'::text AS entity_type, t.id AS entity_id FROM tickets t UNION ALL SELECT st.ticket_id, 'service_task'::text, st.id FROM service_tasks st WHERE st.ticket_id IS NOT NULL) x JOIN audit_log a ON a.entity_type = x.entity_type AND a.entity_id = x.entity_id LEFT JOIN staff s ON s.id = a.staff_id UNION ALL SELECT f.ticket_id, a.created_at AS at, 'AUDIT'::text AS kind, 1 AS kind_order, a.id AS seq, a.id::text AS ref, a.action, a.entity_type, a.entity_id, a.actor::text AS actor, a.staff_id, s.name AS staff_name, a.data FROM refunds f JOIN audit_log a ON a.entity_type = 'rental'::text AND a.entity_id = f.rental_id AND (a.data ->> 'refundId'::text) = f.id::text LEFT JOIN staff s ON s.id = a.staff_id WHERE f.ticket_id IS NOT NULL UNION ALL SELECT f.ticket_id, f.updated_at AS at, 'REFUND'::text AS kind, 2 AS kind_order, 0 AS seq, f.id::text AS ref, 'refund.'::text || lower(f.status::text) AS action, 'refund'::text AS entity_type, f.id AS entity_id, 'SYSTEM'::text AS actor, NULL::uuid AS staff_id, NULL::text AS staff_name, jsonb_build_object('amount', f.amount, 'source', f.source, 'status', f.status, 'failureReason', f.failure_reason) AS data FROM refunds f WHERE f.ticket_id IS NOT NULL AND f.status <> 'PENDING'::refund_status UNION ALL SELECT n.ticket_id, COALESCE(n.sent_at, n.created_at) AS at, 'NOTIFICATION'::text AS kind, 3 AS kind_order, n.id AS seq, n.id::text AS ref, n.template_code AS action, 'notification'::text AS entity_type, NULL::uuid AS entity_id, 'SYSTEM'::text AS actor, NULL::uuid AS staff_id, NULL::text AS staff_name, jsonb_build_object('status', n.status, 'channel', n.channel, 'templateVersion', n.template_version, 'error', n.error) AS data FROM notifications n WHERE n.ticket_id IS NOT NULL`,
+);
+
+export const vGeneratedDocuments = pgView('v_generated_documents', {
+  id: uuid(),
+  documentType: documentType('document_type'),
+  entityRef: text('entity_ref'),
+  entityLabel: text('entity_label'),
+  params: jsonb(),
+  format: documentFormat(),
+  status: jobStatus(),
+  state: text(),
+  templateVersionId: uuid('template_version_id'),
+  templateId: uuid('template_id'),
+  templateName: text('template_name'),
+  templateVersionNo: integer('template_version_no'),
+  builtIn: boolean('built_in'),
+  docxFileId: uuid('docx_file_id'),
+  pdfFileId: uuid('pdf_file_id'),
+  requesterKind: text('requester_kind'),
+  requestedByStaff: uuid('requested_by_staff'),
+  staffName: text('staff_name'),
+  requestedByUser: uuid('requested_by_user'),
+  userName: text('user_name'),
+  errorCode: text('error_code'),
+  error: text(),
+  retryOf: uuid('retry_of'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+  finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
+  filesDeletedAt: timestamp('files_deleted_at', { withTimezone: true, mode: 'date' }),
+  durationMs: integer('duration_ms'),
+  customerDataVisible: boolean('customer_data_visible'),
+}).as(
+  sql`SELECT g.id, g.document_type, g.entity_ref, g.entity_label, g.params, g.format, g.status, CASE WHEN g.files_deleted_at IS NOT NULL THEN 'DELETED'::text ELSE g.status::text END AS state, g.template_version_id, v.template_id, t.name AS template_name, v.version_no AS template_version_no, g.template_version_id IS NULL AS built_in, g.docx_file_id, g.pdf_file_id, CASE WHEN g.requested_by_user IS NOT NULL THEN 'CUSTOMER'::text ELSE 'STAFF'::text END AS requester_kind, g.requested_by_staff, s.name AS staff_name, g.requested_by_user, u.name AS user_name, g.error_code, g.error, g.retry_of, g.created_at, g.started_at, g.finished_at, g.files_deleted_at, CASE WHEN g.finished_at IS NOT NULL AND g.started_at IS NOT NULL THEN floor(EXTRACT(epoch FROM g.finished_at - g.started_at) * 1000::numeric)::integer ELSE NULL::integer END AS duration_ms, g.customer_data_visible FROM generated_documents g LEFT JOIN document_template_versions v ON v.id = g.template_version_id LEFT JOIN document_templates t ON t.id = v.template_id LEFT JOIN staff s ON s.id = g.requested_by_staff LEFT JOIN users u ON u.id = g.requested_by_user`,
+);
+
+export const vPublicMedia = pgView('v_public_media', {
+  id: uuid(),
+  key: text(),
+  name: text(),
+  altText: text('alt_text'),
+  caption: text(),
+  isSystem: boolean('is_system'),
+  contentType: text('content_type'),
+  sizeBytes: integer('size_bytes'),
+  width: integer(),
+  height: integer(),
+  sha256: text(),
+  path: text(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT m.id, m.key, m.name, m.alt_text, m.caption, m.is_system, f.content_type, f.size_bytes, f.width, f.height, f.sha256, fn_media_path(m.id, f.sha256, f.content_type) AS path, m.updated_at FROM media_assets m JOIN files f ON f.id = m.file_id`,
+);
+
+export const vPublicContentBlocks = pgView('v_public_content_blocks', {
+  client: contentClient(),
+  key: text(),
+  position: integer(),
+  title: text(),
+  bodyMd: text('body_md'),
+  icon: text(),
+  ctaLabel: text('cta_label'),
+  ctaUrl: text('cta_url'),
+  mediaId: uuid('media_id'),
+  mediaKey: text('media_key'),
+  mediaPath: text('media_path'),
+  mediaAltText: text('media_alt_text'),
+  mediaWidth: integer('media_width'),
+  mediaHeight: integer('media_height'),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT b.client, b.key, b."position", b.title, b.body_md, b.icon, b.cta_label, b.cta_url, b.media_id, m.key AS media_key, m.path AS media_path, m.alt_text AS media_alt_text, m.width AS media_width, m.height AS media_height, b.updated_at FROM content_blocks b LEFT JOIN v_public_media m ON m.id = b.media_id WHERE b.status = 'PUBLISHED'::content_status AND (b."position" = 0 OR (EXISTS ( SELECT 1 FROM content_blocks h WHERE h.key = b.key AND h."position" = 0 AND h.status = 'PUBLISHED'::content_status)))`,
+);
+
+export const vPublicFaq = pgView('v_public_faq', {
+  categoryId: uuid('category_id'),
+  categoryName: text('category_name'),
+  categorySortOrder: integer('category_sort_order'),
+  id: uuid(),
+  question: text(),
+  answerMd: text('answer_md'),
+  sortOrder: integer('sort_order'),
+  showOnWeb: boolean('show_on_web'),
+  showInApp: boolean('show_in_app'),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT c.id AS category_id, c.name AS category_name, c.sort_order AS category_sort_order, f.id, f.question, f.answer_md, f.sort_order, f.show_on_web, f.show_in_app, f.updated_at FROM faq_items f JOIN faq_categories c ON c.id = f.category_id WHERE f.status = 'PUBLISHED'::content_status`,
+);
+
+export const vCompanyPublic = pgView('v_company_public', {
+  name: text(),
+  street: text(),
+  postalCode: text('postal_code'),
+  city: text(),
+  address: text(),
+  taxId: text('tax_id'),
+  supportEmail: text('support_email'),
+  supportPhone: text('support_phone'),
+  supportHours: text('support_hours'),
+  regon: text(),
+  krs: text(),
+  registryCourt: text('registry_court'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  shareCapitalGrosze: bigint('share_capital_grosze', { mode: 'number' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT name, street, postal_code, city, CASE WHEN street IS NOT NULL THEN (((street || ', '::text) || postal_code) || ' '::text) || city ELSE NULL::text END AS address, tax_id, support_email, support_phone, support_hours, regon, krs, registry_court, share_capital_grosze, updated_at FROM company_profile c`,
+);
+
+export const vPublicDocumentVersions = pgView('v_public_document_versions', {
+  pageId: uuid('page_id'),
+  slug: text(),
+  name: text(),
+  consentType: consentType('consent_type'),
+  versionId: uuid('version_id'),
+  versionNo: integer('version_no'),
+  title: text(),
+  bodyMd: text('body_md'),
+  changeSummary: text('change_summary'),
+  status: contentStatus(),
+  publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date' }),
+  validTo: timestamp('valid_to', { withTimezone: true, mode: 'date' }),
+  isCurrent: boolean('is_current'),
+}).as(
+  sql`SELECT p.id AS page_id, p.slug, p.name, p.consent_type, v.id AS version_id, v.version_no, v.title, v.body_md, v.change_summary, v.status, v.published_at, ( SELECT min(n.published_at) AS min FROM content_page_versions n WHERE n.page_id = v.page_id AND n.version_no > v.version_no AND n.published_at IS NOT NULL) AS valid_to, v.status = 'PUBLISHED'::content_status AS is_current FROM content_pages p JOIN content_page_versions v ON v.page_id = p.id WHERE (v.status = ANY (ARRAY['PUBLISHED'::content_status, 'ARCHIVED'::content_status])) AND v.published_at IS NOT NULL`,
+);
+
+export const vPublicScooters = pgView('v_public_scooters', {
+  number: integer(),
+  modelCode: text('model_code'),
+  modelName: text('model_name'),
+  photoMediaId: uuid('photo_media_id'),
+  photoPath: text('photo_path'),
+  photoAltText: text('photo_alt_text'),
+  photoWidth: integer('photo_width'),
+  photoHeight: integer('photo_height'),
+}).as(
+  sql`SELECT s.number, m.code AS model_code, m.name AS model_name, m.photo_media_id, pm.path AS photo_path, pm.alt_text AS photo_alt_text, pm.width AS photo_width, pm.height AS photo_height FROM scooters s JOIN scooter_models m ON m.id = s.model_id LEFT JOIN v_public_media pm ON pm.id = m.photo_media_id WHERE s.status <> 'RETIRED'::scooter_status`,
+);
+
+export const vContentBlocks = pgView('v_content_blocks', {
+  id: uuid(),
+  key: text(),
+  client: contentClient(),
+  position: integer(),
+  isHeader: boolean('is_header'),
+  title: text(),
+  bodyMd: text('body_md'),
+  icon: text(),
+  ctaLabel: text('cta_label'),
+  ctaUrl: text('cta_url'),
+  mediaId: uuid('media_id'),
+  mediaKey: text('media_key'),
+  mediaName: text('media_name'),
+  mediaPath: text('media_path'),
+  mediaAltText: text('media_alt_text'),
+  mediaWidth: integer('media_width'),
+  mediaHeight: integer('media_height'),
+  status: contentStatus(),
+  sectionItems: integer('section_items'),
+  sectionItemsPublished: integer('section_items_published'),
+  sectionDrafts: integer('section_drafts'),
+  updatedBy: uuid('updated_by'),
+  updatedByName: text('updated_by_name'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  version: integer(),
+}).as(
+  sql`SELECT b.id, b.key, b.client, b."position", b."position" = 0 AS is_header, b.title, b.body_md, b.icon, b.cta_label, b.cta_url, b.media_id, m.key AS media_key, m.name AS media_name, m.path AS media_path, m.alt_text AS media_alt_text, m.width AS media_width, m.height AS media_height, b.status, ( SELECT count(*)::integer AS count FROM content_blocks e WHERE e.key = b.key AND e."position" > 0) AS section_items, ( SELECT count(*)::integer AS count FROM content_blocks e WHERE e.key = b.key AND e."position" > 0 AND e.status = 'PUBLISHED'::content_status) AS section_items_published, ( SELECT count(*)::integer AS count FROM content_blocks e WHERE e.key = b.key AND e.status = 'DRAFT'::content_status) AS section_drafts, b.updated_by, s.name AS updated_by_name, b.created_at, b.updated_at, b.version FROM content_blocks b LEFT JOIN v_public_media m ON m.id = b.media_id LEFT JOIN staff s ON s.id = b.updated_by`,
+);
+
+export const vFaqCategories = pgView('v_faq_categories', {
+  id: uuid(),
+  name: text(),
+  sortOrder: integer('sort_order'),
+  items: integer(),
+  itemsPublished: integer('items_published'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  version: integer(),
+}).as(
+  sql`SELECT id, name, sort_order, ( SELECT count(*)::integer AS count FROM faq_items f WHERE f.category_id = c.id) AS items, ( SELECT count(*)::integer AS count FROM faq_items f WHERE f.category_id = c.id AND f.status = 'PUBLISHED'::content_status) AS items_published, created_at, updated_at, version FROM faq_categories c`,
+);
+
+export const vFaqList = pgView('v_faq_list', {
+  id: uuid(),
+  categoryId: uuid('category_id'),
+  categoryName: text('category_name'),
+  categorySortOrder: integer('category_sort_order'),
+  question: text(),
+  answerMd: text('answer_md'),
+  sortOrder: integer('sort_order'),
+  status: contentStatus(),
+  showOnWeb: boolean('show_on_web'),
+  showInApp: boolean('show_in_app'),
+  updatedBy: uuid('updated_by'),
+  updatedByName: text('updated_by_name'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  version: integer(),
+}).as(
+  sql`SELECT f.id, f.category_id, c.name AS category_name, c.sort_order AS category_sort_order, f.question, f.answer_md, f.sort_order, f.status, f.show_on_web, f.show_in_app, f.updated_by, s.name AS updated_by_name, f.created_at, f.updated_at, f.version FROM faq_items f JOIN faq_categories c ON c.id = f.category_id LEFT JOIN staff s ON s.id = f.updated_by`,
+);
+
+export const vNewsList = pgView('v_news_list', {
+  id: uuid(),
+  slug: text(),
+  title: text(),
+  lead: text(),
+  bodyMd: text('body_md'),
+  status: contentStatus(),
+  state: text(),
+  publishFrom: timestamp('publish_from', { withTimezone: true, mode: 'date' }),
+  publishTo: timestamp('publish_to', { withTimezone: true, mode: 'date' }),
+  firstPublishedAt: timestamp('first_published_at', { withTimezone: true, mode: 'date' }),
+  mediaId: uuid('media_id'),
+  mediaKey: text('media_key'),
+  mediaName: text('media_name'),
+  mediaPath: text('media_path'),
+  mediaAltText: text('media_alt_text'),
+  createdBy: uuid('created_by'),
+  createdByName: text('created_by_name'),
+  updatedBy: uuid('updated_by'),
+  updatedByName: text('updated_by_name'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  version: integer(),
+}).as(
+  sql`SELECT n.id, n.slug, n.title, n.lead, n.body_md, n.status, fn_news_state(n.status, n.publish_from, n.publish_to, now()) AS state, n.publish_from, n.publish_to, n.first_published_at, n.media_id, m.key AS media_key, m.name AS media_name, m.path AS media_path, m.alt_text AS media_alt_text, n.created_by, c.name AS created_by_name, n.updated_by, s.name AS updated_by_name, n.created_at, n.updated_at, n.version FROM news n LEFT JOIN v_public_media m ON m.id = n.media_id LEFT JOIN staff c ON c.id = n.created_by LEFT JOIN staff s ON s.id = n.updated_by`,
+);
+
+export const vMediaUsages = pgView('v_media_usages', {
+  mediaId: uuid('media_id'),
+  kind: text(),
+  entityId: uuid('entity_id'),
+  ref: text(),
+  position: integer(),
+  client: text(),
+  status: text(),
+  label: text(),
+}).as(
+  sql`SELECT b.media_id, 'CONTENT_BLOCK'::text AS kind, b.id AS entity_id, b.key AS ref, b."position", b.client::text AS client, b.status::text AS status, b.title AS label FROM content_blocks b WHERE b.media_id IS NOT NULL UNION ALL SELECT n.media_id, 'NEWS'::text AS kind, n.id AS entity_id, n.slug AS ref, NULL::integer AS "position", 'WEB'::text AS client, n.status::text AS status, n.title AS label FROM news n WHERE n.media_id IS NOT NULL UNION ALL SELECT m.photo_media_id AS media_id, 'SCOOTER_MODEL'::text AS kind, m.id AS entity_id, m.code AS ref, NULL::integer AS "position", NULL::text AS client, CASE WHEN m.active THEN 'ACTIVE'::text ELSE 'INACTIVE'::text END AS status, m.name AS label FROM scooter_models m WHERE m.photo_media_id IS NOT NULL`,
+);
+
+export const vMediaList = pgView('v_media_list', {
+  id: uuid(),
+  key: text(),
+  name: text(),
+  altText: text('alt_text'),
+  caption: text(),
+  isSystem: boolean('is_system'),
+  fileId: uuid('file_id'),
+  contentType: text('content_type'),
+  sizeBytes: integer('size_bytes'),
+  width: integer(),
+  height: integer(),
+  sha256: text(),
+  originalName: text('original_name'),
+  path: text(),
+  usages: integer(),
+  updatedBy: uuid('updated_by'),
+  updatedByName: text('updated_by_name'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  version: integer(),
+}).as(
+  sql`SELECT m.id, m.key, m.name, m.alt_text, m.caption, m.is_system, m.file_id, f.content_type, f.size_bytes, f.width, f.height, f.sha256, f.original_name, fn_media_path(m.id, f.sha256, f.content_type) AS path, ( SELECT count(*)::integer AS count FROM v_media_usages u WHERE u.media_id = m.id) AS usages, m.updated_by, s.name AS updated_by_name, m.created_at, m.updated_at, m.version FROM media_assets m JOIN files f ON f.id = m.file_id LEFT JOIN staff s ON s.id = m.updated_by`,
+);
+
+export const vDocumentTemplates = pgView('v_document_templates', {
+  id: uuid(),
+  documentType: documentType('document_type'),
+  name: text(),
+  description: text(),
+  isDefault: boolean('is_default'),
+  active: boolean(),
+  activeVersionId: uuid('active_version_id'),
+  activeVersionNo: integer('active_version_no'),
+  activeSince: timestamp('active_since', { withTimezone: true, mode: 'date' }),
+  versions: integer(),
+  pendingVersions: integer('pending_versions'),
+  lastGeneratedAt: timestamp('last_generated_at', { withTimezone: true, mode: 'date' }),
+  createdBy: uuid('created_by'),
+  updatedBy: uuid('updated_by'),
+  updatedByName: text('updated_by_name'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  version: integer(),
+}).as(
+  sql`SELECT t.id, t.document_type, t.name, t.description, t.is_default, t.active, av.id AS active_version_id, av.version_no AS active_version_no, av.activated_at AS active_since, ( SELECT count(*)::integer AS count FROM document_template_versions v WHERE v.template_id = t.id) AS versions, ( SELECT count(*)::integer AS count FROM document_template_versions v WHERE v.template_id = t.id AND v.activated_at IS NULL) AS pending_versions, ( SELECT max(g.created_at) AS max FROM generated_documents g JOIN document_template_versions v ON v.id = g.template_version_id WHERE v.template_id = t.id) AS last_generated_at, t.created_by, t.updated_by, s.name AS updated_by_name, t.created_at, t.updated_at, t.version FROM document_templates t LEFT JOIN document_template_versions av ON av.template_id = t.id AND av.is_active LEFT JOIN staff s ON s.id = t.updated_by`,
+);
+
+export const vDocumentTemplateVersions = pgView('v_document_template_versions', {
+  id: uuid(),
+  templateId: uuid('template_id'),
+  documentType: documentType('document_type'),
+  templateName: text('template_name'),
+  templateIsDefault: boolean('template_is_default'),
+  versionNo: integer('version_no'),
+  state: text(),
+  isActive: boolean('is_active'),
+  fileId: uuid('file_id'),
+  contentType: text('content_type'),
+  sha256: text(),
+  sizeBytes: integer('size_bytes'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  uncompressedBytes: bigint('uncompressed_bytes', { mode: 'number' }),
+  fields: text(),
+  warnings: jsonb(),
+  note: text(),
+  uploadedBy: uuid('uploaded_by'),
+  uploadedByName: text('uploaded_by_name'),
+  uploadedAt: timestamp('uploaded_at', { withTimezone: true, mode: 'date' }),
+  activatedAt: timestamp('activated_at', { withTimezone: true, mode: 'date' }),
+  activatedBy: uuid('activated_by'),
+  activatedByName: text('activated_by_name'),
+  previewFileId: uuid('preview_file_id'),
+  documents: integer(),
+}).as(
+  sql`SELECT v.id, v.template_id, t.document_type, t.name AS template_name, t.is_default AS template_is_default, v.version_no, CASE WHEN v.is_active THEN 'ACTIVE'::text WHEN v.activated_at IS NOT NULL THEN 'ARCHIVED'::text ELSE 'PENDING'::text END AS state, v.is_active, v.file_id, f.content_type, f.sha256, v.size_bytes, v.uncompressed_bytes, v.fields, v.warnings, v.note, v.uploaded_by, u.name AS uploaded_by_name, v.uploaded_at, v.activated_at, v.activated_by, a.name AS activated_by_name, v.preview_file_id, ( SELECT count(*)::integer AS count FROM generated_documents g WHERE g.template_version_id = v.id) AS documents FROM document_template_versions v JOIN document_templates t ON t.id = v.template_id JOIN files f ON f.id = v.file_id LEFT JOIN staff u ON u.id = v.uploaded_by LEFT JOIN staff a ON a.id = v.activated_by`,
+);
+
+export const vDataExports = pgView('v_data_exports', {
+  id: uuid(),
+  userId: uuid('user_id'),
+  userName: text('user_name'),
+  userPhone: text('user_phone'),
+  status: jobStatus(),
+  state: text(),
+  fileId: uuid('file_id'),
+  sizeBytes: integer('size_bytes'),
+  requestedAt: timestamp('requested_at', { withTimezone: true, mode: 'date' }),
+  startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+  finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+  errorCode: text('error_code'),
+}).as(
+  sql`SELECT e.id, e.user_id, u.name AS user_name, u.phone AS user_phone, e.status, CASE WHEN e.deleted_at IS NOT NULL THEN 'DELETED'::text WHEN e.status = 'SUCCEEDED'::job_status AND e.expires_at <= now() THEN 'EXPIRED'::text ELSE e.status::text END AS state, e.file_id, e.size_bytes, e.requested_at, e.started_at, e.finished_at, e.expires_at, e.deleted_at, e.error_code FROM data_exports e JOIN users u ON u.id = e.user_id`,
+);
+
+export const vDocReceipt = pgView('v_doc_receipt', {
+  receiptId: uuid('receipt_id'),
+  number: text(),
+  kind: receiptKind(),
+  isCorrection: boolean('is_correction'),
+  issuedAt: timestamp('issued_at', { withTimezone: true, mode: 'date' }),
+  userId: uuid('user_id'),
+  buyerName: text('buyer_name'),
+  buyerPhone: text('buyer_phone'),
+  buyerEmail: text('buyer_email'),
+  sellerName: text('seller_name'),
+  sellerAddress: text('seller_address'),
+  sellerTaxId: text('seller_tax_id'),
+  paymentSource: paymentSource('payment_source'),
+  cardBrand: text('card_brand'),
+  cardLast4: char('card_last4', { length: 4 }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  totalAmount: bigint('total_amount', { mode: 'number' }),
+  currency: char({ length: 3 }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  vatAmount: bigint('vat_amount', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  netAmount: bigint('net_amount', { mode: 'number' }),
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentalNumber: bigint('rental_number', { mode: 'number' }),
+  refundId: uuid('refund_id'),
+  correctsReceiptId: uuid('corrects_receipt_id'),
+  correctsNumber: text('corrects_number'),
+  correctsIssuedAt: timestamp('corrects_issued_at', { withTimezone: true, mode: 'date' }),
+  items: jsonb(),
+  vatGroups: jsonb('vat_groups'),
+  hasOutsideVat: boolean('has_outside_vat'),
+}).as(
+  sql`SELECT rc.id AS receipt_id, rc.number, rc.kind, rc.kind = 'CORRECTION'::receipt_kind AS is_correction, rc.issued_at, rc.user_id, rc.buyer_name, rc.buyer_phone, rc.buyer_email, rc.seller ->> 'name'::text AS seller_name, rc.seller ->> 'address'::text AS seller_address, rc.seller ->> 'taxId'::text AS seller_tax_id, rc.payment_source, l.card_brand, l.card_last4, rc.total_amount, rc.currency, l.vat_amount, l.net_amount, rc.rental_id, l.rental_number, rc.refund_id, rc.corrects_receipt_id, l.corrects_number, o.issued_at AS corrects_issued_at, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('lineNo', i.line_no, 'description', i.description, 'quantity', i.quantity, 'unitPrice', i.unit_price, 'vatRate', i.vat_rate, 'amount', i.amount) ORDER BY i.line_no), '[]'::jsonb) AS "coalesce" FROM receipt_items i WHERE i.receipt_id = rc.id) AS items, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('vatRate', g.vat_rate, 'gross', g.gross, 'vat', g.vat, 'net', g.gross - g.vat) ORDER BY g.vat_rate DESC NULLS LAST), '[]'::jsonb) AS "coalesce" FROM ( SELECT i.vat_rate, sum(i.amount)::bigint AS gross, COALESCE(fn_vat_from_gross(sum(i.amount)::bigint, i.vat_rate), 0::bigint) AS vat FROM receipt_items i WHERE i.receipt_id = rc.id GROUP BY i.vat_rate) g) AS vat_groups, (EXISTS ( SELECT 1 FROM receipt_items i WHERE i.receipt_id = rc.id AND i.vat_rate IS NULL)) AS has_outside_vat FROM receipts rc JOIN v_receipt_list l ON l.id = rc.id LEFT JOIN receipts o ON o.id = rc.corrects_receipt_id`,
+);
+
+export const vDocRental = pgView('v_doc_rental', {
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  number: bigint({ mode: 'number' }),
+  state: rentalState(),
+  userId: uuid('user_id'),
+  userName: text('user_name'),
+  userPhone: text('user_phone'),
+  scooterId: uuid('scooter_id'),
+  scooterNumber: integer('scooter_number'),
+  scooterVariant: scooterVariant('scooter_variant'),
+  modelName: text('model_name'),
+  tariffId: uuid('tariff_id'),
+  tariffVersion: integer('tariff_version'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  unlockFee: bigint('unlock_fee', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  minuteRate: bigint('minute_rate', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  pauseMinuteRate: bigint('pause_minute_rate', { mode: 'number' }),
+  vatRate: numeric('vat_rate', { precision: 4, scale: 2 }),
+  reservedAt: timestamp('reserved_at', { withTimezone: true, mode: 'date' }),
+  startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+  endedAt: timestamp('ended_at', { withTimezone: true, mode: 'date' }),
+  rideSeconds: integer('ride_seconds'),
+  pauseSeconds: integer('pause_seconds'),
+  distanceM: integer('distance_m'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  totalAmount: bigint('total_amount', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  towingFee: bigint('towing_fee', { mode: 'number' }),
+  endMode: rentalEndMode('end_mode'),
+  paymentSource: paymentSource('payment_source'),
+  cardBrand: text('card_brand'),
+  cardLast4: char('card_last4', { length: 4 }),
+  settlement: text(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  paidAmount: bigint('paid_amount', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  refundedAmount: bigint('refunded_amount', { mode: 'number' }),
+  receiptId: uuid('receipt_id'),
+  receiptNumber: text('receipt_number'),
+  startLat: doublePrecision('start_lat'),
+  startLon: doublePrecision('start_lon'),
+  endLat: doublePrecision('end_lat'),
+  endLon: doublePrecision('end_lon'),
+  startZoneCode: text('start_zone_code'),
+  startZoneName: text('start_zone_name'),
+  endZoneCode: text('end_zone_code'),
+  endZoneName: text('end_zone_name'),
+  timeline: jsonb(),
+}).as(
+  sql`SELECT d.id AS rental_id, d.number, d.state, d.user_id, d.user_name, d.user_phone, d.scooter_id, d.scooter_number, s.variant AS scooter_variant, m.name AS model_name, d.tariff_id, d.tariff_version, t.unlock_fee, t.minute_rate, t.pause_minute_rate, t.vat_rate, d.reserved_at, d.started_at, d.ended_at, d.ride_seconds, d.pause_seconds, d.distance_m, d.total_amount, d.towing_fee, d.end_mode, d.payment_source, d.card_brand, d.card_last4, d.settlement, d.paid_amount, d.refunded_amount, d.receipt_id, d.receipt_number, st_y(r.start_position) AS start_lat, st_x(r.start_position) AS start_lon, st_y(r.end_position) AS end_lat, st_x(r.end_position) AS end_lon, sz.code AS start_zone_code, sz.name AS start_zone_name, d.end_zone_code, d.end_zone_name, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('at', tl.at, 'kind', tl.kind, 'type', tl.type, 'fromState', tl.from_state, 'toState', tl.to_state, 'zoneCode', tl.zone_code, 'commandStatus', tl.command_status) ORDER BY tl.at, tl.event_id), '[]'::jsonb) AS "coalesce" FROM v_rental_timeline tl WHERE tl.rental_id = d.id) AS timeline FROM v_rental_details d JOIN rentals r ON r.id = d.id JOIN scooters s ON s.id = d.scooter_id JOIN scooter_models m ON m.id = s.model_id JOIN tariffs t ON t.id = d.tariff_id LEFT JOIN LATERAL ( SELECT z.code, z.name FROM zones z WHERE z.type = 'PARKING'::zone_type AND r.start_position IS NOT NULL AND st_contains(z.geom, r.start_position) ORDER BY z.active DESC, z.code LIMIT 1) sz ON true`,
+);
+
+export const vDocServiceTask = pgView('v_doc_service_task', {
+  taskId: uuid('task_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  number: bigint({ mode: 'number' }),
+  type: serviceTaskType(),
+  status: serviceTaskStatus(),
+  priority: taskPriority(),
+  description: text(),
+  resultNote: text('result_note'),
+  cancelReason: text('cancel_reason'),
+  scooterId: uuid('scooter_id'),
+  scooterNumber: integer('scooter_number'),
+  serialNumber: text('serial_number'),
+  scooterVariant: scooterVariant('scooter_variant'),
+  modelName: text('model_name'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  odometerM: bigint('odometer_m', { mode: 'number' }),
+  scooterStatus: scooterStatus('scooter_status'),
+  scooterStatusReason: scooterStatusReason('scooter_status_reason'),
+  scooterReturnBlockers: text('scooter_return_blockers'),
+  assigneeId: uuid('assignee_id'),
+  assigneeName: text('assignee_name'),
+  createdByName: text('created_by_name'),
+  cancelledByName: text('cancelled_by_name'),
+  ticketId: uuid('ticket_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  ticketNumber: bigint('ticket_number', { mode: 'number' }),
+  ticketCategories: ticketCategory('ticket_categories'),
+  ticketDescription: text('ticket_description'),
+  targetZoneCode: text('target_zone_code'),
+  targetZoneName: text('target_zone_name'),
+  dueAt: timestamp('due_at', { withTimezone: true, mode: 'date' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+  completedAt: timestamp('completed_at', { withTimezone: true, mode: 'date' }),
+  partsCount: integer('parts_count'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  partsCost: bigint('parts_cost', { mode: 'number' }),
+  parts: jsonb(),
+  timeline: jsonb(),
+}).as(
+  sql`SELECT l.id AS task_id, l.number, l.type, l.status, l.priority, l.description, l.result_note, l.cancel_reason, l.scooter_id, l.scooter_number, s.serial_number, s.variant AS scooter_variant, m.name AS model_name, s.odometer_m, s.status AS scooter_status, s.status_reason AS scooter_status_reason, fn_scooter_return_blockers(s.id) AS scooter_return_blockers, l.assignee_id, l.assignee_name, l.created_by_name, l.cancelled_by_name, l.ticket_id, l.ticket_number, l.ticket_categories, tk.description AS ticket_description, l.target_zone_code, l.target_zone_name, l.due_at, l.created_at, l.started_at, l.completed_at, l.parts_count, l.parts_cost, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('sku', p.sku, 'name', p.name, 'quantity', p.quantity, 'unitCost', p.unit_cost, 'amount', p.amount) ORDER BY p.sku), '[]'::jsonb) AS "coalesce" FROM v_service_task_parts p WHERE p.task_id = l.id) AS parts, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('at', a.created_at, 'action', a.action, 'actor', a.actor, 'staffName', sf.name, 'data', a.data) ORDER BY a.created_at, a.id), '[]'::jsonb) AS "coalesce" FROM audit_log a LEFT JOIN staff sf ON sf.id = a.staff_id WHERE a.entity_type = 'service_task'::text AND a.entity_id = l.id) AS timeline FROM v_service_task_list l JOIN scooters s ON s.id = l.scooter_id JOIN scooter_models m ON m.id = s.model_id LEFT JOIN tickets tk ON tk.id = l.ticket_id`,
+);
+
+export const vDocScooter = pgView('v_doc_scooter', {
+  scooterId: uuid('scooter_id'),
+  number: integer(),
+  serialNumber: text('serial_number'),
+  variant: scooterVariant(),
+  status: scooterStatus(),
+  statusReason: scooterStatusReason('status_reason'),
+  firmware: text(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  odometerM: bigint('odometer_m', { mode: 'number' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  modelCode: text('model_code'),
+  modelName: text('model_name'),
+  manufacturer: text(),
+  maxSpeedKmh: smallint('max_speed_kmh'),
+  rangeKm: smallint('range_km'),
+  batteryWh: integer('battery_wh'),
+  weightKg: numeric('weight_kg', { precision: 4, scale: 1 }),
+  rentalsTotal: integer('rentals_total'),
+  serviceTasks: jsonb('service_tasks'),
+  tickets: jsonb(),
+  rentals: jsonb(),
+}).as(
+  sql`SELECT s.id AS scooter_id, s.number, s.serial_number, s.variant, s.status, s.status_reason, s.firmware, s.odometer_m, s.created_at, m.code AS model_code, m.name AS model_name, m.manufacturer, m.max_speed_kmh, m.range_km, m.battery_wh, m.weight_kg, ( SELECT count(*)::integer AS count FROM rentals r WHERE r.scooter_id = s.id AND (r.state = ANY (ARRAY['ENDED'::rental_state, 'UNPAID'::rental_state]))) AS rentals_total, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('id', st.id, 'number', st.number, 'type', st.type, 'status', st.status, 'priority', st.priority, 'createdAt', st.created_at, 'completedAt', st.completed_at, 'resultNote', st.result_note, 'assigneeName', st.assignee_name, 'partsCost', st.parts_cost) ORDER BY st.created_at DESC), '[]'::jsonb) AS "coalesce" FROM v_service_task_list st WHERE st.scooter_id = s.id) AS service_tasks, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('id', t.id, 'number', t.number, 'status', t.status, 'categories', t.categories, 'source', t.source, 'urgent', t.urgent, 'createdAt', t.created_at, 'resolvedAt', t.resolved_at) ORDER BY t.created_at DESC), '[]'::jsonb) AS "coalesce" FROM tickets t WHERE t.scooter_id = s.id) AS tickets, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('endedAt', r.ended_at, 'distanceM', r.distance_m, 'rideSeconds', r.ride_seconds) ORDER BY r.ended_at DESC), '[]'::jsonb) AS "coalesce" FROM rentals r WHERE r.scooter_id = s.id AND (r.state = ANY (ARRAY['ENDED'::rental_state, 'UNPAID'::rental_state]))) AS rentals FROM scooters s JOIN scooter_models m ON m.id = s.model_id`,
+);
+
+export const vDocTicket = pgView('v_doc_ticket', {
+  ticketId: uuid('ticket_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  number: bigint({ mode: 'number' }),
+  status: ticketStatus(),
+  urgent: boolean(),
+  categories: ticketCategory(),
+  source: ticketSource(),
+  autoKind: ticketAutoKind('auto_kind'),
+  description: text(),
+  scooterId: uuid('scooter_id'),
+  scooterNumber: integer('scooter_number'),
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentalNumber: bigint('rental_number', { mode: 'number' }),
+  reportedBy: uuid('reported_by'),
+  reporterName: text('reporter_name'),
+  reporterPhone: text('reporter_phone'),
+  assigneeName: text('assignee_name'),
+  customerReply: text('customer_reply'),
+  customerReplyAt: timestamp('customer_reply_at', { withTimezone: true, mode: 'date' }),
+  resolutionNote: text('resolution_note'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  refundedAmount: bigint('refunded_amount', { mode: 'number' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'date' }),
+  photos: integer(),
+  photoList: jsonb('photo_list'),
+  timeline: jsonb(),
+}).as(
+  sql`SELECT id AS ticket_id, number, status, urgent, categories, source, auto_kind, description, scooter_id, scooter_number, rental_id, rental_number, reported_by, reporter_name, reporter_phone, assignee_name, customer_reply, customer_reply_at, resolution_note, refunded_amount, created_at, resolved_at, photos, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('position', p."position", 'uploadedAt', f.created_at, 'status', f.status, 'deletedAt', f.deleted_at) ORDER BY p."position"), '[]'::jsonb) AS "coalesce" FROM ticket_photos p JOIN files f ON f.id = p.file_id WHERE p.ticket_id = l.id) AS photo_list, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('at', tl.at, 'kind', tl.kind, 'action', tl.action, 'actor', tl.actor, 'staffName', tl.staff_name, 'data', tl.data) ORDER BY tl.at, tl.kind_order, tl.seq), '[]'::jsonb) AS "coalesce" FROM v_ticket_timeline tl WHERE tl.ticket_id = l.id) AS timeline FROM v_ticket_list l`,
+);
+
+export const vDocWalletAdjustment = pgView('v_doc_wallet_adjustment', {
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  entryId: bigint('entry_id', { mode: 'number' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  userId: uuid('user_id'),
+  userName: text('user_name'),
+  userPhone: text('user_phone'),
+  type: text(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  amount: bigint({ mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  balanceBefore: bigint('balance_before', { mode: 'number' }),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  balanceAfter: bigint('balance_after', { mode: 'number' }),
+  reason: ledgerReason(),
+  note: text(),
+  staffId: uuid('staff_id'),
+  staffName: text('staff_name'),
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentalNumber: bigint('rental_number', { mode: 'number' }),
+  refundId: uuid('refund_id'),
+  refundReason: refundReason('refund_reason'),
+  receiptId: uuid('receipt_id'),
+  receiptNumber: text('receipt_number'),
+}).as(
+  sql`SELECT id AS entry_id, created_at, user_id, user_name, user_phone, type, amount, balance_after - amount AS balance_before, balance_after, reason, note, staff_id, staff_name, rental_id, rental_number, refund_id, refund_reason, receipt_id, receipt_number FROM v_wallet_ledger l WHERE type = ANY (ARRAY['ADJUSTMENT'::text, 'REFUND'::text])`,
 );

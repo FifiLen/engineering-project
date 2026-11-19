@@ -65,7 +65,13 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
       staff: [{ email: 'd@test.local', name: 'Marta Wiśniewska', role: 'Dyspozytor', passwordHash: 'x' }],
       documents: [
         { slug: 'regulamin', name: 'Regulamin', consentType: 'TERMS', title: 'Regulamin', bodyMd: 'Wersja 1' },
-        { slug: 'polityka-prywatnosci', name: 'Polityka', consentType: 'PRIVACY', title: 'Polityka', bodyMd: 'Wersja 1' },
+        {
+          slug: 'polityka-prywatnosci',
+          name: 'Polityka',
+          consentType: 'PRIVACY',
+          title: 'Polityka',
+          bodyMd: 'Wersja 1',
+        },
         { slug: 'zasady-jazdy', name: 'Zasady jazdy', consentType: null, title: 'Zanim ruszysz', bodyMd: 'Kask' },
       ],
     });
@@ -100,7 +106,9 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     expect(second).toEqual({ record: first.record, created: false });
 
     const { id, version } = first.record;
-    expect(await customers.updateProfile(id, version, { name: 'Anna Kowalczyk', email: 'anna@przyklad.pl' })).toBe(true);
+    expect(await customers.updateProfile(id, version, { name: 'Anna Kowalczyk', email: 'anna@przyklad.pl' })).toBe(
+      true,
+    );
     expect(await customers.block(id, version, 'UNPAID_BALANCE', t0)).toBe(false);
     expect(await customers.block(id, version + 1, 'UNPAID_BALANCE', t0)).toBe(true);
 
@@ -122,10 +130,25 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     const customers = new DrizzleCustomerRepository(db);
     const { record } = await customers.createOrGet('+48500300300');
     const sessions = new DrizzleCustomerSessionRepository(db);
-    const first = await sessions.create({ ownerId: record.id, tokenHash: 't1', expiresAt: after(86400), device: 'iPhone 15' });
-    const next = await sessions.rotate(first.id, { ownerId: record.id, familyId: first.familyId, tokenHash: 't2', expiresAt: after(86400), device: 'iPhone 15' }, t0);
+    const first = await sessions.create({
+      ownerId: record.id,
+      tokenHash: 't1',
+      expiresAt: after(86400),
+      device: 'iPhone 15',
+    });
+    const next = await sessions.rotate(
+      first.id,
+      { ownerId: record.id, familyId: first.familyId, tokenHash: 't2', expiresAt: after(86400), device: 'iPhone 15' },
+      t0,
+    );
     expect(next!.familyId).toBe(first.familyId);
-    expect(await sessions.rotate(first.id, { ownerId: record.id, familyId: first.familyId, tokenHash: 't3', expiresAt: after(86400), device: null }, t0)).toBeNull();
+    expect(
+      await sessions.rotate(
+        first.id,
+        { ownerId: record.id, familyId: first.familyId, tokenHash: 't3', expiresAt: after(86400), device: null },
+        t0,
+      ),
+    ).toBeNull();
     expect(await sessions.findByTokenHash('t1')).toMatchObject({ replacedBy: next!.id, revokedAt: t0 });
     expect(await sessions.findByTokenHash('t3')).toBeNull();
 
@@ -145,7 +168,10 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     const { record } = await new DrizzleCustomerRepository(db).createOrGet('+48500400400');
     const consentsRepo = new DrizzleConsentRepository(db);
     const legal = new DrizzleLegalDocumentRepository(db);
-    expect((await consentsRepo.pendingDocuments(record.id)).map((d) => d.slug)).toEqual(['regulamin', 'polityka-prywatnosci']);
+    expect((await consentsRepo.pendingDocuments(record.id)).map((d) => d.slug)).toEqual([
+      'regulamin',
+      'polityka-prywatnosci',
+    ]);
 
     for (const type of ['TERMS', 'PRIVACY'] as const) {
       const doc = await consentsRepo.currentDocument(type);
@@ -155,20 +181,33 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     await consentsRepo.accept(record.id, 'AGE', null);
     expect(await consentsRepo.pendingDocuments(record.id)).toEqual([]);
     expect(await consentsRepo.statuses(record.id)).toEqual(
-      expect.arrayContaining([{ type: 'TERMS', isCurrent: true }, { type: 'AGE', isCurrent: true }]),
+      expect.arrayContaining([
+        { type: 'TERMS', isCurrent: true },
+        { type: 'AGE', isCurrent: true },
+      ]),
     );
 
     const page = (await legal.list()).find((d) => d.slug === 'regulamin')!;
     const draft = await legal.createDraft(page.id, 2, { title: 'Regulamin', bodyMd: 'Wersja 2' }, adminId);
-    await legal.updateDraft(draft.id, { changeSummary: 'Nowe zasady parkowania' });
-    expect((await legal.findById(page.id))!.draft).toMatchObject({ versionNo: 2, changeSummary: 'Nowe zasady parkowania' });
+    expect(await legal.updateDraft(draft.id, 1, { changeSummary: 'Nowe zasady parkowania' })).toBe(true);
+    // Blokada optymistyczna wersji roboczej (migracja 0011): stara wersja nie nadpisuje zmian.
+    expect(await legal.updateDraft(draft.id, 1, { changeSummary: 'Nieaktualne' })).toBe(false);
+    expect((await legal.findById(page.id))!.draft).toMatchObject({
+      versionNo: 2,
+      version: 2,
+      changeSummary: 'Nowe zasady parkowania',
+    });
     await legal.publish(draft.id, t0);
 
     expect(await consentsRepo.pendingDocuments(record.id)).toEqual([
       expect.objectContaining({ slug: 'regulamin', versionNo: 2, changeSummary: 'Nowe zasady parkowania' }),
     ]);
     const views = await consentsRepo.views(record.id);
-    expect(views.find((v) => v.type === 'TERMS')).toMatchObject({ versionNo: 1, currentVersionNo: 2, isCurrent: false });
+    expect(views.find((v) => v.type === 'TERMS')).toMatchObject({
+      versionNo: 1,
+      currentVersionNo: 2,
+      isCurrent: false,
+    });
     const versions = await legal.versions(page.id);
     expect(versions.map((v) => [v.versionNo, v.status, v.acceptances])).toEqual([
       [2, 'PUBLISHED', 0],
@@ -176,7 +215,10 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     ]);
     expect(versions[1]!.supersededAt).toEqual(t0);
     expect((await legal.published('regulamin'))!.versionNo).toBe(2);
-    expect((await legal.list()).find((d) => d.slug === 'regulamin')).toMatchObject({ publishedVersionNo: 2, hasDraft: false });
+    expect((await legal.list()).find((d) => d.slug === 'regulamin')).toMatchObject({
+      publishedVersionNo: 2,
+      hasDraft: false,
+    });
     expect(await consentsRepo.revoke(record.id, 'TERMS', t0)).toBe(1);
   });
 
@@ -185,7 +227,11 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     expect(first.created).toBe(true);
     const invitations = new DrizzleInvitationRepository(db);
     const found = (await invitations.findByTokenHash(hashToken(first.token)))!;
-    expect(found).toMatchObject({ staffEmail: 'nowy.admin@operator.pl', invitedByName: null, expiresAt: after(72 * 3600) });
+    expect(found).toMatchObject({
+      staffEmail: 'nowy.admin@operator.pl',
+      invitedByName: null,
+      expiresAt: after(72 * 3600),
+    });
 
     const again = await inviteAdministrator(pool, { email: 'nowy.admin@operator.pl', name: 'Nowy Admin' }, after(60));
     expect(again).toMatchObject({ staffId: first.staffId, created: false });
@@ -194,7 +240,9 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     const staffRepo = new DrizzleStaffRepository(db);
     expect(await staffRepo.permissions(first.staffId)).toEqual([...PERMISSIONS].sort());
     const listed = await staffRepo.list(parse(staffResource, 'status=INVITED'));
-    expect(listed.items).toEqual([expect.objectContaining({ email: 'nowy.admin@operator.pl', roles: ['Administrator'] })]);
+    expect(listed.items).toEqual([
+      expect.objectContaining({ email: 'nowy.admin@operator.pl', roles: ['Administrator'] }),
+    ]);
 
     const invitation = (await invitations.findByTokenHash(hashToken(again.token)))!;
     expect(await invitations.accept(invitation.id, after(120))).toBe(true);
@@ -212,12 +260,22 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
 
     await staffRepo.recordFailedLogin(dispatcherId, 2, null);
     await staffRepo.setPendingTotp(dispatcherId, 'enc');
-    expect(await staffRepo.findAuthById(dispatcherId)).toMatchObject({ failedLogins: 2, totpConfirmed: false, passwordSet: true });
+    expect(await staffRepo.findAuthById(dispatcherId)).toMatchObject({
+      failedLogins: 2,
+      totpConfirmed: false,
+      passwordSet: true,
+    });
     await staffRepo.confirmTotp(dispatcherId, t0, 100);
     await staffRepo.recordLogin(dispatcherId, t0, 101);
-    expect(await staffRepo.findAuthById(dispatcherId)).toMatchObject({ failedLogins: 0, totpConfirmed: true, totpLastStep: 101 });
+    expect(await staffRepo.findAuthById(dispatcherId)).toMatchObject({
+      failedLogins: 0,
+      totpConfirmed: true,
+      totpLastStep: 101,
+    });
 
-    const roleIds = Object.fromEntries((await pool.query<{ name: string; id: string }>('SELECT name, id FROM roles')).rows.map((r) => [r.name, r.id]));
+    const roleIds = Object.fromEntries(
+      (await pool.query<{ name: string; id: string }>('SELECT name, id FROM roles')).rows.map((r) => [r.name, r.id]),
+    );
     const previous = await staffRepo.setRoles(dispatcherId, [roleIds.Dyspozytor!, roleIds.Serwisant!], adminId);
     expect(previous).toEqual([roleIds.Dyspozytor]);
     const byRole = await staffRepo.list(parse(staffResource, `roleIds=${roleIds.Serwisant}&facets=status,totpEnabled`));
@@ -229,13 +287,20 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     const map = await roleRepo.permissionMap();
     expect(countRoleManagers(snapshot, map)).toBeGreaterThanOrEqual(1);
     const withoutManage = new Map(map);
-    withoutManage.set(roleIds.Administrator!, map.get(roleIds.Administrator!)!.filter((p) => p !== 'roles.manage'));
+    withoutManage.set(
+      roleIds.Administrator!,
+      map.get(roleIds.Administrator!)!.filter((p) => p !== 'roles.manage'),
+    );
     expect(countRoleManagers(snapshot, withoutManage)).toBe(0);
 
     // Zapis macierzy Administratora bez roles.manage odrzuca baza (wyzwalacz z migracji 0004).
     const adminRole = (await roleRepo.findById(roleIds.Administrator!))!;
     await expect(
-      roleRepo.setPermissions(adminRole.id, adminRole.version, adminRole.permissions.filter((p) => p !== 'roles.manage')),
+      roleRepo.setPermissions(
+        adminRole.id,
+        adminRole.version,
+        adminRole.permissions.filter((p) => p !== 'roles.manage'),
+      ),
     ).rejects.toThrow(expect.objectContaining({ code: 'LAST_ROLE_MANAGER' }));
   });
 
@@ -250,7 +315,12 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
     expect(await roleRepo.setPermissions(id, 1, ['service.read'])).toBe(false);
     expect(await roleRepo.setPermissions(id, 2, ['service.read', 'tickets.read'])).toBe(true);
     const role = (await roleRepo.findById(id))!;
-    expect(role).toMatchObject({ permissions: ['service.read', 'tickets.read'], staffCount: 0, isSystem: false, version: 3 });
+    expect(role).toMatchObject({
+      permissions: ['service.read', 'tickets.read'],
+      staffCount: 0,
+      isSystem: false,
+      version: 3,
+    });
     expect((await roleRepo.details(id))!.permissionsCount).toBe(2);
     expect((await roleRepo.catalog()).length).toBe(PERMISSIONS.length);
     await roleRepo.delete(id);
@@ -270,14 +340,30 @@ describe.skipIf(!adminUrl)('konta i dostęp w bazie', () => {
       }),
     );
     await audit.append(
-      auditEntry({ staffId: adminId, action: 'staff.invited', entityType: 'staff', entityId: null, data: { invitationToken: 'abc' } }),
+      auditEntry({
+        staffId: adminId,
+        action: 'staff.invited',
+        entityType: 'staff',
+        entityId: null,
+        data: { invitationToken: 'abc' },
+      }),
     );
     const history = await audit.forEntity('scooter', entityId);
-    expect(history).toEqual([expect.objectContaining({ staffName: 'Piotr Mazur', data: { changes: { variant: ['GRAFIT', 'KOBALT'] } } })]);
+    expect(history).toEqual([
+      expect.objectContaining({ staffName: 'Piotr Mazur', data: { changes: { variant: ['GRAFIT', 'KOBALT'] } } }),
+    ]);
     const list = await audit.list(parse(auditLogResource, 'entityType=staff&facets=entityType'));
     expect(list.items.map((i) => i.action)).toEqual(['staff.invited']);
-    // Liczniki pola pomijają jego własny filtr, żeby szybkie filtry pokazywały wszystkie wartości.
-    expect(list.facets.entityType).toEqual({ staff: 1, scooter: 1 });
+    // Liczniki pola pomijają jego własny filtr, żeby szybkie filtry pokazywały wszystkie wartości. Dane startowe
+    // treści (0011) mają własne wpisy systemu („Dane startowe” w historii bloków, FAQ, aktualności i danych firmy).
+    expect(list.facets.entityType).toEqual({
+      staff: 1,
+      scooter: 1,
+      content_block: expect.any(Number),
+      faq_item: expect.any(Number),
+      news: expect.any(Number),
+      company_profile: 1,
+    });
     expect((await audit.details(list.items[0]!.id))!.data).toEqual({ invitationToken: '[REDACTED]' });
   });
 });

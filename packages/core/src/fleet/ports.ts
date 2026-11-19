@@ -56,6 +56,8 @@ export interface ScooterModelDraft {
   weightKg: number | null;
   description: string | null;
   active: boolean;
+  /** Zdjęcie modelu z biblioteki mediów (ADR 0064): strona i `/h/{numer}`. */
+  photoMediaId?: string | null;
 }
 
 export interface ScooterModelRepository {

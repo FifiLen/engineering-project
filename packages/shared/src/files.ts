@@ -17,6 +17,16 @@ export const FILE_MAX_BYTES = 10 * 1024 * 1024;
 export const FILE_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export type FileContentType = (typeof FILE_CONTENT_TYPES)[number];
 
+/**
+ * Cele wysyłane przez operatora w `POST /files`: `MEDIA` z `content.write` i limitem 5 MB (ADR 0064); klient wysyła
+ * tylko `UPLOAD_FILE_PURPOSES`. Pełny typ `file_purpose` jest w `FILE_PURPOSES` (zasób listy plików).
+ */
+export const STAFF_UPLOAD_FILE_PURPOSES = ['PARKING_PHOTO', 'TICKET_PHOTO', 'MEDIA'] as const;
+export type StaffUploadFilePurpose = (typeof STAFF_UPLOAD_FILE_PURPOSES)[number];
+
+/** Pole `purpose` formularza operatora (z `MEDIA`); klient dalej używa `fileUploadFieldsSchema`. */
+export const staffFileUploadFieldsSchema = z.object({ purpose: z.enum(STAFF_UPLOAD_FILE_PURPOSES) });
+
 /** Pole `purpose` formularza `multipart/form-data` obok jednego pola `file`. */
 export const fileUploadFieldsSchema = z.object({ purpose: z.enum(UPLOAD_FILE_PURPOSES) });
 export type FileUploadFields = z.infer<typeof fileUploadFieldsSchema>;
@@ -30,7 +40,7 @@ export type FileSignatureQuery = z.infer<typeof fileSignatureQuerySchema>;
 
 export interface FileView {
   id: string;
-  purpose: UploadFilePurpose;
+  purpose: StaffUploadFilePurpose;
   contentType: FileContentType;
   sizeBytes: number;
   status: FileStatus;
@@ -39,4 +49,9 @@ export interface FileView {
   /** Ważność podpisu adresu. */
   urlExpiresAt: string | null;
   createdAt: string;
+  /** Wymiary grafiki biblioteki mediów (cel `MEDIA`, ADR 0064); inne pliki ich nie mają. */
+  width?: number | null;
+  height?: number | null;
+  /** Ostrzeżenia wysyłki grafiki: `IMAGE_LARGE_DIMENSIONS` powyżej 2560 px („możesz dodać mimo to”). */
+  warnings?: string[];
 }

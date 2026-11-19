@@ -95,7 +95,11 @@ export interface ConsentRepository {
   pendingDocuments(userId: string): Promise<CurrentDocument[]>;
   currentDocument(type: ConsentType): Promise<CurrentDocument | null>;
   /** Zapis zgody; powtórzona zgoda na tę samą wersję niczego nie zmienia (idempotencja). */
-  accept(userId: string, type: ConsentType, document: Pick<CurrentDocument, 'versionId' | 'versionNo'> | null): Promise<void>;
+  accept(
+    userId: string,
+    type: ConsentType,
+    document: Pick<CurrentDocument, 'versionId' | 'versionNo'> | null,
+  ): Promise<void>;
   revoke(userId: string, type: ConsentType, now: Date): Promise<number>;
 }
 
@@ -146,7 +150,13 @@ export interface InvitationRecord {
 
 export interface InvitationRepository {
   /** Nowe zaproszenie unieważnia poprzednie otwarte zaproszenie tego operatora. */
-  create(staffId: string, tokenHash: string, expiresAt: Date, invitedBy: string | null, now: Date): Promise<{ id: string }>;
+  create(
+    staffId: string,
+    tokenHash: string,
+    expiresAt: Date,
+    invitedBy: string | null,
+    now: Date,
+  ): Promise<{ id: string }>;
   findByTokenHash(tokenHash: string): Promise<InvitationRecord | null>;
   accept(id: string, now: Date): Promise<boolean>;
 }
@@ -178,6 +188,8 @@ export interface DocumentVersionRecord extends DocumentVersionState {
   id: string;
   pageId: string;
   versionNo: number;
+  /** Blokada optymistyczna wersji roboczej (migracja 0011, ADR 0062). */
+  version: number;
 }
 
 export interface LegalDocumentRecord {
@@ -191,9 +203,19 @@ export interface LegalDocumentRecord {
 
 export interface LegalDocumentRepository {
   findById(pageId: string): Promise<LegalDocumentRecord | null>;
-  findVersion(versionId: string): Promise<DocumentVersionRecord | null>;
-  createDraft(pageId: string, versionNo: number, from: Pick<DocumentVersionState, 'title' | 'bodyMd'>, createdBy: string): Promise<{ id: string }>;
-  updateDraft(versionId: string, changes: Partial<Pick<DocumentVersionState, 'title' | 'bodyMd' | 'changeSummary'>>): Promise<void>;
+  findVersion(versionId: string, options?: { lock?: boolean }): Promise<DocumentVersionRecord | null>;
+  createDraft(
+    pageId: string,
+    versionNo: number,
+    from: Pick<DocumentVersionState, 'title' | 'bodyMd'>,
+    createdBy: string,
+  ): Promise<{ id: string }>;
+  /** Zapis z blokadą optymistyczną; `false` przy niezgodnej wersji. */
+  updateDraft(
+    versionId: string,
+    expectedVersion: number,
+    changes: Partial<Pick<DocumentVersionState, 'title' | 'bodyMd' | 'changeSummary'>>,
+  ): Promise<boolean>;
   /** Archiwizuje obowiązującą wersję i publikuje roboczą (jedna obowiązująca wersja pilnowana przez bazę). */
   publish(versionId: string, now: Date): Promise<void>;
   deleteDraft(versionId: string): Promise<void>;
