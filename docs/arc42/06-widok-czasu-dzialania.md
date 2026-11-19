@@ -496,3 +496,76 @@ sequenceDiagram
 ```
 
 Zdjęcia trafiają do pliku tylko jako metadane. `data-exports.purge` (03:45 UTC) usuwa wygasłe pliki, a usunięcie konta zamyka zlecenie w toku (`sp_anonymize_user`: `FAILED`, `ACCOUNT_DELETED`) i usuwa pliki klienta. `data-exports.sweep` co 5 min kończy zlecenia porzucone po restarcie API (`DATA_EXPORT_FAILED` po 30 min z `data-export.ready`).
+
+## 6.14. Raport: podgląd i eksport
+
+Według [ADR 0071](../adr/0071-modul-raportow.md) i [ADR 0072](../adr/0072-wykresy-w-panelu-i-w-pdf.md). Katalog `GET /admin/reports` pokazuje aktywne raporty, do których operator ma uprawnienie `reports.<kod>`; raport bez uprawnienia albo wyłączony daje `404 REPORT_NOT_FOUND`. Parametry są w adresie strony raportu, więc odświeżenie i odnośnik zachowują okres, granulację i filtry.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Panel
+    participant API as Backend API
+    participant C as packages/core
+    participant DB as PostgreSQL
+    participant J as Zadanie report.generate
+    participant R as DocumentRenderer (Gotenberg)
+    participant X as SpreadsheetWriter (ExcelJS)
+    participant FS as SeaweedFS
+    P->>API: GET /admin/reports/revenue/preview?preset=previous_month&granularity=day
+    API->>C: parametry w Europe/Warsaw (zakres do 366 dni, granulacja, porównanie, filtry raportu)
+    API->>DB: BEGIN REPEATABLE READ READ ONLY, SET LOCAL jit = off, statement_timeout 15 s, fn_report_*
+    API->>C: model raportu (kafelki z porównaniem, wykresy jako dane, tabele do 200 wierszy)
+    API-->>P: podgląd z chwilą danych; panel rysuje wykresy z geometrii w packages/shared
+    P->>API: POST /admin/reports/revenue/runs (format PDF, te same parametry)
+    API->>DB: migawka jak w podglądzie (pusty raport: 409 REPORT_EMPTY)
+    API->>DB: report_runs QUEUED, wpis report_run.requested, sendInTransaction report.generate, COMMIT
+    API-->>P: 202 z identyfikatorem uruchomienia
+    DB->>J: zadanie pg-boss (wygaśnięcie 120 s)
+    J->>DB: RUNNING z żetonem started_at, migawka (zapytanie do 60 s, razem do 45 s)
+    J->>C: model raportu (PDF: tabele do 50 wierszy)
+    alt PDF
+        J->>R: htmlToPdf (HTML z ucieczką znaków, SVG wykresów, footer.html, limit 60 s)
+    else XLSX
+        J->>X: arkusz na tabelę i „Parametry” (kwoty w złotych, daty Excela)
+    end
+    J->>FS: plik REPORT_EXPORT
+    J->>DB: SUCCEEDED z data_as_of, liczbą wierszy i stron (tylko z aktualnym żetonem)
+    J-->>P: report.ready (pokój staff:ID, adres pliku z podpisem na 10 min)
+    Note over P: zapas: odpytywanie GET /admin/report-runs/ID co 2 s
+```
+
+- **Przejęcie:** wynik zapisuje tylko wykonanie z aktualnym żetonem `started_at`. Gdy wiersz przejęło drugie wykonanie albo zakończył go `reports.sweep`, zapisany plik jest usuwany, a `report.ready` nie idzie.
+- **Błędy:** niedostępny Gotenberg wraca do kolejki, dopóki są ponowienia; inny błąd to `FAILED` z kodem (`REPORT_TIMEOUT`, `REPORT_RENDER_TIMEOUT`, `REPORT_FAILED`) i `report.ready`.
+- **Ponowienie:** „Uruchom ponownie z tymi parametrami” (`POST /admin/report-runs/{id}/retry`) tworzy nowy wiersz z `retry_of`: ten sam okres i format, dane na teraz. Uruchomienie w toku daje `409 REPORT_RUN_NOT_RETRYABLE`.
+- **Porządek:** `reports.sweep` co 5 min kończy uruchomienia porzucone po 15 min (`REPORT_TIMEOUT`), a `reports.retention` (03:40 UTC) usuwa pliki po 30 dniach. Wiersz zostaje, a pobranie daje `410 REPORT_FILE_DELETED`.
+- **Historia** (`GET /admin/report-runs`) pokazuje uruchomienia wszystkich raportów, do których operator ma uprawnienie, także cudze; pobranie wymaga tego samego uprawnienia.
+
+## 6.15. Eksport listy
+
+Według [ADR 0073](../adr/0073-eksport-list-do-xlsx-i-csv.md). Każdy kontroler listy wystawia `POST /admin/{zasób}/export` z tym samym uprawnieniem co `GET` listy i woła tę samą funkcję listy, więc plik ma te same wiersze, kolejność i maskowanie danych klienta.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Panel
+    participant API as ListExportService
+    participant C as packages/core
+    participant DB as PostgreSQL
+    P->>API: POST /admin/rentals/export (format xlsx, kolumny z etykietami z pl.json, query listy)
+    API->>C: miejsce w limicie (najwyżej 3 eksporty naraz na instancję)
+    alt brak miejsca
+        API-->>P: 429 LIST_EXPORT_BUSY z Retry-After
+    end
+    API->>C: kolumny z definicji zasobu, zapytanie listy bez stronicowania
+    API->>DB: liczba wierszy
+    alt ponad 50 000 wierszy
+        API-->>P: 422 LIST_EXPORT_LIMIT (count, limit)
+    end
+    API->>DB: wpis list.exported (zasób, filtry, liczba wierszy) we własnej krótkiej transakcji
+    API->>DB: BEGIN REPEATABLE READ READ ONLY, partie po 1000 bez count(*)
+    API->>C: wartości komórek (ochrona przed formułami, kwoty i daty)
+    API-->>P: strumień XLSX (WorkbookWriter, czeka na drain) albo CSV (UTF-8 z BOM, średnik)
+```
+
+Bez `users.read` dane klienta wracają jako `null`, więc komórki są w pliku puste, a filtr albo sortowanie po polach klienta daje `403`. Telemetria ma limit 17 280 wierszy (doba odczytów co 5 s). Panel pobiera plik przez `apiDownload` z nazwą z `Content-Disposition`.

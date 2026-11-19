@@ -10,6 +10,8 @@ Gotenberg ([ADR 0066](../adr/0066-silnik-dokumentow-gotenberg-i-zadania.md)):
 - `mem_limit` 1536 MB, limit żądania 30 s, healthcheck `/health`; zmienne blokują pobieranie i wysyłanie czegokolwiek przez silnik (`API_DISABLE_DOWNLOAD_FROM`, `WEBHOOK_DISABLE`, blokada adresów prywatnych i publicznych, Chromium bez JavaScriptu) i trasy przetwarzania PDF;
 - API wybiera silnik zmienną `DOCUMENT_RENDERER`: `gotenberg` (domyślnie) albo `fake` (stały PDF w testach API; w produkcji zatrzymuje start). Stan silnika podaje `GET /health` (`documents: up|down`).
 
+Od iteracji 8 nie ma nowego kontenera. Raporty PDF idą przez tego samego Gotenberga (Chromium), a XLSX i CSV zapisuje proces API (ExcelJS 4.4.0, zależność `apps/api`). Dane do raportów daje generator `pnpm db:history` na osobnej, świeżej bazie w tym samym kontenerze PostgreSQL (np. `hulajnogi_history`), bo generator odmawia na bazie z przejazdami ([ADR 0075](../adr/0075-dane-historyczne-do-demonstracji.md)); `.claude/launch.json` ma do niej API `api-history` (3005) i panel `web-reports` (3007).
+
 SMS-y w tym środowisku nie są wysyłane, kod trafia do logów backendu.
 
 ## 7.2. Środowisko demonstracyjne

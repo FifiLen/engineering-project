@@ -8,7 +8,7 @@ Użytkownicy logują się kodem SMS i dostają krótki token dostępowy (15 min)
 - automatyczne `MAINTENANCE` po przejeździe (wyzwalacz `scooters_status`, wpis `scooter.sent_to_service`);
 - powrót do floty po ostatnim zadaniu.
 
-W API wpis systemu idzie przez `AuditScope.system` w tej samej transakcji. Panel pokazuje „System” z pliku tłumaczeń, a dziennik ma filtr po aktorze. Komendy systemu do hulajnóg (`lock` hulajnogi bez przejazdu, `battery_swapped`) nie mają wpisu w dzienniku, tylko wiersz w `scooter_commands`. Bez `users.read` widoki zgłoszeń i powiadomień nie podają imienia ani telefonu klienta (Serwisant widzi „Klient”), a filtr albo sortowanie po tych polach kończy się `403`.
+W API wpis systemu idzie przez `AuditScope.system` w tej samej transakcji. Panel pokazuje „System” z pliku tłumaczeń, a dziennik ma filtr po aktorze. Komendy systemu do hulajnóg (`lock` hulajnogi bez przejazdu, `battery_swapped`) nie mają wpisu w dzienniku, tylko wiersz w `scooter_commands`. Bez `users.read` widoki zgłoszeń i powiadomień nie podają imienia ani telefonu klienta (Serwisant widzi „Klient”), a filtr albo sortowanie po tych polach kończy się `403`. Od iteracji 8 tak samo działają listy, eksporty i szczegóły przejazdów, płatności, księgi, portfeli, paragonów, kart, webhooków i zwrotów oraz pulpit „Wymaga uwagi” (wcześniej luka, poprawka po przeglądzie): pola oznaczone w definicji zasobu jako `personal` wracają jako `null` (`listWithCustomerData`), a w pliku eksportu są puste.
 
 ## 8.2. Idempotencja
 Każde działanie, które może zostać powtórzone, ma unikalny klucz: `commandId` dla komend MQTT, `idempotency_key` dla płatności, `provider_event_id` dla webhooków. Powtórzenie nie zmienia stanu. Ponowione żądanie startu albo rezerwacji tej samej hulajnogi zwraca otwarty przejazd zamiast drugiego (indeksy jednego otwartego przejazdu, [ADR 0036](../adr/0036-proces-wypozyczenia-w-api.md)). Komenda ma termin `expiresAt` (kontrakt MQTT 1.1.0), po którym hulajnoga jej nie wykona, a potwierdzenie zmienia stan tylko komendy w statusie `SENT` ([ADR 0038](../adr/0038-wygasanie-komend-mqtt.md)). Zadania pg-boss są dostarczane co najmniej raz, więc ich obsługa sprawdza stan po zablokowaniu wiersza ([ADR 0037](../adr/0037-pg-boss-konfiguracja-i-zadania.md)). Od iteracji 6:
@@ -47,6 +47,8 @@ Od iteracji 7 ([kontrakt Socket.IO 1.6.1](../kontrakty/asyncapi-realtime.yaml)):
 - `content.updated` do wszystkich połączonych po zatwierdzeniu zmiany treści i na granicy publikacji aktualności; klient po nim zawsze pyta warunkowo (`If-None-Match`), bo o świeżości decyduje skrót treści, nie rewizja;
 - pokój operatora `staff:{id}` (dołączenie przy połączeniu, bez subskrypcji) z `document.ready`; ten sam `document.ready` i `data-export.ready` w pokoju `user:{id}`.
 
+Od iteracji 8 ([kontrakt Socket.IO 1.7.0](../kontrakty/asyncapi-realtime.yaml)) `report.ready` w pokoju `staff:{id}` zlecającego po stanie końcowym uruchomienia raportu. Pulpit odświeża się co 60 s i po zdarzeniach `fleet`.
+
 ## 8.8. Obsługa błędów
 API zwraca błędy w jednym formacie: kod maszynowy (np. `OUTSIDE_PARKING`), komunikat i szczegóły. Klienci reagują na kod, nie na treść komunikatu.
 
@@ -58,6 +60,11 @@ Pełne numery kart nie trafiają do systemu. Usunięcie konta anonimizuje dane o
 - klient pobiera swoje dane jako JSON („Pobierz moje dane”, raz na 24 h, plik ważny 7 dni, zdjęcia tylko jako metadane, [ADR 0069](../adr/0069-eksport-danych-klienta.md));
 - grafiki biblioteki tracą przy wysyłce metadane (EXIF z położeniem, XMP, komentarze), bo są publiczne (§8.15);
 - pliki wydruków znikają po 30 dniach, a wiersz `generated_documents` zostaje jako ślad (kto, kiedy, z której wersji szablonu).
+
+Od iteracji 8:
+- raporty nie zawierają danych osobowych (użytkownicy i portfel to same liczby), a pliki raportów znikają po 30 dniach;
+- eksport listy maskuje dane klienta jak lista, okno eksportu ostrzega przed danymi osobowymi przy kolumnach `personal`, a każdy eksport zapisuje wpis `list.exported` z filtrami i liczbą wierszy;
+- listy sesji i kodów SMS nie pokazują skrótów tokenów ani kodów, numer telefonu w kodach SMS ma tylko trzy ostatnie cyfry, a aplikacja wysyła model urządzenia bez nazwy nadanej przez właściciela.
 
 ## 8.11. Język interfejsu
 Interfejs po polsku. Etykiety interfejsu (przyciski, pola, menu, komunikaty błędów) są wydzielone do plików tłumaczeń, żeby dodanie kolejnego języka nie wymagało zmian w kodzie; w komponentach są tylko klucze. Mechanizm: wspólny tłumacz z `packages/shared` na `intl-messageformat` (format ICU, polskie liczebniki), pliki `apps/web/messages/pl.json` i `apps/mobile/src/i18n/pl.json`, reguła lintera zakazująca tekstów w JSX ([ADR 0032](../adr/0032-etykiety-w-plikach-tlumaczen.md)). Treści merytoryczne (regulamin, FAQ, aktualności, bloki strony i ekranów powitalnych, szablony powiadomień, grafiki) są w bazie i edytuje je operator w panelu ([ADR 0027](../adr/0027-tresci-sterowane-z-panelu.md)). Od iteracji 6 w bazie są też wszystkie teksty powiadomień push i kodu SMS (§8.13), więc API nie ma tekstów dla klienta na sztywno. Od iteracji 7 z bazy są też bloki strony i ekranów aplikacji (ekran startowy, zasady przed jazdą, Pomoc), FAQ, aktualności, grafiki (także rendery hulajnogi), dane firmy (kontakt pomocy, dane sprzedawcy) i teksty wydruków z szablonów DOCX (§8.14–8.17); w plikach tłumaczeń zostają etykiety.
@@ -109,3 +116,28 @@ Od iteracji 7 ([ADR 0067](../adr/0067-szablony-wydrukow-docx.md)):
 - **Ochrona przy wypełnianiu:** `{@…}` (surowy XML) i zmiana ograniczników są zabronione także przy wydruku: moduł `templateGuardModule` kończy wydruk błędem `TEMPLATE_RENDER_FAILED`, a zmiana ograniczników jest wyłączona, więc i wersja wgrana wcześniej nie wstawi surowego XML.
 - **Wersje:** wersji się nie zmienia; stany `PENDING` (do aktywacji, można usunąć), `ACTIVE` i `ARCHIVED` (kiedyś aktywna). Aktywacja i „Przywróć” to `sp_document_template_activate` z blokadą szablonu, bez kopiowania pliku; wydruki wskazują swoją wersję.
 - **Szablony startowe** (`packages/db/seed/templates/*.docx`) odtwarza powtarzalnie `build.mjs`, a `manifest.json` zapisuje pola w tym samym formacie co inspekcja API (`parts[].sku`). Seed podmienia aktywną wersję startową, gdy suma pliku się zmieni, a wersji wgranych przez operatora nie rusza. Nota firmy jest w stopce, żeby wydruk z danymi przykładowymi mieścił się na jednej stronie.
+
+## 8.18. Raporty i wykresy
+Od iteracji 8 ([ADR 0071](../adr/0071-modul-raportow.md), [ADR 0072](../adr/0072-wykresy-w-panelu-i-w-pdf.md)):
+- **Katalog w kodzie:** `REPORT_CATALOG` w core wyznacza kod, uprawnienie, parametry, formaty, orientację PDF, kafelki, wykresy i tabele raportu. `report_definitions` trzyma tylko to, co zmienia operator (nazwa, opis, aktywność, kolejność); seed wstawia brakujące wiersze i synchronizuje parametry i formaty, a wpis systemu w dzienniku audytu ma `data.source = 'catalog'`.
+- **Dane:** funkcje `fn_report_*` z okresem w Europe/Warsaw (doba zmiany czasu ma 23 albo 25 godzin), kwoty w groszach, czas w sekundach. Wszystkie zapytania raportu idą w jednej transakcji `REPEATABLE READ READ ONLY`, więc liczby w kafelkach i tabelach są z tej samej chwili (`data_as_of` w nagłówku). JIT jest wyłączony w transakcji (`SET LOCAL jit = off`), bo kompilacja trwała dłużej niż samo zapytanie.
+- **Limity** (`REPORT_LIMITS`): okres do 366 dni, podgląd 15 s i 200 wierszy tabeli, PDF 50 wierszy z dopiskiem o pełnych danych w XLSX, zadanie 120 s (migawka do 45 s, render do 60 s).
+- **Przychód:** sprzedaż z paragonów (brutto, netto, VAT według stawek, korekty ujemne, odholowanie poza VAT) i wpływy z płatności minus zwroty na kartę; zwrot do portfela nie jest wypływem.
+- **Porównanie:** z poprzednim okresem tej samej długości, a okres od pierwszego do ostatniego dnia miesiąca z całym poprzednim miesiącem.
+- **Wykresy:** geometria w `packages/shared/src/charts` (skale, podziałki, słupki, mapa ciepła, pasek udziałów) daje kształty jako dane. Panel rysuje je komponentem React SVG (`components/admin/charts/chart.tsx`), a API zamienia na tekst SVG w HTML raportu (`chart-svg.ts`), więc wykres w panelu i w PDF wygląda tak samo, bez biblioteki wykresów i bez `dangerouslySetInnerHTML`. Kolory z `docs/projekt/tokens.json` (`color.chart`): słupki szare, poprzedni okres w betonie, kobalt tylko dla bieżącej wartości; przy każdym wykresie „Pokaż jako tabelę”.
+- **PDF:** HTML z ucieczką znaków składany w API (`report-html.ts`), A4 pionowo albo poziomo według katalogu, pełny nagłówek na pierwszej stronie, powtarzany nagłówek tabeli, stopka „Strona X z N” w osobnym `footer.html`.
+
+## 8.19. Eksport list
+Od iteracji 8 ([ADR 0073](../adr/0073-eksport-list-do-xlsx-i-csv.md)): „Eksportuj” na każdej liście wzorca wysyła `POST /admin/{zasób}/export` z bieżącymi filtrami, wyszukiwaniem i sortowaniem oraz kolumnami z etykietami z `pl.json` panelu (API nie trzyma kopii etykiet).
+- **Synchronicznie strumieniem:** bez zadania i pliku w magazynie; limit 50 000 wierszy (`422 LIST_EXPORT_LIMIT`, panel wyłącza przycisk przy większym `total`), telemetria 17 280.
+- **Zasoby bazy:** eksport trzyma jedno połączenie z puli (wpis w dzienniku i liczba wierszy przed transakcją odczytu), najwyżej 3 eksporty naraz na instancję (`429 LIST_EXPORT_BUSY`), kolejne partie po 1000 bez `count(*)`.
+- **Ochrona przed formułami:** tekst zaczynający się od `=`, `+`, `-`, `@`, tabulatora albo powrotu karetki dostaje apostrof, więc arkusz nie wykona wstrzykniętej formuły.
+- **Formaty:** XLSX z typami komórek (kwoty z pól `money` jako liczby w złotych, daty Excela w czasie polskim, zamrożony nagłówek, autofiltr), CSV w UTF-8 z BOM, ze średnikiem i przecinkiem dziesiętnym.
+
+## 8.20. Historia stanów hulajnogi
+Od iteracji 8 ([ADR 0074](../adr/0074-historia-stanow-hulajnogi.md)): `scooter_status_history` zapisuje przedziały stanu i łączności. Wyzwalacz AFTER na `scooters` działa po wyzwalaczu `scooters_status` (więc widzi stan po automatycznym `MAINTENANCE`), zamyka otwarty przedział i otwiera nowy tylko przy faktycznej zmianie; powtórzony stan łączności z wiadomości `status` nie tworzy wiersza. Baza pilnuje jednego otwartego przedziału i braku nakładania (`EXCLUDE USING gist`).
+- **Przyczyna przedziału** (przejazd, rezerwacja, zadanie, zgłoszenie, wpis operatora, brak telemetrii, system) i kategoria czasu (`fn_scooter_time_category`: brak łączności przykrywa stan) są w widoku `v_scooter_status_history`, nie w tabeli.
+- **Wskaźniki:** wykorzystanie i dostępność liczą się względem czasu z historią poza wyłączeniem z ruchu; okres bez historii dostaje adnotację w opisie tabeli, a czas przejazdów sprzed historii wchodzi tylko do MTBF.
+
+## 8.21. Dane historyczne
+Od iteracji 8 ([ADR 0075](../adr/0075-dane-historyczne-do-demonstracji.md)): `pnpm db:history` generuje deterministycznie z ziarna 90 dób (ok. 200 przejazdów na dobę z rytmem dobowym i tygodniowym) na świeżej bazie po `SEED_SAMPLE_RENTALS=0 pnpm db:seed`. Wiersze mają jawne czasy, a kwoty, pozycje paragonów i salda liczy core, więc wyzwalacze bazy (ciągłość salda, tylko do dopisywania, geometria, stany) działają bez zmian. Generator nie przechodzi przez API ani procedury `sp_wallet_post` i `sp_issue_receipt`, dlatego na końcu 17 kontroli spójności sprawdza salda, paragony, płatności, zwroty, magazyn i historię stanów. Usunięcie danych to nowa baza.

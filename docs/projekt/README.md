@@ -15,7 +15,7 @@ Uwagi do eksportu:
 - Plansze z katalogu `00-eksploracja` używały krojów Space Grotesk, JetBrains Mono, Bricolage Grotesque i DM Sans; na zrzutach zastąpiono je krojem systemowym. Obecny kierunek używa tylko Intera.
 - Liczby w makietach (np. 87%, 2,4 km, nazwiska w panelu) są przykładowe.
 
-Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **193**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
+Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **194**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
 
 ## Eksploracja kierunku (archiwum)
 
@@ -582,3 +582,5 @@ Ustalenia z plansz:
 - Sesje klientów i operatorów: jeden wiersz na rodzinę tokenów; unieważnienie wylogowuje najpóźniej po 15 min (token dostępu). Kody SMS bez kodu i z numerem z trzema ostatnimi cyframi. Wycofanie zgody tylko marketingowej, z powodem w dzienniku audytu.
 - Szablon wydruku: domyślnego szablonu z aktywną wersją nie da się dezaktywować (najpierw inny domyślny), nieaktywny jest wyszarzony z „Aktywuj ponownie”.
 - Luki w schemacie i definicje do rozstrzygnięcia w ADR 0071–0076 zebrane w [planie iteracji 8](../iteracje/iteracja-08-raporty-domkniecie-panelu.md#do-rozstrzygnięcia-w-adr-00710076-z-makiet-19-listopada-2026).
+
+Implementacja (19 listopada 2026) odchodzi od plansz w kilku miejscach. Raporty: kafelek katalogu bez nazwiska zlecającego, raport stref ze „Strefami ze sterowaniem” jako tabelą i mapą ciepła w parze z „Zakończeniami według trybu”, sekcje raportu w prostym układzie (szerokie na całą szerokość, reszta parami), przychody bez przypisu „Saldo portfeli”, PDF bez krótkiego nagłówka na kolejnych stronach, Historia z wyszukiwarką i panelem filtrów zamiast chipów i bez filtra „Zlecił” (jest szybki filtr „Moje”), historia definicji z dziennika audytu. Pulpit bez podpisu wartości nad bieżącym słupkiem, z „Pokaż jako tabelę” pod wykresem. Listy: komendy stref jako dwie zakładki („Obecność w strefach”, „Komendy stref”), wycofanie zgody i opis uprawnienia w wysuwanym panelu, sesje operatorów bez oznaczenia bieżącej sesji, telemetria bez pinezki „pokaż na mapie”, lista komend bez drugiej linii z ładunkiem, szablony wydruków z kolumną „Pola” i bez panelu „Filtry”, a bez `users.read` kolumny klienta pokazują „Klient” i nie sortują się (w pliku eksportu są puste). Aplikacja: godziny pomocy jako „Godziny pomocy: {hours}” (plansze `pomoc` i `pomoc-offline`). Pełna lista: [dziennik, iteracja 8](../dziennik.md#iteracja-8-implementacja-19-listopada-2026).

@@ -1709,3 +1709,210 @@ Plan: [iteracja 8](iteracje/iteracja-08-raporty-domkniecie-panelu.md). Etap plan
   - eksport list jako `POST` z etykietami z panelu;
   - kolumny `locked` i `buffered` oraz retencja telemetrii w zakresie.
 - **Akceptacja:** autor przyjął ADR 0071–0076 i zmiany planu po ADR-ach bez uwag (19 listopada 2026). Następny krok: implementacja według kolejności kroków w planie (krok 4: migracja 0013 i generator).
+
+## Iteracja 8: implementacja (19 listopada 2026)
+
+Plan: [iteracja 8](iteracje/iteracja-08-raporty-domkniecie-panelu.md), decyzje w [ADR 0071–0076](adr/README.md). Pracowali agenci etapami, każdy z raportem dla następnych: baza (migracja 0013), potem równolegle generator danych historycznych oraz core i shared, potem równolegle API raportów i pulpitu oraz API list i eksportu (w osobnym drzewie roboczym), a na końcu równolegle panel raportów i pulpitu oraz panel list (w osobnym drzewie roboczym). Potem dwa przeglądy kodu i dwa równoległe etapy poprawek (niżej). Koordynator scalał gałęzie, rozwiązywał konflikty, dopisywał drobne poprawki i domyka weryfikację.
+
+**Baza (migracja 0013)**
+- Uprawnienie `reports.manage` (tylko Administrator). Opis uprawnienia z blokadą optymistyczną (`permissions.updated_at`, `updated_by`, `version`, do 160 znaków); nazwa (do 80 znaków) i opis (do 300) definicji raportu.
+- `report_runs`: chwila danych `data_as_of`, `error_code`, liczba wierszy i stron, ponowienie `retry_of`, usunięcie pliku `file_deleted_at`, tylko PDF i XLSX; widoki `v_report_run_list` i `v_report_definitions`.
+- Historia stanów (ADR 0074):
+  - tabela `scooter_status_history` (przedziały stanu i łączności) z wyzwalaczami AFTER na `scooters`: przedział otwarty przy nowej hulajnodze, zamknięcie i nowy przedział przy zmianie stanu albo łączności, powtórzony stan łączności pominięty;
+  - tylko do dopisywania (`STATUS_HISTORY_APPEND_ONLY`), jeden otwarty przedział na hulajnogę, przedziały bez nakładania (`EXCLUDE USING gist`, rozszerzenie `btree_gist`), przedział otwarty dla istniejących hulajnóg;
+  - widok `v_scooter_status_history` z przyczyną i kategorią czasu.
+- 34 funkcje raportowe i pomocnicze: `fn_report_*` dla sześciu raportów, `fn_report_buckets`, `fn_report_earliest_data`, `fn_scooter_time_category`, `fn_ticket_is_failure`, `fn_wallet_balances_at`, `fn_dashboard_rides_by_hour`, `fn_telemetry_readings` (kursor po czasie).
+- Kolumny z ADR 0076 z uzupełnieniem starych wierszy: `consents.source` i `revoked_by_staff`; `sessions.platform` (typ `session_platform`) i `app_version`; `otp_codes.purpose`; `scooter_commands.source` (wyzwalacz uzupełnia źródło przy wstawieniu bez niego) i `zone_id`; `staff_invitations.replaced_by`; `staff_sessions.remembered`; `document_templates.deactivated_at`; `telemetry.locked` i `buffered`.
+- Procedury `sp_document_template_deactivate` (`TEMPLATE_IS_DEFAULT`) i `sp_document_template_reactivate`. `v_low_stock_parts` liczy `<` jak core, `v_doc_receipt` ma przyczynę korekty, `v_document_templates` pola aktywnej wersji i wydruki z 30 dni.
+- 15 widoków nowych list; indeksy pod funkcje raportowe sprawdzone `EXPLAIN` na danych generatora.
+- Stan bazy: 58 tabel, 79 widoków, 58 funkcji, 24 procedury (bez funkcji `btree_gist`; test bazy).
+- Odstępstwa od planu i ADR-ów:
+  - pliki raportów w istniejącym od 0002 celu `REPORT_EXPORT` zamiast nowego `REPORT` (bez nowej wartości typu);
+  - źródło starych komend uzupełnione także dla komend stref z przejazdem (`ZONE`);
+  - historia stanów znika kaskadą z usuniętą hulajnogą;
+  - raport floty bez rozkładu baterii przy końcu przejazdu (pytanie 1), bo `rentals` nie zapisuje baterii;
+  - filtr strefy w raportach bez wartości „poza strefą”;
+  - ponad plan: `fn_dashboard_rides_by_hour`, `fn_telemetry_readings`, `report_runs.retry_of`, `v_report_definitions`, ograniczenie wykluczające i typ `session_platform`.
+- **Raporty bez JIT:** przy JIT funkcje szeregów trwały 1,3–1,6 s (sama kompilacja JIT ponad 1 s), bez niego wszystkie poniżej 0,35 s na 90 dniach. Repozytorium raportów liczy więc w transakcji `REPEATABLE READ READ ONLY` z `SET LOCAL jit = off` i `statement_timeout`.
+- **Zmiana wykonanej migracji:** 0013 zmieniła się po wykonaniu na bazie deweloperskiej dwa razy: jedna funkcja przed commitem bazy (`193da37`), potem indeks `rental_events_zone_exit_idx` po pomiarach (commit generatora `be81eb6`). Suma kontrolna w `schema_migrations` lokalnej bazy poprawiona ręcznie, jak w iteracji 7. Migracja nie trafiła na `main` ani na bazę spoza komputera autora; poprawki po przeglądzie są już w nowej migracji 0014.
+
+**Generator danych historycznych (ADR 0075)**
+- `pnpm db:history [--days 90] [--rides-per-day 200] [--seed 2026]` (`packages/db/src/cli/history.ts`, `src/history/`): deterministyczny z ziarna, wstawia wiersze z jawnymi czasami i wartościami z core, jedna transakcja na dobę. Na końcu 17 kontroli spójności (`checks.ts`): salda z księgi, paragony wobec przejazdów, płatności i zwrotów, numery paragonów rosnące z datą, przedziały historii bez nakładania i luk, magazyn z ruchów, udział wjazdów do strefy zakazu.
+- Działa tylko na świeżej bazie: `pnpm db:migrate`, `SEED_SAMPLE_RENTALS=0 pnpm db:seed`, `pnpm db:history`. Odmawia przy `NODE_ENV=production` i przy dowolnych przejazdach albo paragonach w bazie (także przykładowych z seeda). 90 dób w 16,8 s.
+- Odstępstwa od ADR 0075:
+  - wyzwalacz cennika odrzuca `UPDATE` (`TARIFF_IMMUTABLE`), więc generator usuwa nieużytą najstarszą wersję i wstawia ją ponownie z `valid_from` na początku okna;
+  - hulajnogi z otwartymi zadaniami z seeda mają w oknie stan z seeda;
+  - magazyn z dostawą na początku okna i inwentaryzacją do zera na końcu;
+  - numery klientów `+48 100 …` (prefiks wyboru dostawcy, nie numer abonenta);
+  - zgody wcześniej niż `published_at` wersji dokumentu;
+  - bez usunięć kont.
+- Dane z 90 dni (20.08–18.11.2026): 17 925 przejazdów, 17 413 paragonów, 44 598 przedziałów historii stanów, 187 783 zdarzeń przejazdu, 78 670 komend, 17 964 wpisów księgi, 10 514 płatności, 64 zwroty, 507 zgłoszeń, 1 828 zadań, 1 203 klientów. Baza demonstracyjna `hulajnogi_history` na lokalnym Postgresie.
+
+**Core i shared**
+- **Core (`packages/core/src/reports`):**
+  - katalog `REPORT_CATALOG` (sześć raportów: kod, uprawnienie, parametry, formaty, kafelki, wykresy, tabele, kolumny z typem wartości) i limity `REPORT_LIMITS` (okres do 366 dni, podgląd 200 wierszy i 15 s, PDF 50 wierszy, zadanie 120 s, retencja pliku 30 dni);
+  - parametry w Europe/Warsaw (gotowe zakresy, granulacja dobierana do długości okresu, porównanie z poprzednim okresem), port `ReportsRepository`, budowanie modelu raportu z wierszy (`build-*.ts`), reguły uruchomień (ponowienie, przejęcie, retencja);
+  - czas hulajnogi według kategorii i wskaźniki floty (`scooter-time.ts`: wykorzystanie, dostępność, MTBF);
+  - port `SpreadsheetWriter` i eksport list (`list-export.ts`: limit 50 000 wierszy, 17 280 dla telemetrii, partie po 1000, 3 eksporty naraz, ochrona przed formułami, CSV ze średnikiem i BOM);
+  - katalog kafelków pulpitu (`dashboard.ts`: 7 kafelków, rola widzi najwyżej 5 dozwolonych, segmenty stanu floty, „Twoje zadania”).
+- **Shared:**
+  - geometria wykresów w `packages/shared/src/charts` (skale, podziałki, słupki, mapa ciepła, pasek udziałów jako dane kształtów bez DOM); kolory wykresów w `docs/projekt/tokens.json` (`color.chart`, w tym rezerwacja `#AEB6FB`);
+  - schematy raportów i pulpitu, zdarzenie `report.ready`, schemat żądania eksportu listy (`admin/export.ts`);
+  - 15 nowych zasobów list (`admin/system-lists.ts`, `admin/reports.ts`); pola `personal` (dane klienta do maskowania i ostrzeżenia w oknie eksportu) i `money` (kwota w groszach jako liczba w złotych) w `FieldDefinition`, `money` ponad ADR 0073.
+- Seed `report_definitions` według D3: wstawia brakujące wiersze z nazwą i opisem z katalogu, aktualizuje parametry i formaty, nie rusza nazwy, opisu, aktywności i kolejności; wpis w dzienniku audytu `report_definition.created` albo `report_definition.synced` z `data.source = 'catalog'`.
+
+**API: raporty i pulpit**
+- Moduł `reports` (`apps/api/src/reports`):
+  - `GET /admin/reports` (katalog według uprawnień), `GET /admin/reports/{code}/preview` (podgląd w jednej migawce z limitem 15 s, `REPORT_TIMEOUT`), `POST /admin/reports/{code}/runs` (`202`, wpis `report_run.requested`, pusty raport `409 REPORT_EMPTY`);
+  - `GET /admin/report-runs` (historia na kontrakcie list, także cudze uruchomienia raportów z uprawnieniem), `GET /admin/report-runs/{id}`, `GET …/{id}/file` (`409 REPORT_RUN_NOT_READY`, `410 REPORT_FILE_DELETED`), `POST …/{id}/retry` (nowy wiersz z `retry_of`);
+  - `GET /admin/report-definitions`, `GET` i `PATCH /admin/report-definitions/{code}`, `POST /admin/report-definitions/reorder` z `reports.manage` i blokadą optymistyczną (wpisy `report_definition.updated`, `report_definitions.reordered`).
+- **PDF:** HTML raportu w API funkcjami z ucieczką znaków (`report-html.ts`), wykresy jako tekst SVG z geometrii shared (`chart-svg.ts`), A4 pionowo albo poziomo, stopka „Strona X z N” w `footer.html` przekazanym jako `assets`, `htmlToPdf` w Gotenbergu z `RenderOptions.timeoutMs` (60 s).
+- **XLSX:** ExcelJS 4.4.0 za portem `SpreadsheetWriter` (wspólny adapter `apps/api/src/common/spreadsheet/exceljs-writer.ts`), arkusz na tabelę i arkusz „Parametry”, kwoty jako liczby z formatem złotych, daty jako daty Excela w czasie polskim.
+- Zadania: `report.generate` (żeton przejęcia `started_at`, zapytanie do 60 s, łączny limit migawki 45 s przez `statement_timeout` na resztę limitu, `REPORT_LIMITS.jobSnapshotTotalMs`), `reports.sweep` (co 5 min, porzucone po 15 min kończą się `REPORT_TIMEOUT` z `report.ready`), `reports.retention` (03:40 UTC, pliki po 30 dniach, wiersz zostaje).
+- `report.ready` w pokoju `staff:{id}` zlecającego (Socket.IO 1.7.0); panel odpytuje `GET /admin/report-runs/{id}` co 2 s jako zapas.
+- Pulpit: `GET /admin/dashboard/summary` z kafelkami według uprawnień, przejazdami dziś według godzin ze średnią z czterech poprzednich tych samych dni tygodnia, stanem floty, „Twoimi zadaniami” i grupą „Treści”; pole bez uprawnienia ma `null`.
+- Odstępstwa:
+  - PDF bez krótkiego nagłówka na kolejnych stronach: pełny nagłówek na pierwszej, nagłówek tabeli (`thead`) i stopka na każdej;
+  - czasy w PDF jako „s”, „min” albo „X,X h”;
+  - dodatkowe wpisy audytu `report_run.requested` i `report_definitions.reordered`;
+  - w raporcie stref kafelek „Odholowania (zakończone w okresie)”.
+
+**API: listy i eksport**
+- `POST /admin/{zasób}/export` dla każdej listy wzorca (47 punktów; `apps/api/src/common/list-export/`, dekorator `@ListExport`): te same funkcje list i to samo maskowanie co `GET`, kolumny z etykietami z panelu w treści żądania, limit 50 000 wierszy (`422 LIST_EXPORT_LIMIT` z liczbą wierszy), wpis `list.exported`, zapis strumieniem w odpowiedzi (CSV wiersz po wierszu, XLSX `WorkbookWriter`).
+- Nowe listy z poleceniami z ADR 0076 (adresy w [OpenAPI](kontrakty/openapi.json)):
+  - Użytkownicy: zgody (wycofanie zgody marketingowej, `consent.revoked`), sesje (unieważnienie, `session.revoked`), kody SMS (bez kodu, „Usuń wygasłe” z podglądem liczby, `otp.purged`), zapisane miejsca na karcie klienta (usunięcie, `saved_place.deleted`);
+  - Operatorzy i role: sesje i zaproszenia operatorów (unieważnienie, ponowne wysłanie), uprawnienia z edycją opisu (`permission.updated`);
+  - Flota: telemetria (`fn_telemetry_readings`, hulajnoga i zakres czasu wymagane, kursor bez `total`), komendy, historia stanów (`GET /admin/scooter-status-history`);
+  - Przejazdy → Zdarzenia, Strefy → Obecność w strefach i Komendy stref, Płatności → Klienci operatora;
+  - Wydruki: edycja nazwy i opisu (`PATCH /admin/document-templates/{id}`), dezaktywacja i ponowna aktywacja szablonu.
+- Zmiany kontraktu:
+  - katalog uprawnień przeniesiony z `GET /admin/permissions` na `GET /admin/permissions/catalog` (`GET /admin/permissions` to teraz lista);
+  - `POST /auth/otp/verify` i `POST /auth/refresh` przyjmują opcjonalne `platform` i `appVersion`;
+  - `TEMPLATE_NAME_TAKEN` także przy tworzeniu szablonu.
+- Wycofanie zgody przez operatora nie wysyła zdarzenia do klienta. `zone_id` w komendach stref tylko wtedy, gdy przyczyną jest jedna strefa.
+- Kontrakty: `openapi.json` odtworzony, `asyncapi-realtime.yaml` 1.7.0.
+
+**Panel**
+- **Analiza → Raporty** (`/admin/raporty`): katalog według uprawnień, strona raportu `/raporty/[kod]` z parametrami w adresie, kafelkami, wykresami z dymkami, tabelami i stanami (ładowanie, brak danych, za długi okres, błąd), okno eksportu PDF i XLSX z `report.ready`, Historia (`/raporty/historia`) z ponowieniem i eksportem listy, Definicje (`/raporty/definicje` i `/raporty/definicje/[kod]`) z zapisem i kolejnością.
+- **Pulpit** z kafelkami, przejazdami według godzin, stanem floty, „Twoimi zadaniami” i grupą „Treści”, obok „Wymaga uwagi”; odświeżanie co 60 s i po zdarzeniach `fleet`.
+- Wspólny komponent wykresu `apps/web/components/admin/charts/chart.tsx` (React SVG z geometrii shared, „Pokaż jako tabelę”).
+- „Eksportuj” w `ResourceList` i `InlineList` (`components/admin/list-export.tsx`, `apiDownload`) z oknem formatu, liczbą wierszy, limitem i ostrzeżeniem o danych osobowych.
+- Zakładki obszarów (`areas.tsx`, `area-tabs.tsx`) i nowe listy: Flota (Telemetria, Komendy), Klienci (Zgody, Sesje, Kody SMS), Operatorzy (Sesje, Zaproszenia), Uprawnienia, Przejazdy (Zdarzenia), Strefy (Obecność w strefach, Komendy stref), Płatności (Klienci operatora); historia stanów na karcie hulajnogi, zapisane miejsca na karcie klienta, edycja i dezaktywacja szablonu wydruku.
+- Style w `app/admin/analytics.css` i `lists.css`. `pl.json`: 3850 → 5191 kluczy.
+
+**Aplikacja**
+- Komunikat `mobile.notice` jako baner na mapie (`components/content-notice.tsx`, nowa plansza `31-mobile-tresci/komunikat`); zamknięcie pamiętane po skrócie treści, zmiana treści w panelu pokazuje go ponownie.
+- Godziny pomocy: tekst aplikacji „Godziny pomocy: {hours}” zamiast zdania „Pomoc odpowiada {hours}.”, które z danymi startowymi dawało wielką literę w środku.
+- Dane urządzenia przy logowaniu i odświeżeniu sesji (`lib/device-info.ts`): platforma, wersja aplikacji i model z `expo-device`, bez nazwy nadanej przez właściciela (często imię i nazwisko). `pl.json`: 941 → 942 klucze.
+
+**Decyzje podjęte przy implementacji**
+- **Wpływy:** płatności minus zwroty na kartę; zwrot do portfela nie jest wypływem, bo pieniądze zostają u operatora.
+- **Pulpit:** zawsze 24 słupki godzin, także w dobie zmiany czasu. Grupa „Treści” tylko dla roli bez kafelków operacyjnych (Redaktor), „Twoje zadania” dla `service.read` bez `rentals.read`.
+- **Pole `money`** w definicji zasobu (ponad ADR 0073): eksport zapisuje kwotę jako liczbę w złotych z formatem, a nie tekst.
+- **Filtr spoza raportu** daje `400 REPORT_PARAM_NOT_SUPPORTED` z `details.param` (po przeglądzie), zamiast cicho go pominąć.
+
+**Sprostowania ADR (ADR bez zmian)**
+- **ADR 0071, raport stref bez przychodu:** uzasadnienie, że Dyspozytor nie ma `payments.read`, jest nieprawdziwe (ma je od migracji 0002). Decyzja zostaje z innego powodu: kwoty przychodu należą do raportu przychodów (`reports.revenue`), którego Dyspozytor nie ma.
+- **ADR 0076, retencja telemetrii:** ADR twierdzi, że `sp_purge_telemetry` nie woła żadne zadanie. W rzeczywistości woła ją zadanie `telemetry.purge` (codziennie o 3:00, ADR 0037) z 90 dniami; nowego zadania `telemetry.retention` z planu nie dodano.
+- **ADR 0074, doprecyzowanie po przeglądzie:** wykorzystanie i dostępność liczą się względem czasu z historią stanów poza wyłączeniem z ruchu (`tracked_seconds − retired_seconds`), z adnotacją w opisie tabel, gdy część okresu nie ma historii. Czas przejazdów sprzed historii wchodzi tylko do MTBF.
+- **ADR 0071, porównanie miesięcy:** zakres kończący się ostatnim dniem miesiąca porównuje się z całym poprzednim miesiącem (ADR opisał tylko przypadek odwrotny).
+- **ADR 0073, zamaskowane dane klienta w pliku:** komórki są puste, a nie „Klient”; okno eksportu w panelu to mówi.
+
+**Odstępstwa od makiet**
+- **Raporty:**
+  - kafelek katalogu bez nazwiska zlecającego ostatnie uruchomienie;
+  - raport stref: „Strefy ze sterowaniem” jako tabela, mapa ciepła w parze z „Zakończeniami według trybu”;
+  - sekcje raportu w prostym układzie: szerokie na całą szerokość, reszta parami;
+  - przychody bez przypisu „Saldo portfeli”;
+  - Historia z wyszukiwarką i panelem filtrów zamiast chipów, bez filtra „Zlecił” (jest szybki filtr „Moje”);
+  - historia definicji z dziennika audytu (wymaga `audit.read`);
+  - skróty dni mapy ciepła z `Intl`, tabele skracają czas do jednej jednostki.
+- **Pulpit:** bez podpisu wartości nad bieżącym słupkiem, „Pokaż jako tabelę” pod wykresem.
+- **Listy:**
+  - komendy stref jako dwie zakładki („Obecność w strefach”, „Komendy stref”), strona stref z mapą bez pasa zakładek;
+  - wycofanie zgody i opis uprawnienia w wysuwanym panelu;
+  - sesje operatorów bez oznaczenia „bieżąca sesja” (API nie zwraca identyfikatora bieżącej);
+  - telemetria bez pinezki „pokaż na mapie”, „Eksportuj” w nagłówku po wyborze hulajnogi;
+  - szablony wydruków z kolumną „Pola” i bez panelu „Filtry”;
+  - lista komend bez drugiej linii z ładunkiem;
+  - nazwy plików eksportu z nazwy zasobu (`consents-…`);
+  - udziały na karcie hulajnogi liczą przedziały;
+  - podtytuł listy Klienci jako opis obszaru;
+  - bez `users.read` kolumny klienta pokazują „Klient” i nie sortują się.
+- **Aplikacja:** godziny pomocy jako „Godziny pomocy: {hours}” (odstępstwo od plansz `pomoc` i `pomoc-offline`).
+
+**Poprawki koordynatora**
+- Scalenie gałęzi etapów API i panelu z osobnych drzew roboczych (konflikty w `apps/web/app/admin/layout.tsx` i `packages/db/src/accounts.test.ts`) i drobne poprawki między etapami.
+- **Migracja 0013:** zmiana wykonanej lokalnie migracji z ręczną poprawką sumy kontrolnej (opis w części „Baza”).
+- **Spis makiet:** plansza `31-mobile-tresci/komunikat` dopisana do spisu w etapie poprawek, licznik ekranów poprawiony na 194 przy domknięciu dokumentacji.
+
+**Poprawki po przeglądzie iteracji 8 (19 listopada 2026)**
+
+Dwa przeglądy kodu (raporty, pulpit, baza i generator; listy, eksport i aplikacja) i dwa równoległe etapy poprawek (commity `b3d6b0a` i `d4dc1b3`, scalenie `692951e`).
+
+- **Migracja `0014_iteration8_fixes.sql`** (0013 bez zmian, liczby obiektów bez zmian):
+  - przyczyna w `v_scooter_status_history`: przejazd wygasły albo nieodblokowany z `ended_at = NULL` dopasowywał się do późniejszych przedziałów; teraz początek z `reserved_at` albo `created_at`, a koniec z przejścia stanu (`STATE_CHANGED`, inaczej `updated_at`);
+  - `duration_ms` w `v_report_run_list` i `response_ms` w `v_scooter_command_list` jako `bigint`;
+  - `fn_wallet_balances_at` bierze ostatni wpis klienta po `id`, jak wyzwalacz ciągłości księgi;
+  - `fn_report_buckets` zwraca datę początku przedziału po przycięciu do okresu;
+  - kategorie czasu zaokrąglane z sum narastających, więc suma kategorii równa się czasowi z historią.
+- **Raporty:** żeton przejęcia `started_at` w `report.generate` (wynik spóźnionego wykonania jest odrzucany, a jego plik usuwany), łączny limit migawki zadania 45 s, `REPORT_PARAM_NOT_SUPPORTED`, wykorzystanie i dostępność względem czasu z historią (sprostowanie ADR 0074), porównanie miesięcy.
+- **Pliki:** `DELETE /files/{id}` odrzuca cele spoza plików wgrywanych przez operatora, a pliki raportów, wydruków i eksportów danych są „przypięte” (luka z iteracji 7).
+- **Pulpit:** `GET /admin/dashboard/attention` maskuje nazwiska klientów bez `users.read`.
+- **Generator:** trasy omijają strefę zakazu poza zamierzonymi przejazdami (wjazdy spadły z ok. 12% do 1,5%), kontrola udziału poniżej 3% od 1000 przejazdów.
+- **Prywatność list:** listy, eksporty i szczegóły przejazdów, płatności, księgi, portfeli, paragonów, kart, webhooków i zwrotów pokazywały imię, nazwisko i telefon klienta roli bez `users.read`. To luka od iteracji 3 i 5, nie decyzja (ADR 0055, 0068 i 0073 mówią o ukryciu klienta). Teraz dane są maskowane (`listWithCustomerData`, `withoutCustomerData`), a filtr i sortowanie po polach klienta bez `users.read` dają `403`.
+- **Eksport list:**
+  - wpis `list.exported` i sprawdzenie limitu przed transakcją odczytu, więc eksport trzyma jedno połączenie z puli (wcześniej przy pełnej puli eksporty mogły się zakleszczyć);
+  - najwyżej 3 eksporty naraz na instancję (`429 LIST_EXPORT_BUSY` z `Retry-After`), `connectionTimeoutMillis` puli 10 s;
+  - kolejne partie bez `count(*)`, XLSX czeka na `drain` odpowiedzi;
+  - eksport Historii raportów (`POST /admin/report-runs/export`).
+- **Wyścigi:** unieważnienie rodziny sesji równoległe z rotacją tokenu (blokady doradcze rodziny i właściciela), równoczesne „Wyślij ponownie” zaproszenia (`409 INVITATION_ALREADY_OPEN`, `INVITATION_NOT_PENDING`).
+- **Listy:** stabilny klucz listy obecności w strefach i klientów operatora płatności (`ListSource.id` z kilku kolumn), kursor telemetrii ograniczony do zakresu, `Object.hasOwn` w kolumnach eksportu i parametrach listy, brakujące teksty w `pl.json`.
+- **Aplikacja:** platforma, wersja i model urządzenia w sesji; komunikat `mobile.notice` na mapie.
+
+**Potrzebne zmiany odłożone**
+- **API i shared (dla panelu):**
+  - identyfikator bieżącej sesji w liście sesji operatorów (oznaczenie „bieżąca sesja”);
+  - ładunek komendy w `v_scooter_command_list` (druga linia na liście komend);
+  - pozycja odczytu do pinezki „pokaż na mapie” w telemetrii;
+  - nazwisko zlecającego w ostatnim uruchomieniu w katalogu raportów (`lastRun`);
+  - historia definicji raportu bez `audit.read` (dziś z dziennika audytu);
+  - filtr „Zlecił” w Historii raportów, krótki nagłówek na kolejnych stronach PDF;
+  - etykiety parametrów i opis szablonu w `DocumentTypeView` (z iteracji 7).
+- **Raporty:** rozkład baterii przy końcu przejazdu (wymaga zapisu baterii w `rentals`), filtr „poza strefą”, przypis „Saldo portfeli” w przychodach.
+- **Eksport danych:** zdjęcia tylko jako metadane (ADR 0069, bez zmian od iteracji 7).
+- Odłożone zmiany z iteracji 6 (D7) do decyzji przy iteracji 9 (pytanie 14).
+
+**Weryfikacja**
+- Testy (koordynator, 19 listopada 2026): db 125, api 304, shared 162, core 333, symulator 54 (po iteracji 7: 87, 257, 136, 299, 54). Nowe pliki testów:
+  - baza: `reports.test.ts`, `reports-repository.test.ts`, `history.test.ts` (generator na 3 dobach z kontrolą spójności, to samo ziarno na drugiej bazie, odmowa w produkcji i na bazie z przejazdami);
+  - core i shared: `reports/reports.test.ts`, `charts/charts.test.ts`, `reports.test.ts`, `admin/resources.test.ts`;
+  - API: `reports.e2e.test.ts`, `dashboard.e2e.test.ts`, `list-export.e2e.test.ts`, `lists.e2e.test.ts`, `telemetry-admin.e2e.test.ts`, `templates-edit.e2e.test.ts`.
+- `pnpm lint`, `pnpm typecheck`, `pnpm build` przechodzą; aplikacja `tsc` i `expo lint` przechodzą.
+- Gotenberg 9.5.1 na żywo w teście integracyjnym: raport A4 poziomo, stopka „Strona X z N”, powtarzany `thead`.
+- W przeglądarce (agenci panelu, baza `hulajnogi_history`):
+  - katalog, sześć raportów za październik z dymkami i stanami (za długi okres, brak danych, błąd), eksport PDF (3 strony) i XLSX, Historia z ponowieniem, Definicje (zapis i kolejność);
+  - pulpit w trzech rolach, Serwisant bez raportu przychodów, Redaktor bez Raportów;
+  - zgody z eksportem XLSX (205 KB), limit eksportu przy 193 677 zdarzeniach, komendy, historia stanów, szablony, uprawnienia, kody SMS, zaproszenia, karta klienta.
+- Podgląd raportów 70–300 ms, render PDF 165–225 ms.
+
+**Niesprawdzone**
+- Panel w przeglądarce: polecenia zmieniające dane (wycofanie zgody, unieważnienia, usunięcie kodów i miejsc, dezaktywacja szablonu; pokryte testami API), stany okna eksportu „W kolejce”, „Generowanie”, „Błąd” i „Plik usunięty” (testy API), konflikt wersji definicji, przeciąganie myszą, tryb ciemny.
+- Telemetria na prawdziwych odczytach (baza z generatora nie ma telemetrii).
+- Komunikat `mobile.notice` w działającej aplikacji i aplikacja natywna (development build).
+- Ciasteczko `admin_refresh` na `localhost` jest wspólne dla portów, a CORS poza produkcją wpuszcza każdy `http://localhost:*`, więc przy dwóch panelach naraz (np. 3002 i 3007) sesje się mieszają. Dotyczy tylko środowiska deweloperskiego.
+
+**Sprawy dla autora**
+- Wypchnięcie gałęzi `iteracja-8`, zielone CI i scalenie do `main`.
+- Baza demonstracyjna do obrony: nowa baza, `pnpm db:migrate`, `SEED_SAMPLE_RENTALS=0 pnpm db:seed`, `pnpm db:history` (procedura w [scenariuszu demo](iteracje/iteracja-08-raporty-domkniecie-panelu.md#scenariusz-demo)); generator nie dopisze danych do bazy z przejazdami.
+- Opublikowanie komunikatu `mobile.notice` w panelu (Konfiguracja → Treści → Bloki treści, sekcja `mobile.notice`), jeśli ma być widoczny; dane startowe go nie mają.
+- Rola z `payments.read` bez `users.read` (np. własna rola księgowa) widzi teraz w płatnościach „Klient” zamiast imienia i nazwiska (poprawka prywatności).
+- Ocena progów mapy ciepła i limitów raportów (wartości w nawiasach na planszach: limit podglądu 15 s, renderu 60 s, 50 wierszy tabeli w PDF, telemetria do 24 h).
+- Development build aplikacji (bez zmian od iteracji 3), konto Stripe w trybie testowym (bez zmian).
+
+**Uwagi**
+- Konfiguracje w `.claude/launch.json` dla bazy demonstracyjnej: `api-history` (API z buildu na 3005 na bazie `hulajnogi_history`, bez MQTT, z kolejką zadań), `web-reports` (`next dev` na 3007 z API na 3005) i `web-reports-start` (`next start` na 3009). Adres bazy w `api-history` ma port 5433 z komputera autora.
+- Generator nie działa na bazie deweloperskiej z przejazdami z przeklikania (odmowa), więc raporty z danymi pokazuje tylko osobna baza `hulajnogi_history`.
+
+**Wypchnięcie**
+- Iteracja 8 w commitach `80e66a5`–`692951e` na gałęzi `iteracja-8` (nie na `main`); dokumentacja domknięcia w kolejnym commicie. Zielone CI: do uzupełnienia przy wypchnięciu.

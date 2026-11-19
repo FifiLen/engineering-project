@@ -14,7 +14,7 @@ Plan z 16 listopada 2026 uwzględnia [wymagania uczelni](../wymagania-uczelni.md
 | 5 | Płatności | Wersje cennika w panelu, portfel, Stripe, rozliczenie przejazdu, paragony, korekty salda | 12, 13 |
 | 6 | Operacje i serwis | Zgłoszenia, zadania serwisowe i części, powrót hulajnogi do floty, utrata łączności, powiadomienia push z szablonów | 12, 13 |
 | 7 | Treści i wydruki | Dokumenty z wersjami, bloki treści, FAQ, aktualności i biblioteka mediów w panelu; strona promocyjna z treści z bazy; szablony DOCX z wersjami, wydruki DOCX i PDF | 17, 19 |
-| 8 | Raporty i domknięcie panelu ([plan](iteracja-08-raporty-domkniecie-panelu.md)) | Sześć raportów z eksportem PDF i XLSX, historia uruchomień, pulpit z wykresami, eksport list do XLSX i CSV; pozostałe tabele z macierzy w [modelu danych](../model-danych/README.md) dostępne w panelu | 12, 14, 18 |
+| 8 | Raporty i domknięcie panelu ([plan](iteracja-08-raporty-domkniecie-panelu.md)) | Sześć raportów z eksportem PDF i XLSX, historia uruchomień, pulpit z wykresami, eksport list do XLSX i CSV; pozostałe tabele z macierzy w [modelu danych](../model-danych/README.md) dostępne w panelu; generator danych historycznych do demonstracji | 12, 14, 18 |
 | 9 | Jakość i obrona | Testy obciążeniowe, przegląd bezpieczeństwa, zestawienie z zasadami ICK, spis widoków, dokumentacja końcowa, scenariusz demo | 14, 15, 16 |
 
 Wymagania 1, 2, 4–7 dotyczą całego systemu i są opisane w [wymaganiach uczelni](../wymagania-uczelni.md); iteracja 9 zbiera do nich materiał do pracy.
@@ -27,7 +27,7 @@ Wymagania 1, 2, 4–7 dotyczą całego systemu i są opisane w [wymaganiach ucze
 | Etykiety w plikach tłumaczeń, reguła lintera | [ADR 0027](../adr/0027-tresci-sterowane-z-panelu.md) | 1 | każdy nowy ekran |
 | Role i uprawnienia | [ADR 0028](../adr/0028-uzytkownicy-role-uprawnienia.md) | 2 | każdy punkt panelu ma `@RequirePermission` |
 | Treści z bazy | [ADR 0027](../adr/0027-tresci-sterowane-z-panelu.md) | 2: regulamin i polityka z wersjami (zgody) | 6: szablony powiadomień; 7: pełny moduł treści |
-| Silnik dokumentów (Gotenberg, zadania pg-boss) | [ADR 0029](../adr/0029-raporty-pdf-xlsx.md), [ADR 0030](../adr/0030-wydruki-z-szablonow-docx.md) | 7: wydruki | 8: raporty, eksport list do XLSX |
+| Silnik dokumentów (Gotenberg, zadania pg-boss) | [ADR 0029](../adr/0029-raporty-pdf-xlsx.md), [ADR 0030](../adr/0030-wydruki-z-szablonow-docx.md) | 7: wydruki | 8: raporty PDF (Gotenberg) i XLSX (ExcelJS w API), eksport list do XLSX i CSV |
 
 ## Przed iteracją 1
 
