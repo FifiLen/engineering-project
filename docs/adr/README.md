@@ -74,3 +74,9 @@ Szablon: [0000-szablon.md](0000-szablon.md)
 | 0068 | [Wydruki w procesach](0068-wydruki-w-procesach.md) | zaakceptowana |
 | 0069 | [Eksport danych klienta](0069-eksport-danych-klienta.md) | zaakceptowana |
 | 0070 | [Minimalna szerokość grafiki hero](0070-minimalna-szerokosc-grafiki-hero.md) | zaakceptowana |
+| 0071 | [Moduł raportów](0071-modul-raportow.md) | zaakceptowana |
+| 0072 | [Wykresy w panelu i w PDF](0072-wykresy-w-panelu-i-w-pdf.md) | zaakceptowana |
+| 0073 | [Eksport list do XLSX i CSV](0073-eksport-list-do-xlsx-i-csv.md) | zaakceptowana |
+| 0074 | [Historia stanów hulajnogi](0074-historia-stanow-hulajnogi.md) | zaakceptowana |
+| 0075 | [Dane historyczne do demonstracji](0075-dane-historyczne-do-demonstracji.md) | zaakceptowana |
+| 0076 | [Domknięcie macierzy operacji](0076-domkniecie-macierzy-operacji.md) | zaakceptowana |

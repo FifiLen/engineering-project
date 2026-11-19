@@ -82,6 +82,12 @@ Do zrobienia:
 - [x] Przed iteracją 7: ADR 0062–0069 (2026-11-18, zaakceptowane).
 - [x] Iteracja 7: implementacja według planu (2026-11-19).
 - [x] Wypchnąć iterację 7 i potwierdzić zielone CI (2026-11-19, commit `66a9ced`).
+- [x] Przed iteracją 8: plan iteracji 8 (2026-11-19, `docs/iteracje/iteracja-08-raporty-domkniecie-panelu.md`).
+- [x] Przed iteracją 8: odpowiedzi autora na pytania 1–15 i decyzje D1–D8 (2026-11-19, wszystkie rekomendacje).
+- [x] Przed iteracją 8: makiety brakujących stanów (2026-11-19, `32-panel-raporty`, `33-panel-pulpit`, `34-panel-domkniecie`, 21 plansz).
+- [x] Przed iteracją 8: ADR 0071–0076 (2026-11-19, zaakceptowane).
+- [ ] Iteracja 8: implementacja według planu.
+- [ ] Wypchnąć iterację 8 i potwierdzić zielone CI.
 - [ ] Konto Stripe w trybie testowym z kluczami w `.env` i Stripe CLI (autor; bez nich działa atrapa operatora).
 
 ## Uwagi środowiskowe

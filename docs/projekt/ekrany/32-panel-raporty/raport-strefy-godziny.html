@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Panel – raport przejazdów według stref i godzin</title>
+<!-- Plansza: Analiza → Raporty → Przejazdy według stref i godzin (GET /admin/reports/rides_by_zone/preview). Rola: Dyspozytor (ma reports.rides_by_zone i reports.fleet_usage; nawigacja jak w 29-panel-wydruki).
+     Parametry: okres (tu „Własny”, 28 dni = 4 pełne tygodnie), porównanie z okresem tej samej długości tuż przed, filtr „Strefa końca” (lista stref parkowania i „poza strefą”; filtr zawęża wszystkie sekcje).
+     Bez granulacji: raport nie ma szeregu czasowego, więc przełącznik dzień/tydzień/miesiąc jest ukryty (granulacja tylko w raportach z wykresem w czasie).
+     Mapa ciepła: dzień tygodnia × godzina startu (started_at w Europe/Warsaw), wartość = średnia liczba przejazdów na dzień (suma / liczba wystąpień tego dnia tygodnia w okresie), żeby okres niebędący wielokrotnością tygodnia nie zawyżał części dni.
+     Skala pięciu stopni od betonu #EDEDE9 do grafitu #16181D z progami w legendzie (stałe progi albo kwantyle — do rozstrzygnięcia w ADR 0072); zaznaczona komórka z obwódką kobaltu i dymkiem (najechanie albo fokus, strzałki przesuwają fokus po siatce).
+     „Pokaż jako tabelę” = tabela 7 × 24 z tymi samymi liczbami (dostępność). Godzina zmiany czasu (25 października, 2:00–2:59 dwa razy) liczy się do tej samej komórki.
+     Strefy ze sterowaniem: przejazdy z wjazdem do strefy zakazu i wolnej jazdy (scooter_zone_presence / przejścia stref z iteracji 4), czas w strefie; zakończenia z odholowaniem (end_mode TOWED, ADR 0061).
+     „Pokaż przejazdy” otwiera listę Przejazdy z filtrem (strefa, okres) — lista wymaga rentals.read, którą Dyspozytor ma.
+     Tabela stref końca: strefa parkowania z końca przejazdu, udział, średni czas i dystans, przychód brutto z paragonów przejazdów (po korektach, z opłatą za odholowanie).
+     Przychód w tym raporcie widzi każdy z reports.rides_by_zone, także bez payments.read (uprawnienie na raport, nie na kolumnę; pytanie 7) — do potwierdzenia w ADR 0071.
+     Zmiana wobec poprzedniego okresu strzałką w kolorze tekstu (bez zieleni i czerwieni). Raport bez danych osobowych. Dane przykładowe z generatora (Rybnik, strefy z rybnik-places.json).
+     Plansza 1440×900 px, wartości z docs/projekt/tokens.json. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+
+body{margin:0}
+*{box-sizing:border-box}
+.app{width:1440px;height:900px;display:flex;background:#F6F6F3;color:#16181D;overflow:hidden;font-family:Inter,system-ui,sans-serif;position:relative}
+nav.side{width:232px;flex-shrink:0;background:#FFFFFF;border-right:1px solid #E3E3DE;display:flex;flex-direction:column;padding:20px 14px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 16px}
+.brand-mark{width:32px;height:32px;border-radius:8px;background:#2B3FF5;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.brand-name{font-size:15px;font-weight:600} .brand-sub{font-size:12px;color:#6B6E75}
+.nav-group{font-size:11px;font-weight:600;color:#6B6E75;text-transform:uppercase;letter-spacing:.04em;padding:12px 12px 4px}
+.nav-item{display:flex;align-items:center;gap:12px;height:38px;padding:0 12px;border-radius:12px;text-decoration:none;font-size:14px;color:#16181D;font-weight:500}
+.nav-item.active{background:#EEF0FE;color:#2B3FF5;font-weight:600}
+.nav-badge{margin-left:auto;min-width:20px;height:20px;border-radius:10px;background:#C62F2F;color:#FFFFFF;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.me{display:flex;align-items:center;gap:10px;padding:12px 8px 0;border-top:1px solid #E3E3DE}
+.avatar{width:32px;height:32px;border-radius:16px;background:#16181D;color:#F6F6F3;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+main{flex-grow:1;min-width:0;display:flex;flex-direction:column;padding:28px 32px;gap:16px;position:relative;overflow:hidden}
+h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-0.025em}
+.sub{font-size:14px;color:#6B6E75}
+.btn{height:36px;padding:0 14px;border-radius:18px;background:#FFFFFF;color:#16181D;border:1px solid #E3E3DE;font-family:Inter,sans-serif;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.primary{background:#2B3FF5;color:#FFFFFF;border:none}
+.btn.dark{background:#16181D;color:#F6F6F3;border:none}
+.btn.danger{color:#C62F2F;border-color:#F0C4C4}
+.chip{height:36px;padding:0 12px;border-radius:17px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;white-space:nowrap}
+.chip.on{background:#16181D;color:#F6F6F3;border-color:#16181D}
+.chip .n{opacity:.6;font-weight:500}
+.search{width:280px;white-space:nowrap;height:36px;border-radius:18px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:8px;padding:0 14px;font-size:13px;color:#6B6E75}
+.tag{height:30px;padding:0 6px 0 12px;border-radius:15px;background:#EEF0FE;color:#2B3FF5;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500}
+.tag b{font-weight:600}
+.tag .x{width:20px;height:20px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center}
+.link{font-size:13px;font-weight:600;color:#2B3FF5;text-decoration:none}
+.card{background:#FFFFFF;border:1px solid #E3E3DE;border-radius:20px;padding:12px}
+.row{display:grid;gap:12px;align-items:center;height:50px;padding:0 16px;border-top:1px solid #E3E3DE;font-size:14px}
+.row > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row.head{height:auto;border-top:none;padding:0 16px 10px;font-size:12px;font-weight:600;color:#6B6E75}
+.row.selected{background:#EEF0FE}
+.th-sort{display:inline-flex;align-items:center;gap:4px;color:#16181D}
+.cb{width:18px;height:18px;border-radius:5px;border:1.5px solid #B9B9B2;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+.cb.on{background:#2B3FF5;border-color:#2B3FF5}
+.cb.mixed{background:#2B3FF5;border-color:#2B3FF5}
+.pill{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:12px;font-size:12px;font-weight:600;white-space:nowrap;background:#EDEDE9;color:#16181D}
+.pill.accent{background:#EEF0FE;color:#2B3FF5} .pill.muted{color:#6B6E75}
+.pill.warn{background:#FFF1DB;color:#8F5500} .pill.danger{background:#FBE3E3;color:#C62F2F}
+.overdue{color:#C62F2F;font-weight:500}
+.mono{font-weight:600}
+.muted{color:#6B6E75}
+.pager{display:flex;justify-content:space-between;align-items:center;padding:14px 16px 0;border-top:1px solid #E3E3DE;font-size:13px;color:#6B6E75}
+.page{width:36px;height:36px;border-radius:18px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#16181D}
+.page.on{background:#16181D;color:#F6F6F3}
+.select{height:36px;padding:0 12px 0 14px;border-radius:18px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#16181D}
+.bulk{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);height:56px;padding:0 10px 0 20px;border-radius:28px;background:#16181D;color:#F6F6F3;display:flex;align-items:center;gap:6px;box-shadow:0 12px 40px rgba(22,24,29,0.24);font-size:14px;white-space:nowrap}
+.bulk .count{font-weight:600;padding-right:12px;margin-right:4px;border-right:1px solid #3A3D45}
+.bulk .act{height:36px;padding:0 14px;border-radius:18px;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#F6F6F3}
+.bulk .act.danger{color:#FF7A70}
+.field{display:flex;flex-direction:column;gap:6px}
+.label{font-size:13px;font-weight:600}
+.label .opt{font-weight:400;color:#6B6E75}
+.input{height:46px;border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:15px;color:#16181D}
+.input.error{border:1.5px solid #C62F2F}
+.input .ph{color:#6B6E75}
+.hint{font-size:12px;color:#6B6E75}
+.err{font-size:12px;color:#C62F2F;font-weight:500;display:flex;align-items:center;gap:6px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.section-title{font-size:17px;font-weight:600}
+.tabs{display:flex;gap:4px;border-bottom:1px solid #E3E3DE}
+.tab{height:40px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:#6B6E75;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:#16181D;font-weight:600;border-bottom-color:#16181D}
+.tab .n{font-size:12px;font-weight:500;color:#6B6E75}
+.iconbtn{width:32px;height:32px;border-radius:16px;border:none;background:transparent;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}
+.av{width:30px;height:30px;border-radius:15px;background:#EDEDE9;color:#16181D;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.av.dark{background:#16181D;color:#F6F6F3}
+.stack{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stack > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.small{font-size:12px;color:#6B6E75}
+.num{font-weight:500}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;font-size:14px}
+.kv dt{color:#6B6E75;margin:0} .kv dd{margin:0;font-weight:500}
+.notice{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:14px;font-size:13px;line-height:1.45}
+.notice.info{background:#EEF0FE;color:#16181D} .notice.warn{background:#FFF1DB;color:#16181D} .notice.danger{background:#FBE3E3;color:#16181D}
+.notice .ic{width:28px;height:28px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.overlay{position:absolute;inset:0;background:rgba(22,24,29,0.32);display:flex;align-items:center;justify-content:center}
+.dialog{width:520px;background:#FFFFFF;border-radius:28px;padding:28px;box-shadow:0 24px 64px rgba(22,24,29,0.28);display:flex;flex-direction:column;gap:18px}
+.radio{width:20px;height:20px;border-radius:10px;border:1.5px solid #B9B9B2;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+.radio.on{border:6px solid #2B3FF5}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:440px;background:#FFFFFF;border-left:1px solid #E3E3DE;box-shadow:-12px 0 40px rgba(22,24,29,0.10);display:flex;flex-direction:column}
+.diff-old{background:#FBE3E3;color:#16181D;border-radius:6px;padding:1px 6px;text-decoration:line-through;text-decoration-color:#C62F2F}
+.diff-new{background:#E4EFE3;color:#16181D;border-radius:6px;padding:1px 6px}
+.code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6B6E75}
+.toggle{width:36px;height:22px;border-radius:11px;background:#E3E3DE;position:relative;flex-shrink:0}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:8px;background:#FFFFFF;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.toggle.on{background:#2B3FF5} .toggle.on::after{left:17px}
+
+
+.avatar{flex-shrink:0}
+.glass{background:rgba(255,255,255,0.84);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border-radius:16px;box-shadow:0 8px 24px rgba(22,24,29,0.10)}
+.stat{display:flex;flex-direction:column;gap:2px;padding:0 16px;border-left:1px solid #E3E3DE}
+.stat:first-child{border-left:none;padding-left:0}
+.stat .v{font-size:20px;font-weight:500;letter-spacing:-0.015em;white-space:nowrap}
+.stat .l{font-size:12px;color:#6B6E75;white-space:nowrap}
+.tl{display:flex;gap:12px}
+.tl .rail{display:flex;flex-direction:column;align-items:center;width:12px;flex-shrink:0}
+.tl .dot{width:10px;height:10px;border-radius:5px;margin-top:4px;flex-shrink:0;background:#16181D}
+.tl .line{width:2px;flex-grow:1;background:#E3E3DE;margin-top:3px}
+.tl .body{display:flex;flex-direction:column;gap:1px;padding-bottom:12px;min-width:0}
+.tl .t{font-size:13px;font-weight:500}
+.tl .d{font-size:12px;color:#6B6E75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .d .num{color:#16181D}
+.dot.accent{background:#2B3FF5;box-shadow:0 0 0 4px #EEF0FE} .dot.warn{background:#8F5500} .dot.danger{background:#C62F2F} .dot.muted{background:#B9B9B2}
+.state{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6B6E75;white-space:nowrap;flex-shrink:0}
+.line-item{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;border-top:1px solid #E3E3DE;font-size:13px}
+.line-item .num{white-space:nowrap}
+.live{display:inline-flex;align-items:center;gap:6px;color:#2B3FF5;font-weight:500}
+.live::before{content:'';width:8px;height:8px;border-radius:4px;background:#2B3FF5}
+.warnmark{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:12px;background:#FFF1DB;flex-shrink:0}
+.conseq{display:flex;gap:12px;align-items:flex-start;font-size:13px;line-height:1.45}
+.conseq .ci{width:28px;height:28px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.input{height:44px;border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;display:flex;align-items:center;gap:8px;padding:0 14px;font-size:15px;font-weight:500;color:#16181D;white-space:nowrap;overflow:hidden}
+.input .ph{color:#9A9CA1;font-weight:400}
+.input .suf{margin-left:auto;font-size:13px;font-weight:400;color:#6B6E75}
+.input.focus{border:1.5px solid #2B3FF5}
+.input.error{border:1.5px solid #C62F2F}
+.input.changed{border:1.5px solid #2B3FF5}
+.input.ro{background:#F6F6F3;color:#6B6E75}
+.seg{display:flex;background:#E3E3DE;border-radius:18px;padding:2px}
+.seg > span{flex-grow:1;flex-basis:0;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;padding:0 10px;white-space:nowrap}
+.seg > span.on{background:#16181D;color:#F6F6F3}
+.pill.sm{height:20px;padding:0 8px;font-size:11px;border-radius:10px}
+.right{text-align:right;justify-self:end}
+.tabs .tab .n{margin-left:2px}
+.nav-item{height:36px}
+.nav-group{padding:10px 12px 4px}
+.kv{grid-template-columns:118px 1fr;gap:9px 12px;font-size:13px}
+.kv dd{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl .d{white-space:normal}
+.cat{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:#EDEDE9;font-size:12px;font-weight:500;white-space:nowrap}
+.urgent{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:#FBE3E3;color:#C62F2F;font-size:12px;font-weight:600;white-space:nowrap}
+.ta{border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;padding:11px 14px;font-size:14px;line-height:1.45;color:#16181D}
+.ta.focus{border:1.5px solid #2B3FF5}
+.ta.error{border:1.5px solid #C62F2F}
+.cbx{width:20px;height:20px;border-radius:6px;border:1.5px solid #B9B9B2;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+.cbx.on{background:#2B3FF5;border-color:#2B3FF5}
+.sel{height:44px;border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;display:flex;align-items:center;gap:10px;padding:0 12px 0 14px;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden}
+.sel .chev{margin-left:auto;display:inline-flex}
+.photo{border-radius:12px;background:#E9E9E4;overflow:hidden;position:relative;flex-shrink:0}
+.photo img{width:100%;height:100%;object-fit:cover;display:block}
+.dlg-head{display:flex;align-items:flex-start;gap:14px}
+.dlg-ic{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dlg-title{font-size:20px;font-weight:600;letter-spacing:-0.02em}
+.stack > span.dlg-sub,.dlg-sub{font-size:14px;color:#6B6E75;white-space:normal;line-height:1.45}
+.box{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:16px;background:#F6F6F3}
+.chk{display:flex;align-items:center;gap:10px;font-size:13px}
+.ok-ic{width:22px;height:22px;border-radius:11px;background:#FFFFFF;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.tpl{display:flex;flex-direction:column;gap:3px;padding:11px 14px;border-radius:14px}
+.tpl.on{background:#EEF0FE}
+.tpl .c{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;font-weight:600;color:#16181D}
+.codebox{border-radius:14px;border:1.5px solid #C62F2F;background:#FFFFFF;padding:10px 0;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;line-height:1.7;color:#16181D}
+.codebox .ln{display:flex}
+.codebox .n{width:34px;text-align:right;padding-right:12px;color:#B0B2B6;flex-shrink:0}
+.codebox .ln.bad{background:#FBE3E3}
+.codebox .p{color:#2B3FF5}
+.codebox .k{color:#8F5500}
+.codebox .caret{display:inline-block;width:2px;height:16px;background:#C62F2F;vertical-align:-3px}
+.prm{display:grid;grid-template-columns:110px minmax(0,1fr) 110px;gap:12px;align-items:center;height:44px;border-top:1px solid #E3E3DE;font-size:13px}
+.prm .nm{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#16181D}
+.mini{height:32px;border-radius:10px;border:1px solid #E3E3DE;display:flex;align-items:center;padding:0 10px;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden}
+.qc{height:26px;min-width:30px;padding:0 8px;border-radius:13px;border:1px solid #E3E3DE;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:500}
+.qc.on{background:#16181D;color:#F6F6F3;border-color:#16181D}
+.lock{background:linear-gradient(160deg,#DADBD5,#C9CBC4);border-radius:20px;padding:18px 14px;display:flex;flex-direction:column;gap:10px}
+.notif{background:rgba(246,246,243,0.86);backdrop-filter:blur(28px);border-radius:18px;padding:12px 14px;display:flex;gap:10px;box-shadow:0 6px 20px rgba(22,24,29,0.10)}
+.hv{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #E3E3DE;font-size:13px}
+.btn.off{opacity:.4}
+
+.lrow{display:grid;gap:12px;align-items:center;height:46px;border-top:1px solid #E3E3DE;font-size:14px}
+.lrow > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.key{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6B6E75}
+.thumb{border-radius:10px;background:#EFEFEC;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.thumb.cover img{object-fit:cover}
+.handle{display:inline-flex;align-items:center;justify-content:center;width:20px;color:#B0B2B6;flex-shrink:0}
+.grp{display:flex;align-items:center;gap:10px;height:34px;padding:0 16px;background:#F6F6F3;border-top:1px solid #E3E3DE;font-size:12px;font-weight:600;color:#6B6E75}
+.mdsrc{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12.5px;line-height:1.65;white-space:pre-wrap;color:#16181D}
+.mdsrc .m{color:#2B3FF5}
+.mdsrc .bad{background:#FBE3E3;display:block;margin:0 -12px;padding:0 12px}
+.prev{font-size:14px;line-height:1.55}
+.prev p{margin:0 0 10px}
+.prev a{color:#2B3FF5;text-decoration:underline;text-underline-offset:2px}
+.tbar{display:flex;align-items:center;gap:2px;padding:4px;border-bottom:1px solid #E3E3DE}
+.tbar span{min-width:30px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#16181D;padding:0 6px}
+.tbar span.off{color:#B0B2B6}
+.tbar .sep{width:1px;min-width:1px;height:18px;background:#E3E3DE;padding:0;margin:0 4px}
+.edbox{border:1px solid #E3E3DE;border-radius:14px;overflow:hidden;background:#FFFFFF}
+.edbox.focus{border:1.5px solid #2B3FF5}
+.edbox.error{border:1.5px solid #C62F2F}
+.lift{box-shadow:0 14px 36px rgba(22,24,29,0.18);border:1px solid #E3E3DE;border-radius:12px;background:#FFFFFF;position:relative;z-index:2}
+.dropline{height:3px;border-radius:2px;background:#2B3FF5;margin:0 16px}
+.vis{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:11px;background:#EDEDE9;font-size:11px;font-weight:600;color:#16181D;white-space:nowrap}
+.vis.off{background:transparent;color:#B0B2B6;border:1px dashed #D6D6D0}
+.mcard{display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:16px;border:1px solid #E3E3DE;background:#FFFFFF;min-width:0}
+.mcard.on{border:2px solid #2B3FF5;padding:5px;box-shadow:0 0 0 3px #EEF0FE}
+.mcard .nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+.mcard .mt{font-size:12px;color:#6B6E75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px 2px;display:flex;justify-content:space-between;gap:6px}
+.uses{display:inline-flex;align-items:center;gap:4px;font-weight:500;color:#16181D}
+.uses.zero{color:#8F5500}
+.dz{border:1.5px dashed #C9CBC4;border-radius:16px;background:#F6F6F3;padding:14px 16px;display:flex;align-items:center;gap:14px;font-size:13px}
+.frow{display:flex;gap:14px;padding:14px 0;border-top:1px solid #E3E3DE}
+.a4{background:#FFFFFF;box-shadow:0 2px 10px rgba(22,24,29,0.12);border-radius:4px;position:relative;overflow:hidden;font-size:8px;line-height:1.45;color:#16181D}
+.a4 .h{font-size:13px;font-weight:600;letter-spacing:-0.01em}
+.a4 table{width:100%;border-collapse:collapse;font-size:7.5px}
+.a4 td,.a4 th{border-bottom:0.5px solid #E3E3DE;padding:3px 2px;text-align:left}
+.a4 th{color:#6B6E75;font-weight:600}
+.wm{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%) rotate(-28deg);font-size:46px;font-weight:600;color:rgba(43,63,245,0.07);letter-spacing:.08em;white-space:nowrap}
+.errl{display:flex;gap:12px;padding:12px 0;border-top:1px solid #F0C4C4;font-size:13px;line-height:1.45}
+.errl .no{width:22px;height:22px;border-radius:11px;background:#FBE3E3;color:#C62F2F;font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.tagc{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;background:#F6F6F3;border-radius:6px;padding:1px 5px;color:#16181D;white-space:nowrap}
+.tagc.bad{background:#FBE3E3;color:#C62F2F}
+.statec{background:#FFFFFF;border-radius:22px;padding:18px 20px;box-shadow:0 24px 64px rgba(22,24,29,0.22);display:flex;flex-direction:column;gap:10px}
+.cap{font-size:11px;font-weight:600;color:#F6F6F3;text-transform:uppercase;letter-spacing:.06em}
+.spin{width:22px;height:22px;border-radius:11px;border:3px solid #EEF0FE;border-top-color:#2B3FF5;flex-shrink:0}
+.bar{height:6px;border-radius:3px;background:#EEF0FE;overflow:hidden}
+.bar > span{display:block;height:100%;background:#2B3FF5;border-radius:3px}
+.foot{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6B6E75;border-top:1px solid #E3E3DE;padding-top:8px;line-height:1.5}
+.iconsel{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.iconsel span{height:36px;border-radius:10px;border:1px solid #E3E3DE;display:flex;align-items:center;justify-content:center}
+.iconsel span.on{border:1.5px solid #2B3FF5;background:#EEF0FE}
+.rico{width:32px;height:32px;border-radius:16px;background:#EEF0FE;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.phone{width:280px;height:560px;border-radius:40px;background:#16181D;padding:9px;flex-shrink:0;box-shadow:0 12px 40px rgba(22,24,29,0.14)}
+.phone .scr{width:100%;height:100%;border-radius:32px;background:#F6F6F3;overflow:hidden;display:flex;flex-direction:column;padding:38px 18px 18px;gap:10px}
+.where{display:flex;gap:12px;padding:12px 0;border-top:1px solid #E3E3DE;font-size:13px;line-height:1.45}
+.where:first-of-type{border-top:none}
+.where .wi{width:32px;height:32px;border-radius:16px;background:#F6F6F3;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.star{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#2B3FF5}
+
+
+
+.tile{background:#FFFFFF;border:1px solid #E3E3DE;border-radius:20px;padding:12px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.tile .l{font-size:12.5px;color:#6B6E75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .v{font-size:20px;font-weight:500;letter-spacing:-0.015em;white-space:nowrap}
+.tile .d{font-size:12px;color:#6B6E75;white-space:nowrap;display:flex;align-items:center;gap:4px}
+.tile .d .num{color:#16181D}
+.params{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.qc2{height:32px;padding:0 11px;border-radius:16px;border:1px solid #E3E3DE;background:#FFFFFF;display:inline-flex;align-items:center;font-size:13px;font-weight:500;white-space:nowrap}
+.qc2.on{background:#16181D;color:#F6F6F3;border-color:#16181D}
+.datef{height:32px;padding:0 12px;border-radius:16px;border:1px solid #E3E3DE;background:#FFFFFF;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;white-space:nowrap}
+.datef.error{border:1.5px solid #C62F2F}
+.vsep{width:1px;height:24px;background:#E3E3DE;flex-shrink:0;margin:0 4px}
+.seg{flex-wrap:nowrap}
+.seg.sm > span{height:28px;font-size:12.5px;padding:0 12px}
+.tile .d svg{flex-shrink:0}
+.asof{font-size:12.5px;color:#6B6E75;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.asof .num{color:#16181D}
+.crumb{font-size:13px;color:#6B6E75;display:flex;gap:6px}
+.th{font-size:12px;font-weight:600;color:#6B6E75}
+.t-row{display:grid;gap:12px;align-items:center;height:38px;border-top:1px solid #E3E3DE;font-size:13.5px}
+.t-row > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t-row.head{height:30px;border-top:none;font-size:12px;font-weight:600;color:#6B6E75}
+.t-row.total{font-weight:600}
+.t-row.total .num{font-weight:600}
+.r{text-align:right}
+.neg{color:#16181D}
+.tip{position:absolute;background:#16181D;color:#F6F6F3;border-radius:12px;padding:9px 12px;font-size:12px;line-height:1.5;box-shadow:0 8px 24px rgba(22,24,29,0.22);white-space:nowrap;z-index:3}
+.tip .num{font-weight:500}
+.tip .m{color:#A3A6AD}
+.legend{display:flex;align-items:center;gap:16px;font-size:12px;color:#6B6E75;white-space:nowrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.sk{display:block;height:10px;border-radius:5px;background:#EDEDE9}
+.code-tag{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;background:#F6F6F3;border:1px solid #E3E3DE;border-radius:6px;padding:1px 6px;color:#16181D;white-space:nowrap}
+.fromcode{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;border-radius:10px;background:#EDEDE9;font-size:11px;font-weight:600;color:#6B6E75;white-space:nowrap}
+
+
+</style>
+</head>
+<body>
+<div class="app"><nav class="side" aria-label="Panel"><div class="brand"><div class="brand-mark"><svg width="25" height="25" viewBox="0 0 1024 1024" fill="none" stroke="#FFFFFF" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="314" cy="668" r="88"></circle><circle cx="710" cy="668" r="88"></circle><path d="M402 668 H622M710 668 L614 268M534 268 H684"></path></svg></div><div style="display:flex;flex-direction:column"><span class="brand-name">[nazwa]</span><span class="brand-sub">Panel operatora</span></div></div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"></rect><rect x="13" y="4" width="7" height="7" rx="2"></rect><rect x="4" y="13" width="7" height="7" rx="2"></rect><rect x="13" y="13" width="7" height="7" rx="2"></rect></svg>Pulpit</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"></path><path d="M9 4v14M15 6v14"></path></svg>Mapa floty</a><div class="nav-group">Operacje</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path></svg>Flota</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2"></circle><circle cx="18" cy="6" r="2"></circle><path d="M8 18h7a3 3 0 000-6H9a3 3 0 010-6h7"></path></svg>Przejazdy</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="M3 10h18M7 15h3"></path></svg>Płatności</a><div class="nav-group">Serwis</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5a4 4 0 00-5 5L4 16l4 4 5.5-5.5a4 4 0 005-5l-2.5 2.5-2.5-.5-.5-2.5z"></path></svg>Zgłoszenia<span class="nav-badge">4</span></a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M3 12h18M10 12v2h4v-2"></path></svg>Zadania</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path></svg>Części</a><div class="nav-group">Konfiguracja</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"></rect><path d="M10 16V8h3a2.5 2.5 0 010 5h-3"></path></svg>Strefy</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"></path><circle cx="7.5" cy="8.5" r="1.5"></circle></svg>Cennik i zasady</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"></path><path d="M14 3v5h5M10 13h6M10 17h6"></path></svg>Treści</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15z"></path><path d="M10 20.5a2 2 0 004 0"></path></svg>Powiadomienia</a><div class="nav-group">Klienci i dostęp</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5"></path><path d="M16 4.5a3.5 3.5 0 010 7M18 15c2 .6 3.2 2.2 3.8 5"></path></svg>Użytkownicy</a><div class="nav-group">Analiza</div><a href="#" class="nav-item active" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B3FF5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V12M12 20V5M19 20v-9"></path></svg>Raporty</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"></path><rect x="3" y="9" width="18" height="8" rx="2"></rect><path d="M7 14h10v7H7z"></path></svg>Wydruki</a><div style="flex-grow:1"></div><div class="me"><span class="avatar">MW</span><div style="display:flex;flex-direction:column"><span style="font-size:13px;font-weight:500;white-space:nowrap">Marta Wiśniewska</span><span style="font-size:12px;color:#6B6E75">Dyspozytor</span></div><div style="flex-grow:1"></div><button type="button" class="iconbtn" aria-label="Wyloguj się" title="Wyloguj się"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l-5-5 5-5M5 12h11"></path></svg></button></div></nav><main style="gap:12px">
+<div class="crumb"><a href="#" class="link" style="font-weight:500">Raporty</a><span>/</span><span>Przejazdy według stref i godzin</span></div>
+<div style="margin-top:-8px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px"><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><h1>Przejazdy według stref i godzin</h1><span class="sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Kiedy i gdzie jeżdżą klienci: godziny startu, strefy końca, wjazdy do strefy zakazu i odholowania</span></div>
+<div style="display:flex;align-items:center;gap:12px"><span class="asof"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Dane na 19.11.2026, 14:32</span><button type="button" class="btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0114-5.3L20 9M20 4v5h-5M20 12a8 8 0 01-14 5.3L4 15M4 20v-5h5"/></svg>Odśwież</button><button type="button" class="btn primary" style=""><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>Eksportuj</button></div></div>
+<section class="card params" style="padding:8px 10px;border-radius:24px" aria-label="Parametry raportu"><span class="qc2">Dziś</span><span class="qc2">Wczoraj</span><span class="qc2">7 dni</span><span class="qc2">Ten miesiąc</span><span class="qc2">Poprzedni miesiąc</span><span class="qc2 on">Własny</span><span class="datef"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>20 paź – 16 lis 2026</span><span class="vsep"></span><span style="display:inline-flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap"><span class="toggle on" role="switch" aria-checked="true"></span>Porównaj z poprzednim</span><span class="vsep"></span><span class="datef" style="gap:6px">Strefa: <b style="font-weight:600">wszystkie</b><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span></section>
+<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px">
+<div class="tile"><span class="l">Przejazdy</span><span class="v">5 712</span><span class="d"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg><span class="num">+4,2%</span> · 5 482</span></div>
+<div class="tile"><span class="l">Średni czas przejazdu</span><span class="v">14 min 10 s</span><span class="d"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg><span class="num">+0,6%</span> · 14 min 05 s</span></div>
+<div class="tile"><span class="l">Średni dystans</span><span class="v">2,4 km</span><span class="d"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg><span class="num">+4,3%</span> · 2,3 km</span></div>
+<div class="tile"><span class="l">Wjazd do strefy zakazu</span><span class="v">34</span><span class="d"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg><span class="num">−17,1%</span> · 41</span></div>
+<div class="tile"><span class="l">Zakończenia z odholowaniem</span><span class="v">9</span><span class="d"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg><span class="num">−25,0%</span> · 12</span></div>
+</div>
+<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px"><section class="card" style="padding:14px 20px 12px;position:relative;display:flex;flex-direction:column;gap:10px;min-width:0">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span class="section-title">Godzina startu według dnia tygodnia</span><span class="small">średnio przejazdów na dzień</span></div>
+<svg width="646" height="197" viewBox="0 0 646 197" role="img" aria-label="Średnia liczba przejazdów według dnia tygodnia i godziny startu" style="display:block;font-family:Inter,system-ui,sans-serif"><text x="57.0" y="13" text-anchor="middle" font-size="11" fill="#6B6E75" font-weight="500">0:00</text><text x="132.0" y="13" text-anchor="middle" font-size="11" fill="#6B6E75" font-weight="500">3:00</text><text x="207.0" y="13" text-anchor="middle" font-size="11" fill="#6B6E75" font-weight="500">6:00</text><text x="282.0" y="13" text-anchor="middle" font-size="11" fill="#6B6E75" font-weight="500">9:00</text><text x="357.0" y="13" text-anchor="middle" font-size="11" fill="#6B6E75" font-weight="500">12:00</text><text x="432.0" y="13" text-anchor="middle" font-size="11" fill="#6B6E75" font-weight="500">15:00</text><text x="507.0" y="13" text-anchor="middle" font-size="11" fill="#6B6E75" font-weight="500">18:00</text><text x="582.0" y="13" text-anchor="middle" font-size="11" fill="#6B6E75" font-weight="500">21:00</text><text x="0" y="37.0" font-size="12" fill="#6B6E75">Pon</text><rect x="46" y="22" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="71" y="22" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="96" y="22" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="121" y="22" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="146" y="22" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="171" y="22" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="196" y="22" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="221" y="22" width="22" height="22" rx="5" fill="#5E6168"/><rect x="246" y="22" width="22" height="22" rx="5" fill="#5E6168"/><rect x="271" y="22" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="296" y="22" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="321" y="22" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="346" y="22" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="371" y="22" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="396" y="22" width="22" height="22" rx="5" fill="#5E6168"/><rect x="421" y="22" width="22" height="22" rx="5" fill="#5E6168"/><rect x="446" y="22" width="22" height="22" rx="5" fill="#16181D"/><rect x="471" y="22" width="22" height="22" rx="5" fill="#16181D"/><rect x="496" y="22" width="22" height="22" rx="5" fill="#16181D"/><rect x="521" y="22" width="22" height="22" rx="5" fill="#5E6168"/><rect x="546" y="22" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="571" y="22" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="596" y="22" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="621" y="22" width="22" height="22" rx="5" fill="#EDEDE9"/><text x="0" y="62.0" font-size="12" fill="#6B6E75">Wt</text><rect x="46" y="47" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="71" y="47" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="96" y="47" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="121" y="47" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="146" y="47" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="171" y="47" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="196" y="47" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="221" y="47" width="22" height="22" rx="5" fill="#5E6168"/><rect x="246" y="47" width="22" height="22" rx="5" fill="#5E6168"/><rect x="271" y="47" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="296" y="47" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="321" y="47" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="346" y="47" width="22" height="22" rx="5" fill="#5E6168"/><rect x="371" y="47" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="396" y="47" width="22" height="22" rx="5" fill="#5E6168"/><rect x="421" y="47" width="22" height="22" rx="5" fill="#5E6168"/><rect x="446" y="47" width="22" height="22" rx="5" fill="#16181D"/><rect x="471" y="47" width="22" height="22" rx="5" fill="#16181D"/><rect x="496" y="47" width="22" height="22" rx="5" fill="#16181D"/><rect x="521" y="47" width="22" height="22" rx="5" fill="#5E6168"/><rect x="546" y="47" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="571" y="47" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="596" y="47" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="621" y="47" width="22" height="22" rx="5" fill="#EDEDE9"/><text x="0" y="87.0" font-size="12" fill="#6B6E75">Śr</text><rect x="46" y="72" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="71" y="72" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="96" y="72" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="121" y="72" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="146" y="72" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="171" y="72" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="196" y="72" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="221" y="72" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="246" y="72" width="22" height="22" rx="5" fill="#5E6168"/><rect x="271" y="72" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="296" y="72" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="321" y="72" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="346" y="72" width="22" height="22" rx="5" fill="#5E6168"/><rect x="371" y="72" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="396" y="72" width="22" height="22" rx="5" fill="#5E6168"/><rect x="421" y="72" width="22" height="22" rx="5" fill="#5E6168"/><rect x="446" y="72" width="22" height="22" rx="5" fill="#16181D"/><rect x="471" y="72" width="22" height="22" rx="5" fill="#16181D"/><rect x="496" y="72" width="22" height="22" rx="5" fill="#16181D"/><rect x="521" y="72" width="22" height="22" rx="5" fill="#5E6168"/><rect x="546" y="72" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="571" y="72" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="596" y="72" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="621" y="72" width="22" height="22" rx="5" fill="#EDEDE9"/><text x="0" y="112.0" font-size="12" fill="#6B6E75">Czw</text><rect x="46" y="97" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="71" y="97" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="96" y="97" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="121" y="97" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="146" y="97" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="171" y="97" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="196" y="97" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="221" y="97" width="22" height="22" rx="5" fill="#5E6168"/><rect x="246" y="97" width="22" height="22" rx="5" fill="#5E6168"/><rect x="271" y="97" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="296" y="97" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="321" y="97" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="346" y="97" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="371" y="97" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="396" y="97" width="22" height="22" rx="5" fill="#5E6168"/><rect x="421" y="97" width="22" height="22" rx="5" fill="#5E6168"/><rect x="446" y="97" width="22" height="22" rx="5" fill="#16181D"/><rect x="471" y="97" width="22" height="22" rx="5" fill="#16181D"/><rect x="496" y="97" width="22" height="22" rx="5" fill="#16181D"/><rect x="521" y="97" width="22" height="22" rx="5" fill="#5E6168"/><rect x="546" y="97" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="571" y="97" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="596" y="97" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="621" y="97" width="22" height="22" rx="5" fill="#EDEDE9"/><text x="0" y="137.0" font-size="12" fill="#6B6E75">Pt</text><rect x="46" y="122" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="71" y="122" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="96" y="122" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="121" y="122" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="146" y="122" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="171" y="122" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="196" y="122" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="221" y="122" width="22" height="22" rx="5" fill="#5E6168"/><rect x="246" y="122" width="22" height="22" rx="5" fill="#16181D"/><rect x="271" y="122" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="296" y="122" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="321" y="122" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="346" y="122" width="22" height="22" rx="5" fill="#5E6168"/><rect x="371" y="122" width="22" height="22" rx="5" fill="#5E6168"/><rect x="396" y="122" width="22" height="22" rx="5" fill="#5E6168"/><rect x="421" y="122" width="22" height="22" rx="5" fill="#16181D"/><rect x="446" y="122" width="22" height="22" rx="5" fill="#16181D"/><rect x="471" y="122" width="22" height="22" rx="5" fill="#16181D"/><rect x="496" y="122" width="22" height="22" rx="5" fill="#16181D"/><rect x="521" y="122" width="22" height="22" rx="5" fill="#16181D"/><rect x="546" y="122" width="22" height="22" rx="5" fill="#5E6168"/><rect x="571" y="122" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="596" y="122" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="621" y="122" width="22" height="22" rx="5" fill="#EDEDE9"/><text x="0" y="162.0" font-size="12" fill="#6B6E75">Sob</text><rect x="46" y="147" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="71" y="147" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="96" y="147" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="121" y="147" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="146" y="147" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="171" y="147" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="196" y="147" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="221" y="147" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="246" y="147" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="271" y="147" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="296" y="147" width="22" height="22" rx="5" fill="#5E6168"/><rect x="321" y="147" width="22" height="22" rx="5" fill="#16181D"/><rect x="346" y="147" width="22" height="22" rx="5" fill="#16181D"/><rect x="371" y="147" width="22" height="22" rx="5" fill="#16181D"/><rect x="396" y="147" width="22" height="22" rx="5" fill="#16181D"/><rect x="421" y="147" width="22" height="22" rx="5" fill="#16181D"/><rect x="446" y="147" width="22" height="22" rx="5" fill="#16181D"/><rect x="471" y="147" width="22" height="22" rx="5" fill="#16181D"/><rect x="496" y="147" width="22" height="22" rx="5" fill="#16181D"/><rect x="521" y="147" width="22" height="22" rx="5" fill="#16181D"/><rect x="546" y="147" width="22" height="22" rx="5" fill="#5E6168"/><rect x="571" y="147" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="596" y="147" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="621" y="147" width="22" height="22" rx="5" fill="#C9CAC4"/><text x="0" y="187.0" font-size="12" fill="#6B6E75">Niedz</text><rect x="46" y="172" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="71" y="172" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="96" y="172" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="121" y="172" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="146" y="172" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="171" y="172" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="196" y="172" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="221" y="172" width="22" height="22" rx="5" fill="#EDEDE9"/><rect x="246" y="172" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="271" y="172" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="296" y="172" width="22" height="22" rx="5" fill="#5E6168"/><rect x="321" y="172" width="22" height="22" rx="5" fill="#5E6168"/><rect x="346" y="172" width="22" height="22" rx="5" fill="#16181D"/><rect x="371" y="172" width="22" height="22" rx="5" fill="#16181D"/><rect x="396" y="172" width="22" height="22" rx="5" fill="#16181D"/><rect x="421" y="172" width="22" height="22" rx="5" fill="#16181D"/><rect x="446" y="172" width="22" height="22" rx="5" fill="#16181D"/><rect x="471" y="172" width="22" height="22" rx="5" fill="#16181D"/><rect x="496" y="172" width="22" height="22" rx="5" fill="#16181D"/><rect x="521" y="172" width="22" height="22" rx="5" fill="#5E6168"/><rect x="546" y="172" width="22" height="22" rx="5" fill="#5E6168"/><rect x="571" y="172" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="596" y="172" width="22" height="22" rx="5" fill="#9A9CA1"/><rect x="621" y="172" width="22" height="22" rx="5" fill="#C9CAC4"/><rect x="468.5" y="119.5" width="27" height="27" rx="7" fill="none" stroke="#2B3FF5" stroke-width="2.5"/></svg><div class="tip" style="left:397px;top:94px;width:210px"><div style="font-weight:600">Piątek, 17:00–17:59</div><div>Średnio <span class="num">20,3</span> przejazdu na dzień</div><div class="m">Razem <span class="num" style="color:#F6F6F3">81</span> w 4 piątki</div></div>
+<div style="display:flex;align-items:center;justify-content:space-between"><div class="legend" style="gap:14px"><span style="display:inline-flex;align-items:center;gap:6px"><i style="width:14px;height:14px;border-radius:4px;background:#EDEDE9;display:inline-block;border:1px solid #DCDCD6"></i>poniżej 3</span><span style="display:inline-flex;align-items:center;gap:6px"><i style="width:14px;height:14px;border-radius:4px;background:#C9CAC4;display:inline-block"></i>3–6</span><span style="display:inline-flex;align-items:center;gap:6px"><i style="width:14px;height:14px;border-radius:4px;background:#9A9CA1;display:inline-block"></i>6–10</span><span style="display:inline-flex;align-items:center;gap:6px"><i style="width:14px;height:14px;border-radius:4px;background:#5E6168;display:inline-block"></i>10–15</span><span style="display:inline-flex;align-items:center;gap:6px"><i style="width:14px;height:14px;border-radius:4px;background:#16181D;display:inline-block"></i>15 i więcej</span></div><a href="#" class="link" style="font-size:12.5px">Pokaż jako tabelę</a></div>
+</section><section class="card" style="padding:14px 20px 2px;display:flex;flex-direction:column;min-width:0">
+<span class="section-title" style="margin-bottom:8px">Strefy ze sterowaniem</span>
+<div style="display:flex;gap:12px;padding:10px 0;border-top:1px solid #E3E3DE"><span style="width:28px;height:28px;border-radius:8px;background:#FBE3E3;border:1.5px solid #C62F2F;flex-shrink:0"></span><div class="stack" style="gap:3px;flex-grow:1"><span style="font-size:14px;font-weight:600;white-space:normal">Z-01 Park im. św. Jana Sarkandra</span><span class="small">zakaz jazdy</span><span style="font-size:13px;white-space:normal;line-height:1.45"><span class="num">34</span> przejazdy z wjazdem · <span class="num">37</span> wjazdów · średnio <span class="num">52 s</span> w strefie · <a href="#" class="link" style="font-size:13px">Pokaż przejazdy</a></span></div></div>
+<div style="display:flex;gap:12px;padding:10px 0;border-top:1px solid #E3E3DE"><span style="width:28px;height:28px;border-radius:8px;background:#FFF1DB;border:1.5px dashed #8F5500;flex-shrink:0"></span><div class="stack" style="gap:3px;flex-grow:1"><span style="font-size:14px;font-weight:600;white-space:normal">S-01 Okolice Rynku</span><span class="small">wolna jazda</span><span style="font-size:13px;white-space:normal;line-height:1.45"><span class="num">1 488</span> przejazdów (26,1%) · średnio <span class="num">2 min 40 s</span> w strefie</span></div></div>
+<div style="display:flex;gap:12px;padding:10px 0;border-top:1px solid #E3E3DE"><span style="width:28px;height:28px;border-radius:14px;background:#F6F6F3;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="17" r="2.5"/><circle cx="18" cy="17" r="2.5"/><path d="M8.5 17h7M18 17L15.3 5M12.8 5h4.4"/></svg></span><div class="stack" style="gap:3px;flex-grow:1"><span style="font-size:14px;font-weight:600;white-space:normal">Zakończenia z odholowaniem</span><span class="small">poza strefą parkowania, end_mode = TOWED</span><span style="font-size:13px;white-space:normal;line-height:1.45"><span class="num">9</span> przejazdów (0,2%) · <a href="#" class="link" style="font-size:13px">Pokaż przejazdy</a></span></div></div>
+</section></div>
+<section class="card" style="padding:12px 20px 2px;min-width:0"><div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px"><span class="section-title">Przejazdy według strefy końca</span><span class="small">przychód z paragonów przejazdów, z opłatą za odholowanie</span></div><div class="t-row head" style="grid-template-columns:minmax(0,1fr) 108px 84px 150px 112px 104px 120px 110px"><span>Strefa końca</span><span>Rodzaj</span><span class="r th-sort" style="justify-content:flex-end">Przejazdy <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span><span>Udział</span><span class="r">Średni czas</span><span class="r">Średni dystans</span><span class="r">Przychód brutto</span><span class="r">Za przejazd</span></div><div class="t-row" style="grid-template-columns:minmax(0,1fr) 108px 84px 150px 112px 104px 120px 110px;height:31px;font-size:13px"><span style="font-weight:500">P-01 Rynek</span><span class="small">parkowanie</span><span class="r num">1 642</span><span><span style="display:inline-flex;align-items:center;gap:8px"><span style="width:70px;height:6px;border-radius:3px;background:#EDEDE9;display:inline-block;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:70px;border-radius:3px;background:#16181D"></span></span><span class="num">28,7%</span></span></span><span class="r">12 min 40 s</span><span class="r">2,0 km</span><span class="r num">18 870,20 zł</span><span class="r">11,49 zł</span></div><div class="t-row" style="grid-template-columns:minmax(0,1fr) 108px 84px 150px 112px 104px 120px 110px;height:31px;font-size:13px"><span style="font-weight:500">P-02 Dworzec PKP</span><span class="small">parkowanie</span><span class="r num">1 205</span><span><span style="display:inline-flex;align-items:center;gap:8px"><span style="width:70px;height:6px;border-radius:3px;background:#EDEDE9;display:inline-block;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:51px;border-radius:3px;background:#16181D"></span></span><span class="num">21,1%</span></span></span><span class="r">15 min 50 s</span><span class="r">2,9 km</span><span class="r num">15 102,60 zł</span><span class="r">12,53 zł</span></div><div class="t-row" style="grid-template-columns:minmax(0,1fr) 108px 84px 150px 112px 104px 120px 110px;height:31px;font-size:13px"><span style="font-weight:500">P-03 Kampus</span><span class="small">parkowanie</span><span class="r num">1 018</span><span><span style="display:inline-flex;align-items:center;gap:8px"><span style="width:70px;height:6px;border-radius:3px;background:#EDEDE9;display:inline-block;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:43px;border-radius:3px;background:#16181D"></span></span><span class="num">17,8%</span></span></span><span class="r">14 min 10 s</span><span class="r">2,6 km</span><span class="r num">12 166,30 zł</span><span class="r">11,95 zł</span></div><div class="t-row" style="grid-template-columns:minmax(0,1fr) 108px 84px 150px 112px 104px 120px 110px;height:31px;font-size:13px"><span style="font-weight:500">P-05 Plaza</span><span class="small">parkowanie</span><span class="r num">954</span><span><span style="display:inline-flex;align-items:center;gap:8px"><span style="width:70px;height:6px;border-radius:3px;background:#EDEDE9;display:inline-block;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:41px;border-radius:3px;background:#16181D"></span></span><span class="num">16,7%</span></span></span><span class="r">14 min 50 s</span><span class="r">2,5 km</span><span class="r num">11 371,40 zł</span><span class="r">11,92 zł</span></div><div class="t-row" style="grid-template-columns:minmax(0,1fr) 108px 84px 150px 112px 104px 120px 110px;height:31px;font-size:13px"><span style="font-weight:500">P-04 Focus</span><span class="small">parkowanie</span><span class="r num">884</span><span><span style="display:inline-flex;align-items:center;gap:8px"><span style="width:70px;height:6px;border-radius:3px;background:#EDEDE9;display:inline-block;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:38px;border-radius:3px;background:#16181D"></span></span><span class="num">15,5%</span></span></span><span class="r">13 min 30 s</span><span class="r">2,3 km</span><span class="r num">10 248,90 zł</span><span class="r">11,59 zł</span></div><div class="t-row" style="grid-template-columns:minmax(0,1fr) 108px 84px 150px 112px 104px 120px 110px;height:31px;font-size:13px"><span style="font-weight:500">Poza strefą parkowania</span><span class="small">odholowanie</span><span class="r num">9</span><span><span style="display:inline-flex;align-items:center;gap:8px"><span style="width:70px;height:6px;border-radius:3px;background:#EDEDE9;display:inline-block;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:2px;border-radius:3px;background:#16181D"></span></span><span class="num">0,2%</span></span></span><span class="r">21 min 20 s</span><span class="r">3,8 km</span><span class="r num">1 488,60 zł</span><span class="r">165,40 zł</span></div><div class="t-row" style="grid-template-columns:minmax(0,1fr) 108px 84px 150px 112px 104px 120px 110px;height:31px;font-size:13px;font-weight:600"><span>Razem</span><span></span><span class="r">5 712</span><span>100%</span><span class="r">14 min 10 s</span><span class="r">2,4 km</span><span class="r">69 248,00 zł</span><span class="r">12,12 zł</span></div></section>
+</main></div>
+</body>
+</html>

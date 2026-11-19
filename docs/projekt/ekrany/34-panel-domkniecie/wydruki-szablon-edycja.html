@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Panel – edycja szablonu wydruku</title>
+<!-- Plansza: Wydruki → Szablony z edycją nazwy i opisu oraz dezaktywacją szablonu (iteracja 8, pytanie 14: dług z iteracji 7; tabela document_templates). Lista według 29-panel-wydruki/wydruki-szablony (grupy według rodzaju), uzupełniona o wzorzec widoku tabeli: wyszukiwarka, szybkie filtry Wszystkie / Aktywne / Nieaktywne z licznikami, Filtry (rodzaj, domyślny, autor wersji), sortowanie w nagłówkach (nazwa w rodzaju, wydruki z 30 dni), „Eksportuj”. Źródło: v_document_templates (ma już active, is_default i aktywną wersję) rozszerzony w 0013 o liczbę pól aktywnej wersji i wydruki z 30 dni (dług z iteracji 7).
+     Szablon nieaktywny (active = false): wiersz wyszarzony z oznaczeniem „Nieaktywny” i datą wyłączenia (document_templates nie ma deactivated_at; propozycja: updated_at wystarcza albo nowa kolumna), w kolumnie Domyślny „Aktywuj ponownie” (wraca jako aktywny, bez roli domyślnego). Nieaktywnego nie ma w oknie „Drukuj”; jego wersje i wygenerowane wydruki zostają.
+     Panel boczny „Edytuj szablon” (bez przyciemnienia): nazwa (zmieniona, z poprzednią wartością; UNIQUE (document_type, name), błąd TEMPLATE_NAME_TAKEN pod polem) i opis, „Zapisz zmiany” przez PATCH /admin/document-templates/{id} z blokadą optymistyczną (version) i wpisem w dzienniku audytu; rodzaj niezmienny. Sekcja Dezaktywacja w stanie po kliknięciu „Dezaktywuj szablon”: okno potwierdzenia z konsekwencjami i przyciskiem niebezpiecznym; procedura sp_document_template_deactivate (0013).
+     Stan zablokowania (menu „…” domyślnego szablonu „Protokół serwisowy”, oznaczone jako inny stan): pozycja „Dezaktywuj szablon” wyłączona z wyjaśnieniem. Reguła: nie da się dezaktywować domyślnego szablonu rodzaju, który ma aktywną wersję (CHECK active OR NOT is_default już to wymusza, procedura zwraca TEMPLATE_IS_DEFAULT z czytelnym komunikatem); domyślny bez aktywnej wersji traci rolę domyślnego przy dezaktywacji.
+     Uprawnienia: lista templates.read, edycja, dezaktywacja i aktywacja templates.write (Redaktor tylko ogląda). Rola na planszy: Administrator. Nawigacja jak w 29-panel-wydruki. Dane przykładowe. Etykiety z plików tłumaczeń (ADR 0032), nazwy i opisy szablonów z bazy.
+     Plansza 1440×900 px, wartości z docs/projekt/tokens.json. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+.app{width:1440px;height:900px;display:flex;background:#F6F6F3;color:#16181D;overflow:hidden;font-family:Inter,system-ui,sans-serif;position:relative}
+nav.side{width:232px;flex-shrink:0;background:#FFFFFF;border-right:1px solid #E3E3DE;display:flex;flex-direction:column;padding:20px 14px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 16px}
+.brand-mark{width:32px;height:32px;border-radius:8px;background:#2B3FF5;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.brand-name{font-size:15px;font-weight:600} .brand-sub{font-size:12px;color:#6B6E75}
+.nav-group{font-size:11px;font-weight:600;color:#6B6E75;text-transform:uppercase;letter-spacing:.04em;padding:12px 12px 4px}
+.nav-item{display:flex;align-items:center;gap:12px;height:38px;padding:0 12px;border-radius:12px;text-decoration:none;font-size:14px;color:#16181D;font-weight:500}
+.nav-item.active{background:#EEF0FE;color:#2B3FF5;font-weight:600}
+.nav-badge{margin-left:auto;min-width:20px;height:20px;border-radius:10px;background:#C62F2F;color:#FFFFFF;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.me{display:flex;align-items:center;gap:10px;padding:12px 8px 0;border-top:1px solid #E3E3DE}
+.avatar{width:32px;height:32px;border-radius:16px;background:#16181D;color:#F6F6F3;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+main{flex-grow:1;min-width:0;display:flex;flex-direction:column;padding:28px 32px;gap:16px;position:relative;overflow:hidden}
+h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-0.025em}
+.sub{font-size:14px;color:#6B6E75}
+.btn{height:36px;padding:0 14px;border-radius:18px;background:#FFFFFF;color:#16181D;border:1px solid #E3E3DE;font-family:Inter,sans-serif;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.primary{background:#2B3FF5;color:#FFFFFF;border:none}
+.btn.dark{background:#16181D;color:#F6F6F3;border:none}
+.btn.danger{color:#C62F2F;border-color:#F0C4C4}
+.chip{height:36px;padding:0 12px;border-radius:17px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;white-space:nowrap}
+.chip.on{background:#16181D;color:#F6F6F3;border-color:#16181D}
+.chip .n{opacity:.6;font-weight:500}
+.search{width:280px;white-space:nowrap;height:36px;border-radius:18px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:8px;padding:0 14px;font-size:13px;color:#6B6E75}
+.tag{height:30px;padding:0 6px 0 12px;border-radius:15px;background:#EEF0FE;color:#2B3FF5;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500}
+.tag b{font-weight:600}
+.tag .x{width:20px;height:20px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center}
+.link{font-size:13px;font-weight:600;color:#2B3FF5;text-decoration:none}
+.card{background:#FFFFFF;border:1px solid #E3E3DE;border-radius:20px;padding:12px}
+.row{display:grid;gap:12px;align-items:center;height:50px;padding:0 16px;border-top:1px solid #E3E3DE;font-size:14px}
+.row > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row.head{height:auto;border-top:none;padding:0 16px 10px;font-size:12px;font-weight:600;color:#6B6E75}
+.row.selected{background:#EEF0FE}
+.th-sort{display:inline-flex;align-items:center;gap:4px;color:#16181D}
+.cb{width:18px;height:18px;border-radius:5px;border:1.5px solid #B9B9B2;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+.cb.on{background:#2B3FF5;border-color:#2B3FF5}
+.cb.mixed{background:#2B3FF5;border-color:#2B3FF5}
+.pill{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:12px;font-size:12px;font-weight:600;white-space:nowrap;background:#EDEDE9;color:#16181D}
+.pill.accent{background:#EEF0FE;color:#2B3FF5} .pill.muted{color:#6B6E75}
+.pill.warn{background:#FFF1DB;color:#8F5500} .pill.danger{background:#FBE3E3;color:#C62F2F}
+.overdue{color:#C62F2F;font-weight:500}
+.mono{font-weight:600}
+.muted{color:#6B6E75}
+.pager{display:flex;justify-content:space-between;align-items:center;padding:14px 16px 0;border-top:1px solid #E3E3DE;font-size:13px;color:#6B6E75}
+.page{width:36px;height:36px;border-radius:18px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#16181D}
+.page.on{background:#16181D;color:#F6F6F3}
+.select{height:36px;padding:0 12px 0 14px;border-radius:18px;background:#FFFFFF;border:1px solid #E3E3DE;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#16181D}
+.bulk{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);height:56px;padding:0 10px 0 20px;border-radius:28px;background:#16181D;color:#F6F6F3;display:flex;align-items:center;gap:6px;box-shadow:0 12px 40px rgba(22,24,29,0.24);font-size:14px;white-space:nowrap}
+.bulk .count{font-weight:600;padding-right:12px;margin-right:4px;border-right:1px solid #3A3D45}
+.bulk .act{height:36px;padding:0 14px;border-radius:18px;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#F6F6F3}
+.bulk .act.danger{color:#FF7A70}
+.field{display:flex;flex-direction:column;gap:6px}
+.label{font-size:13px;font-weight:600}
+.label .opt{font-weight:400;color:#6B6E75}
+.input{height:46px;border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:15px;color:#16181D}
+.input.error{border:1.5px solid #C62F2F}
+.input .ph{color:#6B6E75}
+.hint{font-size:12px;color:#6B6E75}
+.err{font-size:12px;color:#C62F2F;font-weight:500;display:flex;align-items:center;gap:6px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.section-title{font-size:17px;font-weight:600}
+.tabs{display:flex;gap:4px;border-bottom:1px solid #E3E3DE}
+.tab{height:40px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:#6B6E75;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:#16181D;font-weight:600;border-bottom-color:#16181D}
+.tab .n{font-size:12px;font-weight:500;color:#6B6E75}
+.iconbtn{width:32px;height:32px;border-radius:16px;border:none;background:transparent;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}
+.av{width:30px;height:30px;border-radius:15px;background:#EDEDE9;color:#16181D;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.av.dark{background:#16181D;color:#F6F6F3}
+.stack{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stack > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.small{font-size:12px;color:#6B6E75}
+.num{font-weight:500}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;font-size:14px}
+.kv dt{color:#6B6E75;margin:0} .kv dd{margin:0;font-weight:500}
+.notice{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:14px;font-size:13px;line-height:1.45}
+.notice.info{background:#EEF0FE;color:#16181D} .notice.warn{background:#FFF1DB;color:#16181D} .notice.danger{background:#FBE3E3;color:#16181D}
+.notice .ic{width:28px;height:28px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.overlay{position:absolute;inset:0;background:rgba(22,24,29,0.32);display:flex;align-items:center;justify-content:center}
+.dialog{width:520px;background:#FFFFFF;border-radius:28px;padding:28px;box-shadow:0 24px 64px rgba(22,24,29,0.28);display:flex;flex-direction:column;gap:18px}
+.radio{width:20px;height:20px;border-radius:10px;border:1.5px solid #B9B9B2;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+.radio.on{border:6px solid #2B3FF5}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:440px;background:#FFFFFF;border-left:1px solid #E3E3DE;box-shadow:-12px 0 40px rgba(22,24,29,0.10);display:flex;flex-direction:column}
+.diff-old{background:#FBE3E3;color:#16181D;border-radius:6px;padding:1px 6px;text-decoration:line-through;text-decoration-color:#C62F2F}
+.diff-new{background:#E4EFE3;color:#16181D;border-radius:6px;padding:1px 6px}
+.code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6B6E75}
+.toggle{width:36px;height:22px;border-radius:11px;background:#E3E3DE;position:relative;flex-shrink:0}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:8px;background:#FFFFFF;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.toggle.on{background:#2B3FF5} .toggle.on::after{left:17px}
+
+
+.avatar{flex-shrink:0}
+.glass{background:rgba(255,255,255,0.84);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border-radius:16px;box-shadow:0 8px 24px rgba(22,24,29,0.10)}
+.stat{display:flex;flex-direction:column;gap:2px;padding:0 16px;border-left:1px solid #E3E3DE}
+.stat:first-child{border-left:none;padding-left:0}
+.stat .v{font-size:20px;font-weight:500;letter-spacing:-0.015em;white-space:nowrap}
+.stat .l{font-size:12px;color:#6B6E75;white-space:nowrap}
+.tl{display:flex;gap:12px}
+.tl .rail{display:flex;flex-direction:column;align-items:center;width:12px;flex-shrink:0}
+.tl .dot{width:10px;height:10px;border-radius:5px;margin-top:4px;flex-shrink:0;background:#16181D}
+.tl .line{width:2px;flex-grow:1;background:#E3E3DE;margin-top:3px}
+.tl .body{display:flex;flex-direction:column;gap:1px;padding-bottom:12px;min-width:0}
+.tl .t{font-size:13px;font-weight:500}
+.tl .d{font-size:12px;color:#6B6E75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl .d .num{color:#16181D}
+.dot.accent{background:#2B3FF5;box-shadow:0 0 0 4px #EEF0FE} .dot.warn{background:#8F5500} .dot.danger{background:#C62F2F} .dot.muted{background:#B9B9B2}
+.state{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6B6E75;white-space:nowrap;flex-shrink:0}
+.line-item{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;border-top:1px solid #E3E3DE;font-size:13px}
+.line-item .num{white-space:nowrap}
+.live{display:inline-flex;align-items:center;gap:6px;color:#2B3FF5;font-weight:500}
+.live::before{content:'';width:8px;height:8px;border-radius:4px;background:#2B3FF5}
+.warnmark{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:12px;background:#FFF1DB;flex-shrink:0}
+.conseq{display:flex;gap:12px;align-items:flex-start;font-size:13px;line-height:1.45}
+.conseq .ci{width:28px;height:28px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.input{height:44px;border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;display:flex;align-items:center;gap:8px;padding:0 14px;font-size:15px;font-weight:500;color:#16181D;white-space:nowrap;overflow:hidden}
+.input .ph{color:#9A9CA1;font-weight:400}
+.input .suf{margin-left:auto;font-size:13px;font-weight:400;color:#6B6E75}
+.input.focus{border:1.5px solid #2B3FF5}
+.input.error{border:1.5px solid #C62F2F}
+.input.changed{border:1.5px solid #2B3FF5}
+.input.ro{background:#F6F6F3;color:#6B6E75}
+.seg{display:flex;background:#E3E3DE;border-radius:18px;padding:2px}
+.seg > span{flex-grow:1;flex-basis:0;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;padding:0 10px;white-space:nowrap}
+.seg > span.on{background:#16181D;color:#F6F6F3}
+.pill.sm{height:20px;padding:0 8px;font-size:11px;border-radius:10px}
+.right{text-align:right;justify-self:end}
+.tabs .tab .n{margin-left:2px}
+.nav-item{height:36px}
+.nav-group{padding:10px 12px 4px}
+.kv{grid-template-columns:118px 1fr;gap:9px 12px;font-size:13px}
+.kv dd{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl .d{white-space:normal}
+.cat{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:#EDEDE9;font-size:12px;font-weight:500;white-space:nowrap}
+.urgent{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:#FBE3E3;color:#C62F2F;font-size:12px;font-weight:600;white-space:nowrap}
+.ta{border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;padding:11px 14px;font-size:14px;line-height:1.45;color:#16181D}
+.ta.focus{border:1.5px solid #2B3FF5}
+.ta.error{border:1.5px solid #C62F2F}
+.cbx{width:20px;height:20px;border-radius:6px;border:1.5px solid #B9B9B2;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
+.cbx.on{background:#2B3FF5;border-color:#2B3FF5}
+.sel{height:44px;border-radius:14px;border:1px solid #E3E3DE;background:#FFFFFF;display:flex;align-items:center;gap:10px;padding:0 12px 0 14px;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden}
+.sel .chev{margin-left:auto;display:inline-flex}
+.photo{border-radius:12px;background:#E9E9E4;overflow:hidden;position:relative;flex-shrink:0}
+.photo img{width:100%;height:100%;object-fit:cover;display:block}
+.dlg-head{display:flex;align-items:flex-start;gap:14px}
+.dlg-ic{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dlg-title{font-size:20px;font-weight:600;letter-spacing:-0.02em}
+.stack > span.dlg-sub,.dlg-sub{font-size:14px;color:#6B6E75;white-space:normal;line-height:1.45}
+.box{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:16px;background:#F6F6F3}
+.chk{display:flex;align-items:center;gap:10px;font-size:13px}
+.ok-ic{width:22px;height:22px;border-radius:11px;background:#FFFFFF;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.tpl{display:flex;flex-direction:column;gap:3px;padding:11px 14px;border-radius:14px}
+.tpl.on{background:#EEF0FE}
+.tpl .c{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;font-weight:600;color:#16181D}
+.codebox{border-radius:14px;border:1.5px solid #C62F2F;background:#FFFFFF;padding:10px 0;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;line-height:1.7;color:#16181D}
+.codebox .ln{display:flex}
+.codebox .n{width:34px;text-align:right;padding-right:12px;color:#B0B2B6;flex-shrink:0}
+.codebox .ln.bad{background:#FBE3E3}
+.codebox .p{color:#2B3FF5}
+.codebox .k{color:#8F5500}
+.codebox .caret{display:inline-block;width:2px;height:16px;background:#C62F2F;vertical-align:-3px}
+.prm{display:grid;grid-template-columns:110px minmax(0,1fr) 110px;gap:12px;align-items:center;height:44px;border-top:1px solid #E3E3DE;font-size:13px}
+.prm .nm{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#16181D}
+.mini{height:32px;border-radius:10px;border:1px solid #E3E3DE;display:flex;align-items:center;padding:0 10px;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden}
+.qc{height:26px;min-width:30px;padding:0 8px;border-radius:13px;border:1px solid #E3E3DE;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:500}
+.qc.on{background:#16181D;color:#F6F6F3;border-color:#16181D}
+.lock{background:linear-gradient(160deg,#DADBD5,#C9CBC4);border-radius:20px;padding:18px 14px;display:flex;flex-direction:column;gap:10px}
+.notif{background:rgba(246,246,243,0.86);backdrop-filter:blur(28px);border-radius:18px;padding:12px 14px;display:flex;gap:10px;box-shadow:0 6px 20px rgba(22,24,29,0.10)}
+.hv{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #E3E3DE;font-size:13px}
+.btn.off{opacity:.4}
+
+.lrow{display:grid;gap:12px;align-items:center;height:46px;border-top:1px solid #E3E3DE;font-size:14px}
+.lrow > span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.key{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:#6B6E75}
+.thumb{border-radius:10px;background:#EFEFEC;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.thumb.cover img{object-fit:cover}
+.handle{display:inline-flex;align-items:center;justify-content:center;width:20px;color:#B0B2B6;flex-shrink:0}
+.grp{display:flex;align-items:center;gap:10px;height:34px;padding:0 16px;background:#F6F6F3;border-top:1px solid #E3E3DE;font-size:12px;font-weight:600;color:#6B6E75}
+.mdsrc{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12.5px;line-height:1.65;white-space:pre-wrap;color:#16181D}
+.mdsrc .m{color:#2B3FF5}
+.mdsrc .bad{background:#FBE3E3;display:block;margin:0 -12px;padding:0 12px}
+.prev{font-size:14px;line-height:1.55}
+.prev p{margin:0 0 10px}
+.prev a{color:#2B3FF5;text-decoration:underline;text-underline-offset:2px}
+.tbar{display:flex;align-items:center;gap:2px;padding:4px;border-bottom:1px solid #E3E3DE}
+.tbar span{min-width:30px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#16181D;padding:0 6px}
+.tbar span.off{color:#B0B2B6}
+.tbar .sep{width:1px;min-width:1px;height:18px;background:#E3E3DE;padding:0;margin:0 4px}
+.edbox{border:1px solid #E3E3DE;border-radius:14px;overflow:hidden;background:#FFFFFF}
+.edbox.focus{border:1.5px solid #2B3FF5}
+.edbox.error{border:1.5px solid #C62F2F}
+.lift{box-shadow:0 14px 36px rgba(22,24,29,0.18);border:1px solid #E3E3DE;border-radius:12px;background:#FFFFFF;position:relative;z-index:2}
+.dropline{height:3px;border-radius:2px;background:#2B3FF5;margin:0 16px}
+.vis{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:11px;background:#EDEDE9;font-size:11px;font-weight:600;color:#16181D;white-space:nowrap}
+.vis.off{background:transparent;color:#B0B2B6;border:1px dashed #D6D6D0}
+.mcard{display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:16px;border:1px solid #E3E3DE;background:#FFFFFF;min-width:0}
+.mcard.on{border:2px solid #2B3FF5;padding:5px;box-shadow:0 0 0 3px #EEF0FE}
+.mcard .nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+.mcard .mt{font-size:12px;color:#6B6E75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px 2px;display:flex;justify-content:space-between;gap:6px}
+.uses{display:inline-flex;align-items:center;gap:4px;font-weight:500;color:#16181D}
+.uses.zero{color:#8F5500}
+.dz{border:1.5px dashed #C9CBC4;border-radius:16px;background:#F6F6F3;padding:14px 16px;display:flex;align-items:center;gap:14px;font-size:13px}
+.frow{display:flex;gap:14px;padding:14px 0;border-top:1px solid #E3E3DE}
+.a4{background:#FFFFFF;box-shadow:0 2px 10px rgba(22,24,29,0.12);border-radius:4px;position:relative;overflow:hidden;font-size:8px;line-height:1.45;color:#16181D}
+.a4 .h{font-size:13px;font-weight:600;letter-spacing:-0.01em}
+.a4 table{width:100%;border-collapse:collapse;font-size:7.5px}
+.a4 td,.a4 th{border-bottom:0.5px solid #E3E3DE;padding:3px 2px;text-align:left}
+.a4 th{color:#6B6E75;font-weight:600}
+.wm{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%) rotate(-28deg);font-size:46px;font-weight:600;color:rgba(43,63,245,0.07);letter-spacing:.08em;white-space:nowrap}
+.errl{display:flex;gap:12px;padding:12px 0;border-top:1px solid #F0C4C4;font-size:13px;line-height:1.45}
+.errl .no{width:22px;height:22px;border-radius:11px;background:#FBE3E3;color:#C62F2F;font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.tagc{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;background:#F6F6F3;border-radius:6px;padding:1px 5px;color:#16181D;white-space:nowrap}
+.tagc.bad{background:#FBE3E3;color:#C62F2F}
+.statec{background:#FFFFFF;border-radius:22px;padding:18px 20px;box-shadow:0 24px 64px rgba(22,24,29,0.22);display:flex;flex-direction:column;gap:10px}
+.cap{font-size:11px;font-weight:600;color:#F6F6F3;text-transform:uppercase;letter-spacing:.06em}
+.spin{width:22px;height:22px;border-radius:11px;border:3px solid #EEF0FE;border-top-color:#2B3FF5;flex-shrink:0}
+.bar{height:6px;border-radius:3px;background:#EEF0FE;overflow:hidden}
+.bar > span{display:block;height:100%;background:#2B3FF5;border-radius:3px}
+.foot{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#6B6E75;border-top:1px solid #E3E3DE;padding-top:8px;line-height:1.5}
+.iconsel{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.iconsel span{height:36px;border-radius:10px;border:1px solid #E3E3DE;display:flex;align-items:center;justify-content:center}
+.iconsel span.on{border:1.5px solid #2B3FF5;background:#EEF0FE}
+.rico{width:32px;height:32px;border-radius:16px;background:#EEF0FE;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.phone{width:280px;height:560px;border-radius:40px;background:#16181D;padding:9px;flex-shrink:0;box-shadow:0 12px 40px rgba(22,24,29,0.14)}
+.phone .scr{width:100%;height:100%;border-radius:32px;background:#F6F6F3;overflow:hidden;display:flex;flex-direction:column;padding:38px 18px 18px;gap:10px}
+.where{display:flex;gap:12px;padding:12px 0;border-top:1px solid #E3E3DE;font-size:13px;line-height:1.45}
+.where:first-of-type{border-top:none}
+.where .wi{width:32px;height:32px;border-radius:16px;background:#F6F6F3;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.star{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#2B3FF5}
+
+
+/* 34-panel-domkniecie */
+.btn.dangerfill{background:#C62F2F;color:#FFFFFF;border:none}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn[disabled],.btn.disabled{background:#F6F6F3;color:#6B6E75;border-color:#E3E3DE}
+.panel{background:#FFFFFF;border:1px solid #E3E3DE;border-radius:20px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.panel-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 14px;border-bottom:1px solid #E3E3DE}
+.panel-b{display:flex;flex-direction:column;gap:14px;padding:16px 20px;min-height:0}
+.panel-f{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid #E3E3DE;margin-top:auto}
+.h2{font-size:17px;font-weight:600;letter-spacing:-0.01em}
+.h3{font-size:14px;font-weight:600}
+.sortable{display:inline-flex;align-items:center;gap:4px}
+.menu{position:absolute;background:#FFFFFF;border:1px solid #E3E3DE;border-radius:14px;box-shadow:0 14px 36px rgba(22,24,29,0.18);padding:6px;display:flex;flex-direction:column;z-index:5}
+.mi{display:flex;align-items:center;gap:10px;min-height:36px;padding:0 10px;border-radius:9px;font-size:13px;font-weight:500;color:#16181D;white-space:nowrap}
+.mi.hover{background:#F6F6F3}
+.mi.off{color:#6B6E75}
+.msep{height:1px;background:#E3E3DE;margin:4px 2px}
+.row.inactive > span, .row.inactive .stack > span{color:#6B6E75}
+.row.inactive{background:#FAFAF8}
+.ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot8{width:8px;height:8px;border-radius:4px;display:inline-block;flex-shrink:0}
+.mask{font-variant-numeric:tabular-nums;font-weight:500;letter-spacing:.01em}
+.counter{font-size:12px;color:#6B6E75;font-weight:500}
+.cnt{font-size:12px;color:#6B6E75}
+.inset{background:#FFFFFF;border:1px solid #E3E3DE;border-radius:20px;padding:14px 0 6px}
+.inset .row{height:46px}
+.lnk-danger{font-size:12.5px;font-weight:600;color:#C62F2F;text-decoration:none}
+
+</style>
+</head>
+<body>
+<div class="app"><nav class="side" aria-label="Panel"><div class="brand"><div class="brand-mark"><svg width="25" height="25" viewBox="0 0 1024 1024" fill="none" stroke="#FFFFFF" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="314" cy="668" r="88"></circle><circle cx="710" cy="668" r="88"></circle><path d="M402 668 H622M710 668 L614 268M534 268 H684"></path></svg></div><div style="display:flex;flex-direction:column"><span class="brand-name">[nazwa]</span><span class="brand-sub">Panel operatora</span></div></div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"></rect><rect x="13" y="4" width="7" height="7" rx="2"></rect><rect x="4" y="13" width="7" height="7" rx="2"></rect><rect x="13" y="13" width="7" height="7" rx="2"></rect></svg>Pulpit</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"></path><path d="M9 4v14M15 6v14"></path></svg>Mapa floty</a><div class="nav-group">Operacje</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path></svg>Flota</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2"></circle><circle cx="18" cy="6" r="2"></circle><path d="M8 18h7a3 3 0 000-6H9a3 3 0 010-6h7"></path></svg>Przejazdy</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="M3 10h18M7 15h3"></path></svg>Płatności</a><div class="nav-group">Serwis</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5a4 4 0 00-5 5L4 16l4 4 5.5-5.5a4 4 0 005-5l-2.5 2.5-2.5-.5-.5-2.5z"></path></svg>Zgłoszenia<span class="nav-badge">4</span></a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M3 12h18M10 12v2h4v-2"></path></svg>Zadania</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path></svg>Części</a><div class="nav-group">Konfiguracja</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"></rect><path d="M10 16V8h3a2.5 2.5 0 010 5h-3"></path></svg>Strefy</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"></path><circle cx="7.5" cy="8.5" r="1.5"></circle></svg>Cennik i zasady</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"></path><path d="M14 3v5h5M10 13h6M10 17h6"></path></svg>Treści</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15z"></path><path d="M10 20.5a2 2 0 004 0"></path></svg>Powiadomienia</a><div class="nav-group">Klienci i dostęp</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5"></path><path d="M16 4.5a3.5 3.5 0 010 7M18 15c2 .6 3.2 2.2 3.8 5"></path></svg>Użytkownicy</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>Operatorzy i role</a><div class="nav-group">Analiza</div><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V12M12 20V5M19 20v-9"></path></svg>Raporty</a><a href="#" class="nav-item active" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B3FF5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"></path><rect x="3" y="9" width="18" height="8" rx="2"></rect><path d="M7 14h10v7H7z"></path></svg>Wydruki</a><a href="#" class="nav-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"></path></svg>Symulator</a><div style="flex-grow:1"></div><div class="me"><span class="avatar">PM</span><div style="display:flex;flex-direction:column"><span style="font-size:13px;font-weight:500;white-space:nowrap">Piotr Mazur</span><span style="font-size:12px;color:#6B6E75">Administrator</span></div><div style="flex-grow:1"></div><button type="button" class="iconbtn" aria-label="Wyloguj się" title="Wyloguj się"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l-5-5 5-5M5 12h11"></path></svg></button></div></nav><main>
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px"><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><h1>Wydruki</h1><span class="sub">Dokumenty jednego obiektu z szablonów DOCX, które zmieniasz w Wordzie</span></div><div style="display:flex;align-items:center;gap:10px"><span class="search" style="width:220px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Nazwa szablonu</span><span class="btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>Instrukcja i lista pól</span><span class="btn primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nowy szablon</span></div></div><nav class="tabs" aria-label="Wydruki"><a href="#" class="tab on" aria-current="page">Szablony <span class="n">6</span></a><a href="#" class="tab">Wygenerowane <span class="n">1 284</span></a></nav><div style="display:flex;align-items:center;gap:8px"><span class="chip on">Wszystkie <span class="n">6</span></span><span class="chip">Aktywne <span class="n">5</span></span><span class="chip">Nieaktywne <span class="n">1</span></span><span style="flex-grow:1"></span><span class="btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>Eksportuj</span><span class="chip"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>Filtry</span></div><div style="display:flex;gap:16px;align-items:flex-start;min-height:0"><div style="position:relative;flex-grow:1;min-width:0"><section class="card" style="padding:12px 0 0;overflow:hidden"><div class="row head" style="grid-template-columns:minmax(0,1fr) 114px 144px 94px 32px"><span class="th-sort">Szablon <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span><span>Aktywna wersja</span><span>Domyślny</span><span>Wydruki, 30 dni</span><span></span></div><div class="grp" style="color:#16181D">Paragon <span class="code" style="font-size:11px;font-weight:600">RECEIPT</span></div><div class="row " style="grid-template-columns:minmax(0,1fr) 114px 144px 94px 32px;height:50px;font-size:13.5px"><span class="stack"><span style="font-weight:500">Paragon</span><span class="small">sprzedaż i korekta w jednym pliku</span></span><span class="stack"><span>Wersja 1</span><span class="small">dane startowe, 1 lis</span></span><span style="overflow:visible"><span class="star"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2B3FF5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z"/></svg>Domyślny</span></span><span class="num">412</span><span style="display:flex;justify-content:flex-end"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></span></div><div class="grp" style="color:#16181D">Potwierdzenie przejazdu <span class="code" style="font-size:11px;font-weight:600">RENTAL_CONFIRMATION</span></div><div class="row " style="grid-template-columns:minmax(0,1fr) 114px 144px 94px 32px;height:50px;font-size:13.5px"><span class="stack"><span style="font-weight:500">Potwierdzenie przejazdu</span><span class="small">oś czasu, trasa jako adresy, kwoty</span></span><span class="stack"><span>Wersja 1</span><span class="small">dane startowe, 1 lis</span></span><span style="overflow:visible"><span class="star"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2B3FF5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z"/></svg>Domyślny</span></span><span class="num">37</span><span style="display:flex;justify-content:flex-end"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></span></div><div class="row inactive" style="grid-template-columns:minmax(0,1fr) 114px 144px 94px 32px;height:50px;font-size:13.5px"><span class="stack"><span style="font-weight:500">Potwierdzenie skrócone <span class="pill sm muted" style="margin-left:6px;vertical-align:1px">Nieaktywny</span></span><span class="small">jedna strona bez osi czasu</span></span><span class="stack"><span>Wersja 1</span><span class="small">wyłączony 18 lis</span></span><span style="overflow:visible"><a href="#" class="link" style="font-size:12.5px">Aktywuj ponownie</a></span><span class="num">0</span><span style="display:flex;justify-content:flex-end"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></span></div><div class="grp" style="color:#16181D">Protokół zadania serwisowego <span class="code" style="font-size:11px;font-weight:600">SERVICE_PROTOCOL</span></div><div class="row selected" style="grid-template-columns:minmax(0,1fr) 114px 144px 94px 32px;height:50px;font-size:13.5px"><span class="stack"><span style="font-weight:500">Protokół przekazania po naprawie</span><span class="small">przekazanie do floty po naprawie, bez części</span></span><span class="stack"><span>Wersja 1</span><span class="small">Piotr Mazur, 10 lis</span></span><span style="overflow:visible"><a href="#" class="link" style="font-size:12.5px">Ustaw jako domyślny</a></span><span class="num">6</span><span style="display:flex;justify-content:flex-end"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></span></div><div class="row " style="grid-template-columns:minmax(0,1fr) 114px 144px 94px 32px;height:50px;font-size:13.5px"><span class="stack"><span style="font-weight:500">Protokół serwisowy</span><span class="small">części, notatka, skutek dla hulajnogi, podpis</span></span><span class="stack"><span>Wersja 2</span><span class="small">Piotr Mazur, 14 lis</span></span><span style="overflow:visible"><span class="star"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2B3FF5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z"/></svg>Domyślny</span></span><span class="num">58</span><span style="display:flex;justify-content:flex-end"><span style="width:32px;height:32px;border-radius:16px;background:#EDEDE9;display:inline-flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></span></span></div><div class="grp" style="color:#16181D">Karta hulajnogi <span class="code" style="font-size:11px;font-weight:600">SCOOTER_CARD</span></div><div class="row " style="grid-template-columns:minmax(0,1fr) 114px 144px 94px 32px;height:50px;font-size:13.5px"><span class="stack"><span style="font-weight:500">Karta hulajnogi</span><span class="small">dane, model, historia serwisu z zakresem dat</span></span><span class="stack"><span>Wersja 1</span><span class="small">dane startowe, 1 lis</span></span><span style="overflow:visible"><span class="star"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2B3FF5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z"/></svg>Domyślny</span></span><span class="num">12</span><span style="display:flex;justify-content:flex-end"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></span></div><div class="pager"><span>6 szablonów · sortowanie: rodzaj, potem nazwa</span><span style="display:flex;gap:4px;align-items:center"><span class="page on">1</span></span></div></section><div style="position:absolute;right:10px;top:388px;width:318px;z-index:5">
+<div class="menu" style="position:relative" role="menu">
+<span class="mi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>Edytuj nazwę i opis</span>
+<span class="mi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>Wgraj nową wersję</span>
+<span class="mi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>Pobierz aktywną wersję</span>
+<div class="msep"></div>
+<span class="mi off hover" aria-disabled="true" style="align-items:flex-start;padding:9px 10px;white-space:normal;flex-direction:column;gap:4px"><span style="display:flex;align-items:center;gap:10px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B6E75" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>Dezaktywuj szablon</span><span style="font-size:12px;font-weight:400;line-height:1.45;padding-left:25px">Domyślny szablon z aktywną wersją: „Drukuj” na karcie zadania by przestał działać. Najpierw ustaw jako domyślny inny szablon tego rodzaju.</span></span>
+</div><div style="display:flex;justify-content:flex-end;margin-top:6px"><span class="pill" style="background:#16181D;color:#F6F6F3;font-size:11px;letter-spacing:.04em;text-transform:uppercase">Inny stan: menu domyślnego szablonu</span></div></div></div><aside class="panel" style="width:392px;flex-shrink:0">
+<div class="panel-h"><div class="stack" style="gap:4px"><span class="h2">Edytuj szablon</span><span class="small" style="font-size:13px">Protokół zadania serwisowego</span></div><button type="button" class="iconbtn" aria-label="Zamknij"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+<div class="panel-b" style="gap:12px;padding:14px 20px">
+<div class="field"><span class="label">Nazwa</span><div class="input changed">Protokół przekazania po naprawie</div><span class="hint">Była: Protokół przekazania hulajnogi. Unikalna w rodzaju, widać ją w oknie „Drukuj”; rodzaju nie zmienisz.</span></div>
+<div class="field"><span class="label">Opis <span class="opt">(opcjonalny)</span></span><div class="ta" style="height:44px;padding-top:10px">przekazanie do floty po naprawie, bez części</div></div>
+<div style="display:flex;justify-content:flex-end;gap:8px"><span class="btn">Anuluj</span><span class="btn primary">Zapisz zmiany</span></div>
+<div style="height:1px;background:#E3E3DE;margin:2px 0"></div>
+<div style="display:flex;align-items:center;justify-content:space-between"><span class="h3">Dezaktywacja</span><span class="pill" style="background:#16181D;color:#F6F6F3;font-size:11px;letter-spacing:.04em;text-transform:uppercase">Po kliknięciu „Dezaktywuj”</span></div>
+<div class="statec" style="box-shadow:0 10px 30px rgba(22,24,29,0.14);border:1px solid #E3E3DE;padding:16px;gap:10px" role="alertdialog" aria-labelledby="cf-t">
+<div class="dlg-head" style="gap:12px"><span class="dlg-ic" style="width:36px;height:36px;border-radius:18px;background:#FBE3E3"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C62F2F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.5 6.5a8 8 0 1011 0"/></svg></span><div class="stack" style="gap:3px"><span style="font-size:15px;font-weight:600;white-space:normal" id="cf-t">Dezaktywować „Protokół przekazania po naprawie”?</span></div></div>
+<div class="conseq" style="font-size:12.5px"><span class="ci" style="background:#F6F6F3"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg></span><span>Zniknie z okna „Drukuj”. Wersje i 6 wydruków z 30 dni zostają do pobrania.</span></div>
+<div class="conseq" style="font-size:12.5px"><span class="ci" style="background:#F6F6F3"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16181D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 5v6h-6"/></svg></span><span>Możesz go aktywować ponownie z listy; nie wróci jako domyślny.</span></div>
+<div style="display:flex;justify-content:flex-end;gap:8px"><span class="btn">Zostaw aktywny</span><span class="btn dangerfill">Dezaktywuj</span></div>
+</div>
+</div>
+</aside></div>
+</main></div>
+</body>
+</html>

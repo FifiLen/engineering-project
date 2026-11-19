@@ -1651,3 +1651,61 @@ Migracja `0012_iteration7_fixes.sql` (0011 bez zmian), `pnpm db:pull` z ręczną
 
 **Wypchnięcie**
 - Iteracja 7 w sześciu commitach `8e63b12`–`66a9ced` na `main`; CI zielone 19 listopada 2026 (przebieg 44475249840).
+
+## Plan iteracji 8: raporty i domknięcie panelu (19 listopada 2026)
+
+Plan: [iteracja 8](iteracje/iteracja-08-raporty-domkniecie-panelu.md). Etap planowania, bez kodu i bez makiet.
+
+**Co powstało**
+- Plan iteracji 8. Cel: sześć raportów z ADR 0029 z parametrami, podglądem w panelu i eksportem PDF (Chromium w Gotenbergu) i XLSX (ExcelJS) zadaniem w tle, historia uruchomień i definicje raportów w panelu; pulpit z wykresami; „Eksportuj” do XLSX i CSV na każdej liście; pozostałe tabele z macierzy operacji w panelu. Granice z iteracją 7 (Gotenberg, `DocumentRenderer`, wzór zadań) i 9 (testy obciążeniowe, spis widoków), zakres migracji 0013, kolejność kroków i szkic scenariusza demo w 9 krokach.
+- Tabela pokrycia tabel w panelu (wymaganie 12): co ma dziś listę, co jest tylko w szczegółach rekordu nadrzędnego, a co nie ma miejsca w panelu (`otp_codes`, `saved_places`, `telemetry`, `scooter_commands`, `scooter_zone_presence`, `scooter_zone_control`, `payment_customers`, `report_definitions`, `report_runs`).
+- 9 brakujących makiet w trzech katalogach: `32-panel-raporty`, `33-panel-pulpit`, `34-panel-domkniecie`.
+- 6 ADR-ów do napisania (0071–0076), 15 pytań do autora i 8 decyzji z rekomendacją (D1–D8), lista sprawdzeń przed ADR-ami.
+
+**Wnioski z przeglądu kodu, migracji i makiet**
+- **Tabele raportów czekają od migracji 0002.** `report_definitions`, `report_runs`, typ `report_format` i sześć uprawnień `reports.*` z przydziałami ról istnieją, ale są puste i nieużywane; widoki `v_daily_revenue`, `v_zone_usage`, `v_scooter_reliability` nie mają parametrów okresu, więc D1 proponuje funkcje `fn_report_*`.
+- **„Przychód” liczony z przejazdów, nie z paragonów.** `v_daily_revenue` sumuje `rentals.total_amount`, a sprzedaż z VAT według stawek, korekty i opłata za odholowanie poza VAT są w paragonach (ADR 0052, 0061). Pytanie 2 proponuje raport z częścią „sprzedaż” i „wpływy”.
+- **Brak historii stanów hulajnogi.** `scooters.status` i `online` mają tylko bieżącą wartość, więc raportu wykorzystania floty (czas w serwisie, bez łączności) nie da się policzyć wiarygodnie. D4 proponuje tabelę z wyzwalaczem (ADR 0074).
+- **Puste dane deweloperskie.** Baza ma kilka przejazdów z przeklikania; raporty za miesiąc byłyby puste. Pytanie 12 proponuje deterministyczny generator historii przez procedury bazy (ADR 0075), przydatny też w testach obciążeniowych iteracji 9.
+- **Uprawnienie do definicji raportów.** Macierz przewiduje `content.write`, przez co Redaktor zmieniałby nazwy raportów, których nie widzi; pytanie 8 proponuje `reports.manage`.
+- **Wykresy bez biblioteki.** Panel nie ma biblioteki wykresów, a PDF powstaje z HTML w API. D2 proponuje wspólną geometrię w `packages/shared` i dwa renderery (React SVG, tekst SVG), żeby panel i PDF wyglądały tak samo bez `dangerouslySetInnerHTML`.
+- **Eksport list a dane osobowe i formuły.** Eksport musi maskować dane jak lista, zapisać wpis w dzienniku audytu i chronić przed wstrzyknięciem formuł w XLSX i CSV (D6, ADR 0073).
+- **ExcelJS** nie miał wydań od października 2023 (ADR 0029); przed ADR 0071 trzeba sprawdzić wersję, ESM pod NestJS 12 i zapis strumieniowy.
+
+**Do zrobienia przed implementacją**
+- Odpowiedzi autora na pytania 1–15 i decyzje D1–D8.
+- Makiety brakujących stanów w trzech katalogach.
+- Sprawdzenia przed ADR-ami (wersje starsze niż 3 dni): ExcelJS, nagłówki i stopki stron w Chromium Gotenberga, wyzwalacz historii stanów a aktualizacje `online`, czas generatora danych.
+- ADR 0071–0076.
+
+**Odpowiedzi autora (19 listopada 2026)**
+- Autor przyjął wszystkie rekomendacje: pytania 1–15 i decyzje D1–D8 bez zmian (tabela w [planie](iteracje/iteracja-08-raporty-domkniecie-panelu.md#odpowiedzi-autora-19-listopada-2026)). Najważniejsze skutki: nowe uprawnienie `reports.manage`, tabela `scooter_status_history`, generator danych historycznych `pnpm db:history`, wykresy z własnej geometrii w `packages/shared`, eksport list synchronicznie strumieniem.
+- Następny krok: makiety w `32-panel-raporty`, `33-panel-pulpit`, `34-panel-domkniecie`.
+
+**Makiety (19 listopada 2026)**
+- 21 plansz panelu 1440×900 w trzech katalogach ([spis makiet](projekt/README.md#panel-operatora-raporty-pulpit-i-domknięcie-iteracja-8)):
+  - `32-panel-raporty` (8): katalog, przychody z podglądem, przejazdy według stref i godzin z mapą ciepła, stany podglądu, okno eksportu ze stanami, historia uruchomień, definicja, strony PDF A4 pionowo i poziomo;
+  - `33-panel-pulpit` (3): Administrator, Serwisant, Redaktor;
+  - `34-panel-domkniecie` (10): okno eksportu listy, telemetria, komendy, historia stanów na karcie hulajnogi, zgody, sesje, kody SMS, zaproszenia i sesje operatorów, uprawnienia z opisem, edycja i dezaktywacja szablonu wydruku.
+- Spis ekranów: 193. Plansze przygotowało trzech agentów równolegle, a PNG wyrenderował Chrome headless. Wszystkie PNG obejrzane.
+- Poprawki koordynatora: plansza komend miała 312 hulajnóg zamiast 240 w ruchu (243 z wycofanymi) jak pozostałe; słupki pulpitu przyciemnione z betonu do `#6B6E75`, jak w raportach (beton na białym ma kontrast poniżej 3:1).
+- Luki ze schematu i rozbieżności między planszami zebrane w planie w sekcji „Do rozstrzygnięcia w ADR 0071–0076”. Najważniejsze: dwie różne definicje wykorzystania i dostępności (raport floty i karta hulajnogi), brakujące kolumny `report_runs`, źródło komendy w `scooter_commands`, `locked` i `buffered` w telemetrii, retencja telemetrii bez zadania, uprawnienia nowych list inne niż w macierzy.
+- Następny krok: sprawdzenia przed ADR-ami i ADR 0071–0076.
+
+**Sprawdzenia i ADR 0071–0076 (19 listopada 2026)**
+- **ExcelJS:** najnowsze stabilne wydanie 4.4.0 (19 października 2023), potem tylko `4.4.1-prerelease.0`. Test w katalogu tymczasowym (poza repozytorium), Node 22: import domyślny w ESM działa; `WorkbookWriter` zapisał 50 000 wierszy w 0,46 s (1,06 MB, 129 MB pamięci); formaty kwot i dat, zamrożony wiersz i autofiltr wracają po odczycie. Daty idą jako UTC, więc czas polski trzeba przeliczyć przed zapisem. `npm audit`: `uuid < 11.1.1` (v3, v5, v6 z buforem), a ExcelJS używa tylko `v4`.
+- **Gotenberg 9.5.1 (Chromium) na żywo:** A4 poziomo przez `@page`, tabela 120 wierszy na 5 stronach w 0,2 s, powtarzany `thead`, stopka „Strona 2 z 5” z klas `pageNumber` i `totalPages` w `footer.html`, polskie znaki i Inter; stopka ma osobny dokument i układ trzeba w niej zbudować od nowa.
+- **Kod:**
+  - `online` zmienia tylko wiadomość `status` (`setConnection`), a partie telemetrii nie ruszają `status` ani `online`, więc wyzwalacz historii stanów nie zadziała przy każdej partii; `setConnection` zapisuje też powtórzony stan, więc wyzwalacz porównuje starą i nową wartość;
+  - `sp_wallet_post` i `sp_issue_receipt` stemplują `now()`, a księga i paragony są tylko do dopisywania, więc generator historii nie może iść przez procedury (ADR 0075);
+  - seed wstawia cennik z `valid_from = now()`;
+  - `sp_purge_telemetry` nie ma zadania, które by ją wołało;
+  - panel pobiera pliki przez `fetch` i `saveBlob`.
+- **ADR-y** (proponowane, do akceptacji autora): 0071 moduł raportów, 0072 wykresy w panelu i w PDF, 0073 eksport list do XLSX i CSV, 0074 historia stanów hulajnogi, 0075 dane historyczne do demonstracji, 0076 domknięcie macierzy operacji.
+- **Zmiany planu po ADR-ach** (sekcja w planie):
+  - generator bez procedur i bez selektywnego usuwania (zmiana odpowiedzi na pytanie 12);
+  - raport stref bez przychodu;
+  - jedna definicja wykorzystania i dostępności;
+  - eksport list jako `POST` z etykietami z panelu;
+  - kolumny `locked` i `buffered` oraz retencja telemetrii w zakresie.
+- **Akceptacja:** autor przyjął ADR 0071–0076 i zmiany planu po ADR-ach bez uwag (19 listopada 2026). Następny krok: implementacja według kolejności kroków w planie (krok 4: migracja 0013 i generator).

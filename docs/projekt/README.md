@@ -15,7 +15,7 @@ Uwagi do eksportu:
 - Plansze z katalogu `00-eksploracja` używały krojów Space Grotesk, JetBrains Mono, Bricolage Grotesque i DM Sans; na zrzutach zastąpiono je krojem systemowym. Obecny kierunek używa tylko Intera.
 - Liczby w makietach (np. 87%, 2,4 km, nazwiska w panelu) są przykładowe.
 
-Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **172**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
+Ekrany aplikacji i panelu (bez eksploracji, ikon i diagramów): **193**. Do wymagania 14 (minimum 50 widoków) zob. `../wymagania-uczelni.md`.
 
 ## Eksploracja kierunku (archiwum)
 
@@ -540,3 +540,43 @@ Ustalenia z plansz:
 - Paragon PDF: przycisk u dołu ekranu, zadanie trwa po wyjściu z ekranu, aplikacja czeka na `document.ready` (odpytywanie co [2] s, błąd po [30] s), wersja web otwiera PDF w nowej karcie. „Pobierz moje dane”: limit 24 h od zlecenia (nieudane się nie liczy), plik ważny 7 dni, drugie zlecenie daje `DATA_EXPORT_LIMIT`.
 
 Implementacja (19 listopada 2026) odchodzi od plansz w kilku miejscach. Strona: sekcja stref bez grafiki (rysunek ozdobny), sekcja aplikacji bez makiety telefonu, aktualność bez grafiki na szarym tle, lista aktualności na wspólnym wzorcu, `/h/{numer}` na telefonie z renderem nad numerem i bez „Jak ruszyć”, a 404 spoza tras ma stopkę bez danych firmy. Aplikacja: ikony zasad z planszy panelu zamiast `konto-zasady`, wstęp Pomocy między zgłoszeniami a FAQ, komunikat `mobile.notice` niewyświetlany, przycisk paragonu w stopce ekranu bez gradientu, karty błędu i wygaśnięcia eksportu bez plansz, a wersja web przy zablokowanym oknie pokazuje arkusz z „Otwórz”. Powiadomienie o gotowym eksporcie otwiera `/profil/moje-dane`. Pełna lista: [dziennik, iteracja 7](../dziennik.md#iteracja-7-implementacja-19-listopada-2026).
+
+## Panel operatora: raporty, pulpit i domknięcie (iteracja 8)
+
+Plansze według odpowiedzi autora do [planu iteracji 8](../iteracje/iteracja-08-raporty-domkniecie-panelu.md) (19 listopada 2026), w nawigacji z `29-panel-wydruki` z nową pozycją „Raporty” w Analizie (zakładki Raporty, Historia, Definicje). Nowe listy są zakładkami obszarów domenowych (D7): Flota (Hulajnogi, Telemetria, Komendy), Użytkownicy (Klienci, Zgody, Sesje, Kody SMS), Operatorzy i role (Operatorzy, Zaproszenia, Sesje, Role, Uprawnienia, Dziennik audytu). `33-panel-pulpit` zastępuje `13-panel/admin-pulpit` i `27-panel-serwis/pulpit-uwaga`; okno eksportu zastępuje „Eksportuj XLSX ▾” z `17-panel-wzorce` i `21-panel-przejazdy`.
+
+| Ekran | Podgląd | Kod | Rozmiar |
+|---|---|---|---|
+| Katalog raportów | [PNG](ekrany/32-panel-raporty/raporty-katalog.png) | [HTML](ekrany/32-panel-raporty/raporty-katalog.html) | 1440×900 |
+| Raport: przychody z podglądem | [PNG](ekrany/32-panel-raporty/raport-przychody.png) | [HTML](ekrany/32-panel-raporty/raport-przychody.html) | 1440×900 |
+| Raport: przejazdy według stref i godzin | [PNG](ekrany/32-panel-raporty/raport-strefy-godziny.png) | [HTML](ekrany/32-panel-raporty/raport-strefy-godziny.html) | 1440×900 |
+| Raport: stany podglądu | [PNG](ekrany/32-panel-raporty/raport-stany.png) | [HTML](ekrany/32-panel-raporty/raport-stany.html) | 1440×900 |
+| Eksport raportu ze stanami | [PNG](ekrany/32-panel-raporty/raport-eksport.png) | [HTML](ekrany/32-panel-raporty/raport-eksport.html) | 1440×900 |
+| Historia uruchomień | [PNG](ekrany/32-panel-raporty/raporty-historia.png) | [HTML](ekrany/32-panel-raporty/raporty-historia.html) | 1440×900 |
+| Definicja raportu | [PNG](ekrany/32-panel-raporty/raport-definicja.png) | [HTML](ekrany/32-panel-raporty/raport-definicja.html) | 1440×900 |
+| PDF raportu (A4 pionowo i poziomo) | [PNG](ekrany/32-panel-raporty/raport-pdf.png) | [HTML](ekrany/32-panel-raporty/raport-pdf.html) | 1440×900 |
+| Pulpit: Administrator | [PNG](ekrany/33-panel-pulpit/pulpit-administrator.png) | [HTML](ekrany/33-panel-pulpit/pulpit-administrator.html) | 1440×900 |
+| Pulpit: Serwisant | [PNG](ekrany/33-panel-pulpit/pulpit-serwisant.png) | [HTML](ekrany/33-panel-pulpit/pulpit-serwisant.html) | 1440×900 |
+| Pulpit: Redaktor | [PNG](ekrany/33-panel-pulpit/pulpit-redaktor.png) | [HTML](ekrany/33-panel-pulpit/pulpit-redaktor.html) | 1440×900 |
+| Eksport listy (XLSX, CSV) | [PNG](ekrany/34-panel-domkniecie/lista-eksport.png) | [HTML](ekrany/34-panel-domkniecie/lista-eksport.html) | 1440×900 |
+| Flota: telemetria | [PNG](ekrany/34-panel-domkniecie/flota-telemetria.png) | [HTML](ekrany/34-panel-domkniecie/flota-telemetria.html) | 1440×900 |
+| Flota: komendy | [PNG](ekrany/34-panel-domkniecie/flota-komendy.png) | [HTML](ekrany/34-panel-domkniecie/flota-komendy.html) | 1440×900 |
+| Karta hulajnogi: historia stanów | [PNG](ekrany/34-panel-domkniecie/hulajnoga-historia-stanow.png) | [HTML](ekrany/34-panel-domkniecie/hulajnoga-historia-stanow.html) | 1440×900 |
+| Użytkownicy: zgody z wycofaniem | [PNG](ekrany/34-panel-domkniecie/klienci-zgody.png) | [HTML](ekrany/34-panel-domkniecie/klienci-zgody.html) | 1440×900 |
+| Użytkownicy: sesje z unieważnieniem | [PNG](ekrany/34-panel-domkniecie/klienci-sesje.png) | [HTML](ekrany/34-panel-domkniecie/klienci-sesje.html) | 1440×900 |
+| Użytkownicy: kody SMS | [PNG](ekrany/34-panel-domkniecie/klienci-kody-sms.png) | [HTML](ekrany/34-panel-domkniecie/klienci-kody-sms.html) | 1440×900 |
+| Operatorzy: zaproszenia i sesje | [PNG](ekrany/34-panel-domkniecie/operatorzy-sesje-zaproszenia.png) | [HTML](ekrany/34-panel-domkniecie/operatorzy-sesje-zaproszenia.html) | 1440×900 |
+| Role: uprawnienia z opisem | [PNG](ekrany/34-panel-domkniecie/role-uprawnienia.png) | [HTML](ekrany/34-panel-domkniecie/role-uprawnienia.html) | 1440×900 |
+| Wydruki: edycja i dezaktywacja szablonu | [PNG](ekrany/34-panel-domkniecie/wydruki-szablon-edycja.png) | [HTML](ekrany/34-panel-domkniecie/wydruki-szablon-edycja.html) | 1440×900 |
+
+Ustalenia z plansz:
+
+- Wykresy: słupki w szarości `#6B6E75` (kontrast 5,1:1), poprzedni okres w betonie, kobalt tylko dla bieżącej albo zaznaczonej wartości (w PDF zamkniętego okresu bez kobaltu), zmiana wobec poprzedniego okresu strzałką w kolorze tekstu, bez zieleni i czerwieni; przy każdym wykresie „Pokaż jako tabelę”. Mapa ciepła ma 5 stałych progów i pokazuje średnią na wystąpienie dnia tygodnia.
+- Raporty: dane na chwilę zapytania w nagłówku, porównanie z poprzednim miesiącem kalendarzowym albo okresem tej samej długości, granulacja do 62 dni dzień, do 182 tydzień, dalej miesiąc; limit podglądu [15] s, renderu [60] s, PDF skraca tabele do [50] wierszy; pustego raportu nie da się eksportować; „Uruchom ponownie z tymi parametrami” liczy ten sam okres z danymi na teraz.
+- Pulpit: katalog 7 kafelków w stałej kolejności, rola widzi pierwsze 5 dozwolonych; Serwisant zamiast wykresu godzin ma „Twoje zadania”, Redaktor grupę „Treści” (zaplanowane, wygasające, szkice, nieużywane grafiki).
+- Eksport listy: limit 50 000 wierszy sprawdza panel i API (`LIST_EXPORT_LIMIT`), ostrzeżenie o danych osobowych tylko przy kolumnach oznaczonych w definicji zasobu, bez `users.read` kolumna klienta ma wartość „Klient”; CSV w UTF-8 z BOM, średnik i przecinek dziesiętny.
+- Historia stanów: brak łączności przykrywa stan, rezerwacja w jasnym kobalcie, niska bateria nie jest stanem; przyczyna przedziału (przejazd, zadanie, zgłoszenie, operator, brak telemetrii) z widoku albo z nowej kolumny (ADR 0074).
+- Telemetria: hulajnoga i zakres czasu wymagane (najwyżej [24 h]), stronicowanie kursorem bez liczby wszystkich odczytów, przerwy z `lag()`; tabela `telemetry` nie zapisuje `locked` ani `buffered` z kontraktu MQTT.
+- Sesje klientów i operatorów: jeden wiersz na rodzinę tokenów; unieważnienie wylogowuje najpóźniej po 15 min (token dostępu). Kody SMS bez kodu i z numerem z trzema ostatnimi cyframi. Wycofanie zgody tylko marketingowej, z powodem w dzienniku audytu.
+- Szablon wydruku: domyślnego szablonu z aktywną wersją nie da się dezaktywować (najpierw inny domyślny), nieaktywny jest wyszarzony z „Aktywuj ponownie”.
+- Luki w schemacie i definicje do rozstrzygnięcia w ADR 0071–0076 zebrane w [planie iteracji 8](../iteracje/iteracja-08-raporty-domkniecie-panelu.md#do-rozstrzygnięcia-w-adr-00710076-z-makiet-19-listopada-2026).
