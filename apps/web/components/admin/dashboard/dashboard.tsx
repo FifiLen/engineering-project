@@ -1,30 +1,28 @@
 'use client';
 
 /**
- * Pulpit „Wymaga uwagi” (D1 iteracji 6, makieta 27-panel-serwis/pulpit-uwaga): cztery grupy z liczbą i najwyżej
- * czterema pozycjami z `GET /admin/dashboard/attention`. Grupa jest w odpowiedzi tylko z uprawnieniem listy docelowej
- * (ADR 0055), a odnośnik prowadzi do tej listy z tym samym filtrem. Odświeżanie przez Socket.IO tam, gdzie są
- * zdarzenia (przejazdy, flota, zgłoszenia), a płatności co minutę.
+ * Pulpit (plansze 33-panel-pulpit): kafelki, „Przejazdy dziś według godzin”, „Stan floty” i „Twoje zadania”
+ * z `GET /admin/dashboard/summary` (iteracja 8, `summary.tsx`) oraz „Wymaga uwagi” (D1 iteracji 6): cztery grupy
+ * z liczbą i najwyżej czterema pozycjami z `GET /admin/dashboard/attention`. Grupa jest w odpowiedzi tylko
+ * z uprawnieniem listy docelowej (ADR 0055), a odnośnik prowadzi do tej listy z tym samym filtrem. Redaktor zamiast
+ * „Wymaga uwagi” ma kafelki i grupę „Treści” z tego samego podsumowania. Odświeżanie co `DASHBOARD_REFRESH_MS`
+ * i po zdarzeniach Socket.IO (przejazdy, flota, zgłoszenia, zadania), zbiorczo najwyżej co 5 s.
  */
 import {
-  DASHBOARD_GROUP_ITEMS,
+  DASHBOARD_REFRESH_MS,
   formatPln,
-  type ContentBlockListItem,
-  type FaqItemView,
-  type ListResponse,
-  type MediaListItem,
-  type NewsListItem,
   type AttentionCriticalBattery,
   type AttentionFailedPayment,
   type AttentionOfflineRental,
   type AttentionUrgentTicket,
   type DashboardAttention,
+  type DashboardSummary,
 } from '@hulajnogi/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, errorMessage } from '../../../lib/api';
-import { formatDateTime, startOfToday, t } from '../../../lib/i18n';
+import { startOfToday, t } from '../../../lib/i18n';
 import { useStaffFeed } from '../../../lib/realtime';
 import { useSession } from '../../../lib/session';
 import { Banner } from '../access/common';
@@ -34,18 +32,21 @@ import {
   CalendarIcon,
   CardIcon,
   ChevronRightIcon,
+  ClockIcon,
   ImageIcon,
   PencilIcon,
+  PlusIcon,
   SearchIcon,
   ServiceIcon,
   WifiOffIcon,
 } from '../icons';
 import { ageLabel, categoryLabel, taskNumber, ticketNumber, TICKETS_BASE } from '../service/service-format';
+import { ContentGroups, ContentTiles, FleetStateCard, MyTasksCard, RidesByHourCard, SummaryTiles } from './summary';
 
 /** Zdarzenia przychodzą często (pozycje floty co kilka sekund), więc pulpit odświeża się najwyżej co 5 s. */
 const EVENT_REFRESH_MS = 5_000;
-/** Nieudane płatności nie mają zdarzenia w panelu: odświeżenie co minutę. */
-const POLL_MS = 60_000;
+/** Odświeżenie bez zdarzeń (sprzedaż, nieudane płatności, treści): co minutę (pytanie 9). */
+const POLL_MS = DASHBOARD_REFRESH_MS;
 
 const today = new Intl.DateTimeFormat('pl', {
   weekday: 'long',
@@ -57,9 +58,10 @@ const today = new Intl.DateTimeFormat('pl', {
   timeZone: 'Europe/Warsaw',
 });
 
-function useAttention() {
+function useDashboard() {
   const { can } = useSession();
   const [data, setData] = useState<DashboardAttention | null>(null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,19 +77,22 @@ function useAttention() {
     rentals: can('rentals.read') ? schedule : undefined,
     fleet: can('scooters.read') ? schedule : undefined,
     tickets: can('tickets.read') ? schedule : undefined,
+    service: can('service.read') ? schedule : undefined,
     reconnected: () => setRevision((n) => n + 1),
   });
 
   useEffect(() => {
     const controller = new AbortController();
+    const fail = (e: unknown) => {
+      if ((e as Error).name !== 'AbortError') setError(errorMessage(e));
+    };
     api<DashboardAttention>('/admin/dashboard/attention', { signal: controller.signal })
       .then((next) => {
         setData(next);
         setError(null);
       })
-      .catch((e: unknown) => {
-        if ((e as Error).name !== 'AbortError') setError(errorMessage(e));
-      });
+      .catch(fail);
+    api<DashboardSummary>('/admin/dashboard/summary', { signal: controller.signal }).then(setSummary).catch(fail);
     return () => controller.abort();
   }, [revision]);
 
@@ -99,7 +104,7 @@ function useAttention() {
     };
   }, []);
 
-  return { data, error, live };
+  return { data, summary, error, live };
 }
 
 /** Bieżąca chwila odświeżana co 30 s (czas bez sygnału, wiek zgłoszenia). */
@@ -118,15 +123,17 @@ const since = (iso: string | null, now: number) =>
 export function DashboardPage() {
   const router = useRouter();
   const { can } = useSession();
-  const { data, error, live } = useAttention();
+  const { data, summary, error, live } = useDashboard();
   const now = useMinuteClock();
   const [query, setQuery] = useState('');
 
   // Pulpit tylko z `dashboard.read`; bez niego panel otwiera mapę floty jak przed iteracją 6.
   const allowed = can('dashboard.read');
-  // Redaktor nie ma uprawnień list „Wymaga uwagi” (ADR 0055), więc pulpit pokazuje grupę „Treści” (ADR 0062).
+  // Redaktor nie ma uprawnień list „Wymaga uwagi” (ADR 0055), więc pulpit pokazuje kafelki i grupę „Treści”
+  // (ADR 0062); API zwraca je tylko roli bez kafelków operacyjnych.
   const contentOnly =
-    can('content.read') && !['rentals.read', 'scooters.read', 'tickets.read', 'payments.read'].some((p) => can(p));
+    summary?.content != null ||
+    (can('content.read') && !['rentals.read', 'scooters.read', 'tickets.read', 'payments.read'].some((p) => can(p)));
   useEffect(() => {
     if (!allowed) router.replace('/admin/mapa');
   }, [allowed, router]);
@@ -138,10 +145,30 @@ export function DashboardPage() {
   const total = groups.reduce((sum, g) => sum + g.count, 0);
 
   // Wyszukiwarka z makiety: numer przejazdu, hulajnogi albo dane klienta prowadzą do listy z wyszukiwaniem.
+  // Wyszukiwarka tylko po danych roli (plansze 33-panel-pulpit): Redaktor szuka treści, Serwisant zgłoszeń i zadań.
+  const searchLabel = contentOnly
+    ? t('dashboard.searchContent')
+    : !can('rentals.read') && can('service.read')
+      ? t('dashboard.searchService')
+      : t('dashboard.search');
   const search = (e: FormEvent) => {
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
+    if (contentOnly) {
+      router.push(`/admin/tresci/aktualnosci?q=${encodeURIComponent(q)}`);
+      return;
+    }
+    const ticket = /^z-?(\d+)$/i.exec(q);
+    const task = /^s-?(\d+)$/i.exec(q);
+    if (ticket && can('tickets.read')) {
+      router.push(`${TICKETS_BASE}?q=${ticket[1]}`);
+      return;
+    }
+    if (task && can('service.read')) {
+      router.push(`/admin/zadania?q=${task[1]}`);
+      return;
+    }
     const rental = /^r-?(\d+)$/i.exec(q);
     const scooter = /^#?(\d{1,4})$/.exec(q);
     if (rental && can('rentals.read')) router.push(`/admin/przejazdy?q=${rental[1]}`);
@@ -155,18 +182,19 @@ export function DashboardPage() {
       <div className="page-head">
         <div>
           <h1>{t('dashboard.title')}</h1>
-          <div className="sub">{capitalize(today.format(new Date(now)))}</div>
+          <div className="sub">{t('dashboard.subtitle', { date: capitalize(today.format(new Date(now))) })}</div>
         </div>
         <div className="actions">
+          {contentOnly && can('content.write') && (
+            <Link className="btn primary" href="/admin/tresci/aktualnosci/nowy">
+              <PlusIcon />
+              {t('dashboard.newNews')}
+            </Link>
+          )}
           <form className="search" role="search" onSubmit={search}>
             <SearchIcon />
-            <span className="visually-hidden">{t('dashboard.search')}</span>
-            <input
-              type="search"
-              value={query}
-              placeholder={t('dashboard.search')}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+            <span className="visually-hidden">{searchLabel}</span>
+            <input type="search" value={query} placeholder={searchLabel} onChange={(e) => setQuery(e.target.value)} />
           </form>
           <span className="chip">
             <span className={live ? 'live' : 'live off'}>{t('dashboard.live')}</span>
@@ -175,9 +203,35 @@ export function DashboardPage() {
       </div>
 
       {contentOnly ? (
-        <ContentDashboard />
+        summary?.content ? (
+          <>
+            <ContentTiles content={summary.content} />
+            <ContentGroups
+              content={summary.content}
+              now={now}
+              icons={{
+                calendar: <CalendarIcon size={18} />,
+                clock: <ClockIcon size={18} />,
+                pencil: <PencilIcon size={18} />,
+                image: <ImageIcon size={18} />,
+              }}
+            />
+          </>
+        ) : (
+          error && <Banner kind="danger">{error}</Banner>
+        )
       ) : (
-        <AttentionGroups data={data} error={error} now={now} groups={groups} total={total} />
+        <>
+          {summary && <SummaryTiles tiles={summary.tiles} />}
+          {summary && (summary.ridesByHour || summary.fleetState || summary.myTasks) && (
+            <div className={summary.myTasks ? 'dash-row service' : 'dash-row'}>
+              {summary.ridesByHour && <RidesByHourCard data={summary.ridesByHour} asOf={summary.asOf} />}
+              {summary.fleetState && <FleetStateCard data={summary.fleetState} />}
+              {summary.myTasks && <MyTasksCard data={summary.myTasks} now={now} />}
+            </div>
+          )}
+          <AttentionGroups data={data} error={error} now={now} groups={groups} total={total} />
+        </>
       )}
     </>
   );
@@ -205,7 +259,7 @@ function AttentionGroups({
 
       {error && <Banner kind="danger">{error}</Banner>}
 
-      <div className="att-grid" aria-busy={!data}>
+      <div className={groups.length >= 3 ? `att-grid cols-${groups.length}` : 'att-grid'} aria-busy={!data}>
         {data?.offlineInRental && <OfflineGroup group={data.offlineInRental} now={now} />}
         {data?.criticalBattery && <BatteryGroup group={data.criticalBattery} pct={data.criticalBatteryPct} />}
         {data?.urgentTickets && <TicketsGroup group={data.urgentTickets} now={now} />}
@@ -418,127 +472,5 @@ function PaymentsGroup({ group }: { group: NonNullable<DashboardAttention['faile
         />
       ))}
     </Group>
-  );
-}
-
-interface ContentSummary {
-  blockDrafts: ListResponse<ContentBlockListItem>;
-  faqDrafts: ListResponse<FaqItemView>;
-  newsDrafts: ListResponse<NewsListItem>;
-  scheduled: ListResponse<NewsListItem>;
-  unusedMedia: ListResponse<MediaListItem>;
-}
-
-const firstPage = <T,>(path: string) => api<ListResponse<T>>(`${path}${path.includes('?') ? '&' : '?'}pageSize=10`);
-
-/**
- * Grupa „Treści” na pulpicie Redaktora (ADR 0062): szkice (sekcje, pytania FAQ, aktualności), zaplanowane aktualności
- * i grafiki bez użycia. Liczby z zasobów list modułu Treści (`content.read`); API nie ma osobnego punktu pulpitu.
- */
-function ContentDashboard() {
-  const [data, setData] = useState<ContentSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    Promise.all([
-      firstPage<ContentBlockListItem>('/admin/content-blocks?status=DRAFT'),
-      firstPage<FaqItemView>('/admin/faq-items?status=DRAFT'),
-      firstPage<NewsListItem>('/admin/news?state=DRAFT'),
-      firstPage<NewsListItem>('/admin/news?state=SCHEDULED&sort=publishFrom'),
-      firstPage<MediaListItem>('/admin/media?usages.lte=0'),
-    ])
-      .then(([blockDrafts, faqDrafts, newsDrafts, scheduled, unusedMedia]) =>
-        setData({ blockDrafts, faqDrafts, newsDrafts, scheduled, unusedMedia }),
-      )
-      .catch((e: unknown) => setError(errorMessage(e)));
-  }, []);
-
-  const drafts = data ? data.blockDrafts.total + data.faqDrafts.total + data.newsDrafts.total : 0;
-  const total = data ? drafts + data.scheduled.total + data.unusedMedia.total : 0;
-  return (
-    <>
-      <div className="att-head">
-        <h2>{t('dashboard.content.title')}</h2>
-        {data && <span className="small">{t('dashboard.content.summary', { count: total })}</span>}
-      </div>
-      {error && <Banner kind="danger">{error}</Banner>}
-      <div className="att-grid" aria-busy={!data}>
-        {data && (
-          <>
-            <Group
-              icon={<PencilIcon size={18} />}
-              tone="warn"
-              title={t('dashboard.content.drafts')}
-              count={drafts}
-              note={t('dashboard.content.draftsNote')}
-              link={{ href: '/admin/tresci/bloki', label: t('dashboard.content.draftsLink') }}
-            >
-              {data.blockDrafts.items.slice(0, 2).map((b) => (
-                <Item
-                  key={b.id}
-                  href={`/admin/tresci/bloki/${b.key}`}
-                  title={b.title ?? b.key}
-                  detail={b.isHeader ? b.key : t('dashboard.content.element', { key: b.key, position: b.position })}
-                  value={t('dashboard.content.block')}
-                />
-              ))}
-              {data.faqDrafts.items.slice(0, 1).map((f) => (
-                <Item
-                  key={f.id}
-                  href="/admin/tresci/faq"
-                  title={f.question}
-                  detail={f.categoryName}
-                  value={t('dashboard.content.faq')}
-                />
-              ))}
-              {data.newsDrafts.items.slice(0, 1).map((n) => (
-                <Item
-                  key={n.id}
-                  href="/admin/tresci/aktualnosci"
-                  title={n.title}
-                  detail={n.slug}
-                  value={t('dashboard.content.news')}
-                />
-              ))}
-            </Group>
-            <Group
-              icon={<CalendarIcon size={18} />}
-              tone="warn"
-              title={t('dashboard.content.scheduled')}
-              count={data.scheduled.total}
-              note={t('dashboard.content.scheduledNote')}
-              link={{ href: '/admin/tresci/aktualnosci?state=SCHEDULED', label: t('dashboard.content.scheduledLink') }}
-            >
-              {data.scheduled.items.slice(0, DASHBOARD_GROUP_ITEMS).map((n) => (
-                <Item
-                  key={n.id}
-                  href="/admin/tresci/aktualnosci?state=SCHEDULED"
-                  title={n.title}
-                  detail={n.slug}
-                  value={n.publishFrom ? formatDateTime(n.publishFrom) : t('common.none')}
-                />
-              ))}
-            </Group>
-            <Group
-              icon={<ImageIcon size={18} />}
-              tone="warn"
-              title={t('dashboard.content.unusedMedia')}
-              count={data.unusedMedia.total}
-              note={t('dashboard.content.unusedMediaNote')}
-              link={{ href: '/admin/tresci/media', label: t('dashboard.content.unusedMediaLink') }}
-            >
-              {data.unusedMedia.items.slice(0, DASHBOARD_GROUP_ITEMS).map((m) => (
-                <Item
-                  key={m.id}
-                  href="/admin/tresci/media"
-                  title={m.name}
-                  detail={m.key}
-                  value={t('dashboard.content.size', { width: m.width, height: m.height })}
-                />
-              ))}
-            </Group>
-          </>
-        )}
-      </div>
-    </>
   );
 }

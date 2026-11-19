@@ -31,7 +31,8 @@
       "simulator": "Symulator",
       "newTickets": "{count, plural, one {# nowe zgłoszenie} few {# nowe zgłoszenia} other {# nowych zgłoszeń}}",
       "analysis": "Analiza",
-      "prints": "Wydruki"
+      "prints": "Wydruki",
+      "reports": "Raporty"
     },
     "auth": {
       "sideTitle": "Panel operatora floty",
@@ -1843,6 +1844,101 @@
         "builtIn": {
           "true": "Tak",
           "false": "Nie"
+        }
+      }
+    },
+    "report-runs": {
+      "title": "Raporty",
+      "searchPlaceholder": "Identyfikator uruchomienia",
+      "new": "",
+      "emptyTitle": "Nie ma jeszcze uruchomień raportów",
+      "emptyBody": "Uruchomienie powstaje po „Eksportuj” na stronie raportu.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "shortId": "Identyfikator",
+        "reportCode": "Raport",
+        "reportName": "Raport",
+        "format": "Format",
+        "params": "Parametry",
+        "status": "Stan zadania",
+        "state": "Stan",
+        "requestedBy": "Zlecił",
+        "requestedByName": "Zlecił",
+        "requestedByRoles": "Role zlecającego",
+        "fileId": "",
+        "fileSizeBytes": "Rozmiar pliku",
+        "rowCount": "Wiersze",
+        "pageCount": "Strony",
+        "dataAsOf": "Dane na",
+        "errorCode": "Kod błędu",
+        "retryOf": "Ponowienie",
+        "createdAt": "Utworzono",
+        "startedAt": "Rozpoczęto",
+        "finishedAt": "Zakończono",
+        "durationMs": "Czas generowania",
+        "fileDeletedAt": "Plik usunięty"
+      },
+      "values": {
+        "reportCode": {
+          "revenue": "Przychody",
+          "fleet_usage": "Wykorzystanie floty",
+          "rides_by_zone": "Przejazdy według stref i godzin",
+          "reliability": "Awaryjność",
+          "users": "Użytkownicy",
+          "wallet": "Portfel"
+        },
+        "format": {
+          "PDF": "PDF",
+          "XLSX": "XLSX"
+        },
+        "status": {
+          "QUEUED": "W kolejce",
+          "RUNNING": "W toku",
+          "SUCCEEDED": "Gotowy",
+          "FAILED": "Błąd"
+        },
+        "state": {
+          "QUEUED": "W kolejce",
+          "RUNNING": "W toku",
+          "SUCCEEDED": "Gotowy",
+          "FAILED": "Błąd",
+          "FILE_DELETED": "Plik usunięty"
+        }
+      }
+    },
+    "report-definitions": {
+      "title": "Definicje raportów",
+      "searchPlaceholder": "Nazwa albo opis raportu",
+      "new": "",
+      "emptyTitle": "Brak definicji raportów",
+      "emptyBody": "Definicje wstawia seed z katalogu raportów w kodzie (pnpm db:seed).",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "code": "Kod",
+        "name": "Nazwa",
+        "description": "Opis",
+        "permissionCode": "Uprawnienie",
+        "formats": "Formaty",
+        "active": "Aktywny",
+        "sortOrder": "Kolejność",
+        "permissionRoles": "Role z uprawnieniem",
+        "updatedBy": "Zmienił",
+        "updatedByName": "Zmienił",
+        "updatedAt": "Zmieniono",
+        "version": "Wersja",
+        "runs": "Uruchomienia",
+        "lastRunId": "Ostatnie uruchomienie",
+        "lastRunAt": "Ostatnio uruchomiony",
+        "lastRunFormat": "Format ostatniego uruchomienia",
+        "lastRunState": "Stan ostatniego uruchomienia"
+      },
+      "values": {
+        "active": {
+          "true": "Aktywny",
+          "false": "Wyłączony"
         }
       }
     },
@@ -3823,9 +3919,80 @@
     "search": "Hulajnoga, przejazd albo klient",
     "live": "Na żywo",
     "attention": "Wymaga uwagi",
-    "summary": "{count, plural, one {# sprawa} few {# sprawy} other {# spraw}} w {groups, plural, one {# grupie} other {# grupach}} · odświeża się samo",
+    "summary": "{count, plural, one {# sprawa} few {# sprawy} other {# spraw}} w {groups, plural, one {# grupie} other {# grupach}}",
     "nothing": "Nic nie czeka",
     "noGroups": "Żadna grupa „Wymaga uwagi” nie jest dostępna dla Twojej roli.",
+    "subtitle": "{date} · odświeża się co 60 s i po zdarzeniach na żywo",
+    "searchService": "Hulajnoga, zgłoszenie albo zadanie",
+    "searchContent": "Aktualność, blok albo grafika",
+    "newNews": "Nowa aktualność",
+    "tiles": {
+      "activeRides": "Aktywne przejazdy",
+      "availableScooters": "Dostępne hulajnogi",
+      "lowBattery": "Niska bateria",
+      "salesToday": "Sprzedaż dziś",
+      "newTickets": "Nowe zgłoszenia",
+      "tasksInProgress": "Zadania w toku",
+      "partsBelowMinimum": "Części poniżej minimum",
+      "activeRidesNote": "{count, plural, =0 {bez startów w ostatniej godzinie} other {+# w ciągu ostatniej godziny}}",
+      "ofTotal": "z {total}",
+      "availableNote": "{share} floty gotowe do jazdy",
+      "lowBatteryCritical": "{count, plural, one {# krytyczna} few {# krytyczne} other {# krytycznych}}, poniżej {pct}%",
+      "lowBatteryNote": "poniżej {pct}%, żadna krytyczna",
+      "salesNote": "brutto z {count, plural, one {# paragonu} other {# paragonów}}",
+      "ticketsNote": "{count, plural, =0 {bez pilnych nieprzypisanych} one {# pilne, nieprzypisane} other {# pilne, nieprzypisane}}",
+      "tasksNote": "{mine, plural, =0 {brak Twoich} other {# Twoje}} · {overdue, plural, =0 {wszystkie w terminie} other {# po terminie}}",
+      "partsNone": "wszystkie powyżej minimum"
+    },
+    "rides": {
+      "title": "Przejazdy dziś według godzin",
+      "soFar": "{count, plural, one {start} few {starty} other {startów}} do {time} · średnio",
+      "avgSoFar": "o tej porze",
+      "today": "Dziś",
+      "currentHour": "Bieżąca godzina, do {time}",
+      "average": "Średnia z 4 ostatnich {dow, select, 1 {poniedziałków} 2 {wtorków} 3 {śród} 4 {czwartków} 5 {piątków} 6 {sobót} other {niedziel}}",
+      "hour": "Godzina",
+      "hourTitle": "{hour}:00–{hour}:59"
+    },
+    "fleet": {
+      "title": "Stan floty",
+      "inService": "w ruchu",
+      "retired": "{count, plural, =0 {wszystkie w ruchu} one {bez # wyłączonej} other {bez # wyłączonych}}",
+      "openMap": "Otwórz mapę floty",
+      "segments": {
+        "AVAILABLE": "Dostępne",
+        "IN_USE_OR_RESERVED": "W użyciu i rezerwacje",
+        "LOW_BATTERY": "Niska bateria",
+        "MAINTENANCE": "Serwis",
+        "OFFLINE": "Bez łączności"
+      }
+    },
+    "myTasks": {
+      "title": "Twoje zadania",
+      "summary": "z {total} w toku · {overdue, plural, =0 {wszystkie w terminie} other {# po terminie}}",
+      "number": "Numer",
+      "type": "Rodzaj",
+      "scooter": "Hulajnoga",
+      "status": "Status",
+      "due": "Termin",
+      "noDue": "bez terminu",
+      "today": "dziś, {time}",
+      "tomorrow": "jutro, {time}",
+      "date": "{date}, {time}",
+      "empty": "Nie masz przypisanych zadań w toku.",
+      "unassigned": "Nieprzypisane: {count} · przypisz się w Zadaniach",
+      "all": "Wszystkie zadania"
+    },
+    "contentTiles": {
+      "news": "Opublikowane aktualności",
+      "newsNote": "{scheduled, plural, one {# zaplanowana} few {# zaplanowane} other {# zaplanowanych}}, {expiring, plural, =0 {żadna nie wygasa w tym tygodniu} one {# wygasa w tym tygodniu} other {# wygasają w tym tygodniu}}",
+      "faq": "Pytania FAQ",
+      "faqNote": "w {categories, plural, one {# kategorii} other {# kategoriach}}, {unpublished, plural, =0 {wszystkie opublikowane} one {# nieopublikowane} other {# nieopublikowanych}}",
+      "blocks": "Bloki sekcji",
+      "blocksNote": "strona {web} · aplikacja {mobile} · {drafts, plural, one {# szkic} few {# szkice} other {# szkiców}}",
+      "media": "Biblioteka mediów",
+      "mediaNote": "grafiki, w tym {unused, plural, one {# nieużywana} few {# nieużywane} other {# nieużywanych}}"
+    },
     "offline": {
       "title": "Hulajnogi offline w przejeździe",
       "note": "bez sygnału w trakcie przejazdu; naliczanie trwa",
@@ -3875,22 +4042,375 @@
     },
     "content": {
       "title": "Treści",
-      "summary": "{count, plural, one {# pozycja} few {# pozycje} other {# pozycji}}",
       "drafts": "Szkice",
-      "draftsNote": "sekcje, pytania i aktualności czekające na publikację",
-      "draftsLink": "Bloki treści",
-      "element": "{key}, element {position}",
-      "block": "sekcja",
-      "faq": "FAQ",
-      "news": "aktualność",
       "scheduled": "Zaplanowane aktualności",
-      "scheduledNote": "pojawią się na stronie o czasie „od”",
-      "scheduledLink": "Aktualności",
       "unusedMedia": "Grafiki bez użycia",
-      "unusedMediaNote": "można je usunąć albo użyć w sekcji",
-      "unusedMediaLink": "Media",
-      "size": "{width} × {height}"
+      "size": "{width} × {height}",
+      "summaryGroups": "{count, plural, one {# sprawa} few {# sprawy} other {# spraw}} w 4 grupach",
+      "lastPublished": "ostatnia publikacja {when}",
+      "scheduledNote7": "publikacja w ciągu 7 dni; sprawdź treść przed startem",
+      "scheduledAll": "Wszystkie zaplanowane",
+      "expiring": "Wygasające aktualności",
+      "expiringNote": "koniec publikacji w ciągu 7 dni",
+      "expiringAll": "Wszystkie wygasające",
+      "draftsNoteOldest": "nieopublikowane zmiany treści, najstarsze pierwsze",
+      "draftsAll": "Wszystkie szkice",
+      "unusedNote": "bez bloku, aktualności i modelu; systemowe pominięte",
+      "unusedAll": "Media: nieużywane",
+      "from": "od {when}",
+      "until": "do {when}",
+      "inDays": "{count, plural, =0 {dziś} one {jutro} other {za # dni}}",
+      "ageDays": "{count, plural, =0 {dziś} one {# dzień} other {# dni}}",
+      "draftSince": "szkic od {date}",
+      "uploaded": "wgrana {date}",
+      "noName": "bez nazwy",
+      "kind": {
+        "NEWS": "aktualność",
+        "CONTENT_BLOCK": "blok sekcji",
+        "LEGAL_DOCUMENT": "dokument prawny"
+      },
+      "client": {
+        "WEB": "strona",
+        "MOBILE": "aplikacja",
+        "ADMIN": "panel"
+      }
     }
+  },
+  "reports": {
+    "title": "Raporty",
+    "subtitle": "Zestawienia z parametrami, z podglądem w panelu i eksportem do PDF albo XLSX",
+    "crumbs": "Ścieżka",
+    "tabs": {
+      "catalog": "Raporty",
+      "history": "Historia",
+      "definitions": "Definicje"
+    },
+    "dataAsOf": "Dane na",
+    "refresh": "Odśwież",
+    "exportButton": "Eksportuj",
+    "retention": "Pliki raportów usuwamy po 30 dniach; wpis w historii zostaje i można go uruchomić ponownie.",
+    "format": {
+      "money": "{value} zł",
+      "seconds": "{value} s",
+      "minutes": "{m} min",
+      "minutesSeconds": "{m} min {s} s",
+      "hours": "{value} h",
+      "meters": "{value} m",
+      "km": "{value} km",
+      "percent": "{value}%"
+    },
+    "granularity": {
+      "day": "Dzień",
+      "week": "Tydzień",
+      "month": "Miesiąc"
+    },
+    "presets": {
+      "today": "Dziś",
+      "yesterday": "Wczoraj",
+      "last_7_days": "7 dni",
+      "this_month": "Ten miesiąc",
+      "previous_month": "Poprzedni miesiąc",
+      "custom": "Własny"
+    },
+    "orientation": {
+      "portrait": "A4 pionowo",
+      "landscape": "A4 poziomo"
+    },
+    "state": {
+      "QUEUED": "W kolejce",
+      "RUNNING": "W toku",
+      "SUCCEEDED": "Gotowy",
+      "FAILED": "Błąd",
+      "FILE_DELETED": "Plik usunięty"
+    },
+    "when": {
+      "today": "dziś, {time}",
+      "yesterday": "wczoraj, {time}",
+      "date": "{date}, {time}"
+    },
+    "size": {
+      "kb": "{value} KB",
+      "mb": "{value} MB"
+    },
+    "run": {
+      "compareWith": "porównanie: {period}",
+      "noCompare": "bez porównania",
+      "filter": {
+        "zoneId": "filtr strefy",
+        "modelId": "filtr modelu",
+        "scooterId": "filtr hulajnogi"
+      }
+    },
+    "errors": {
+      "REPORT_RANGE_TOO_LONG": "Okres ma {days} dni, a raport obejmuje najwyżej {maxDays}.",
+      "REPORT_RANGE_INVALID": "Data końca okresu jest wcześniejsza niż data początku.",
+      "REPORT_RANGE_IN_FUTURE": "Okres może kończyć się najpóźniej dziś.",
+      "REPORT_PARAM_NOT_SUPPORTED": "Ten raport nie przyjmuje parametru {param}.",
+      "REPORT_INVALID_GRANULARITY": "Ta granulacja nie pasuje do długości okresu.",
+      "REPORT_EMPTY": "W wybranym okresie nie ma danych, więc pliku nie da się utworzyć.",
+      "REPORT_TIMEOUT": "Zapytanie przekroczyło limit czasu. Spróbuj ponownie, skróć okres albo wyeksportuj raport.",
+      "REPORT_RENDER_TIMEOUT": "Silnik dokumentów nie odpowiedział w 60 s. Ponów eksport z tymi samymi parametrami albo wybierz XLSX.",
+      "REPORT_RENDERER_UNAVAILABLE": "Silnik dokumentów jest niedostępny. Ponów eksport za chwilę albo wybierz XLSX.",
+      "REPORT_RENDER_FAILED": "Silnik dokumentów nie złożył pliku. Ponów eksport albo wybierz XLSX.",
+      "REPORT_FAILED": "Nie udało się utworzyć pliku. Ponów eksport z tymi samymi parametrami.",
+      "REPORT_FILE_DELETED": "Plik usunęliśmy po 30 dniach. Uruchom raport ponownie z tymi parametrami.",
+      "REPORT_RUN_NOT_READY": "Plik nie jest jeszcze gotowy.",
+      "REPORT_RUN_NOT_RETRYABLE": "Uruchomienie jeszcze trwa; ponowić można gotowe albo nieudane.",
+      "REPORT_FORMAT_NOT_ALLOWED": "Ten raport nie ma eksportu w wybranym formacie.",
+      "REPORT_NOT_FOUND": "Raport nie istnieje, jest wyłączony albo nie masz do niego uprawnienia.",
+      "REPORT_RUN_NOT_FOUND": "Nie ma takiego uruchomienia albo nie masz uprawnienia do jego raportu.",
+      "other": "Nie udało się utworzyć pliku. Ponów eksport z tymi samymi parametrami."
+    },
+    "unavailable": {
+      "title": "Raport niedostępny",
+      "body": "Raport nie istnieje, jest wyłączony albo nie masz do niego uprawnienia.",
+      "back": "Wróć do katalogu"
+    },
+    "catalog": {
+      "search": "Szukaj raportu",
+      "tiles": "kafelki",
+      "noDescription": "Bez opisu",
+      "open": "Otwórz raport",
+      "openNamed": "Otwórz raport {name}",
+      "lastRun": "Ostatnio {when} · {format}",
+      "neverRun": "Jeszcze nieuruchamiany",
+      "noMatch": "Żaden raport nie pasuje do „{query}”.",
+      "recent": "Twoje ostatnie eksporty",
+      "recentEmpty": "Nie masz jeszcze eksportów. Otwórz raport i wybierz „Eksportuj”.",
+      "allHistory": "Cała historia",
+      "retried": "Uruchomiono ponownie: {id}. Wynik pojawi się w historii.",
+      "noneTitle": "Nie masz dostępu do żadnego raportu",
+      "noneBody": "Raporty przydziela Administrator w rolach (uprawnienia reports.*). Ten widok pojawia się po wejściu z odnośnika albo gdy wszystkie Twoje raporty są wyłączone.",
+      "noneManage": "Wszystkie raporty są wyłączone. Włącz je w zakładce Definicje.",
+      "backToDashboard": "Wróć do pulpitu"
+    },
+    "params": {
+      "label": "Parametry raportu",
+      "dates": "Okres: {range}. Zmień daty",
+      "customTitle": "Własny okres",
+      "from": "Od",
+      "to": "Do (włącznie)",
+      "customHint": "Najwyżej {days} dni, doby w czasie polskim.",
+      "customInvalid": "Data końca jest wcześniejsza niż data początku.",
+      "apply": "Zastosuj",
+      "granularity": "Granulacja",
+      "compareMonth": "{month, select, 1 {Porównaj ze styczniem} 2 {Porównaj z lutym} 3 {Porównaj z marcem} 4 {Porównaj z kwietniem} 5 {Porównaj z majem} 6 {Porównaj z czerwcem} 7 {Porównaj z lipcem} 8 {Porównaj z sierpniem} 9 {Porównaj z wrześniem} 10 {Porównaj z październikiem} 11 {Porównaj z listopadem} other {Porównaj z grudniem}}",
+      "comparePrevious": "Porównaj z poprzednim",
+      "filters": {
+        "zoneId": "Strefa:",
+        "modelId": "Model:",
+        "scooterId": "Hulajnoga:"
+      },
+      "filtersAll": {
+        "zoneId": "wszystkie",
+        "modelId": "wszystkie",
+        "scooterId": "wszystkie"
+      },
+      "scooterOption": "#{number} · {model}"
+    },
+    "tile": {
+      "compare": "Zmiana {change}, poprzednio {previous}"
+    },
+    "chart": {
+      "period": "Okres",
+      "previousPeriod": "{period}, poprzedni okres",
+      "weekend": "weekend",
+      "weekFrom": "tydzień od {date}",
+      "value": "{label} {value}",
+      "rides": "{count, plural, one {# przejazd} few {# przejazdy} other {# przejazdów}}",
+      "previousValue": "{label}: {value}{change}",
+      "heatmapMeta": "średnio przejazdów na dzień",
+      "heatmapValue": "Średnio przejazdów na dzień",
+      "heatmapTitle": "{day}, {hour}:00–{hour}:59",
+      "heatmapAvg": "Średnio {value} przejazdu na dzień",
+      "heatmapNone": "Ten dzień tygodnia nie wystąpił w okresie",
+      "heatmapTotal": "Razem {rides} w {days} {isodow, select, 1 {{days, plural, one {poniedziałek} other {poniedziałki}}} 2 {{days, plural, one {wtorek} other {wtorki}}} 3 {{days, plural, one {środę} other {środy}}} 4 {{days, plural, one {czwartek} other {czwartki}}} 5 {{days, plural, one {piątek} other {piątki}}} 6 {{days, plural, one {sobotę} other {soboty}}} other {{days, plural, one {niedzielę} other {niedziele}}}}",
+      "hour": "{hour}:00",
+      "shareCategory": "Kategoria",
+      "shareValue": "Wartość",
+      "shareShare": "Udział"
+    },
+    "table": {
+      "total": "Razem",
+      "truncated": "Pokazujemy {shown} z {total} wierszy; pełne dane są w eksporcie XLSX.",
+      "empty": "Brak wierszy w tym okresie."
+    },
+    "states": {
+      "loading": "Liczę raport za {period}…",
+      "emptyTitle": "Brak danych w okresie {period}",
+      "emptyBody": {
+        "revenue": "Nie ma paragonów ani płatności w tym okresie.",
+        "fleet_usage": "Nie ma historii stanów floty ani przejazdów w tym okresie.",
+        "rides_by_zone": "Nie ma przejazdów w tym okresie.",
+        "reliability": "Nie ma zgłoszeń ani zadań serwisowych w tym okresie.",
+        "users": "Nie ma rejestracji ani aktywności klientów w tym okresie.",
+        "wallet": "Nie ma operacji w portfelach w tym okresie."
+      },
+      "earliest": "Najwcześniejsze dane w systemie są z {date}.",
+      "noData": "W systemie nie ma jeszcze danych dla tego raportu.",
+      "show": {
+        "previous_month": "Pokaż poprzedni miesiąc",
+        "this_month": "Pokaż bieżący miesiąc"
+      },
+      "emptyExport": "Eksport pustego raportu jest wyłączony.",
+      "tooLongTitle": "Okres ma {days} dni, a raport obejmuje najwyżej {maxDays}",
+      "tooLongRange": "Wybrany zakres: {range}.",
+      "tooLongHint": "Skróć okres do {maxDays} dni albo wyeksportuj go w dwóch częściach, np. {first} i {second}.",
+      "tooLongSet": "Ustaw {range}",
+      "changeDates": "Zmień daty",
+      "errorTitle": "Nie udało się przygotować podglądu",
+      "timeoutBody": "Zapytanie przekroczyło limit czasu podglądu ({seconds} s). Spróbuj ponownie, skróć okres albo wyeksportuj raport: eksport w tle ma dłuższy limit.",
+      "errorCode": "Kod błędu: {code}",
+      "retry": "Spróbuj ponownie"
+    },
+    "export": {
+      "title": "Eksportuj raport {name}",
+      "lead": "Plik powstanie w tle z danymi policzonymi od nowa. Możesz zamknąć okno i pracować dalej.",
+      "format": "Format",
+      "formats": {
+        "PDF": "PDF do druku i przesłania",
+        "XLSX": "XLSX do dalszej analizy"
+      },
+      "pdfHint": "{orientation}: kafelki, wykresy i tabele skrócone do 50 pierwszych wierszy z dopiskiem, że pełne dane są w XLSX.",
+      "xlsxHint": "Arkusz na każdą tabelę ({sheets}) i arkusz „Parametry”; kwoty jako liczby w złotych, daty jako daty.",
+      "params": {
+        "title": "Parametry w pliku",
+        "period": "Okres",
+        "comparison": "Porównanie",
+        "noComparison": "bez porównania",
+        "granularity": "Granulacja",
+        "timeZone": "Strefa czasowa",
+        "timeZoneValue": "Europe/Warsaw",
+        "dataAsOf": "Chwila danych",
+        "dataAsOfValue": "w chwili generowania pliku"
+      },
+      "retention": "Plik zostanie w Historii 30 dni.",
+      "submit": {
+        "PDF": "Eksportuj PDF",
+        "XLSX": "Eksportuj XLSX"
+      },
+      "queued": "W kolejce",
+      "queuedSub": "uruchomienie {id} czeka na wolne zadanie",
+      "generating": {
+        "PDF": "Generowanie PDF…",
+        "XLSX": "Generowanie XLSX…"
+      },
+      "runningSub": "od {seconds} s · liczę dane i składam plik",
+      "canClose": "Możesz zamknąć okno: plik będzie w Raporty → Historia, a panel da znać, gdy będzie gotowy.",
+      "slow": "Plik powstaje dłużej niż zwykle; zadanie działa dalej, a wynik będzie w historii.",
+      "showInHistory": "Pokaż w historii",
+      "ready": "Gotowe",
+      "pages": "{count, plural, one {# strona} few {# strony} other {# stron}}",
+      "rows": "{count, plural, one {# wiersz} few {# wiersze} other {# wierszy}}",
+      "download": {
+        "PDF": "Pobierz PDF",
+        "XLSX": "Pobierz XLSX"
+      },
+      "footerLabel": "Stopka pliku:",
+      "footer": "Raport {id} · dane na {date} · zlecił {requester} · Strona 1 z {pages}",
+      "footerXlsx": "Raport {id} · dane na {date} · zlecił {requester}",
+      "footerLabelXlsx": "Arkusz „Parametry”:",
+      "failed": {
+        "PDF": "Nie udało się utworzyć PDF",
+        "XLSX": "Nie udało się utworzyć XLSX"
+      },
+      "failedCode": "{code} · {id}",
+      "retry": "Ponów"
+    },
+    "history": {
+      "quick": {
+        "mine": "Moje",
+        "inProgress": "W toku",
+        "ready": "Gotowe",
+        "failed": "Błędy",
+        "deleted": "Pliki usunięte"
+      },
+      "readyAfter": "gotowy po {seconds} s",
+      "runningFor": "od {seconds} s",
+      "queuedFor": "czeka {seconds} s",
+      "fileDeleted": "plik usunięty {date}",
+      "download": "Pobierz",
+      "retry": "Ponów",
+      "rerun": "Uruchom ponownie",
+      "rerunDone": "Uruchomiono ponownie: {id}. Ten sam okres, dane na teraz.",
+      "menu": "Polecenia uruchomienia {id}",
+      "openPreview": "Otwórz podgląd z tymi parametrami",
+      "rerunWithParams": "Uruchom ponownie z tymi parametrami",
+      "rerunSub": "nowy wpis, ten sam okres, dane na teraz",
+      "copyId": "Kopiuj identyfikator {id}",
+      "copied": "Skopiowano identyfikator {id}.",
+      "note": "Widzisz uruchomienia raportów, do których masz uprawnienie, także innych operatorów. Pliki usuwamy po 30 dniach; wpis zostaje. „Uruchom ponownie” liczy dane na teraz z tym samym okresem i tworzy nowy wpis."
+    },
+    "definitions": {
+      "title": "Definicje",
+      "order": "kolejność w katalogu",
+      "note": "Nowy raport dodaje się w kodzie (katalog w packages/core); seed wstawia brakującą definicję. Przeciągnij albo użyj Alt + strzałki, żeby zmienić kolejność.",
+      "moveHint": "Alt + strzałka w górę albo w dół zmienia kolejność",
+      "inactive": "wyłączony",
+      "forbidden": "Definicje raportów zmienia tylko operator z uprawnieniem reports.manage.",
+      "reordered": "Zapisano kolejność raportów.",
+      "saved": "Zapisano definicję raportu {name}.",
+      "version": "Wersja {version} · zmieniono {date} · {name}",
+      "conflictTitle": "Ktoś zmienił tę definicję w międzyczasie.",
+      "conflictBody": " Wczytaj aktualną wersję i wprowadź zmiany ponownie.",
+      "reload": "Wczytaj aktualną",
+      "counter": "{count} / {max}",
+      "of": "z {count}",
+      "fields": {
+        "name": "Nazwa",
+        "position": "Kolejność",
+        "description": "Opis",
+        "active": "Aktywny"
+      },
+      "hints": {
+        "name": "W katalogu, w nagłówku PDF i w nazwie pliku arkusza",
+        "position": "Albo przeciągnij na liście",
+        "description": "Zwykły tekst bez Markdownu; w katalogu i pod tytułem raportu",
+        "active": "Wyłączony raport znika z katalogu i nie da się go uruchomić; historia i pliki zostają."
+      },
+      "fromCode": "Z kodu",
+      "readOnly": "tylko do odczytu",
+      "code": "Kod",
+      "permission": "Uprawnienie",
+      "roles": "role: {roles}",
+      "formats": "Formaty",
+      "sections": "Sekcje",
+      "paramName": "Parametr",
+      "paramValues": "Wartości",
+      "paramRule": "Reguła",
+      "params": {
+        "period": "zakres dat",
+        "periodRule": "wymagany · do 366 dni",
+        "granularity": "dzień | tydzień | miesiąc",
+        "granularityRule": "według długości okresu",
+        "compare": "tak / nie",
+        "compareRule": "domyślnie tak",
+        "zoneId": "strefa końca przejazdu",
+        "modelId": "model hulajnogi",
+        "scooterId": "hulajnoga",
+        "optional": "opcjonalny"
+      },
+      "codeNote": "Zmiana tych pól wymaga wdrożenia nowej wersji kodu.",
+      "allAudit": "Cały dziennik audytu",
+      "historyForbidden": "Historia zmian wymaga uprawnienia audit.read.",
+      "history": {
+        "created": "dodał definicję z katalogu",
+        "synced": "zsynchronizował definicję z katalogiem",
+        "updated": "zmienił: {fields}",
+        "reordered": "zmienił kolejność w katalogu",
+        "fields": {
+          "name": "nazwę",
+          "description": "opis",
+          "active": "aktywność",
+          "sortOrder": "kolejność"
+        }
+      }
+    }
+  },
+  "charts": {
+    "showTable": "Pokaż jako tabelę",
+    "showChart": "Pokaż wykres",
+    "keyboard": "Wykres: strzałki przesuwają zaznaczenie, Escape je zamyka"
   },
   "site": {
     "brand": "[nazwa]",

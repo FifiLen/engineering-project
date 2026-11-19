@@ -101,6 +101,53 @@
         "3006"
       ],
       "port": 3006
+    },
+    {
+      "name": "api-history",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "API_PORT=3005",
+        "DATABASE_URL=postgres://hulajnogi:hulajnogi@localhost:5433/hulajnogi_history",
+        "MQTT_ENABLED=false",
+        "MQTT_CLIENT_ID=hulajnogi-api-history",
+        "JOBS_ENABLED=true",
+        "PANEL_URL=http://localhost:3007",
+        "SITE_REVALIDATE_URL=",
+        "node",
+        "apps/api/dist/main.js"
+      ],
+      "port": 3005
+    },
+    {
+      "name": "web-reports",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NEXT_PUBLIC_API_URL=http://localhost:3005",
+        "pnpm",
+        "--filter",
+        "@hulajnogi/web",
+        "exec",
+        "next",
+        "dev",
+        "--port",
+        "3007"
+      ],
+      "port": 3007
+    },
+    {
+      "name": "web-reports-start",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@hulajnogi/web",
+        "exec",
+        "next",
+        "start",
+        "--port",
+        "3009"
+      ],
+      "port": 3009,
+      "url": "http://127.0.0.1:3009"
     }
   ]
 }

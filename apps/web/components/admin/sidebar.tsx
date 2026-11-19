@@ -29,6 +29,8 @@ import {
   TagIcon,
   UsersIcon,
 } from './icons';
+import { ChartBarsIcon } from './reports/report-icons';
+import { REPORTS_NAV_PERMISSIONS } from './reports/reports-common';
 
 const ZonesIcon = () => <ParkingIcon size={18} strokeWidth={1.9} />;
 
@@ -51,8 +53,8 @@ interface NavItem {
 }
 
 /**
- * Nawigacja boczna pogrupowana jak w makietach 27-panel-serwis i 29-panel-wydruki; tylko gotowe ekrany (Raporty
- * dochodzą w kolejnej iteracji).
+ * Nawigacja boczna pogrupowana jak w makietach 27-panel-serwis, 29-panel-wydruki i 32-panel-raporty (Raporty
+ * w Analizie przed Wydrukami).
  */
 const groups: Array<{ label?: string; items: NavItem[] }> = [
   {
@@ -117,6 +119,13 @@ const groups: Array<{ label?: string; items: NavItem[] }> = [
   {
     label: t('admin.nav.analysis'),
     items: [
+      // Raporty, Historia i Definicje to zakładki jednej pozycji (ADR 0071); widoczna przy dowolnym `reports.<kod>`.
+      {
+        href: '/admin/raporty',
+        label: t('admin.nav.reports'),
+        Icon: ChartBarsIcon,
+        permission: REPORTS_NAV_PERMISSIONS,
+      },
       // Szablony (`templates.read`) i Wygenerowane (`documents.generate`) to zakładki jednej pozycji (ADR 0068).
       {
         href: '/admin/wydruki',

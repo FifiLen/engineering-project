@@ -4,7 +4,8 @@
  * Połączenie Socket.IO panelu (ADR 0012, ADR 0036, ADR 0055, ADR 0059): jedno połączenie na kartę, wspólne dla
  * nawigacji i ekranu. Ekran dołącza do pokojów według potrzeb (`rentals`, `fleet`, `tickets`, `service`,
  * `simulator`), a zmiany stref (`zones.changed`) przychodzą do wszystkich połączonych bez dołączania do pokoju.
- * Gotowe wydruki operatora (`document.ready`) przychodzą do jego pokoju `staff:{id}` (ADR 0066).
+ * Gotowe wydruki (`document.ready`, ADR 0066) i raporty (`report.ready`, ADR 0071) operatora przychodzą do jego
+ * pokoju `staff:{id}`.
  * Zdarzenia tylko przyspieszają odświeżenie; po ponownym połączeniu ekran pobiera stan z REST.
  */
 import type {
@@ -12,6 +13,7 @@ import type {
   DocumentReady,
   FleetMapScooter,
   RentalListItem,
+  ReportReady,
   ServerToClientEvents,
   ServiceTaskUpdated,
   SimulatorResult,
@@ -43,6 +45,8 @@ interface StaffFeed {
    * połączeniu, więc nie ma osobnej subskrypcji.
    */
   documentReady?: (document: DocumentReady) => void;
+  /** Raport tego operatora w stanie końcowym (`report.ready`, ADR 0071), też w pokoju `staff:{id}`. */
+  reportReady?: (run: ReportReady) => void;
   /** Ponowne połączenie po przerwie: zdarzenia z przerwy przepadły, stan trzeba pobrać od nowa. */
   reconnected?: () => void;
 }
@@ -109,6 +113,7 @@ function connect(): AppSocket {
   s.on('simulator.status', (status) => each((f) => f.simulatorStatus?.(status)));
   s.on('simulator.result', (result) => each((f) => f.simulatorResult?.(result)));
   s.on('document.ready', (document) => each((f) => f.documentReady?.(document)));
+  s.on('report.ready', (run) => each((f) => f.reportReady?.(run)));
   socket = s;
   return s;
 }
@@ -137,7 +142,12 @@ export function useStaffFeed(feed: StaffFeed): boolean {
   if (feed.service) rooms.push('service');
   if (feed.simulatorStatus || feed.simulatorResult) rooms.push('simulator');
   const key = rooms.join(',');
-  const wanted = key !== '' || Boolean(feed.zones) || Boolean(feed.documentReady) || Boolean(feed.reconnected);
+  const wanted =
+    key !== '' ||
+    Boolean(feed.zones) ||
+    Boolean(feed.documentReady) ||
+    Boolean(feed.reportReady) ||
+    Boolean(feed.reconnected);
 
   useEffect(() => {
     if (!wanted) return;
