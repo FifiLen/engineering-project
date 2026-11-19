@@ -7,8 +7,9 @@ import {
   type ListQuery,
   type UserBlock,
   type UserUpdate,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { EntityHistory } from '../audit/entity-history.service.js';
@@ -18,6 +19,9 @@ import { ZodPipe } from '../common/zod-query.js';
 import { idParam } from '../fleet/scooters.controller.js';
 import { LegalDocumentsService } from './legal-documents.service.js';
 import { UsersService } from './users.service.js';
+import type { FastifyReply } from 'fastify';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 const versionBody = new ZodPipe(z.object({ version: z.number().int().min(1) }));
 
@@ -28,12 +32,23 @@ export class UsersController {
   constructor(
     private readonly users: UsersService,
     private readonly history: EntityHistory,
+    private readonly exporter: ListExportService,
   ) {}
 
   @RequirePermission('users.read')
   @Get()
   list(@Query(new ListQueryPipe(usersResource)) query: ListQuery) {
     return this.users.list(query);
+  }
+
+  @RequirePermission('users.read')
+  @ListExport('klienci')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, usersResource, body, (db, query) => this.users.list(query, db));
   }
 
   @RequirePermission('users.read')

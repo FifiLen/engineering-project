@@ -89,8 +89,8 @@ export class NewsService {
     private readonly jobs: JobsService,
   ) {}
 
-  async list(query: ListQuery): Promise<ListResponse<NewsListItem>> {
-    const repo = new DrizzleContentRepository(this.db);
+  async list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<NewsListItem>> {
+    const repo = new DrizzleContentRepository(db);
     const page = await repo.listNews(query);
     const media = await repo.mediaRefs(page.items.map((row) => row.mediaId as string | null));
     return {

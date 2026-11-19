@@ -12,8 +12,9 @@ import {
   type ListQuery,
   type NewTariff,
   type WalletAdjustment,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { CurrentStaff, RequirePermission, type StaffPrincipal } from '../auth/decorators.js';
@@ -21,6 +22,9 @@ import { ListQueryPipe } from '../common/list-query.pipe.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { AdminPaymentsService } from './admin-payments.service.js';
 import { TariffsService } from './tariffs.service.js';
+import type { FastifyReply } from 'fastify';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 const idParam = new ZodPipe(z.uuid());
 
@@ -28,13 +32,28 @@ const idParam = new ZodPipe(z.uuid());
 @ApiTags('panel: płatności')
 @Controller('admin')
 export class AdminPaymentsController {
-  constructor(private readonly payments: AdminPaymentsService) {}
+  constructor(
+    private readonly payments: AdminPaymentsService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('payments.read')
   @Get('payments')
   @ApiOperation({ summary: 'Płatności u operatora (doładowania i przejazdy kartą) według wzorca listy' })
   list(@Query(new ListQueryPipe(paymentsResource)) query: ListQuery) {
     return this.payments.listPayments(query);
+  }
+
+  @RequirePermission('payments.read')
+  @ListExport('płatności', 'payments/export')
+  exportPayments(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, paymentsResource, body, (db, query) =>
+      this.payments.listPayments(query, db),
+    );
   }
 
   @RequirePermission('payments.read')
@@ -52,6 +71,18 @@ export class AdminPaymentsController {
   }
 
   @RequirePermission('payments.read')
+  @ListExport('księga portfeli', 'wallet-ledger/export')
+  exportLedger(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, walletLedgerResource, body, (db, query) =>
+      this.payments.listLedger(query, db),
+    );
+  }
+
+  @RequirePermission('payments.read')
   @Get('wallets')
   @ApiOperation({ summary: 'Portfele z saldem z pamięci podręcznej porównanym z księgą (`outOfSync`)' })
   wallets(@Query(new ListQueryPipe(walletsResource)) query: ListQuery) {
@@ -59,10 +90,34 @@ export class AdminPaymentsController {
   }
 
   @RequirePermission('payments.read')
+  @ListExport('portfele', 'wallets/export')
+  exportWallets(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, walletsResource, body, (db, query) =>
+      this.payments.listWallets(query, db),
+    );
+  }
+
+  @RequirePermission('payments.read')
   @Get('receipts')
   @ApiOperation({ summary: 'Paragony i korekty z VAT i netto' })
   receipts(@Query(new ListQueryPipe(receiptsResource)) query: ListQuery) {
     return this.payments.listReceipts(query);
+  }
+
+  @RequirePermission('payments.read')
+  @ListExport('paragony', 'receipts/export')
+  exportReceipts(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, receiptsResource, body, (db, query) =>
+      this.payments.listReceipts(query, db),
+    );
   }
 
   @RequirePermission('payments.read')
@@ -80,6 +135,18 @@ export class AdminPaymentsController {
   }
 
   @RequirePermission('payments.read')
+  @ListExport('karty klientów', 'payment-methods/export')
+  exportMethods(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, paymentMethodsResource, body, (db, query) =>
+      this.payments.listPaymentMethods(query, db),
+    );
+  }
+
+  @RequirePermission('payments.read')
   @Get('payment-webhook-events')
   @ApiOperation({ summary: 'Webhooki operatora z wynikiem przetworzenia i liczbą dostarczeń' })
   webhooks(@Query(new ListQueryPipe(webhookEventsResource)) query: ListQuery) {
@@ -87,10 +154,34 @@ export class AdminPaymentsController {
   }
 
   @RequirePermission('payments.read')
+  @ListExport('webhooki operatora', 'payment-webhook-events/export')
+  exportWebhooks(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, webhookEventsResource, body, (db, query) =>
+      this.payments.listWebhooks(query, db),
+    );
+  }
+
+  @RequirePermission('payments.read')
   @Get('refunds')
   @ApiOperation({ summary: 'Zwroty za przejazdy i zwroty salda ze stanem u operatora' })
   refunds(@Query(new ListQueryPipe(refundsResource)) query: ListQuery) {
     return this.payments.listRefunds(query);
+  }
+
+  @RequirePermission('payments.read')
+  @ListExport('zwroty', 'refunds/export')
+  exportRefunds(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, refundsResource, body, (db, query) =>
+      this.payments.listRefunds(query, db),
+    );
   }
 
   @RequirePermission('payments.read')
@@ -124,7 +215,10 @@ export class AdminPaymentsController {
 @ApiTags('panel: cennik')
 @Controller('admin/tariffs')
 export class AdminTariffsController {
-  constructor(private readonly tariffs: TariffsService) {}
+  constructor(
+    private readonly tariffs: TariffsService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('tariffs.read')
   @Get()
@@ -133,6 +227,16 @@ export class AdminTariffsController {
   })
   list(@Query(new ListQueryPipe(tariffsResource)) query: ListQuery) {
     return this.tariffs.list(query);
+  }
+
+  @RequirePermission('tariffs.read')
+  @ListExport('cennik')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, tariffsResource, body, (db, query) => this.tariffs.list(query, db));
   }
 
   @RequirePermission('tariffs.read')

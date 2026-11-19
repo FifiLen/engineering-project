@@ -30,32 +30,32 @@ export class AdminPaymentsService {
     return new DrizzlePaymentRepository(this.db);
   }
 
-  listPayments(query: ListQuery) {
-    return this.repo.listPayments(query);
+  listPayments(query: ListQuery, db: DbExecutor = this.db) {
+    return new DrizzlePaymentRepository(db).listPayments(query);
   }
 
-  listLedger(query: ListQuery) {
-    return this.repo.listLedger(query);
+  listLedger(query: ListQuery, db: DbExecutor = this.db) {
+    return new DrizzlePaymentRepository(db).listLedger(query);
   }
 
-  listWallets(query: ListQuery) {
-    return this.repo.listWallets(query);
+  listWallets(query: ListQuery, db: DbExecutor = this.db) {
+    return new DrizzlePaymentRepository(db).listWallets(query);
   }
 
-  listReceipts(query: ListQuery) {
-    return this.repo.listReceipts(query);
+  listReceipts(query: ListQuery, db: DbExecutor = this.db) {
+    return new DrizzlePaymentRepository(db).listReceipts(query);
   }
 
-  listPaymentMethods(query: ListQuery) {
-    return this.repo.listPaymentMethods(query);
+  listPaymentMethods(query: ListQuery, db: DbExecutor = this.db) {
+    return new DrizzlePaymentRepository(db).listPaymentMethods(query);
   }
 
-  listWebhooks(query: ListQuery) {
-    return this.repo.listWebhooks(query);
+  listWebhooks(query: ListQuery, db: DbExecutor = this.db) {
+    return new DrizzlePaymentRepository(db).listWebhooks(query);
   }
 
-  listRefunds(query: ListQuery) {
-    return this.repo.listRefunds(query);
+  listRefunds(query: ListQuery, db: DbExecutor = this.db) {
+    return new DrizzlePaymentRepository(db).listRefunds(query);
   }
 
   async payment(id: string): Promise<PaymentAdminDetails> {

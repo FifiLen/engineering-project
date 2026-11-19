@@ -238,7 +238,11 @@ describe.skipIf(!adminUrl)('API: logowanie klientów i operatorów, strażnik up
     });
 
     it('logowanie hasłem i kodem; ten sam kod drugi raz nie działa; odświeżenie z ciasteczka', async () => {
-      const login = await app.inject({ method: 'POST', url: '/admin/auth/login', payload: { email: 'NOWY@test.local', password } });
+      const login = await app.inject({
+        method: 'POST',
+        url: '/admin/auth/login',
+        payload: { email: 'NOWY@test.local', password, remember: true },
+      });
       expect(login.json()).toMatchObject({ step: 'TOTP', totpSetup: null });
       const { mfaToken } = login.json<shared.StaffLoginStep>();
       // Kod z tego samego kroku co przy konfiguracji jest odrzucany jako ponownie użyty.
@@ -256,6 +260,13 @@ describe.skipIf(!adminUrl)('API: logowanie klientów i operatorów, strażnik up
       expect(cookieOf(refreshed)!.value).not.toBe(cookie.value);
       const old = await app.inject({ method: 'POST', url: '/admin/auth/refresh', cookies: { [cookie.name]: cookie.value } });
       expect(old.statusCode).toBe(401);
+      // „Zapamiętaj to urządzenie” zostaje przy sesji po rotacji tokenu (lista sesji operatorów, ADR 0076).
+      const remembered = await pool.query<{ remembered: boolean }>(
+        `SELECT remembered FROM staff_sessions WHERE staff_id = $1 ORDER BY created_at, id`,
+        [await staffId(email)],
+      );
+      // Sesja z konfiguracji TOTP (bez zapamiętania), logowanie z zapamiętaniem i jego następca po rotacji.
+      expect(remembered.rows.map((r) => r.remembered).slice(-2)).toEqual([true, true]);
 
       const next = cookieOf(refreshed)!;
       expect((await app.inject({ method: 'POST', url: '/admin/auth/logout', cookies: { [next.name]: next.value } })).statusCode).toBe(204);

@@ -10,8 +10,10 @@ import {
   DOCUMENT_READ_PERMISSIONS,
   DOCUMENT_TEXTS_PL,
   DOCUMENT_TYPES,
+  diffForAudit,
   DomainError,
   ensureCanPrint,
+  ensureVersion,
   ensureTemplateVersionDeletable,
   formatDocumentDateTime,
   isPrintable,
@@ -25,6 +27,7 @@ import {
 } from '@hulajnogi/core';
 import {
   type Database,
+  type DbExecutor,
   DrizzleDocumentRepository,
   type DocumentTemplateRecord,
   starterTemplatesDir,
@@ -36,6 +39,7 @@ import {
   type DocumentFieldView,
   type DocumentFileLink,
   type DocumentTemplateCreate,
+  type DocumentTemplateUpdate,
   type DocumentTemplateListItem,
   type DocumentTemplateVersionView,
   type DocumentTemplateView,
@@ -65,6 +69,8 @@ export interface TemplateUpload {
 
 export interface DocumentTemplateDetails extends DocumentTemplateView {
   active: boolean;
+  /** Wersja rekordu do edycji nazwy i opisu (blokada optymistyczna, ADR 0076). */
+  version: number;
   versions: DocumentTemplateVersionView[];
 }
 
@@ -134,15 +140,20 @@ export class TemplatesService {
     private readonly company: CompanyService,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<DocumentTemplateListItem>> {
-    return new DrizzleDocumentRepository(this.db).listTemplates(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<DocumentTemplateListItem>> {
+    return new DrizzleDocumentRepository(db).listTemplates(query);
   }
 
   async details(id: string): Promise<DocumentTemplateDetails> {
     const repo = new DrizzleDocumentRepository(this.db);
     const template = await repo.template(id);
     if (!template) throw notFound('document_template', id);
-    return { ...templateView(template), active: template.active, versions: (await repo.versions(id)).map(versionView) };
+    return {
+      ...templateView(template),
+      active: template.active,
+      version: template.version,
+      versions: (await repo.versions(id)).map(versionView),
+    };
   }
 
   /** `POST /admin/document-templates`: nowy szablon rodzaju z katalogu (bez wersji, więc jeszcze bez „Drukuj”). */
@@ -257,6 +268,74 @@ export class TemplatesService {
         });
       });
     }
+    return this.details(templateId);
+  }
+
+  /**
+   * Nazwa i opis szablonu (ADR 0076, dług z iteracji 7) z blokadą optymistyczną i wpisem `document_template.updated`
+   * ze zmianami; zajęta nazwa w rodzaju to `TEMPLATE_NAME_TAKEN`. Bez zmian nie ma wpisu ani nowej wersji rekordu.
+   */
+  async update(staffId: string, templateId: string, body: DocumentTemplateUpdate): Promise<DocumentTemplateDetails> {
+    await this.audited.run(staffId, async ({ tx, audit }) => {
+      const repo = new DrizzleDocumentRepository(tx);
+      const template = await repo.template(templateId, { lock: true });
+      if (!template) throw notFound('document_template', templateId);
+      ensureVersion(body.version, template.version);
+      const changes = diffForAudit(template, { name: body.name, description: body.description });
+      if (Object.keys(changes).length === 0) return;
+      const fields = {
+        ...(changes.name ? { name: body.name } : {}),
+        ...(changes.description ? { description: body.description ?? null } : {}),
+      };
+      if (!(await repo.updateTemplate(templateId, body.version, fields, staffId))) {
+        ensureVersion(body.version, (await repo.template(templateId))!.version);
+      }
+      await audit({
+        action: 'document_template.updated',
+        entityType: 'document_template',
+        entityId: templateId,
+        data: { documentType: template.documentType, changes },
+      });
+    });
+    return this.details(templateId);
+  }
+
+  /**
+   * Dezaktywacja (`sp_document_template_deactivate`, ADR 0076): domyślny szablon z aktywną wersją to `409
+   * TEMPLATE_IS_DEFAULT`; nieaktywny znika z „Drukuj”, wersje i wydruki zostają. Ponowna dezaktywacja bez wpisu.
+   */
+  async deactivate(staffId: string, templateId: string): Promise<DocumentTemplateDetails> {
+    await this.audited.run(staffId, async ({ tx, audit }) => {
+      const repo = new DrizzleDocumentRepository(tx);
+      const template = await repo.template(templateId);
+      if (!template) throw notFound('document_template', templateId);
+      if (!(await repo.deactivateTemplate(templateId, staffId))) return;
+      await audit({
+        action: 'document_template.deactivated',
+        entityType: 'document_template',
+        entityId: templateId,
+        data: {
+          documentType: template.documentType,
+          changes: { active: [true, false], ...(template.isDefault ? { isDefault: [true, false] } : {}) },
+        },
+      });
+    });
+    return this.details(templateId);
+  }
+
+  /** „Aktywuj ponownie” (`sp_document_template_reactivate`): szablon wraca bez roli domyślnego. */
+  async reactivate(staffId: string, templateId: string): Promise<DocumentTemplateDetails> {
+    await this.audited.run(staffId, async ({ tx, audit }) => {
+      const repo = new DrizzleDocumentRepository(tx);
+      if (!(await repo.reactivateTemplate(templateId, staffId))) return;
+      const template = await repo.template(templateId);
+      await audit({
+        action: 'document_template.reactivated',
+        entityType: 'document_template',
+        entityId: templateId,
+        data: { documentType: template?.documentType ?? null, changes: { active: [false, true] } },
+      });
+    });
     return this.details(templateId);
   }
 

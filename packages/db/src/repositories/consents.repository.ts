@@ -77,10 +77,12 @@ export class DrizzleConsentRepository implements ConsentRepository {
     return row ? ({ ...row, consentType: row.consentType! } as CurrentDocument) : null;
   }
 
+  /** Źródło zgody (ADR 0076): rejestracja albo ponowna akceptacja i zmiana w aplikacji. */
   async accept(
     userId: string,
     type: ConsentType,
     document: Pick<CurrentDocument, 'versionId' | 'versionNo'> | null,
+    source: 'REGISTRATION' | 'APP' | 'PANEL' = 'APP',
   ): Promise<void> {
     // Zgoda bez dokumentu (wiek, marketing) ma wersję „1”; powtórzenie trafia na indeks unikalny.
     await this.db
@@ -90,6 +92,7 @@ export class DrizzleConsentRepository implements ConsentRepository {
         type,
         documentVersion: document ? String(document.versionNo) : '1',
         pageVersionId: document?.versionId ?? null,
+        source,
       })
       .onConflictDoNothing();
   }

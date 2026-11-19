@@ -1,5 +1,5 @@
 import { diffForAudit, ensurePartReceipt, ensureStockAdjustment, ensureVersion, notFound } from '@hulajnogi/core';
-import { type Database, DrizzleServiceRepository } from '@hulajnogi/db';
+import { type Database, type DbExecutor, DrizzleServiceRepository } from '@hulajnogi/db';
 import type {
   ListQuery,
   ListResponse,
@@ -30,12 +30,12 @@ export class SparePartsService {
     private readonly audited: AuditedTransaction,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<SparePartListItem>> {
-    return new DrizzleServiceRepository(this.db).listParts(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<SparePartListItem>> {
+    return new DrizzleServiceRepository(db).listParts(query);
   }
 
-  movements(query: ListQuery): Promise<ListResponse<SparePartMovementItem>> {
-    return new DrizzleServiceRepository(this.db).listMovements(query);
+  movements(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<SparePartMovementItem>> {
+    return new DrizzleServiceRepository(db).listMovements(query);
   }
 
   async details(id: string): Promise<SparePartDetails> {

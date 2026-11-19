@@ -331,6 +331,88 @@ export class DrizzleAdminListsRepository {
     );
   }
 
+  // --- Polecenia z macierzy operacji (ADR 0076) -------------------------------------------------------------
+
+  /** Zgoda do wycofania przez operatora (typ i stan sprawdza core). */
+  async consent(id: string): Promise<{ id: string; userId: string; type: string; revokedAt: Date | null } | null> {
+    const { rows } = await this.db.execute<{ id: string; user_id: string; type: string; revoked_at: Date | null }>(
+      sql`SELECT id, user_id, type, revoked_at FROM consents WHERE id = ${id} FOR UPDATE`,
+    );
+    const row = rows[0];
+    return row ? { id: row.id, userId: row.user_id, type: row.type, revokedAt: row.revoked_at } : null;
+  }
+
+  /** Wycofanie zgody przez operatora (`revoked_by_staff`; CHECK w bazie dopuszcza tylko zgodę marketingową). */
+  async revokeConsentByStaff(id: string, staffId: string): Promise<boolean> {
+    const { rowCount } = await this.db.execute(sql`
+      UPDATE consents SET revoked_at = now(), revoked_by_staff = ${staffId}
+      WHERE id = ${id} AND revoked_at IS NULL`);
+    return (rowCount ?? 0) > 0;
+  }
+
+  /** Właściciel rodziny sesji klienta i to, czy rodzina ma jeszcze ważny token. */
+  async sessionFamily(familyId: string): Promise<{ userId: string; active: boolean } | null> {
+    const { rows } = await this.db.execute<{ user_id: string; active: boolean }>(sql`
+      SELECT user_id, bool_or(revoked_at IS NULL AND expires_at > now()) AS active
+      FROM sessions WHERE family_id = ${familyId} GROUP BY user_id`);
+    const row = rows[0];
+    return row ? { userId: row.user_id, active: row.active } : null;
+  }
+
+  /** Właściciel rodziny sesji operatora i to, czy rodzina ma jeszcze ważny token. */
+  async staffSessionFamily(familyId: string): Promise<{ staffId: string; active: boolean } | null> {
+    const { rows } = await this.db.execute<{ staff_id: string; active: boolean }>(sql`
+      SELECT staff_id, bool_or(revoked_at IS NULL AND expires_at > now()) AS active
+      FROM staff_sessions WHERE family_id = ${familyId} GROUP BY staff_id`);
+    const row = rows[0];
+    return row ? { staffId: row.staff_id, active: row.active } : null;
+  }
+
+  /** Zaproszenie ze stanem z widoku listy (PENDING, ACCEPTED, EXPIRED, REVOKED, REPLACED). */
+  async invitation(id: string): Promise<{ id: string; staffId: string; state: string } | null> {
+    const { rows } = await this.db.execute<{ id: string; staff_id: string; state: string }>(
+      sql`SELECT id, staff_id, state FROM v_staff_invitation_list WHERE id = ${id}`,
+    );
+    const row = rows[0];
+    return row ? { id: row.id, staffId: row.staff_id, state: row.state } : null;
+  }
+
+  /** Unieważnienie oczekującego zaproszenia (bez następcy, więc stan `REVOKED`, a nie `REPLACED`). */
+  async revokeInvitation(id: string): Promise<boolean> {
+    const { rowCount } = await this.db.execute(sql`
+      UPDATE staff_invitations SET revoked_at = now()
+      WHERE id = ${id} AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()`);
+    return (rowCount ?? 0) > 0;
+  }
+
+  /** Usunięcie zapisanego miejsca klienta z panelu; dane do wpisu w dzienniku audytu. */
+  async deleteSavedPlace(id: string): Promise<{ userId: string; label: string; name: string } | null> {
+    const { rows } = await this.db.execute<{ user_id: string; label: string; name: string }>(
+      sql`DELETE FROM saved_places WHERE id = ${id} RETURNING user_id, label, name`,
+    );
+    const row = rows[0];
+    return row ? { userId: row.user_id, label: row.label, name: row.name } : null;
+  }
+
+  /** Uprawnienie z opisem i wersją rekordu (zakładka Uprawnienia). */
+  async permission(code: string): Promise<{ code: string; description: string; version: number } | null> {
+    const { rows } = await this.db.execute<{ code: string; description: string; version: number }>(
+      sql`SELECT code, description, version FROM permissions WHERE code = ${code}`,
+    );
+    return rows[0] ?? null;
+  }
+
+  /** Liczba odczytów zakresu z filtrami listy telemetrii (limit eksportu, ADR 0073). */
+  async telemetryCount(query: Pick<TelemetryReadingsQuery, 'scooterId' | 'from' | 'to' | 'batteryBelow' | 'inRide'>) {
+    const { rows } = await this.db.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM telemetry
+      WHERE scooter_id = ${query.scooterId}::uuid AND recorded_at >= ${query.from}::timestamptz
+        AND recorded_at < ${query.to}::timestamptz
+        AND (${query.batteryBelow ?? null}::smallint IS NULL OR battery_pct < ${query.batteryBelow ?? null}::smallint)
+        AND (NOT ${query.inRide ?? false} OR rental_id IS NOT NULL)`);
+    return rows[0]?.n ?? 0;
+  }
+
   /**
    * Flota → Telemetria (`fn_telemetry_readings`, ADR 0076): strona odczytów od najnowszych z kursorem po czasie (bez
    * liczby wszystkich). `older` czyta przed kursorem, `newer` po nim (od najstarszych, odwrócone do kolejności listy).

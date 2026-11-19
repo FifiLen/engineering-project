@@ -10,8 +10,9 @@ import {
   type FileSignatureQuery,
   type FileView,
   type ListQuery,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Query, Req, Res } from '@nestjs/common';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -28,6 +29,8 @@ import { ApiError } from '../common/api-error.js';
 import { ListQueryPipe } from '../common/list-query.pipe.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { FilesService } from './files.service.js';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 /** Cele plików pobieranych z nazwą pliku (`Content-Disposition`). */
 const DOWNLOAD_PURPOSES = new Set(['DOCUMENT_TEMPLATE', 'GENERATED_DOCUMENT', 'DATA_EXPORT', 'REPORT_EXPORT']);
@@ -138,7 +141,10 @@ export class FilesController {
 @ApiTags('panel: pliki')
 @Controller('admin/files')
 export class AdminFilesController {
-  constructor(private readonly files: FilesService) {}
+  constructor(
+    private readonly files: FilesService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   // Uprawnienie modułu sprawdza serwis: `rentals.read` (zdjęcia parkowania) albo `tickets.read` (zdjęcia zgłoszeń).
   @StaffAuth()
@@ -149,6 +155,18 @@ export class AdminFilesController {
   })
   list(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(filesResource)) query: ListQuery) {
     return this.files.list(staff.staffId, query);
+  }
+
+  @StaffAuth()
+  @ListExport('pliki')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, filesResource, body, (db, query) =>
+      this.files.list(staff.staffId, query, db),
+    );
   }
 
   @StaffAuth()

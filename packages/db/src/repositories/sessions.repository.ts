@@ -20,6 +20,9 @@ abstract class DrizzleSessionRepository implements SessionRepository {
 
   protected abstract values(session: NewSession): Record<string, unknown>;
 
+  /** Następca przy rotacji: pola urządzenia, których żądanie nie podało, z wiersza poprzednika (ADR 0076). */
+  protected abstract inherit(next: NewSession, previous: Record<string, unknown>): NewSession;
+
   async create(session: NewSession): Promise<{ id: string; familyId: string }> {
     const t = this.table;
     const [row] = await this.db
@@ -53,9 +56,9 @@ abstract class DrizzleSessionRepository implements SessionRepository {
       .update(t)
       .set({ revokedAt: now, lastUsedAt: now })
       .where(and(eq(t.id, previousId), isNull(t.revokedAt)))
-      .returning({ id: t.id });
+      .returning();
     if (claimed.length === 0) return null;
-    const created = await this.create(next);
+    const created = await this.create(this.inherit(next, claimed[0] as Record<string, unknown>));
     await this.db.update(t).set({ replacedBy: created.id }).where(eq(t.id, previousId));
     return created;
   }
@@ -129,6 +132,16 @@ export class DrizzleCustomerSessionRepository extends DrizzleSessionRepository {
       refreshTokenHash: s.tokenHash,
       expiresAt: s.expiresAt,
       deviceName: s.device,
+      platform: s.platform ?? null,
+      appVersion: s.appVersion ?? null,
+    };
+  }
+  protected inherit(next: NewSession, previous: Record<string, unknown>): NewSession {
+    return {
+      ...next,
+      device: next.device ?? (previous.deviceName as string | null) ?? null,
+      platform: next.platform ?? (previous.platform as NewSession['platform']) ?? null,
+      appVersion: next.appVersion ?? (previous.appVersion as string | null) ?? null,
     };
   }
 }
@@ -149,6 +162,10 @@ export class DrizzleStaffSessionRepository extends DrizzleSessionRepository {
       refreshTokenHash: s.tokenHash,
       expiresAt: s.expiresAt,
       userAgent: s.device,
+      remembered: s.remembered ?? false,
     };
+  }
+  protected inherit(next: NewSession, previous: Record<string, unknown>): NewSession {
+    return { ...next, remembered: next.remembered ?? previous.remembered === true };
   }
 }

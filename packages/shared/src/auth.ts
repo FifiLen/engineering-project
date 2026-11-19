@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 import type { BlockReason, ConsentType, UserStatus } from './admin/access.js';
+import { SESSION_PLATFORMS } from './admin/accounts.js';
 
 const code6 = z.string().regex(/^\d{6}$/);
 
@@ -27,10 +28,18 @@ export const otpVerifySchema = z.object({
   code: code6,
   /** Nazwa urządzenia do listy sesji w panelu, np. „iPhone 15”. */
   device: z.string().trim().max(80).nullable().default(null),
+  /** Platforma i wersja aplikacji do listy sesji w panelu (ADR 0076); opcjonalne, starsze wersje ich nie wysyłają. */
+  platform: z.enum(SESSION_PLATFORMS).nullable().default(null),
+  appVersion: z.string().trim().min(1).max(32).nullable().default(null),
 });
 export type OtpVerify = z.infer<typeof otpVerifySchema>;
 
-export const refreshSchema = z.object({ refreshToken: z.string().min(20).max(200) });
+/** Odświeżenie: bez platformy i wersji sesja następna dziedziczy je po poprzedniej (aktualizacja aplikacji je zmienia). */
+export const refreshSchema = z.object({
+  refreshToken: z.string().min(20).max(200),
+  platform: otpVerifySchema.shape.platform.optional(),
+  appVersion: otpVerifySchema.shape.appVersion.optional(),
+});
 export type RefreshRequest = z.infer<typeof refreshSchema>;
 
 /** Dokąd aplikacja kieruje klienta: dane, akceptacja nowych wersji dokumentów, blokada, mapa. */

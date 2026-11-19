@@ -35,8 +35,8 @@ export class ScooterModelsService {
     @Inject(DB) private readonly db: Database,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<ScooterModelListItem>> {
-    return this.models.list(query);
+  list(query: ListQuery, db?: DbExecutor): Promise<ListResponse<ScooterModelListItem>> {
+    return (db ? new DrizzleScooterModelRepository(db) : this.models).list(query);
   }
 
   async details(id: string): Promise<ScooterModelDetails> {

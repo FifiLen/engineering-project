@@ -18,6 +18,7 @@ import {
   ensureCustomerCanRent,
   ensureRegistrationComplete,
   missingRequiredConsents,
+  staffConsentRevocation,
   type ConsentStatus,
 } from './customers.js';
 import { ensureCanStartDraft, ensureDraftEditable, ensurePublishable, nextVersionNo } from './legal-documents.js';
@@ -149,6 +150,14 @@ describe('konto klienta', () => {
     );
     expect(() => ensureConsentRevocable('MARKETING')).not.toThrow();
     expect(() => ensureConsentRevocable('TERMS')).toThrow(err('CONSENT_REQUIRED_FOR_ACCOUNT'));
+  });
+
+  it('operator wycofuje tylko zgodę marketingową, a powtórne wycofanie niczego nie zmienia (ADR 0076)', () => {
+    expect(staffConsentRevocation('MARKETING', null)).toBe('REVOKE');
+    expect(staffConsentRevocation('MARKETING', t0)).toBe('UNCHANGED');
+    for (const type of ['TERMS', 'PRIVACY', 'AGE'] as const) {
+      expect(() => staffConsentRevocation(type, null)).toThrow(err('CONSENT_NOT_REVOCABLE', { type }));
+    }
   });
 
   it('rejestracja wymaga imienia, potwierdzenia wieku i akceptacji regulaminu i polityki', () => {

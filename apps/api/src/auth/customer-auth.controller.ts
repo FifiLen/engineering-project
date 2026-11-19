@@ -36,9 +36,16 @@ export class CustomerAuthController {
   @Public()
   @Post('auth/otp/verify')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Potwierdza kod; zakłada konto przy pierwszym logowaniu i zwraca tokeny oraz następny ekran' })
+  @ApiOperation({
+    summary:
+      'Potwierdza kod; zakłada konto przy pierwszym logowaniu i zwraca tokeny oraz następny ekran (opcjonalnie urządzenie, platforma i wersja aplikacji do listy sesji)',
+  })
   verifyOtp(@Body(new ZodPipe(otpVerifySchema)) body: OtpVerify) {
-    return this.auth.verifyOtp(body.phone, body.code, body.device);
+    return this.auth.verifyOtp(body.phone, body.code, {
+      device: body.device,
+      platform: body.platform,
+      appVersion: body.appVersion,
+    });
   }
 
   @Public()
@@ -46,7 +53,7 @@ export class CustomerAuthController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Nowa para tokenów (rotacja); ponowne użycie starego tokenu wylogowuje urządzenie' })
   refresh(@Body(new ZodPipe(refreshSchema)) body: RefreshRequest) {
-    return this.auth.refresh(body.refreshToken);
+    return this.auth.refresh(body.refreshToken, { platform: body.platform, appVersion: body.appVersion });
   }
 
   @Public()

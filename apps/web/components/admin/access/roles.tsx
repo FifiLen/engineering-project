@@ -25,7 +25,7 @@ const MODULE_ORDER = [
 function usePermissionCatalog(): PermissionView[] {
   const [catalog, setCatalog] = useState<PermissionView[]>([]);
   useEffect(() => {
-    api<PermissionView[]>('/admin/permissions')
+    api<PermissionView[]>('/admin/permissions/catalog')
       .then(setCatalog)
       .catch(() => setCatalog([]));
   }, []);

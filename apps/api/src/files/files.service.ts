@@ -193,7 +193,7 @@ export class FilesService implements OnModuleInit, OnApplicationShutdown {
    * Lista plików w panelu (zasób `files`): operator widzi cele, do których ma uprawnienie modułu (`rentals.read`
    * dla zdjęć parkowania, `tickets.read` dla zdjęć zgłoszeń); nazwa klienta tylko z `users.read`.
    */
-  async list(staffId: string, query: ListQuery): Promise<ListResponse<FileListItem>> {
+  async list(staffId: string, query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<FileListItem>> {
     const { permissions } = await this.staffPermissions.get(staffId);
     const purposes: FilePurpose[] = [
       ...(permissions.has('rentals.read') ? (['PARKING_PHOTO'] as const) : []),
@@ -202,7 +202,7 @@ export class FilesService implements OnModuleInit, OnApplicationShutdown {
     if (!purposes.length) throw new DomainError('FORBIDDEN', { permission: 'tickets.read' });
     const seesCustomers = permissions.has('users.read');
     const now = new Date();
-    const result = await new DrizzleFileRepository(this.db).list(query, purposes);
+    const result = await new DrizzleFileRepository(db).list(query, purposes);
     return {
       ...result,
       items: result.items.map((item) => ({

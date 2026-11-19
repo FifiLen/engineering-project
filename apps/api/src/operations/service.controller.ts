@@ -29,8 +29,9 @@ import {
   type SparePartUpdate,
   type TaskPartAdd,
   type TaskPartRemove,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { EntityHistory } from '../audit/entity-history.service.js';
@@ -40,6 +41,9 @@ import { ZodPipe } from '../common/zod-query.js';
 import { DashboardService } from './dashboard.service.js';
 import { ServiceTasksService } from './service-tasks.service.js';
 import { SparePartsService } from './spare-parts.service.js';
+import type { FastifyReply } from 'fastify';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 const idParam = new ZodPipe(z.uuid());
 const versionQuery = new ZodPipe(z.object({ version: z.coerce.number().int().min(1) }));
@@ -51,6 +55,7 @@ export class ServiceTasksController {
   constructor(
     private readonly tasks: ServiceTasksService,
     private readonly history: EntityHistory,
+    private readonly exporter: ListExportService,
   ) {}
 
   @RequirePermission('service.read')
@@ -58,6 +63,18 @@ export class ServiceTasksController {
   @ApiOperation({ summary: 'Zadania serwisowe według wzorca listy (koszt części, termin, cel przewiezienia)' })
   list(@Query(new ListQueryPipe(serviceTasksResource)) query: ListQuery) {
     return this.tasks.list(query);
+  }
+
+  @RequirePermission('service.read')
+  @ListExport('zadania serwisowe')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, serviceTasksResource, body, (db, query) =>
+      this.tasks.list(query, db),
+    );
   }
 
   @RequirePermission('service.read')
@@ -205,6 +222,7 @@ export class SparePartsController {
   constructor(
     private readonly parts: SparePartsService,
     private readonly history: EntityHistory,
+    private readonly exporter: ListExportService,
   ) {}
 
   @RequirePermission('service.read')
@@ -212,6 +230,18 @@ export class SparePartsController {
   @ApiOperation({ summary: 'Części ze stanem względem minimum i zużyciem z 30 dni' })
   list(@Query(new ListQueryPipe(sparePartsResource)) query: ListQuery) {
     return this.parts.list(query);
+  }
+
+  @RequirePermission('service.read')
+  @ListExport('części zamienne', 'spare-parts/export')
+  exportParts(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, sparePartsResource, body, (db, query) =>
+      this.parts.list(query, db),
+    );
   }
 
   @RequirePermission('service.read')
@@ -284,6 +314,18 @@ export class SparePartsController {
   @ApiOperation({ summary: 'Ruchy magazynowe (przyjęcie, korekta, użycie, zwrot) tylko do odczytu' })
   movements(@Query(new ListQueryPipe(sparePartMovementsResource)) query: ListQuery) {
     return this.parts.movements(query);
+  }
+
+  @RequirePermission('service.read')
+  @ListExport('ruchy magazynowe', 'spare-part-movements/export')
+  exportMovements(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, sparePartMovementsResource, body, (db, query) =>
+      this.parts.movements(query, db),
+    );
   }
 }
 

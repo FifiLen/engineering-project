@@ -17,6 +17,7 @@ import {
   unauthenticated,
   type CurrentDocument,
   type CustomerRecord,
+  type NewSession,
 } from '@hulajnogi/core';
 import {
   currentMinUserAge,
@@ -49,6 +50,13 @@ import { SmsGateway } from './sms.gateway.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 
+/** Urządzenie z żądania logowania do listy sesji w panelu (ADR 0076). */
+export interface SessionDevice {
+  device?: string | null;
+  platform?: NewSession['platform'];
+  appVersion?: string | null;
+}
+
 /**
  * Konto klienta w aplikacji (ADR 0019, ADR 0035): kod SMS, sesje z rotacją tokenu, rejestracja
  * i zgody na obowiązujące wersje dokumentów. Reguły z packages/core, dane z repozytoriów packages/db.
@@ -73,7 +81,9 @@ export class CustomerAuthService {
     // Treść z szablonu `login_code` (kanał SMS) edytowanego w panelu (ADR 0058); kod jest jedyną zmienną. Szablon
     // renderujemy przed zapisem kodu: brak szablonu albo błąd treści nie zużywa limitu kodów klienta.
     const text = await this.sms.render('login_code', { code });
-    await otp.create(phone, this.codes.hash(phone, code), otpExpiresAt(now));
+    // Cel kodu na liście Kody SMS (ADR 0076): rejestracja, gdy numer nie ma jeszcze konta.
+    const purpose = (await new DrizzleCustomerRepository(this.db).findByPhone(phone)) ? 'LOGIN' : 'REGISTER';
+    await otp.create(phone, this.codes.hash(phone, code), otpExpiresAt(now), purpose);
     await this.sms.deliver(phone, text);
     return {
       phone,
@@ -83,7 +93,7 @@ export class CustomerAuthService {
     };
   }
 
-  async verifyOtp(rawPhone: string, code: string, device: string | null): Promise<CustomerSession> {
+  async verifyOtp(rawPhone: string, code: string, device: SessionDevice): Promise<CustomerSession> {
     const now = new Date();
     const phone = normalizePhone(rawPhone);
     const otp = new DrizzleOtpRepository(this.db);
@@ -105,7 +115,7 @@ export class CustomerAuthService {
   }
 
   /** Rotacja tokenu odświeżającego; ponowne użycie zastąpionego tokenu unieważnia całą rodzinę. */
-  async refresh(refreshToken: string, device: string | null = null): Promise<CustomerTokens> {
+  async refresh(refreshToken: string, device: Omit<SessionDevice, 'device'> = {}): Promise<CustomerTokens> {
     const now = new Date();
     const sessions = new DrizzleCustomerSessionRepository(this.db);
     const session = await sessions.findByTokenHash(hashToken(refreshToken));
@@ -125,7 +135,10 @@ export class CustomerAuthService {
           familyId: session.familyId,
           tokenHash: hashToken(token),
           expiresAt: refreshExpiresAt('CUSTOMER', now),
-          device,
+          // Bez danych urządzenia w żądaniu następca dziedziczy je po poprzedniku (repozytorium sesji).
+          device: null,
+          platform: device.platform,
+          appVersion: device.appVersion,
         },
         now,
       );
@@ -186,9 +199,10 @@ export class CustomerAuthService {
         acceptedDocuments: documents.map((d) => d.consentType),
       });
       await this.saveProfile(tx, record, { name: input.name, email: input.email });
-      for (const doc of documents) await consents.accept(userId, doc.consentType, doc);
-      await consents.accept(userId, 'AGE', null);
-      if (input.marketing) await consents.accept(userId, 'MARKETING', null);
+      // Źródło zgody na liście Zgody (ADR 0076): rejestracja.
+      for (const doc of documents) await consents.accept(userId, doc.consentType, doc, 'REGISTRATION');
+      await consents.accept(userId, 'AGE', null, 'REGISTRATION');
+      if (input.marketing) await consents.accept(userId, 'MARKETING', null, 'REGISTRATION');
       else await consents.revoke(userId, 'MARKETING', now);
       return this.me(userId, tx);
     });
@@ -200,7 +214,7 @@ export class CustomerAuthService {
       await this.activeCustomer(tx, userId);
       const consents = new DrizzleConsentRepository(tx);
       const documents = await this.acceptedDocuments(consents, versionIds);
-      for (const doc of documents) await consents.accept(userId, doc.consentType, doc);
+      for (const doc of documents) await consents.accept(userId, doc.consentType, doc, 'APP');
       return this.me(userId, tx);
     });
   }
@@ -211,7 +225,7 @@ export class CustomerAuthService {
       const record = await this.activeCustomer(tx, userId);
       await this.saveProfile(tx, record, { name: input.name, email: input.email });
       const consents = new DrizzleConsentRepository(tx);
-      if (input.marketing === true) await consents.accept(userId, 'MARKETING', null);
+      if (input.marketing === true) await consents.accept(userId, 'MARKETING', null, 'APP');
       if (input.marketing === false) {
         ensureConsentRevocable('MARKETING');
         await consents.revoke(userId, 'MARKETING', now);
@@ -232,13 +246,15 @@ export class CustomerAuthService {
     };
   }
 
-  private async openSession(tx: DbExecutor, userId: string, device: string | null, now: Date): Promise<CustomerTokens> {
+  private async openSession(tx: DbExecutor, userId: string, device: SessionDevice, now: Date): Promise<CustomerTokens> {
     const token = generateToken();
     const session = await new DrizzleCustomerSessionRepository(tx).create({
       ownerId: userId,
       tokenHash: hashToken(token),
       expiresAt: refreshExpiresAt('CUSTOMER', now),
-      device,
+      device: device.device ?? null,
+      platform: device.platform ?? null,
+      appVersion: device.appVersion ?? null,
     });
     return this.tokens(userId, session.id, token, now);
   }

@@ -237,6 +237,8 @@ export class StaffAuthService {
       tokenHash: hashToken(token),
       expiresAt,
       device: userAgent,
+      // Lista sesji operatorów pokazuje „Zapamiętaj to urządzenie” (ADR 0076); rotacja zachowuje wartość.
+      remembered: remember,
     });
     return this.session(tx, staffId, session.id, token, expiresAt, now);
   }

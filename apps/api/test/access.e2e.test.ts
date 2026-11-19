@@ -210,7 +210,9 @@ describe.skipIf(!adminUrl)('API: zasoby panelu Dostęp i dziennik audytu', () =>
     });
 
     it('macierz uprawnień: rola własna, wersja rekordu, nieznane uprawnienie, usuwanie', async () => {
-      expect((await adminApi({ method: 'GET', url: '/admin/permissions' })).json()).toHaveLength(PERMISSIONS.length);
+      expect((await adminApi({ method: 'GET', url: '/admin/permissions/catalog' })).json()).toHaveLength(
+        PERMISSIONS.length,
+      );
       const created = await adminApi({
         method: 'POST',
         url: '/admin/roles',

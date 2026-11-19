@@ -178,9 +178,9 @@ export class TicketsService implements OnModuleInit {
    * Lista na wzorcu (ADR 0031); bez `users.read` bez danych klienta i bez wyszukiwania po nich (ADR 0055), bez
    * `payments.read` bez kwoty zwrotów i bez filtrowania ani sortowania po niej (Serwisant).
    */
-  async list(staffId: string, query: ListQuery): Promise<ListResponse<TicketListItem>> {
+  async list(staffId: string, query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<TicketListItem>> {
     const { seesCustomers, seesPayments } = await this.access(staffId);
-    const repo = new DrizzleTicketRepository(this.db);
+    const repo = new DrizzleTicketRepository(db);
     const hidden = [...(seesCustomers ? [] : TICKET_PERSONAL_FIELDS), ...(seesPayments ? [] : TICKET_PAYMENT_FIELDS)];
     const used = (field: string) => (hidden as readonly string[]).includes(field);
     const blocked = [...query.filters.map((f) => f.field), ...query.sort.map((s) => s.field)].find(used);

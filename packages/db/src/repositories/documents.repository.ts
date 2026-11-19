@@ -378,6 +378,56 @@ export class DrizzleDocumentRepository {
     }
   }
 
+  /**
+   * Nazwa i opis szablonu z blokadą optymistyczną (ADR 0076); `false` przy konflikcie wersji. Zajęta nazwa w rodzaju
+   * to `TEMPLATE_NAME_TAKEN` (unikalność `(document_type, name)`, `rethrowDatabaseRule`).
+   */
+  async updateTemplate(
+    templateId: string,
+    version: number,
+    changes: { name?: string; description?: string | null },
+    staffId: string,
+  ): Promise<boolean> {
+    const set = [
+      ...(changes.name !== undefined ? [sql`name = ${changes.name}`] : []),
+      ...(changes.description !== undefined ? [sql`description = ${changes.description}`] : []),
+      sql`updated_at = now()`,
+      sql`updated_by = ${staffId}`,
+      sql`version = version + 1`,
+    ];
+    try {
+      const { rowCount } = await this.db.execute(sql`
+        UPDATE document_templates SET ${sql.join(set, sql`, `)} WHERE id = ${templateId} AND version = ${version}`);
+      return (rowCount ?? 0) > 0;
+    } catch (error) {
+      rethrowDatabaseRule(error);
+    }
+  }
+
+  /** Dezaktywacja (`sp_document_template_deactivate`): `false`, gdy szablon był już nieaktywny. */
+  async deactivateTemplate(templateId: string, staffId: string): Promise<boolean> {
+    try {
+      const { rows } = await this.db.execute<{ changed: boolean }>(
+        sql`CALL sp_document_template_deactivate(${templateId}, ${staffId}, NULL)`,
+      );
+      return rows[0]?.changed === true;
+    } catch (error) {
+      rethrowDatabaseRule(error);
+    }
+  }
+
+  /** Ponowna aktywacja bez roli domyślnego (`sp_document_template_reactivate`): `false`, gdy był aktywny. */
+  async reactivateTemplate(templateId: string, staffId: string): Promise<boolean> {
+    try {
+      const { rows } = await this.db.execute<{ changed: boolean }>(
+        sql`CALL sp_document_template_reactivate(${templateId}, ${staffId}, NULL)`,
+      );
+      return rows[0]?.changed === true;
+    } catch (error) {
+      rethrowDatabaseRule(error);
+    }
+  }
+
   async touchTemplate(templateId: string, staffId: string): Promise<void> {
     await this.db.execute(sql`
       UPDATE document_templates SET updated_at = now(), updated_by = ${staffId}, version = version + 1

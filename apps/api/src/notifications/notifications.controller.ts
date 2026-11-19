@@ -11,8 +11,9 @@ import {
   type NotificationTemplateRestore,
   type NotificationTemplateUpdate,
   type PushTokenRequest,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import {
@@ -27,6 +28,9 @@ import { ListQueryPipe } from '../common/list-query.pipe.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { NotificationTemplatesService } from './notification-templates.service.js';
 import { NotificationsService } from './notifications.service.js';
+import type { FastifyReply } from 'fastify';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 const idParam = new ZodPipe(z.uuid());
 
@@ -68,13 +72,28 @@ export class CustomerPushTokensController {
 @ApiTags('panel: powiadomienia')
 @Controller('admin/notification-templates')
 export class AdminNotificationTemplatesController {
-  constructor(private readonly templates: NotificationTemplatesService) {}
+  constructor(
+    private readonly templates: NotificationTemplatesService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('content.read')
   @Get()
   @ApiOperation({ summary: 'Szablony powiadomień push i SMS (kody z rejestru) według wzorca listy' })
   list(@Query(new ListQueryPipe(notificationTemplatesResource)) query: ListQuery) {
     return this.templates.list(query);
+  }
+
+  @RequirePermission('content.read')
+  @ListExport('szablony powiadomień')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, notificationTemplatesResource, body, (db, query) =>
+      this.templates.list(query, db),
+    );
   }
 
   @RequirePermission('content.read')
@@ -128,7 +147,10 @@ export class AdminNotificationTemplatesController {
 @ApiTags('panel: powiadomienia')
 @Controller('admin')
 export class AdminNotificationsController {
-  constructor(private readonly notifications: NotificationsService) {}
+  constructor(
+    private readonly notifications: NotificationsService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('content.read')
   @Get('notifications')
@@ -139,10 +161,34 @@ export class AdminNotificationsController {
     return this.notifications.list(staff.staffId, query);
   }
 
+  @RequirePermission('content.read')
+  @ListExport('wysłane powiadomienia', 'notifications/export')
+  exportNotifications(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, notificationsResource, body, (db, query) =>
+      this.notifications.list(staff.staffId, query, db),
+    );
+  }
+
   @RequirePermission('users.read')
   @Get('push-tokens')
   @ApiOperation({ summary: 'Tokeny push klientów ze stanem sesji' })
   pushTokens(@Query(new ListQueryPipe(pushTokensResource)) query: ListQuery) {
     return this.notifications.listPushTokens(query);
+  }
+
+  @RequirePermission('users.read')
+  @ListExport('tokeny push', 'push-tokens/export')
+  exportPushTokens(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, pushTokensResource, body, (db, query) =>
+      this.notifications.listPushTokens(query, db),
+    );
   }
 }

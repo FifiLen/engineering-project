@@ -15,7 +15,7 @@ import {
   ticketStatusOnTaskClosed,
   type ServiceTaskType,
 } from '@hulajnogi/core';
-import { type Database, DrizzleServiceRepository, DrizzleTicketRepository } from '@hulajnogi/db';
+import { type Database, type DbExecutor, DrizzleServiceRepository, DrizzleTicketRepository } from '@hulajnogi/db';
 import type {
   ListQuery,
   ListResponse,
@@ -55,8 +55,8 @@ export class ServiceTasksService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<ServiceTaskListItem>> {
-    return new DrizzleServiceRepository(this.db).listTasks(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<ServiceTaskListItem>> {
+    return new DrizzleServiceRepository(db).listTasks(query);
   }
 
   /** „Moje zadania”: lista z filtrem wykonawcy ustawionym na operatora. */

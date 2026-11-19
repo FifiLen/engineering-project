@@ -49,8 +49,8 @@ export class StaffService {
     private readonly permissions: StaffPermissionsService,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<StaffListItem>> {
-    return new DrizzleStaffRepository(this.db).list(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<StaffListItem>> {
+    return new DrizzleStaffRepository(db).list(query);
   }
 
   async details(id: string, db: DbExecutor = this.db): Promise<StaffDetails> {
@@ -80,14 +80,36 @@ export class StaffService {
     return { staff: await this.details(id), invitationUrl: this.invitationUrl(token) };
   }
 
-  async resendInvitation(actorId: string, id: string, version: number): Promise<StaffInvitationResult> {
+  /**
+   * Nowe zaproszenie zastępujące otwarte (`replaced_by`, ADR 0076). Z karty operatora z wersją rekordu, z listy
+   * zaproszeń bez niej (`version = null`, `replaces` to zaproszenie z wiersza listy).
+   */
+  async resendInvitation(
+    actorId: string,
+    id: string,
+    version: number | null,
+    context: { replaces?: string } = {},
+  ): Promise<StaffInvitationResult> {
     const now = new Date();
     const token = generateToken();
     await this.transaction.run(actorId, async ({ tx, audit }) => {
-      const record = await this.load(tx, id, version);
+      const record =
+        version === null ? await new DrizzleStaffRepository(tx).findAuthById(id) : await this.load(tx, id, version);
+      if (!record) throw notFound('staff', id);
       ensureCanInvite(record);
-      await new DrizzleInvitationRepository(tx).create(id, hashToken(token), invitationExpiresAt(now), actorId, now);
-      await audit({ action: 'staff.invitation_resent', entityType: 'staff', entityId: id, data: {} });
+      const invitation = await new DrizzleInvitationRepository(tx).create(
+        id,
+        hashToken(token),
+        invitationExpiresAt(now),
+        actorId,
+        now,
+      );
+      await audit({
+        action: 'staff.invitation_resent',
+        entityType: 'staff',
+        entityId: id,
+        data: { invitationId: invitation.id, ...(context.replaces ? { replaces: context.replaces } : {}) },
+      });
     });
     return { staff: await this.details(id), invitationUrl: this.invitationUrl(token) };
   }

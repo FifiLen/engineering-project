@@ -5,6 +5,7 @@ import { GeoModule } from '../geo/geo.module.js';
 import { RentalsModule } from '../rentals/rentals.module.js';
 import { AdminZonesController } from './admin-zones.controller.js';
 import { AdminZonesService } from './admin-zones.service.js';
+import { ZoneListsController } from './zone-lists.controller.js';
 import { ZoneTracker } from './zone-tracker.service.js';
 import { ZONE_REPOSITORY, ZonesService } from './zones.service.js';
 import { CustomerZonesController, ZonesController } from './zones.controller.js';
@@ -12,7 +13,7 @@ import { CustomerZonesController, ZonesController } from './zones.controller.js'
 /** Moduł Strefy: geometrie, edytor w panelu, bieżące strefy hulajnóg w przejeździe (ADR 0043, 0047). */
 @Module({
   imports: [GeoModule, RentalsModule],
-  controllers: [ZonesController, CustomerZonesController, AdminZonesController],
+  controllers: [ZonesController, CustomerZonesController, AdminZonesController, ZoneListsController],
   providers: [
     // Port z packages/core, implementacja z packages/db (ADR 0025).
     { provide: ZONE_REPOSITORY, inject: [DB], useFactory: (db: Database) => new DrizzleZoneRepository(db) },

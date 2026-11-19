@@ -2,14 +2,30 @@ import '@fastify/multipart';
 import {
   documentGenerateSchema,
   documentTemplateCreateSchema,
+  documentTemplateUpdateSchema,
   documentTemplatesResource,
   generatedDocumentsResource,
   templateVersionUploadFieldsSchema,
   type DocumentGenerate,
   type DocumentTemplateCreate,
+  type DocumentTemplateUpdate,
   type ListQuery,
+  type ListExportRequest,
 } from '@hulajnogi/shared';
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Query, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -27,6 +43,8 @@ import { ListQueryPipe } from '../common/list-query.pipe.js';
 import { ZodPipe } from '../common/zod-query.js';
 import { DocumentsService } from './documents.service.js';
 import { TemplatesService } from './templates.service.js';
+import { ListExport, listExportBody } from '../common/list-export/list-export.decorators.js';
+import { ListExportService } from '../common/list-export/list-export.service.js';
 
 const idParam = new ZodPipe(z.uuid());
 const typeParam = new ZodPipe(z.string().regex(/^[A-Z_]{3,40}$/));
@@ -71,7 +89,10 @@ async function readUpload(request: FastifyRequest) {
 @ApiTags('panel: wydruki')
 @Controller('admin/document-templates')
 export class DocumentTemplatesController {
-  constructor(private readonly templates: TemplatesService) {}
+  constructor(
+    private readonly templates: TemplatesService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('templates.read')
   @Get()
@@ -82,10 +103,22 @@ export class DocumentTemplatesController {
     return this.templates.list(query);
   }
 
+  @RequirePermission('templates.read')
+  @ListExport('szablony wydruków')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, documentTemplatesResource, body, (db, query) =>
+      this.templates.list(query, db),
+    );
+  }
+
   @RequirePermission('templates.write')
   @Post()
   @ApiOperation({
-    summary: 'Nowy szablon rodzaju z katalogu (bez wersji); nazwa unikalna w rodzaju (409 ALREADY_EXISTS)',
+    summary: 'Nowy szablon rodzaju z katalogu (bez wersji); nazwa unikalna w rodzaju (409 TEMPLATE_NAME_TAKEN)',
   })
   create(
     @CurrentStaff() staff: StaffPrincipal,
@@ -99,6 +132,39 @@ export class DocumentTemplatesController {
   @ApiOperation({ summary: 'Szablon z wersjami (ACTIVE, ARCHIVED, PENDING), polami i ostrzeżeniami' })
   details(@Param('id', idParam) id: string) {
     return this.templates.details(id);
+  }
+
+  @RequirePermission('templates.write')
+  @Patch(':id')
+  @ApiOperation({
+    summary:
+      'Nazwa i opis szablonu z blokadą optymistyczną (409 CONFLICT); zajęta nazwa w rodzaju 409 TEMPLATE_NAME_TAKEN; wpis document_template.updated',
+  })
+  update(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Param('id', idParam) id: string,
+    @Body(new ZodPipe(documentTemplateUpdateSchema)) body: DocumentTemplateUpdate,
+  ) {
+    return this.templates.update(staff.staffId, id, body);
+  }
+
+  @RequirePermission('templates.write')
+  @Post(':id/deactivate')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Dezaktywacja szablonu (znika z „Drukuj”, wersje i wydruki zostają); domyślny z aktywną wersją 409 TEMPLATE_IS_DEFAULT; wpis document_template.deactivated',
+  })
+  deactivate(@CurrentStaff() staff: StaffPrincipal, @Param('id', idParam) id: string) {
+    return this.templates.deactivate(staff.staffId, id);
+  }
+
+  @RequirePermission('templates.write')
+  @Post(':id/reactivate')
+  @HttpCode(200)
+  @ApiOperation({ summary: '„Aktywuj ponownie”: szablon wraca jako aktywny, bez roli domyślnego' })
+  reactivate(@CurrentStaff() staff: StaffPrincipal, @Param('id', idParam) id: string) {
+    return this.templates.reactivate(staff.staffId, id);
   }
 
   @RequirePermission('templates.write')
@@ -268,7 +334,10 @@ export class AdminDocumentsController {
 @ApiTags('panel: wydruki')
 @Controller('admin/generated-documents')
 export class GeneratedDocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    private readonly exporter: ListExportService,
+  ) {}
 
   @RequirePermission('documents.generate')
   @Get()
@@ -278,6 +347,18 @@ export class GeneratedDocumentsController {
   })
   list(@CurrentStaff() staff: StaffPrincipal, @Query(new ListQueryPipe(generatedDocumentsResource)) query: ListQuery) {
     return this.documents.list(staff.staffId, query);
+  }
+
+  @RequirePermission('documents.generate')
+  @ListExport('wygenerowane dokumenty')
+  export(
+    @CurrentStaff() staff: StaffPrincipal,
+    @Body(listExportBody) body: ListExportRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    return this.exporter.list(reply, staff.staffId, generatedDocumentsResource, body, (db, query) =>
+      this.documents.list(staff.staffId, query, db),
+    );
   }
 }
 

@@ -40,8 +40,8 @@ export class ScootersService {
     private readonly publisher: ContentPublisher,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<ScooterListItem>> {
-    return this.scooters.list(query);
+  list(query: ListQuery, db?: DbExecutor): Promise<ListResponse<ScooterListItem>> {
+    return (db ? new DrizzleScooterRepository(db) : this.scooters).list(query);
   }
 
   async details(id: string): Promise<ScooterDetails> {

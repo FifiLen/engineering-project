@@ -27,6 +27,11 @@ export function purgeTelemetry(db: DbExecutor, keepDays: number): Promise<number
   return callCount(db, sql`CALL sp_purge_telemetry(${keepDays}, NULL)`, 'dropped_count');
 }
 
+/** „Usuń wygasłe kody” w panelu (ADR 0076): ta sama procedura co zadanie `auth.purge`, liczba usuniętych kodów. */
+export function purgeExpiredOtp(db: DbExecutor): Promise<number> {
+  return callCount(db, sql`CALL sp_purge_expired_otp(NULL)`, 'deleted_count');
+}
+
 /** Czyszczenie kodów SMS, sesji i zaproszeń (zadanie `auth.purge`, ADR 0037). */
 export async function purgeExpiredAuth(
   db: DbExecutor,

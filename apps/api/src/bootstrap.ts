@@ -34,8 +34,9 @@ export async function createApp(
     // Ciasteczko sesji panelu (ADR 0035) wymaga poświadczeń w żądaniach z innego portu.
     credentials: true,
     allowedHeaders: ['content-type', 'authorization', 'if-none-match'],
-    // ETag treści publicznych (ADR 0062): aplikacja w przeglądarce czyta go przy żądaniu warunkowym.
-    exposedHeaders: ['etag'],
+    // ETag treści publicznych (ADR 0062): aplikacja w przeglądarce czyta go przy żądaniu warunkowym; nazwa pliku
+    // eksportu listy (ADR 0073) z `content-disposition` dla `saveBlob` w panelu.
+    exposedHeaders: ['etag', 'content-disposition'],
   });
 
   SwaggerModule.setup('docs', app, () => buildOpenApiDocument(app));

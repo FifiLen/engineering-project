@@ -117,8 +117,8 @@ export class MediaService {
     private readonly files: FilesService,
   ) {}
 
-  list(query: ListQuery): Promise<ListResponse<MediaListItem>> {
-    return new DrizzleMediaRepository(this.db).list(query);
+  list(query: ListQuery, db: DbExecutor = this.db): Promise<ListResponse<MediaListItem>> {
+    return new DrizzleMediaRepository(db).list(query);
   }
 
   async details(id: string, executor: DbExecutor = this.db): Promise<MediaDetails> {

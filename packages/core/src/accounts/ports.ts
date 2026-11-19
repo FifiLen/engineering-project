@@ -22,7 +22,8 @@ export interface OtpRecord extends OtpState {
 export interface OtpRepository {
   /** Czasy wysłania kodów na numer od `since` (limity wysyłek). */
   issuedSince(phone: string, since: Date): Promise<Date[]>;
-  create(phone: string, codeHash: string, expiresAt: Date): Promise<{ id: string }>;
+  /** `purpose`: `REGISTER`, gdy numer nie ma konta (lista Kody SMS, ADR 0076); domyślnie logowanie. */
+  create(phone: string, codeHash: string, expiresAt: Date, purpose?: 'LOGIN' | 'REGISTER'): Promise<{ id: string }>;
   /** Najnowszy kod wysłany na numer; tylko on może posłużyć do logowania. */
   findLatest(phone: string): Promise<OtpRecord | null>;
   countAttempt(id: string): Promise<void>;
@@ -46,6 +47,14 @@ export interface NewSession {
   expiresAt: Date;
   /** Nazwa urządzenia z aplikacji albo przeglądarka panelu. */
   device: string | null;
+  /**
+   * Platforma i wersja aplikacji klienta z żądania logowania albo odświeżenia (ADR 0076, opcjonalne). Przy rotacji
+   * bez nich następca dziedziczy wartości poprzednika, tak samo jak nazwę urządzenia.
+   */
+  platform?: 'IOS' | 'ANDROID' | 'WEB' | null;
+  appVersion?: string | null;
+  /** Sesja operatora z „Zapamiętaj to urządzenie” (7 dni zamiast 12 h); rotacja zachowuje wartość poprzednika. */
+  remembered?: boolean;
 }
 
 export interface SessionRepository {
@@ -99,6 +108,8 @@ export interface ConsentRepository {
     userId: string,
     type: ConsentType,
     document: Pick<CurrentDocument, 'versionId' | 'versionNo'> | null,
+    /** Skąd zgoda (ADR 0076): rejestracja, aplikacja albo panel. */
+    source?: 'REGISTRATION' | 'APP' | 'PANEL',
   ): Promise<void>;
   revoke(userId: string, type: ConsentType, now: Date): Promise<number>;
 }

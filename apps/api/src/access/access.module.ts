@@ -8,6 +8,16 @@ import { RolesService } from './roles.service.js';
 import { StaffService } from './staff.service.js';
 import { UsersService } from './users.service.js';
 import { AccountDataExport } from './account-data-export.js';
+import {
+  ConsentsController,
+  OtpCodesController,
+  PermissionsController,
+  SavedPlacesController,
+  SessionsController,
+  StaffInvitationsController,
+  StaffSessionsController,
+} from './account-lists.controllers.js';
+import { AccountListsService } from './account-lists.service.js';
 
 /**
  * Moduł Dostęp w panelu (ADR 0028): operatorzy, role, klienci, dziennik audytu i dokumenty prawne.
@@ -15,7 +25,21 @@ import { AccountDataExport } from './account-data-export.js';
  */
 @Global()
 @Module({
-  controllers: [StaffController, RolesController, AuditLogController, UsersController, LegalDocumentsController],
+  controllers: [
+    StaffController,
+    RolesController,
+    AuditLogController,
+    UsersController,
+    LegalDocumentsController,
+    // Domknięcie macierzy operacji (ADR 0076).
+    ConsentsController,
+    SessionsController,
+    OtpCodesController,
+    SavedPlacesController,
+    StaffSessionsController,
+    StaffInvitationsController,
+    PermissionsController,
+  ],
   providers: [
     AuditedTransaction,
     EntityHistory,
@@ -24,6 +48,7 @@ import { AccountDataExport } from './account-data-export.js';
     UsersService,
     LegalDocumentsService,
     AccountDataExport,
+    AccountListsService,
   ],
   exports: [AuditedTransaction, EntityHistory],
 })
