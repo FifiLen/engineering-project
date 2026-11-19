@@ -26,6 +26,8 @@ import { Banner } from '../access/common';
 import { scooterNumber, StatusPill } from '../fleet/fleet-format';
 import { ScooterForm } from '../fleet/scooters';
 import { AlertIcon, BanIcon, DocumentIcon, RestoreIcon, ServiceIcon } from '../icons';
+import { LabelButton } from '../prints/label-dialog';
+import { PrintButton } from '../prints/print-dialog';
 import { valueLabel } from '../labels';
 import { ReturnCheckLines } from '../tasks/task-details';
 import {
@@ -123,6 +125,8 @@ export function ScooterCard({ id }: { id: string }) {
           <span className="sub">{sub.join(' · ')}</span>
         </div>
         <div className="actions">
+          <LabelButton scooterId={scooter.id} number={scooter.number} />
+          <PrintButton documentType="SCOOTER_CARD" entityId={scooter.id} entityLabel={number} />
           {canRetire && (
             <button type="button" className="btn danger" onClick={() => setDialog('retire')}>
               <BanIcon size={16} />

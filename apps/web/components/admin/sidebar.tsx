@@ -21,6 +21,7 @@ import {
   MapIcon,
   NotificationIcon,
   ParkingIcon,
+  PrinterIcon,
   RouteIcon,
   ScooterIcon,
   ServiceIcon,
@@ -35,8 +36,10 @@ interface NavItem {
   href: string;
   label: string;
   Icon: ComponentType;
-  /** Uprawnienie do odczytu ekranu; pozycje bez niego są ukryte (ADR 0028). */
-  permission: string;
+  /** Uprawnienie do odczytu ekranu; pozycje bez niego są ukryte (ADR 0028). Lista: wystarczy jedno z nich. */
+  permission: string | string[];
+  /** Adres zależny od uprawnień (Wydruki bez `templates.read` otwierają zakładkę Wygenerowane). */
+  hrefFor?: (can: (permission: string) => boolean) => string;
   /** Inne ścieżki tej samej pozycji (zakładki). */
   also?: string[];
   /** Pozycja aktywna tylko pod dokładnie tym adresem (pulpit pod `/admin`). */
@@ -48,8 +51,8 @@ interface NavItem {
 }
 
 /**
- * Nawigacja boczna pogrupowana jak w makietach 27-panel-serwis; tylko gotowe ekrany (Raporty i Wydruki dochodzą
- * w kolejnych iteracjach).
+ * Nawigacja boczna pogrupowana jak w makietach 27-panel-serwis i 29-panel-wydruki; tylko gotowe ekrany (Raporty
+ * dochodzą w kolejnej iteracji).
  */
 const groups: Array<{ label?: string; items: NavItem[] }> = [
   {
@@ -114,6 +117,15 @@ const groups: Array<{ label?: string; items: NavItem[] }> = [
   {
     label: t('admin.nav.analysis'),
     items: [
+      // Szablony (`templates.read`) i Wygenerowane (`documents.generate`) to zakładki jednej pozycji (ADR 0068).
+      {
+        href: '/admin/wydruki',
+        label: t('admin.nav.prints'),
+        Icon: PrinterIcon,
+        permission: ['templates.read', 'documents.generate'],
+        also: ['/admin/wydruki'],
+        hrefFor: (can) => (can('templates.read') ? '/admin/wydruki' : '/admin/wydruki/wygenerowane'),
+      },
       {
         href: '/admin/symulator',
         label: t('admin.nav.simulator'),
@@ -177,7 +189,13 @@ export function Sidebar() {
   const visible = groups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => can(item.permission) && (item.feature !== 'simulator' || simulator)),
+      items: group.items
+        .filter(
+          (item) =>
+            (Array.isArray(item.permission) ? item.permission.some((p) => can(p)) : can(item.permission)) &&
+            (item.feature !== 'simulator' || simulator),
+        )
+        .map((item) => (item.hrefFor ? { ...item, href: item.hrefFor(can) } : item)),
     }))
     .filter((group) => group.items.length > 0);
   const initials = staff.name

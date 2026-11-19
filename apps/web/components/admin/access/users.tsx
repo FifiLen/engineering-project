@@ -20,6 +20,7 @@ import { ConfirmDialog } from '../confirm-dialog';
 import type { FilterSpec } from '../filter-drawer';
 import { HistoryCard } from '../history-card';
 import { AlertIcon, CardIcon, LockIcon, LogoutIcon } from '../icons';
+import { CustomerDataExports } from '../prints/data-exports';
 import { valueLabel } from '../labels';
 import {
   AdjustmentDialog,
@@ -411,6 +412,7 @@ export function UserCard({ id, tab = 'profile' }: { id: string; tab?: 'profile' 
                   ))}
                 </ul>
               </section>
+              <CustomerDataExports userId={id} />
               <HistoryCard path={`/admin/users/${id}/history`} resourceName="users" revision={record.version} />
             </div>
           </div>

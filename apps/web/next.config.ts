@@ -10,7 +10,11 @@ try {
 const config: NextConfig = {
   reactStrictMode: true,
   // Adres API widziany z przeglądarki; wpisywany do paczki przy budowaniu.
-  env: { NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001' },
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001',
+    // Adres strony w kodach QR (ADR 0041): podgląd naklejki w panelu pokazuje ten sam adres co PDF z API.
+    NEXT_PUBLIC_SITE_URL: process.env.PUBLIC_SITE_URL ?? 'http://localhost:3000',
+  },
 };
 
 export default config;

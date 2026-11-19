@@ -9,12 +9,15 @@ import type {
 } from '@hulajnogi/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { parseMarkdown } from '@hulajnogi/shared';
+import { useEffect, useState } from 'react';
 import { api, errorMessage } from '../../../lib/api';
 import { formatDate, t } from '../../../lib/i18n';
 import { useSession } from '../../../lib/session';
 import { ConfirmDialog } from '../confirm-dialog';
-import { CheckIcon, PlusIcon } from '../icons';
+import { MarkdownView } from '../../markdown-view';
+import { ContentHead, issueMessage, markdownIssues } from '../content/content-common';
+import { AlertIcon, CheckIcon, PlusIcon } from '../icons';
 import { Banner } from './common';
 
 const BASE = '/admin/tresci';
@@ -69,22 +72,17 @@ export function DocumentsPage({ selectedId }: { selectedId?: string }) {
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>{t('access.documents.title')}</h1>
-          <div className="sub">{t('access.documents.lead')}</div>
-        </div>
-      </div>
-      <nav className="tabs" aria-label={t('access.documents.title')}>
-        <span className="tab" aria-current="page">
-          {t('access.documents.tab')}
-        </span>
-      </nav>
+      <ContentHead />
       {error && <Banner kind="danger">{error}</Banner>}
       <div className="doc-layout">
         <div className="card doc-list">
           {docs?.map((d) => (
-            <Link key={d.id} href={`${BASE}?dokument=${d.id}`} className="doc-item" aria-current={d.id === currentId ? 'page' : undefined}>
+            <Link
+              key={d.id}
+              href={`${BASE}?dokument=${d.id}`}
+              className="doc-item"
+              aria-current={d.id === currentId ? 'page' : undefined}
+            >
               {d.name}
               <small>{documentMeta(d)}</small>
             </Link>
@@ -164,41 +162,6 @@ export function DocumentsPage({ selectedId }: { selectedId?: string }) {
   );
 }
 
-/**
- * Podgląd Markdown dokumentu: nagłówki, listy numerowane i punktowane, akapity i pogrubienie. Dokumenty
- * prawne nie potrzebują więcej; pełny edytor treści w iteracji 7.
- */
-function MarkdownPreview({ source }: { source: string }) {
-  const blocks: ReactNode[] = [];
-  const inline = (text: string) =>
-    text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-      part.startsWith('**') && part.endsWith('**') ? <b key={i}>{part.slice(2, -2)}</b> : <Fragment key={i}>{part}</Fragment>,
-    );
-  const lines = source.replace(/<!--[\s\S]*?-->/g, '').split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!.trim();
-    if (!line) continue;
-    if (line.startsWith('#')) {
-      blocks.push(<h3 key={i}>{inline(line.replace(/^#+\s*/, ''))}</h3>);
-      continue;
-    }
-    const ordered = /^\d+\.\s/.test(line);
-    if (ordered || line.startsWith('- ')) {
-      const items: string[] = [];
-      while (i < lines.length && (ordered ? /^\d+\.\s/ : /^-\s/).test(lines[i]!.trim())) {
-        items.push(lines[i]!.trim().replace(/^(\d+\.|-)\s+/, ''));
-        i++;
-      }
-      i--;
-      const list = items.map((item, k) => <li key={k}>{inline(item)}</li>);
-      blocks.push(ordered ? <ol key={i}>{list}</ol> : <ul key={i}>{list}</ul>);
-      continue;
-    }
-    blocks.push(<p key={i}>{inline(line)}</p>);
-  }
-  return <div className="md-preview">{blocks}</div>;
-}
-
 /** Wersja dokumentu: edycja wersji roboczej z podglądem, publikacja i usunięcie; inne wersje do odczytu. */
 export function VersionEditor({ versionId }: { versionId: string }) {
   const router = useRouter();
@@ -222,15 +185,22 @@ export function VersionEditor({ versionId }: { versionId: string }) {
     api<DocumentVersionDetails>(`/admin/legal-documents/versions/${versionId}`)
       .then((v) => {
         apply(v);
-        return api<LegalDocumentSummary[]>('/admin/legal-documents').then((docs) => setDoc(docs.find((d) => d.id === v.documentId) ?? null));
+        return api<LegalDocumentSummary[]>('/admin/legal-documents').then((docs) =>
+          setDoc(docs.find((d) => d.id === v.documentId) ?? null),
+        );
       })
       .catch((e: unknown) => setError(errorMessage(e)));
   }, [versionId]);
 
   if (!version) return error ? <Banner kind="danger">{error}</Banner> : <div className="card" aria-busy="true" />;
   const editable = version.status === 'DRAFT' && can('content.write');
+  // Treść w profilu „document” (ADR 0063): błędy z wierszem blokują zapis, jak w API.
+  const parsed = parseMarkdown(body, 'document');
+  const blocked = editable && parsed.issues.length > 0;
   const dirty = title !== version.title || summary !== (version.changeSummary ?? '') || body !== version.bodyMd;
   const back = `${BASE}?dokument=${version.documentId}`;
+  // Blokada optymistyczna wersji roboczej (ADR 0062): zapis podaje wersję wczytaną do edytora.
+  const lockVersion = version.version;
 
   async function save(): Promise<boolean> {
     setError(null);
@@ -239,7 +209,7 @@ export function VersionEditor({ versionId }: { versionId: string }) {
       apply(
         await api<DocumentVersionDetails>(`/admin/legal-documents/versions/${versionId}`, {
           method: 'PATCH',
-          json: { title, bodyMd: body, changeSummary: summary.trim() || null },
+          json: { version: lockVersion, title, bodyMd: body, changeSummary: summary.trim() || null },
         }),
       );
       setNotice(t('access.documents.saved'));
@@ -289,7 +259,9 @@ export function VersionEditor({ versionId }: { versionId: string }) {
           <div className="sub">
             {editable
               ? t('access.documents.draftSub', { chars: body.length })
-              : t('access.documents.readOnlyVersion', { status: t.dynamic(`documentStatus.${version.status}`).toLowerCase() })}
+              : t('access.documents.readOnlyVersion', {
+                  status: t.dynamic(`documentStatus.${version.status}`).toLowerCase(),
+                })}
           </div>
         </div>
         {editable && (
@@ -297,10 +269,10 @@ export function VersionEditor({ versionId }: { versionId: string }) {
             <button type="button" className="btn danger" onClick={() => setConfirm('delete')}>
               {t('access.documents.deleteDraft')}
             </button>
-            <button type="button" className="btn" disabled={!dirty} onClick={() => void save()}>
+            <button type="button" className="btn" disabled={!dirty || blocked} onClick={() => void save()}>
               {t('access.documents.save')}
             </button>
-            <button type="button" className="btn primary" onClick={() => setConfirm('publish')}>
+            <button type="button" className="btn primary" disabled={blocked} onClick={() => setConfirm('publish')}>
               {t('access.documents.publish')}
             </button>
           </div>
@@ -318,9 +290,15 @@ export function VersionEditor({ versionId }: { versionId: string }) {
             </label>
             <label className="field">
               <span className="label">
-                {t('access.documents.fieldSummary')} <span className="opt">{t('access.documents.fieldSummaryHint')}</span>
+                {t('access.documents.fieldSummary')}{' '}
+                <span className="opt">{t('access.documents.fieldSummaryHint')}</span>
               </span>
-              <input className="input" value={summary} disabled={!editable} onChange={(e) => setSummary(e.target.value)} />
+              <input
+                className="input"
+                value={summary}
+                disabled={!editable}
+                onChange={(e) => setSummary(e.target.value)}
+              />
             </label>
           </section>
           <section className="card editor">
@@ -334,13 +312,28 @@ export function VersionEditor({ versionId }: { versionId: string }) {
                 aria-label={t('access.documents.fieldBody')}
                 onChange={(e) => setBody(e.target.value)}
               />
+              {blocked && (
+                <ul className="ct-issues">
+                  {markdownIssues(parsed.issues, 'bodyMd').map((issue, i) => (
+                    <li key={i}>
+                      <AlertIcon size={14} />
+                      {issueMessage(issue, { profile: 'document' })}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div>
               <div className="section-head" style={{ marginBottom: 10 }}>
                 <span className="label">{t('access.documents.preview')}</span>
                 <span className="hint">{t('access.documents.previewHint')}</span>
               </div>
-              <MarkdownPreview source={body} />
+              <MarkdownView blocks={parsed.blocks} className="md-preview ct-md" />
+              {parsed.issues.map((issue, i) => (
+                <p key={i} className="md-skipped">
+                  {t('content.editor.skipped', { line: issue.line })}
+                </p>
+              ))}
             </div>
           </section>
         </div>
@@ -362,7 +355,11 @@ export function VersionEditor({ versionId }: { versionId: string }) {
       <ConfirmDialog
         open={confirm !== null}
         danger={confirm === 'delete'}
-        title={confirm === 'publish' ? t('access.documents.publishTitle', { no: version.versionNo }) : t('access.documents.deleteTitle')}
+        title={
+          confirm === 'publish'
+            ? t('access.documents.publishTitle', { no: version.versionNo })
+            : t('access.documents.deleteTitle')
+        }
         body={confirm === 'publish' ? t('access.documents.publishBody') : t('access.documents.deleteBody')}
         action={confirm === 'publish' ? t('access.documents.publish') : t('access.documents.deleteDraft')}
         onConfirm={() => void (confirm === 'publish' ? publish() : remove())}

@@ -78,6 +78,8 @@ const fields: FormFieldSpec[] = [
   { name: 'weightKg', kind: 'decimal', optional: true, hint: true },
   { name: 'active', kind: 'toggle', hint: true },
   { name: 'description', kind: 'textarea', optional: true },
+  // Zdjęcie z biblioteki mediów: strona `/h/{numer}` i sekcja „Zaprojektowana do miasta” (ADR 0064, ADR 0065).
+  { name: 'photoMediaId', kind: 'media', optional: true, wide: true, mediaFrom: 'photo' },
 ];
 
 export function ScooterModelForm({ id }: { id?: string }) {
@@ -97,6 +99,7 @@ export function ScooterModelForm({ id }: { id?: string }) {
         weightKg: '',
         active: true,
         description: '',
+        photoMediaId: '',
       }}
       title={(m) =>
         m ? t('resource.scooter-models.editTitle', { code: m.code }) : t('resource.scooter-models.newTitle')

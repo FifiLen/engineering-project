@@ -1,13 +1,8 @@
 {
   "meta": {
     "title": "[nazwa]: hulajnogi elektryczne w Rybniku",
-    "description": "Znajdź hulajnogę na mapie, zeskanuj kod i ruszaj.",
-    "adminTitle": "[nazwa]: panel operatora"
-  },
-  "marketing": {
-    "headline": "Hulajnoga zawsze blisko.",
-    "lead": "Znajdź ją na mapie, zeskanuj kod i ruszaj. Działamy w Rybniku.",
-    "pending": "Strona promocyjna powstaje w iteracji 7 z treści zarządzanych w panelu."
+    "adminTitle": "[nazwa]: panel operatora",
+    "titleTemplate": "%s · [nazwa]"
   },
   "admin": {
     "brand": "[nazwa]",
@@ -35,7 +30,8 @@
       "notifications": "Powiadomienia",
       "simulator": "Symulator",
       "newTickets": "{count, plural, one {# nowe zgłoszenie} few {# nowe zgłoszenia} other {# nowych zgłoszeń}}",
-      "analysis": "Analiza"
+      "analysis": "Analiza",
+      "prints": "Wydruki"
     },
     "auth": {
       "sideTitle": "Panel operatora floty",
@@ -276,7 +272,49 @@
     "SIMULATOR_UNAVAILABLE": "Symulator nie odpowiada; polecenie nie zostało wysłane",
     "TOWING_FEE_NOT_APPLICABLE": "Hulajnoga stoi w strefie parkowania; opłata za odholowanie nie przysługuje",
     "POSITION_STALE": "Ostatnia pozycja hulajnogi jest zbyt stara",
-    "OUTSIDE_PARKING": "Hulajnoga stoi poza strefą parkowania"
+    "OUTSIDE_PARKING": "Hulajnoga stoi poza strefą parkowania",
+    "CONTENT_VALIDATION_FAILED": "Popraw treść; problemy są przy polach",
+    "CONTENT_SECTION_REQUIRED": "Sekcja wymagana zostaje opublikowana",
+    "CONTENT_LINK_SCHEME": "Adres spoza listy: https:, mailto:, tel:, ścieżka albo kotwica",
+    "CONTENT_ICON_UNKNOWN": "Ikona spoza listy",
+    "CONTENT_DELETE_PUBLISHED": "Opublikowany wpis najpierw przenieś do archiwum albo szkiców",
+    "CONTENT_POSITION_TAKEN": "Kolejność zmieniła się w międzyczasie; odśwież stronę",
+    "FAQ_NOT_VISIBLE": "Pytanie musi być widoczne na stronie albo w aplikacji",
+    "FAQ_CATEGORY_NOT_EMPTY": "Kategoria ma pytania; najpierw je przenieś albo usuń",
+    "NEWS_SLUG_LOCKED": "Adres opublikowanej aktualności się nie zmienia",
+    "ORDER_MISMATCH": "Lista zmieniła się w międzyczasie; odśwież stronę i ustaw kolejność ponownie",
+    "COMPANY_PROFILE_REQUIRED": "Brak danych firmy; uzupełnij je w Treściach",
+    "IMAGE_UNREADABLE": "Nie udało się odczytać wymiarów grafiki",
+    "IMAGE_DIMENSIONS_TOO_LARGE": "Grafika ma więcej niż 8000 px w jednym z wymiarów",
+    "MEDIA_TOO_NARROW": "Grafika jest za wąska dla tej sekcji",
+    "MEDIA_KEY_RESERVED": "Klucze zaczynające się od „scooter.” są zarezerwowane dla grafik systemowych",
+    "MEDIA_KEY_TAKEN": "Ten klucz ma już inna grafika",
+    "MEDIA_KEY_IMMUTABLE": "Klucz grafiki nie zmienia się po utworzeniu",
+    "MEDIA_FILE_INVALID": "Plik nie jest grafiką biblioteki mediów",
+    "MEDIA_IN_USE": "Grafika jest używana; najpierw wybierz inną w tych miejscach",
+    "MEDIA_SYSTEM": "Grafiki systemowej nie można usunąć",
+    "TEMPLATE_INVALID": "Szablon ma błędy znaczników; popraw plik w Wordzie",
+    "TEMPLATE_NOT_DOCX": "To nie jest plik DOCX (szablony .dotx i .docm nie są obsługiwane)",
+    "TEMPLATE_MACROS": "Plik zawiera makra; zapisz go jako zwykły dokument .docx",
+    "TEMPLATE_TOO_LARGE": "Szablon jest za duży (najwyżej 5 MB)",
+    "TEMPLATE_TOO_LARGE_UNPACKED": "Szablon po rozpakowaniu jest za duży",
+    "TEMPLATE_FILE_INVALID": "Nie udało się odczytać pliku szablonu",
+    "DOCUMENT_PARAM_INVALID": "Nieprawidłowy parametr wydruku",
+    "DOCUMENT_TYPE_NOT_PRINTABLE": "Ten rodzaj dokumentu nie ma aktywnego szablonu",
+    "DOCUMENT_FORMAT_NOT_ALLOWED": "Ten rodzaj dokumentu nie ma takiego formatu",
+    "TEMPLATE_NOT_ACTIVE": "Wybrany szablon nie ma aktywnej wersji",
+    "TEMPLATE_INACTIVE": "Szablon jest wyłączony",
+    "TEMPLATE_NO_ACTIVE_VERSION": "Szablon bez aktywnej wersji nie może być domyślny",
+    "TEMPLATE_VERSION_IMMUTABLE": "Wersji szablonu nie można zmienić",
+    "TEMPLATE_VERSION_NOT_PENDING": "Usunąć można tylko wersję „Do aktywacji”",
+    "TEMPLATE_VERSION_IN_USE": "Ta wersja była aktywna i wskazują ją wydruki; nie można jej usunąć",
+    "TEMPLATE_ALREADY_ACTIVE": "Ta wersja jest już aktywna",
+    "TEMPLATE_ALREADY_DEFAULT": "Ten szablon jest już domyślny",
+    "DOCUMENT_NOT_RETRYABLE": "Tego wydruku nie można ponowić",
+    "RENDER_TIMEOUT": "Silnik dokumentów nie odpowiedział w 30 s",
+    "RENDERER_UNAVAILABLE": "Silnik dokumentów jest niedostępny",
+    "RENDER_FAILED": "Silnik dokumentów odrzucił plik",
+    "DOCUMENT_SOURCE_NOT_FOUND": "Nie znaleziono obiektu dokumentu"
   },
   "fleetStatus": {
     "AVAILABLE": "Dostępna",
@@ -439,7 +477,8 @@
         "scootersTotal": "Hulajnogi",
         "scootersActive": "Hulajnogi we flocie",
         "updatedAt": "Zmieniono",
-        "description": "Opis"
+        "description": "Opis",
+        "photoMediaId": "Zdjęcie modelu"
       },
       "hints": {
         "code": "Wielkie litery, cyfry i myślniki, np. X-200",
@@ -1540,6 +1579,314 @@
         }
       },
       "summary": "{count, plural, one {# token} few {# tokeny} other {# tokenów}}"
+    },
+    "content-blocks": {
+      "title": "Bloki treści",
+      "searchPlaceholder": "Sekcja, klucz albo treść",
+      "fields": {
+        "id": "Identyfikator",
+        "key": "Sekcja",
+        "client": "Klient",
+        "position": "Pozycja",
+        "isHeader": "Nagłówek sekcji",
+        "title": "Tytuł",
+        "bodyMd": "Treść",
+        "icon": "Ikona",
+        "buttonLabel": "Przycisk: etykieta",
+        "buttonHref": "Przycisk: adres",
+        "mediaId": "Grafika",
+        "mediaKey": "Klucz grafiki",
+        "mediaName": "Nazwa grafiki",
+        "status": "Status",
+        "sectionItems": "Elementy",
+        "sectionItemsPublished": "Opublikowane elementy",
+        "sectionDrafts": "Szkice elementów",
+        "updatedByName": "Zmienił",
+        "createdAt": "Utworzono",
+        "updatedAt": "Zmieniono",
+        "version": "Wersja"
+      },
+      "values": {
+        "status": {
+          "DRAFT": "Szkic",
+          "PUBLISHED": "Opublikowany",
+          "ARCHIVED": "Archiwum"
+        },
+        "client": {
+          "WEB": "Strona",
+          "MOBILE": "Aplikacja",
+          "ADMIN": "Panel"
+        }
+      }
+    },
+    "faq-items": {
+      "title": "FAQ",
+      "searchPlaceholder": "Pytanie albo odpowiedź",
+      "new": "Nowe pytanie",
+      "emptyTitle": "Brak pytań",
+      "emptyBody": "Dodaj pierwsze pytanie; nowa nazwa kategorii utworzy kategorię.",
+      "fields": {
+        "id": "Identyfikator",
+        "categoryId": "Kategoria (identyfikator)",
+        "categoryName": "Kategoria",
+        "categorySortOrder": "Kolejność kategorii",
+        "question": "Pytanie",
+        "answerMd": "Odpowiedź",
+        "sortOrder": "Kolejność",
+        "status": "Status",
+        "showOnWeb": "Na stronie",
+        "showInApp": "W aplikacji",
+        "updatedByName": "Zmienił",
+        "createdAt": "Utworzono",
+        "updatedAt": "Zmieniono",
+        "version": "Wersja"
+      },
+      "values": {
+        "status": {
+          "DRAFT": "Szkic",
+          "PUBLISHED": "Opublikowane",
+          "ARCHIVED": "Archiwum"
+        }
+      }
+    },
+    "faq-categories": {
+      "title": "Kategorie FAQ",
+      "searchPlaceholder": "Nazwa kategorii",
+      "fields": {
+        "id": "Identyfikator",
+        "name": "Nazwa",
+        "sortOrder": "Kolejność",
+        "items": "Pytania",
+        "itemsPublished": "Opublikowane pytania",
+        "createdAt": "Utworzono",
+        "updatedAt": "Zmieniono",
+        "version": "Wersja"
+      }
+    },
+    "news": {
+      "title": "Treści",
+      "searchPlaceholder": "Tytuł, zajawka albo adres",
+      "new": "Nowa aktualność",
+      "emptyTitle": "Brak aktualności",
+      "emptyBody": "Dodaj aktualność; pojawi się na stronie po publikacji.",
+      "fields": {
+        "id": "Identyfikator",
+        "slug": "Adres",
+        "title": "Aktualność",
+        "lead": "Zajawka",
+        "status": "Status",
+        "state": "Stan",
+        "publishFrom": "Publikacja",
+        "publishTo": "Publikacja do",
+        "firstPublishedAt": "Pierwsza publikacja",
+        "mediaId": "Grafika",
+        "mediaKey": "Klucz grafiki",
+        "mediaName": "Nazwa grafiki",
+        "createdByName": "Utworzył",
+        "updatedByName": "Zmienił",
+        "createdAt": "Utworzono",
+        "updatedAt": "Zmieniono",
+        "version": "Wersja"
+      },
+      "values": {
+        "status": {
+          "DRAFT": "Szkic",
+          "PUBLISHED": "Opublikowana",
+          "ARCHIVED": "Archiwum"
+        },
+        "state": {
+          "DRAFT": "Szkic",
+          "SCHEDULED": "Zaplanowana",
+          "PUBLISHED": "Opublikowana",
+          "EXPIRED": "Wygasła",
+          "ARCHIVED": "Archiwum"
+        }
+      }
+    },
+    "media": {
+      "title": "Media",
+      "searchPlaceholder": "Nazwa, klucz albo tekst alternatywny",
+      "emptyTitle": "Biblioteka jest pusta",
+      "emptyBody": "Dodaj grafiki, żeby użyć ich w sekcjach, aktualnościach i modelach.",
+      "fields": {
+        "id": "Identyfikator",
+        "key": "Klucz",
+        "name": "Nazwa",
+        "altText": "Tekst alternatywny",
+        "caption": "Podpis",
+        "isSystem": "Grafika systemowa",
+        "contentType": "Typ",
+        "sizeBytes": "Rozmiar",
+        "width": "Szerokość",
+        "height": "Wysokość",
+        "sha256": "Suma SHA-256",
+        "originalName": "Nazwa pliku",
+        "usages": "Użycia",
+        "url": "Adres",
+        "updatedByName": "Zmienił",
+        "createdAt": "Dodano",
+        "updatedAt": "Zmieniono",
+        "version": "Wersja"
+      }
+    },
+    "document-templates": {
+      "title": "Szablony wydruków",
+      "searchPlaceholder": "Nazwa albo opis szablonu",
+      "new": "Nowy szablon",
+      "emptyTitle": "Brak szablonów",
+      "emptyBody": "Szablon to plik DOCX ze znacznikami pól z katalogu rodzaju.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "documentType": "Rodzaj dokumentu",
+        "name": "Nazwa",
+        "description": "Opis",
+        "isDefault": "Domyślny",
+        "active": "Włączony",
+        "activeVersionId": "Aktywna wersja",
+        "activeVersionNo": "Aktywna wersja",
+        "activeSince": "Aktywna od",
+        "versions": "Wersje",
+        "pendingVersions": "Do aktywacji",
+        "lastGeneratedAt": "Ostatni wydruk",
+        "updatedByName": "Zmienił",
+        "createdAt": "Utworzono",
+        "updatedAt": "Zmieniono",
+        "version": "Wersja rekordu"
+      },
+      "values": {
+        "documentType": {
+          "RECEIPT": "Paragon",
+          "RENTAL_CONFIRMATION": "Potwierdzenie przejazdu",
+          "SERVICE_PROTOCOL": "Protokół zadania serwisowego",
+          "SCOOTER_CARD": "Karta hulajnogi",
+          "INCIDENT_REPORT": "Raport zdarzenia",
+          "WALLET_ADJUSTMENT": "Potwierdzenie korekty salda"
+        },
+        "isDefault": {
+          "true": "Domyślny",
+          "false": "Nie"
+        },
+        "active": {
+          "true": "Tak",
+          "false": "Nie"
+        }
+      }
+    },
+    "generated-documents": {
+      "title": "Wydruki",
+      "searchPlaceholder": "Obiekt, operator albo identyfikator",
+      "new": "",
+      "emptyTitle": "Nie ma jeszcze wydruków",
+      "emptyBody": "Wydruk powstaje z „Drukuj” na karcie zadania, przejazdu, hulajnogi, zgłoszenia albo paragonu.",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "documentType": "Rodzaj",
+        "entityRef": "Obiekt",
+        "entityLabel": "Obiekt",
+        "format": "Format",
+        "status": "Stan zadania",
+        "state": "Stan",
+        "templateId": "Szablon",
+        "templateName": "Szablon i rodzaj",
+        "templateVersionId": "Wersja szablonu",
+        "templateVersionNo": "Wersja szablonu",
+        "builtIn": "Układ wbudowany",
+        "requesterKind": "Zlecający",
+        "requestedByStaff": "Operator",
+        "staffName": "Zlecił",
+        "requestedByUser": "Klient",
+        "userName": "Klient",
+        "errorCode": "",
+        "retryOf": "Ponowienie wydruku",
+        "createdAt": "Utworzono",
+        "startedAt": "Rozpoczęto",
+        "finishedAt": "Zakończono",
+        "filesDeletedAt": "Pliki usunięte",
+        "durationMs": "Czas generowania",
+        "customerDataVisible": "Dane klienta w pliku"
+      },
+      "values": {
+        "documentType": {
+          "RECEIPT": "Paragon",
+          "RENTAL_CONFIRMATION": "Potwierdzenie przejazdu",
+          "SERVICE_PROTOCOL": "Protokół zadania serwisowego",
+          "SCOOTER_CARD": "Karta hulajnogi",
+          "INCIDENT_REPORT": "Raport zdarzenia",
+          "WALLET_ADJUSTMENT": "Potwierdzenie korekty salda",
+          "SCOOTER_LABEL": "Naklejka z kodem QR"
+        },
+        "format": {
+          "PDF": "PDF",
+          "DOCX": "DOCX"
+        },
+        "status": {
+          "QUEUED": "W kolejce",
+          "RUNNING": "Generowanie",
+          "SUCCEEDED": "Gotowy",
+          "FAILED": "Błąd"
+        },
+        "state": {
+          "QUEUED": "W kolejce",
+          "RUNNING": "Generowanie",
+          "SUCCEEDED": "Gotowy",
+          "FAILED": "Błąd",
+          "DELETED": "Usunięte"
+        },
+        "requesterKind": {
+          "STAFF": "wszystkie oprócz paragonów klientów",
+          "CUSTOMER": "paragony klientów z aplikacji"
+        },
+        "builtIn": {
+          "true": "Tak",
+          "false": "Nie"
+        }
+      }
+    },
+    "data-exports": {
+      "title": "Eksporty danych",
+      "hint": "„Pobierz moje dane” z aplikacji; plik dostaje tylko klient",
+      "expires": "plik do {date}",
+      "searchPlaceholder": "Klient albo telefon",
+      "new": "",
+      "emptyTitle": "Klient nie zlecał eksportu danych",
+      "emptyBody": "Eksport zleca klient w aplikacji (Profil → Moje dane).",
+      "bulkRemove": "",
+      "removeBody": "",
+      "fields": {
+        "id": "Identyfikator",
+        "userId": "Klient",
+        "userName": "Klient",
+        "userPhone": "Telefon",
+        "status": "Stan zadania",
+        "state": "Stan",
+        "sizeBytes": "Rozmiar",
+        "requestedAt": "Zlecono",
+        "startedAt": "Rozpoczęto",
+        "finishedAt": "Zakończono",
+        "expiresAt": "Plik ważny do",
+        "deletedAt": "Plik usunięty",
+        "errorCode": "Kod błędu"
+      },
+      "values": {
+        "status": {
+          "QUEUED": "W kolejce",
+          "RUNNING": "W toku",
+          "SUCCEEDED": "Gotowy",
+          "FAILED": "Błąd"
+        },
+        "state": {
+          "QUEUED": "W kolejce",
+          "RUNNING": "W toku",
+          "SUCCEEDED": "Gotowy",
+          "FAILED": "Błąd",
+          "EXPIRED": "Wygasł",
+          "DELETED": "Usunięty"
+        }
+      }
     }
   },
   "history": {
@@ -1647,6 +1994,41 @@
         "part_removed": "Zwrot części",
         "completed": "Zakończenie zadania",
         "cancelled": "Anulowanie zadania"
+      },
+      "content_block": {
+        "created": "Dodanie bloku",
+        "section_saved": "Zapis sekcji",
+        "section_restored": "Przywrócenie sekcji"
+      },
+      "faq_item": {
+        "created": "Dodanie pytania",
+        "updated": "Zmiana pytania",
+        "restored": "Przywrócenie pytania",
+        "deleted": "Usunięcie pytania",
+        "reordered": "Zmiana kolejności pytań"
+      },
+      "faq_category": {
+        "created": "Dodanie kategorii",
+        "updated": "Zmiana kategorii",
+        "deleted": "Usunięcie kategorii",
+        "reordered": "Zmiana kolejności kategorii"
+      },
+      "news": {
+        "created": "Dodanie aktualności",
+        "updated": "Zmiana aktualności",
+        "restored": "Przywrócenie aktualności",
+        "deleted": "Usunięcie aktualności"
+      },
+      "media_asset": {
+        "created": "Dodanie grafiki",
+        "updated": "Zmiana grafiki",
+        "file_replaced": "Zastąpienie pliku grafiki",
+        "deleted": "Usunięcie grafiki"
+      },
+      "company_profile": {
+        "created": "Dane firmy",
+        "updated": "Zmiana danych firmy",
+        "restored": "Przywrócenie danych firmy"
       }
     },
     "entityTypes": {
@@ -1658,7 +2040,13 @@
       "legal_document": "Dokument",
       "zone": "Strefa",
       "tariff": "Cennik",
-      "rental": "Przejazd"
+      "rental": "Przejazd",
+      "content_block": "Blok treści",
+      "faq_item": "Pytanie FAQ",
+      "faq_category": "Kategoria FAQ",
+      "news": "Aktualność",
+      "media_asset": "Grafika",
+      "company_profile": "Dane firmy"
     },
     "detailsTitle": "Wpis {id}",
     "changed": "Zmienione pola",
@@ -3484,6 +3872,1079 @@
         "incorrect_number": "błędny numer karty",
         "invalid_blik_code": "błędny kod BLIK"
       }
+    },
+    "content": {
+      "title": "Treści",
+      "summary": "{count, plural, one {# pozycja} few {# pozycje} other {# pozycji}}",
+      "drafts": "Szkice",
+      "draftsNote": "sekcje, pytania i aktualności czekające na publikację",
+      "draftsLink": "Bloki treści",
+      "element": "{key}, element {position}",
+      "block": "sekcja",
+      "faq": "FAQ",
+      "news": "aktualność",
+      "scheduled": "Zaplanowane aktualności",
+      "scheduledNote": "pojawią się na stronie o czasie „od”",
+      "scheduledLink": "Aktualności",
+      "unusedMedia": "Grafiki bez użycia",
+      "unusedMediaNote": "można je usunąć albo użyć w sekcji",
+      "unusedMediaLink": "Media",
+      "size": "{width} × {height}"
+    }
+  },
+  "site": {
+    "brand": "[nazwa]",
+    "download": "Pobierz aplikację",
+    "storePrefix": "Pobierz z",
+    "nav": {
+      "label": "Główna",
+      "menu": "Menu",
+      "how": "Jak to działa",
+      "pricing": "Cennik",
+      "safety": "Bezpieczeństwo",
+      "faq": "Pytania",
+      "news": "Aktualności"
+    },
+    "documents": {
+      "regulamin": "Regulamin",
+      "polityka-prywatnosci": "Polityka prywatności",
+      "zasady-jazdy": "Zasady jazdy",
+      "polityka-cookies": "Polityka cookies"
+    },
+    "footer": {
+      "service": "Usługa",
+      "help": "Pomoc",
+      "documents": "Dokumenty",
+      "zones": "Strefy",
+      "address": "{street}, {postalCode} {city}",
+      "taxId": "NIP {taxId}",
+      "regon": "REGON {regon}",
+      "krs": "KRS {krs}, {court}",
+      "capital": "kapitał zakładowy {amount}",
+      "copyright": "© {year} {brand}",
+      "note": "Projekt inżynierski"
+    },
+    "design": {
+      "range": "{value} km",
+      "rangeLabel": "zasięg na baterii",
+      "speed": "{value} km/h",
+      "speedLabel": "prędkość maksymalna",
+      "riders": "1 osoba",
+      "ridersLabel": "jak przewidują przepisy"
+    },
+    "pricing": {
+      "reservation": "Rezerwacja przez pierwsze {minutes} min jest bezpłatna.",
+      "unlock": "Odblokowanie",
+      "unlockNote": "Raz na przejazd",
+      "minute": "Minuta jazdy",
+      "minuteNote": "Za każdą rozpoczętą minutę",
+      "pause": "Minuta pauzy",
+      "pauseNote": "Hulajnoga czeka zablokowana"
+    },
+    "zones": {
+      "parkingMark": "P"
+    },
+    "document": {
+      "sideLabel": "Spis treści i wersje",
+      "toc": "Na tej stronie",
+      "tocMobile": "Spis treści",
+      "parts": "{count, plural, one {# część} few {# części} other {# części}}",
+      "versions": "Wersje dokumentu",
+      "previous": "Poprzednie wersje",
+      "version": "Wersja {no}",
+      "versionCurrent": "Wersja {no} · obowiązuje",
+      "since": "od {date}",
+      "range": "{from}–{to}",
+      "meta": "Wersja {no} · obowiązuje od {date}",
+      "metaArchived": "Wersja {no} · archiwalna",
+      "changes": "Co się zmieniło w tej wersji",
+      "archived": "Wersja archiwalna, obowiązywała od {from} do {to}.",
+      "archivedOpen": "Wersja archiwalna, obowiązywała od {from}.",
+      "toCurrent": "Przejdź do obowiązującej wersji {no}",
+      "archivedTitle": "{title}, wersja {no}"
+    },
+    "news": {
+      "title": "Aktualności",
+      "lead": "Nowe strefy, zmiany w cenniku i to, co dzieje się z hulajnogami w Rybniku.",
+      "readMore": "Czytaj dalej",
+      "others": "Inne aktualności",
+      "empty": "Na razie nie ma aktualności.",
+      "pages": "Strony aktualności"
+    },
+    "scooter": {
+      "kicker": "Hulajnoga",
+      "number": "#{number}",
+      "lead": "Odblokujesz ją w aplikacji {brand}. Zeskanuj kod jeszcze raz w aplikacji albo wpisz numer",
+      "leadEnd": ".",
+      "openApp": "Mam aplikację, otwórz hulajnogę",
+      "tariffNote": "Ceny brutto z cennika obowiązującego od {date}. Rezerwacja przez {minutes} min jest bezpłatna.",
+      "metaTitle": "Hulajnoga #{number}"
+    },
+    "notFound": {
+      "code": "404",
+      "title": "Nie ma takiej strony.",
+      "body": "Adres mógł się zmienić albo ma literówkę. Jeśli skanujesz kod z hulajnogi, sprawdź numer na naklejce.",
+      "home": "Strona główna",
+      "metaTitle": "Nie ma takiej strony"
+    },
+    "error": {
+      "title": "Strona chwilowo niedostępna.",
+      "body": "Nie udało się wczytać treści. Spróbuj ponownie za chwilę.",
+      "retry": "Spróbuj ponownie"
+    }
+  },
+  "content": {
+    "title": "Treści",
+    "lead": "Teksty i grafiki, które widzą klienci w aplikacji i na stronie",
+    "today": "dziś, {time}",
+    "thisSection": "tej sekcji",
+    "tabs": {
+      "documents": "Dokumenty prawne",
+      "blocks": "Bloki treści",
+      "faq": "FAQ",
+      "news": "Aktualności",
+      "media": "Media",
+      "company": "Dane firmy"
+    },
+    "clients": {
+      "WEB": "Strona",
+      "MOBILE": "Aplikacja",
+      "ADMIN": "Panel"
+    },
+    "status": {
+      "DRAFT": "Szkic",
+      "PUBLISHED": "Opublikowany",
+      "ARCHIVED": "Archiwum"
+    },
+    "statusPlural": {
+      "DRAFT": "Szkice",
+      "PUBLISHED": "Opublikowane",
+      "ARCHIVED": "Archiwum"
+    },
+    "newsState": {
+      "DRAFT": "Szkic",
+      "SCHEDULED": "Zaplanowana",
+      "PUBLISHED": "Opublikowana",
+      "EXPIRED": "Wygasła",
+      "ARCHIVED": "Archiwum"
+    },
+    "newsStatePlural": {
+      "DRAFT": "Szkice",
+      "SCHEDULED": "Zaplanowane",
+      "PUBLISHED": "Opublikowane",
+      "EXPIRED": "Wygasłe",
+      "ARCHIVED": "Archiwum"
+    },
+    "actions": {
+      "archive": "Archiwizuj",
+      "delete": "Usuń",
+      "publish": "Opublikuj",
+      "saveDraft": "Zapisz szkic",
+      "unpublish": "Przenieś do szkiców"
+    },
+    "sections": {
+      "web": {
+        "meta": {
+          "name": "Opis strony",
+          "description": "tytuł i opis dla wyszukiwarek"
+        },
+        "notice": {
+          "name": "Komunikat nad stroną",
+          "description": "pasek nad nagłówkiem, opcjonalny"
+        },
+        "hero": {
+          "name": "Hero",
+          "description": "strona główna, pierwszy ekran"
+        },
+        "steps": {
+          "name": "Jak to działa",
+          "description": "strona główna, kroki do jazdy"
+        },
+        "design": {
+          "name": "Zaprojektowana do miasta",
+          "description": "strona główna, parametry modelu"
+        },
+        "pricing": {
+          "name": "Cennik",
+          "description": "strona główna, ceny z cennika"
+        },
+        "zones": {
+          "name": "Strefy",
+          "description": "strona główna, rodzaje stref"
+        },
+        "app": {
+          "name": "Aplikacja",
+          "description": "strona główna, opis aplikacji"
+        },
+        "stores": {
+          "name": "Przyciski sklepów",
+          "description": "App Store i Google Play"
+        },
+        "faq": {
+          "name": "Pytania",
+          "description": "strona główna, nagłówek pytań z FAQ"
+        },
+        "footer": {
+          "name": "Stopka",
+          "description": "każda strona, obok danych firmy"
+        }
+      },
+      "mobile": {
+        "start": {
+          "name": "Ekran startowy",
+          "description": "aplikacja, pierwsze uruchomienie"
+        },
+        "rules": {
+          "name": "Zasady przed jazdą",
+          "description": "ekran przed pierwszą jazdą"
+        },
+        "help": {
+          "name": "Pomoc",
+          "description": "profil, pomoc z FAQ i kontaktem"
+        },
+        "notice": {
+          "name": "Komunikat w aplikacji",
+          "description": "pasek na mapie, opcjonalny"
+        }
+      },
+      "admin": {
+        "scooter-label": {
+          "name": "Naklejka z kodem QR",
+          "description": "tekst na naklejce hulajnogi"
+        }
+      }
+    },
+    "sources": {
+      "tariff": "ceny z cennika",
+      "model": "parametry z modelu",
+      "faq": "pytania z FAQ",
+      "company": "kontakt z danych firmy"
+    },
+    "profiles": {
+      "inline": "akapity, pogrubienie, kursywa, odnośniki",
+      "faq": "akapity, listy, pogrubienie, kursywa, odnośniki",
+      "document": "nagłówki ## i ###, akapity, listy, pogrubienie, kursywa, odnośniki"
+    },
+    "fields": {
+      "title": "Tytuł",
+      "bodyMd": "Treść",
+      "mediaId": "Grafika",
+      "button": "Przycisk",
+      "buttonLabel": "Przycisk: etykieta",
+      "buttonHref": "Przycisk: adres",
+      "icon": "Ikona",
+      "status": "Status",
+      "items": "Elementy",
+      "question": "Pytanie",
+      "answerMd": "Odpowiedź",
+      "category": "Kategoria",
+      "showOnWeb": "Widoczność",
+      "lead": "Zajawka",
+      "slug": "Adres",
+      "publishFrom": "Publikacja od",
+      "publishTo": "Publikacja do",
+      "name": "Nazwa firmy",
+      "street": "Ulica i numer",
+      "postalCode": "Kod pocztowy",
+      "city": "Miejscowość",
+      "taxId": "NIP",
+      "supportEmail": "E-mail pomocy",
+      "supportPhone": "Telefon pomocy",
+      "supportHours": "Godziny pomocy",
+      "regon": "REGON",
+      "krs": "KRS",
+      "registryCourt": "Sąd rejestrowy",
+      "shareCapitalGrosze": "Kapitał zakładowy"
+    },
+    "constructs": {
+      "html": "HTML",
+      "image": "obraz",
+      "code": "kod",
+      "blockquote": "cytat",
+      "table": "tabela",
+      "thematic-break": "linia pozioma",
+      "setext-heading": "nagłówek podkreślony",
+      "heading": "nagłówek",
+      "empty-heading": "pusty nagłówek",
+      "list": "lista",
+      "nested-list": "lista zagnieżdżona",
+      "strong": "pogrubienie",
+      "emphasis": "kursywa",
+      "link": "odnośnik",
+      "link-title": "tytuł odnośnika",
+      "empty-link": "pusty odnośnik"
+    },
+    "notAllowed": {
+      "html": "HTML nie jest dozwolony",
+      "image": "obraz nie jest dozwolony (grafiki wybierasz z biblioteki mediów)",
+      "code": "kod nie jest dozwolony",
+      "blockquote": "cytat nie jest dozwolony",
+      "table": "tabela nie jest dozwolona",
+      "thematic-break": "linia pozioma nie jest dozwolona",
+      "setext-heading": "nagłówek podkreślony nie jest dozwolony",
+      "heading": "nagłówek nie jest dozwolony",
+      "empty-heading": "pusty nagłówek nie jest dozwolony",
+      "list": "lista nie jest dozwolona",
+      "nested-list": "lista zagnieżdżona nie jest dozwolona",
+      "strong": "pogrubienie nie jest dozwolone",
+      "emphasis": "kursywa nie jest dozwolona",
+      "link": "odnośnik nie jest dozwolony",
+      "link-title": "tytuł odnośnika nie jest dozwolony",
+      "empty-link": "pusty odnośnik nie jest dozwolony"
+    },
+    "issues": {
+      "atLine": "Wiersz {line}: {text}",
+      "atItem": "Element {item}: {text}",
+      "MD_NOT_ALLOWED": "{what} w sekcji {section} (tylko {allowed}).",
+      "MD_HTML": "HTML nie jest dozwolony; zapisz treść w Markdown.",
+      "MD_HEADING_LEVEL": "dozwolone są nagłówki ## i ### (# to tytuł strony).",
+      "MD_NESTED_LIST": "lista ma jeden poziom; usuń wcięcie przed znacznikiem.",
+      "MD_UNCLOSED": "niezamknięty znacznik ({construct}); dosłowną gwiazdkę zapisz jako \\*.",
+      "MD_LINK_SCHEME": "adres odnośnika spoza listy: https:, mailto:, tel:, ścieżka na stronie (/…) albo kotwica (#…).",
+      "CONTENT_FIELD_REQUIRED": "{field}: pole jest wymagane w tej sekcji.",
+      "CONTENT_TOO_LONG": "{field}: {length} znaków, limit to {max}.",
+      "CONTENT_FIELD_INVALID": "{field}: tylko jeden wiersz tekstu.",
+      "CONTENT_FIELD_NOT_ALLOWED": "{field}: ta sekcja nie ma tego pola.",
+      "CONTENT_ITEMS_LIMIT": "Sekcja wymaga {min}–{max} opublikowanych elementów (jest {count}).",
+      "CONTENT_BUTTON_INCOMPLETE": "Przycisk wymaga etykiety i adresu.",
+      "CONTENT_HREF_NOT_ALLOWED": "Adres przycisku spoza listy: https:, mailto:, tel:, ścieżka na stronie (/…) albo kotwica (#…).",
+      "CONTENT_ICON_UNKNOWN": "Ikona spoza listy.",
+      "CONTENT_SECTION_REQUIRED": "Sekcja wymagana zostaje opublikowana.",
+      "MEDIA_TOO_NARROW": "Grafika ma {width} px szerokości; ta sekcja wymaga co najmniej {minWidth} px.",
+      "MEDIA_NOT_FOUND": "Grafiki nie ma już w bibliotece.",
+      "FAQ_NO_CLIENT": "Pytanie musi być widoczne na stronie, w aplikacji albo w obu miejscach.",
+      "NEWS_DATES_INVALID": "Data końca musi być późniejsza niż data początku publikacji.",
+      "NEWS_SLUG_LOCKED": "Adres opublikowanej aktualności się nie zmienia.",
+      "COMPANY_TAX_ID_INVALID": "NIP ma błędną sumę kontrolną.",
+      "COMPANY_REGON_INVALID": "REGON ma błędną sumę kontrolną.",
+      "COMPANY_KRS_INVALID": "KRS to 10 cyfr.",
+      "COMPANY_POSTAL_CODE_INVALID": "Kod pocztowy w formacie 00-000.",
+      "COMPANY_REGISTRY_INCOMPLETE": "KRS wymaga sądu rejestrowego."
+    },
+    "icons": {
+      "rider-single": "Jedna osoba",
+      "bike-lane": "Droga dla rowerów",
+      "parking": "Parking",
+      "helmet": "Kask",
+      "no-alcohol": "Bez alkoholu",
+      "map": "Mapa",
+      "scan": "Skanowanie",
+      "wallet": "Portfel",
+      "battery": "Bateria",
+      "zone-slow": "Strefa wolnej jazdy",
+      "zone-no-ride": "Strefa zakazu",
+      "phone": "Telefon"
+    },
+    "blocks": {
+      "search": "Sekcja, klucz albo treść",
+      "note": "Sekcje wyznacza kod strony; w panelu zmieniasz ich treść i elementy list.",
+      "sectionCount": "{count, plural, one {# sekcja} few {# sekcje} other {# sekcji}}",
+      "filter": {
+        "all": "Wszystkie",
+        "drafts": "Szkice",
+        "archived": "Archiwum"
+      },
+      "columns": {
+        "section": "Sekcja",
+        "kind": "Rodzaj",
+        "content": "Treść",
+        "status": "Status",
+        "changed": "Zmieniono"
+      },
+      "required": "wymagana",
+      "single": "Pojedynczy blok",
+      "list": "Lista · {count} z {range}",
+      "drafts": "+{count} {count, plural, one {szkic} few {szkice} other {szkiców}}",
+      "element": "element {position}",
+      "toggle": "Pokaż elementy sekcji {section}",
+      "edit": "Edytuj sekcję {section}"
+    },
+    "editor": {
+      "unknownSection": "Nie ma sekcji {key} w rejestrze.",
+      "unsaved": "Niezapisane zmiany",
+      "versionMeta": "wersja {version}, {name}, {when}",
+      "listMeta": "sekcja-lista, {min}–{max} elementów",
+      "header": "Nagłówek sekcji",
+      "items": "Elementy",
+      "itemsCount": "{count} z {min}–{max}",
+      "reorderHint": "przeciągnij albo użyj strzałek; kolejność zapisuje się z sekcją",
+      "newItem": "Nowy element",
+      "moveUp": "Przesuń element {position} wyżej",
+      "moveDown": "Przesuń element {position} niżej",
+      "editItem": "Edytuj element {position}",
+      "deleteItem": "Usuń element",
+      "deletePublished": "Opublikowany element najpierw przenieś do archiwum albo szkiców.",
+      "addItem": "Dodaj element",
+      "itemsLeft": "{count, plural, one {Jeszcze # element} few {Jeszcze # elementy} other {Jeszcze # elementów}}; przy {max} przycisk jest nieaktywny.",
+      "limitReached": "Sekcja ma najwięcej elementów ({max}).",
+      "statusTitle": "Status",
+      "requiredNote": "Sekcja wymagana: strona nie może zostać bez niej, więc nie przeniesiesz jej do archiwum ani do szkicu.",
+      "statusNote": {
+        "DRAFT": "Szkic nie jest widoczny dla klientów; opublikuj go, gdy treść będzie gotowa.",
+        "PUBLISHED": "Zmiana opublikowanej sekcji działa od zapisu.",
+        "ARCHIVED": "Sekcja w archiwum nie jest widoczna dla klientów."
+      },
+      "iconNote": "(z zamkniętej listy)",
+      "markdown": "(Markdown)",
+      "markdownOptional": "(Markdown, opcjonalnie)",
+      "fromLibrary": "z biblioteki mediów",
+      "mediaRequired": "wymagana w tej sekcji",
+      "mediaOptional": "opcjonalna",
+      "minWidth": "co najmniej {width} px",
+      "alt": "„{alt}”",
+      "mediaKey": "klucz {key}",
+      "noMedia": "Brak grafiki",
+      "pickMedia": "Wybierz grafikę",
+      "changeMedia": "Zmień grafikę",
+      "changeMediaShort": "Zmień",
+      "removeMedia": "Usuń z sekcji",
+      "hrefHint": "https://, mailto:, tel: albo ścieżka na stronie, np. /aktualnosci",
+      "mode": "Tryb edytora",
+      "edit": "Edycja",
+      "preview": "Podgląd",
+      "tools": "Formatowanie",
+      "heading": "Nagłówek",
+      "bold": "Pogrubienie",
+      "italic": "Kursywa",
+      "list": "Lista",
+      "link": "Odnośnik",
+      "boldSample": "pogrubiony tekst",
+      "italicSample": "kursywa",
+      "linkSample": "tekst odnośnika",
+      "allowed": "W tej sekcji: {allowed}",
+      "skipped": "Wiersz {line} pominięty do czasu poprawki.",
+      "discard": "Odrzuć zmiany",
+      "discardTitle": "Odrzucić zmiany?",
+      "discardBody": "Edytor wróci do zapisanej wersji sekcji.",
+      "blocked": "Popraw treść, żeby zapisać.",
+      "publishedNote": "Zmiana opublikowanego bloku działa od zapisu.",
+      "draftNote": "Szkic nie jest widoczny dla klientów.",
+      "listNote": "Nowy element zostaje szkicem; klienci zobaczą go po publikacji.",
+      "saveVersion": "Zapisz jako wersję {version}",
+      "saveSection": "Zapisz sekcję",
+      "saved": "Zapisano wersję {version}.",
+      "fix": "Popraw zaznaczone pola; nic nie zostało zapisane.",
+      "conflict": "Sekcję zmienił w międzyczasie inny operator. Odśwież stronę, żeby zobaczyć nową wersję.",
+      "clearMedia": "Usuń zdjęcie"
+    },
+    "preview": {
+      "title": {
+        "web": "Podgląd na stronie",
+        "mobile": "Podgląd w aplikacji",
+        "admin": "Podgląd"
+      },
+      "published": "opublikowane elementy",
+      "hidden": "Sekcja niewidoczna dla klientów (szkic albo archiwum)."
+    },
+    "history": {
+      "title": "Historia",
+      "source": "dziennik audytu",
+      "version": "v{version}",
+      "current": "obecna",
+      "restored": "przywrócona",
+      "restore": "Przywróć",
+      "seed": "Dane startowe",
+      "note": "„Przywróć” wczytuje treść do edytora; zapis tworzy nową wersję.",
+      "loaded": "Wczytano wersję {version} do edytora; zapisz, żeby ją przywrócić.",
+      "restoredPending": "przywrócona treść czeka na zapis",
+      "archivedOnRestore": "Opublikowane elementy spoza przywracanej wersji ({count}) wracają jako archiwalne: opublikowanego elementu nie da się usunąć."
+    },
+    "faq": {
+      "columns": {
+        "no": "#",
+        "visible": "Widoczne"
+      },
+      "questions": "{count, plural, one {# pytanie} few {# pytania} other {# pytań}}",
+      "categoryOrder": "kolejność kategorii:",
+      "categoryUp": "Przesuń kategorię {name} wyżej",
+      "categoryDown": "Przesuń kategorię {name} niżej",
+      "rename": "Zmień nazwę kategorii {name}",
+      "renameTitle": "Nazwa kategorii",
+      "deleteCategory": "Usuń kategorię",
+      "deleteCategoryTitle": "Usunąć kategorię {name}?",
+      "deleteCategoryBody": "Kategoria nie ma pytań, więc zniknie z listy.",
+      "emptyCategory": "Kategoria bez pytań.",
+      "web": "Strona",
+      "app": "Aplikacja",
+      "rowLabel": "Pytanie: {question}",
+      "orderChanged": "Zmieniona kolejność w kategorii „{name}”",
+      "undo": "Cofnij",
+      "saveOrder": "Zapisz kolejność",
+      "orderSaved": "Zapisano kolejność pytań.",
+      "editTitle": "Edycja pytania",
+      "newTitle": "Nowe pytanie",
+      "categoryHint": "Wybierz istniejącą albo wpisz nową nazwę kategorii.",
+      "newCategory": "Zapis utworzy nową kategorię „{name}”.",
+      "where": "Gdzie widoczne",
+      "whereWeb": "Strona: sekcja „Pytania i odpowiedzi”",
+      "whereApp": "Aplikacja: Profil → Pomoc",
+      "meta": "Wersja {version} · {name}, {when}",
+      "newMeta": "Nowe pytanie trafi na koniec kategorii.",
+      "history": "Historia ({count})",
+      "saved": {
+        "DRAFT": "Zapisano szkic pytania.",
+        "PUBLISHED": "Pytanie jest opublikowane.",
+        "ARCHIVED": "Pytanie trafiło do archiwum."
+      },
+      "deleted": "Usunięto pytanie.",
+      "deleteTitle": "Usunąć pytanie?",
+      "deleteBody": "Szkic albo pytanie z archiwum zostanie usunięte; historia zostaje w dzienniku audytu."
+    },
+    "news": {
+      "path": "/aktualnosci/{slug}",
+      "pathPrefix": "/aktualnosci/",
+      "address": "Adres",
+      "slugLocked": "Adres opublikowanej aktualności się nie zmienia, żeby odnośniki działały.",
+      "leadNote": "(lista i podgląd linku)",
+      "publication": "Publikacja",
+      "fromLabel": "Od",
+      "toLabel": "Do (opcjonalnie)",
+      "when": "{date}, {time}",
+      "unpublished": "nieopublikowana",
+      "by": "{name}, {when}",
+      "from": "od {when}",
+      "to": "do {when}",
+      "range": "{from} – {to}",
+      "noEnd": "bez daty końca",
+      "expired": "wygasła {when}",
+      "scheduleInfo": "Po kliknięciu „Zaplanuj” stan zmieni się na Zaplanowana: aktualność pojawi się na stronie {when} (czas polski).",
+      "publishInfo": "„Opublikuj teraz” pokaże aktualność na stronie od razu.",
+      "endInfo": "Zniknie ze strony {when}.",
+      "schedule": "Zaplanuj",
+      "publishNow": "Opublikuj teraz",
+      "pickerTitle": "Aktualność",
+      "note": "Stan liczy się z dat: zaplanowana pojawi się na stronie o czasie „od”, wygasła znika po czasie „do”. Aktualności są tylko na stronie, nie w aplikacji.",
+      "deleteTitle": "Usunąć aktualność?",
+      "deleteBody": "Szkic albo aktualność z archiwum zostanie usunięta; historia zostaje w dzienniku audytu."
+    },
+    "media": {
+      "add": "Dodaj grafiki",
+      "filter": {
+        "all": "Wszystkie",
+        "used": "Używane",
+        "unused": "Nieużywane"
+      },
+      "size": "{width} × {height}",
+      "sizePx": "{width} × {height} px",
+      "mb": "{value, number, ::.0} MB",
+      "kb": "{value} KB",
+      "unused": "nieużywana",
+      "usages": "{count, plural, =0 {bez użycia} one {# użycie} few {# użycia} other {# użyć}}",
+      "range": "{from}–{to} z {total}",
+      "sorted": "sortowanie: ostatnio dodane",
+      "added": "dodano {date}",
+      "systemKey": "Klucz systemowy: aplikacja wybiera tę grafikę po kluczu.",
+      "keyLocked": "Klucz nie zmienia się po utworzeniu.",
+      "altHint": "Należy do grafiki: zmiana działa wszędzie, gdzie grafika jest użyta.",
+      "usagesTitle": "Użycia",
+      "count": "({count})",
+      "noUsages": "Grafika nie jest nigdzie użyta.",
+      "usageBlock": "Blok",
+      "usageNews": "Aktualność",
+      "usageNewsLabel": "Aktualność · {title}",
+      "usageModel": "Model",
+      "usageModelLabel": "{code} · zdjęcie modelu",
+      "lockedSystem": "Nie można usunąć: grafika ma klucz systemowy{count, plural, =0 {} one { i jest używana w # miejscu} other { i jest używana w # miejscach}}.",
+      "lockedUsed": "Nie można usunąć: grafika jest używana {count, plural, one {w # miejscu} other {w # miejscach}}. Najpierw wybierz inną grafikę w tych miejscach.",
+      "replace": "Zastąp plik…",
+      "replaced": "Zastąpiono plik; identyfikator i użycia zostały.",
+      "saved": "Zapisano grafikę.",
+      "deleteTitle": "Usunąć grafikę {name}?",
+      "deleteBody": "Grafika zniknie z biblioteki, a plik z magazynu. Tej operacji nie można cofnąć."
+    },
+    "upload": {
+      "title": "Dodaj grafiki do biblioteki",
+      "lead": "Typ rozpoznajemy po zawartości pliku, nie po rozszerzeniu. Wymiary zapisujemy przy wysyłce; serwer nie zmniejsza grafik.",
+      "drop": "Przeciągnij pliki albo wybierz z dysku",
+      "limits": "JPEG, PNG, WebP · do 5 MB · zalecane do 2560 px · do 10 plików naraz",
+      "choose": "Wybierz pliki",
+      "summary": "{count, plural, one {# plik} few {# pliki} other {# plików}}: {ok} do dodania, {rejected} odrzucone",
+      "rejected": "Nie dodamy: {reason}",
+      "svg": "SVG może zawierać skrypty. Dozwolone są JPEG, PNG i WebP.",
+      "type": "to nie jest grafika JPEG, PNG ani WebP.",
+      "tooBig": "plik ma {size}, limit to 5 MB. Zmniejsz go przed wysłaniem.",
+      "tooLarge": "grafika ma {width} × {height} px, najwyżej {max} px w każdym wymiarze.",
+      "wide": "Szerokość {width} px: strona i aplikacja pobiorą cały plik. Zalecane do {warn} px; możesz dodać mimo to.",
+      "altPlaceholder": "Opisz, co widać na grafice",
+      "altRequired": "Tekst alternatywny jest wymagany (co najmniej {min} znaki; czytniki ekranu, strona bez grafik).",
+      "remove": "Usuń z listy",
+      "uploading": "Wysyłanie…",
+      "done": "Dodano",
+      "footNote": "Odrzucone pliki nie zostaną dodane. Uzupełnij tekst alternatywny, żeby dodać.",
+      "submit": "{count, plural, =0 {Dodaj grafiki} one {Dodaj # grafikę} few {Dodaj # grafiki} other {Dodaj # grafik}}"
+    },
+    "picker": {
+      "title": "Wybierz grafikę: {section}",
+      "renders": "Rendery hulajnogi",
+      "addNew": "Dodaj nową",
+      "tooSmall": "za mała",
+      "alt": "Tekst alternatywny: „{alt}”. Zmienisz go w Mediach; zmiana działa wszędzie.",
+      "minWidth": "Sekcja {section} wymaga grafiki co najmniej {width} px szerokości.",
+      "note": "Grafiki z biblioteki są publiczne; nie dodawaj materiałów wewnętrznych.",
+      "select": "Wybierz"
+    },
+    "company": {
+      "seller": "Sprzedawca",
+      "sellerNote": "paragony i wydruki",
+      "support": "Pomoc dla klientów",
+      "supportNote": "strona, aplikacja, wydruki",
+      "registry": "Dane rejestrowe",
+      "registryNote": "opcjonalnie, stopka strony",
+      "fields": {
+        "name": "Nazwa firmy",
+        "street": "Ulica i numer",
+        "postalCode": "Kod pocztowy",
+        "city": "Miejscowość",
+        "taxId": "NIP",
+        "supportEmail": "E-mail pomocy",
+        "supportPhone": "Telefon pomocy",
+        "supportHours": "Godziny pomocy",
+        "regon": "REGON",
+        "krs": "KRS",
+        "registryCourt": "Sąd rejestrowy",
+        "shareCapital": "Kapitał zakładowy (zł)"
+      },
+      "hints": {
+        "taxId": "10 cyfr; sprawdzamy sumę kontrolną",
+        "supportHours": "Tekst pokazywany przy telefonie, np. „Codziennie 8:00–20:00”; do 60 znaków.",
+        "krs": "Gdy jest wypełniony, stopka pokazuje KRS, sąd i kapitał (spółka z o.o.)."
+      },
+      "previous": "Poprzednio: {value}",
+      "meta": "Wersja {version} · {name}, {date}",
+      "save": "{count, plural, =0 {Zapisz} one {Zapisz # zmianę} few {Zapisz # zmiany} other {Zapisz # zmian}}",
+      "saved": "Zapisano dane firmy; nowe paragony wezmą je od teraz.",
+      "readOnly": "Podgląd: dane firmy zmienia Administrator (uprawnienie company.write).",
+      "usesTitle": "Gdzie są używane",
+      "uses": {
+        "receipt": {
+          "title": "Paragon",
+          "fields": "nazwa, adres, NIP",
+          "body": "Kopiowane w chwili wystawienia: wcześniejsze paragony zostają z dawnymi danymi."
+        },
+        "footer": {
+          "title": "Stopka strony",
+          "fields": "nazwa, adres, e-mail, telefon",
+          "body": "Strona odświeży się po zapisie, bez nowego wdrożenia."
+        },
+        "app": {
+          "title": "Pomoc w aplikacji",
+          "fields": "e-mail, telefon, godziny",
+          "body": "Ekran Pomoc i przycisk „Zadzwoń” przy „Nadal nie działa?”."
+        },
+        "documents": {
+          "title": "Wydruki",
+          "fields": "pola '{company.*}'",
+          "body": "Szablony DOCX biorą dane z chwili generowania."
+        }
+      },
+      "brandNote": "Marka [nazwa] nie jest daną firmy: to etykieta interfejsu do decyzji o nazwie."
+    }
+  },
+  "prints": {
+    "title": "Wydruki",
+    "subtitle": "Dokumenty jednego obiektu z szablonów DOCX, które zmieniasz w Wordzie",
+    "tabs": {
+      "templates": "Szablony",
+      "generated": "Wygenerowane",
+      "count": "{count, number}"
+    },
+    "builtIn": "Układ wbudowany, bez szablonu",
+    "templateVersion": "{name} v{version}",
+    "app": "aplikacja",
+    "size": {
+      "kb": "{value, number} KB",
+      "mb": "{value, number, ::.#} MB"
+    },
+    "when": {
+      "today": "dziś, {time}",
+      "date": "{date}, {time}"
+    },
+    "types": {
+      "RECEIPT": {
+        "name": "Paragon",
+        "from": "drukowany z: Paragony w panelu, portfel w aplikacji",
+        "missing": "Brak szablonu. Rodzaj i pola są w katalogu; „Drukuj” na karcie paragonu pojawi się po wgraniu i aktywacji.",
+        "printTitle": "Drukuj paragon {number}",
+        "printSub": "Dokument powstanie z danych paragonu z chwili wystawienia i aktywnej wersji szablonu.",
+        "contents": "Pozycje, grupy VAT, sprzedawca i nabywca z chwili wystawienia; korekta jako wariant."
+      },
+      "RENTAL_CONFIRMATION": {
+        "name": "Potwierdzenie przejazdu",
+        "from": "drukowany z: karta przejazdu",
+        "missing": "Brak szablonu. Rodzaj i pola są w katalogu; „Drukuj” na karcie przejazdu pojawi się po wgraniu i aktywacji.",
+        "printTitle": "Drukuj przejazd {number}",
+        "printSub": "Dokument powstanie z bieżących danych przejazdu i aktywnej wersji szablonu.",
+        "contents": "Czas, dystans, kwoty z wyceny, początek i koniec jako adres, numer paragonu."
+      },
+      "SERVICE_PROTOCOL": {
+        "name": "Protokół zadania serwisowego",
+        "from": "drukowany z: karta zadania",
+        "missing": "Brak szablonu. Rodzaj i pola są w katalogu; „Drukuj” na karcie zadania pojawi się po wgraniu i aktywacji.",
+        "printTitle": "Drukuj zadanie {number}",
+        "printSub": "Dokument powstanie z bieżących danych zadania i aktywnej wersji szablonu.",
+        "contents": "Części z kosztem, notatka z naprawy, wykonawca i skutek dla hulajnogi.",
+        "partsSummary": "Części: {count, plural, one {# pozycja} few {# pozycje} other {# pozycji}}, {cost}",
+        "noParts": "Bez części z magazynu",
+        "note": "notatka",
+        "outcome": "skutek dla hulajnogi {scooter}"
+      },
+      "SCOOTER_CARD": {
+        "name": "Karta hulajnogi",
+        "from": "drukowany z: karta hulajnogi",
+        "missing": "Brak szablonu. Rodzaj i pola są w katalogu; „Drukuj” na karcie hulajnogi pojawi się po wgraniu i aktywacji.",
+        "printTitle": "Drukuj kartę hulajnogi {number}",
+        "printSub": "Dokument powstanie z bieżących danych hulajnogi i aktywnej wersji szablonu.",
+        "contents": "Dane i model, przebieg, zadania i zgłoszenia z wybranego okresu, adres strony hulajnogi."
+      },
+      "INCIDENT_REPORT": {
+        "name": "Raport zdarzenia",
+        "from": "drukowany z: karta zgłoszenia",
+        "missing": "Brak szablonu. Rodzaj i pola są w katalogu; „Drukuj” na karcie zgłoszenia pojawi się po wgraniu i aktywacji.",
+        "printTitle": "Drukuj zgłoszenie {number}",
+        "printSub": "Dokument powstanie z bieżących danych zgłoszenia i aktywnej wersji szablonu.",
+        "contents": "Przebieg zgłoszenia, odpowiedź dla klienta, liczba i daty zdjęć."
+      },
+      "WALLET_ADJUSTMENT": {
+        "name": "Potwierdzenie korekty salda",
+        "from": "drukowany z: portfel klienta",
+        "missing": "Brak szablonu. Rodzaj i pola są w katalogu; „Drukuj” przy korekcie pojawi się po wgraniu i aktywacji.",
+        "printTitle": "Drukuj korektę salda {number}",
+        "printSub": "Dokument powstanie z wpisu księgi portfela i aktywnej wersji szablonu.",
+        "contents": "Kwota, saldo przed i po, powód, operator i dokument powiązany.",
+        "entry": "wpis {id}"
+      },
+      "SCOOTER_LABEL": {
+        "name": "Naklejka z kodem QR",
+        "from": "drukowana z: karta hulajnogi",
+        "missing": "",
+        "printTitle": "Naklejka z kodem QR {number}",
+        "printSub": "",
+        "contents": ""
+      }
+    },
+    "params": {
+      "includeTimeline": {
+        "label": "Dołącz oś czasu"
+      },
+      "historyDays": {
+        "label": "Zakres historii",
+        "options": {
+          "30": "30 dni",
+          "90": "90 dni",
+          "365": "365 dni"
+        }
+      },
+      "layout": {
+        "label": "Układ",
+        "options": {
+          "single": "Naklejka 60 × 80 mm",
+          "a4x6": "Arkusz A4, 6 sztuk"
+        }
+      }
+    },
+    "print": {
+      "open": "Drukuj",
+      "template": "Szablon",
+      "default": "domyślny",
+      "version": "wersja {version}",
+      "format": "Format",
+      "formats": {
+        "PDF": "PDF",
+        "DOCX": "DOCX do edycji w Wordzie"
+      },
+      "params": "Parametry",
+      "contents": "W dokumencie",
+      "customerHidden": "Dane klienta jako „Klient”: Twoja rola nie ma podglądu danych klientów.",
+      "generate": {
+        "PDF": "Generuj PDF",
+        "DOCX": "Generuj DOCX"
+      },
+      "generating": {
+        "PDF": "Generowanie PDF…",
+        "DOCX": "Generowanie DOCX…"
+      },
+      "queued": "w kolejce wydruków, zwykle kilka sekund",
+      "running": "trwa wypełnianie szablonu",
+      "canClose": "Możesz zamknąć okno: dokument będzie w Wydruki →",
+      "slow": "Wydruk trwa dłużej niż zwykle; zadanie działa dalej, a dokument pojawi się w Wydruki →",
+      "ready": "Gotowe",
+      "file": "{name} · {size}",
+      "downloadPdf": "Pobierz PDF",
+      "downloadDocx": "Pobierz DOCX",
+      "footerLabel": "Stopka dokumentu:",
+      "footer": "Wydruk {id} · {template} · {date} · {requester}",
+      "failedPdf": "Nie udało się utworzyć PDF",
+      "failed": "Nie udało się utworzyć dokumentu",
+      "failedWithDocx": "{code} · DOCX jest gotowy",
+      "retry": "Spróbuj ponownie"
+    },
+    "errorCodes": {
+      "RENDER_TIMEOUT": "Silnik dokumentów nie odpowiedział w 30 s. Spróbuj ponownie albo pobierz DOCX.",
+      "RENDERER_UNAVAILABLE": "Silnik dokumentów jest niedostępny. Spróbuj ponownie za chwilę albo pobierz DOCX.",
+      "RENDER_FAILED": "Silnik dokumentów odrzucił plik. Sprawdź szablon albo pobierz DOCX.",
+      "TEMPLATE_RENDER_FAILED": "Nie udało się wypełnić szablonu danymi obiektu. Sprawdź szablon w Wydruki → Szablony.",
+      "DOCUMENT_SOURCE_NOT_FOUND": "Obiekt dokumentu nie istnieje albo został usunięty.",
+      "other": "Wydruk się nie udał. Spróbuj ponownie."
+    },
+    "label": {
+      "open": "Naklejka z kodem QR",
+      "title": "Naklejka z kodem QR #{number}",
+      "sub": "Do naklejenia na kierownicę. Numer na naklejce wpisuje klient, gdy skan się nie uda.",
+      "kind": "hulajnoga",
+      "qrAlt": "Kod QR z adresem {url}",
+      "preview": {
+        "single": "podgląd · 60 × 80 mm",
+        "a4x6": "podgląd · arkusz A4, 6 sztuk"
+      },
+      "layout": "Układ",
+      "codeTitle": "Co zawiera kod",
+      "codeBody": "Aparat otwiera stronę hulajnogi z odnośnikami do aplikacji; skaner w aplikacji odczyta sam numer. Kod nie ma identyfikatora ani podpisu (ADR 0041).",
+      "codeDomain": "Domena z PUBLIC_SITE_URL; po zmianie domeny stare naklejki działają w aplikacji, a aparat potrzebuje przekierowania.",
+      "builtIn": "PDF ze stałego układu HTML, poza szablonami DOCX. Karta hulajnogi w DOCX podaje ten sam adres tekstem.",
+      "ready": "Gotowe: {name}",
+      "readySub": "{size} · wydruk {id} w Wygenerowanych",
+      "failed": "Nie udało się utworzyć naklejki"
+    },
+    "templates": {
+      "guide": "Instrukcja i lista pól",
+      "new": "Nowy szablon",
+      "newTitle": "Nowy szablon",
+      "newSub": "Rodzaj dokumentu wyznacza katalog pól. Plik DOCX wgrasz na karcie szablonu jako pierwszą wersję.",
+      "descriptionHint": "Krótko, czym różni się od innych szablonów rodzaju (np. „jedna strona bez osi czasu”).",
+      "upload": "Wgraj szablon",
+      "open": "Otwórz szablon {name}",
+      "columns": {
+        "template": "Szablon",
+        "activeVersion": "Aktywna wersja",
+        "fields": "Pola",
+        "default": "Domyślny",
+        "prints30": "Wydruki, 30 dni"
+      },
+      "version": "Wersja {version}",
+      "pending": "v{version} do aktywacji",
+      "noActive": "brak aktywnej wersji",
+      "versionBy": "{name}, {date}",
+      "starter": "dane startowe",
+      "default": "Domyślny",
+      "setDefault": "Ustaw jako domyślny",
+      "labelNote": "Naklejka z kodem QR nie jest szablonem DOCX: to stały układ drukowany z karty hulajnogi."
+    },
+    "guide": {
+      "title": "Instrukcja i lista pól",
+      "sub": "Szablon to zwykły plik DOCX z Worda; pola wstawiasz w nawiasach klamrowych, a panel sprawdza je przy wgraniu.",
+      "fieldTag": "'{task.number}'",
+      "field": "pole: wstawia tekst z katalogu rodzaju (np. numer zadania).",
+      "loopTag": "'{#parts} … {/parts}'",
+      "loop": "pętla: powtarza wiersz tabeli albo akapit dla każdej pozycji; w środku pola pozycji bez przedrostka, np. '{name}'.",
+      "conditionTag": "'{#hasParts} … {/hasParts}'",
+      "condition": "warunek: fragment widoczny tylko, gdy pole logiczne ma wartość „tak”.",
+      "rules": "Bez wyrażeń, obliczeń i znacznika '{@…}'; zamknięcie pętli w tym samym wierszu tabeli co otwarcie. Pola klienta bez uprawnienia users.read wydruk wypełni słowem „Klient”."
+    },
+    "fields": {
+      "title": "Pola katalogu",
+      "docx": "Lista pól (DOCX)",
+      "fileName": "lista-pol-{type}.docx",
+      "types": {
+        "text": "tekst",
+        "boolean": "warunek (tak/nie)",
+        "list": "lista"
+      },
+      "example": "np. {example}",
+      "customer": "dane klienta",
+      "loop": "pętla",
+      "common": "Pola wspólne wszystkich rodzajów",
+      "used": "użyte",
+      "unused": "nieużyte"
+    },
+    "version": {
+      "title": "Wersje",
+      "hint": "jedna aktywna; wydruk pamięta swoją wersję",
+      "empty": "Szablon nie ma jeszcze wersji. Wgraj plik DOCX; po walidacji i aktywacji pojawi się „Drukuj”.",
+      "short": "v{version}",
+      "file": "{name} · {size}",
+      "noName": "szablon.docx",
+      "states": {
+        "PENDING": "Do aktywacji",
+        "ACTIVE": "Aktywna",
+        "ARCHIVED": "Archiwalna"
+      },
+      "preview": "Podgląd",
+      "delete": "Usuń",
+      "download": "Pobierz",
+      "restore": "Przywróć",
+      "downloadActive": "Pobierz aktywną",
+      "upload": "Wgraj nową wersję",
+      "activeSub": "aktywna wersja {version}",
+      "activationNote": "Aktywacja zmienia tylko kolejne wydruki. Wcześniejsze dokumenty mają w stopce wersję, z której powstały; „Przywróć” aktywuje starszą wersję bez kopiowania pliku.",
+      "previewTabs": "Podgląd wersji",
+      "previewPdf": "Podgląd PDF",
+      "fieldsTab": "Pola ({count})",
+      "sample": "wersja {version} · dane przykładowe",
+      "previewLoading": "Przygotowanie podglądu na danych przykładowych (do 30 s)…",
+      "previewTitle": "Podgląd PDF wersji {version}",
+      "previewFile": "{name}-v{version}-podglad.pdf",
+      "noPreview": "Wgraj wersję, żeby zobaczyć podgląd.",
+      "activateN": "Aktywuj wersję {version}",
+      "restoreN": "Przywróć wersję {version}",
+      "activated": "Wersja {version} jest aktywna; działa od kolejnych wydruków.",
+      "restored": "Przywrócono wersję {version}; działa od kolejnych wydruków.",
+      "defaultSet": "Szablon jest domyślny dla rodzaju.",
+      "deleted": "Usunięto wersję {version}.",
+      "uploaded": "Wgrano wersję {version}: sprawdź podgląd i aktywuj.",
+      "confirm": {
+        "restore": {
+          "title": "Przywrócić wersję {version}?",
+          "body": "Starsza wersja stanie się aktywna bez kopiowania pliku; obecna aktywna przejdzie do archiwum. Wcześniejsze wydruki się nie zmienią.",
+          "action": "Przywróć"
+        },
+        "delete": {
+          "title": "Usunąć wersję {version}?",
+          "body": "Wersja „Do aktywacji” nie była używana w wydrukach; plik zostanie usunięty.",
+          "action": "Usuń wersję"
+        }
+      },
+      "previewUnsupported": "Ta przeglądarka nie pokazuje PDF w stronie. Pobierz podgląd i otwórz go w przeglądarce plików."
+    },
+    "validation": {
+      "title": "Walidacja wersji {version}",
+      "when": "przy wgraniu",
+      "file": "Plik DOCX bez makr, {size}, {unpacked} po rozpakowaniu",
+      "syntax": "Składnia znaczników poprawna: {fields, plural, one {# pole} few {# pola} other {# pól}}, {loops, plural, one {# pętla} few {# pętle} other {# pętli}}, {conditions, plural, one {# warunek} few {# warunki} other {# warunków}}",
+      "syntaxTotal": "Składnia znaczników poprawna: {count, plural, one {# znacznik} few {# znaczniki} other {# znaczników}}",
+      "catalog": "Wszystkie znaczniki są w katalogu pól rodzaju „{type}”",
+      "unused": "Nieużyte pola katalogu ({count}):",
+      "allUsed": "Użyto wszystkich pól katalogu rodzaju"
+    },
+    "upload": {
+      "title": "Wgraj wersję {version}",
+      "sub": "Plik zostanie sprawdzony: archiwum, makra, znaczniki względem katalogu i próbne wypełnienie danymi przykładowymi.",
+      "note": "Co się zmieniło",
+      "notePlaceholder": "np. Dodana linia „Pieczęć”",
+      "submit": "Wgraj i sprawdź",
+      "errorsTitle": "{count, plural, one {Szablon ma # błąd} few {Szablon ma # błędy} other {Szablon ma # błędów}}",
+      "errorsSub": "Wersja {version} szablonu „{template}” nie została zapisana. Popraw plik w Wordzie i wgraj go ponownie.",
+      "recognized": "{size} · DOCX rozpoznany",
+      "at": "wgrany {time}",
+      "errorsNote": "Znacznik rozbity przez Worda na kilka fragmentów łączymy automatycznie. Błędy podajemy według miejsca w dokumencie (podział na strony powstaje dopiero przy renderowaniu), nie numeru wiersza XML.",
+      "pickAnother": "Wybierz inny plik"
+    },
+    "place": {
+      "document": "Treść dokumentu",
+      "parts": {
+        "header": "nagłówek",
+        "headerN": "nagłówek {n}",
+        "footer": "stopka",
+        "footerN": "stopka {n}",
+        "footnotes": "przypisy dolne",
+        "footnotesN": "przypisy dolne",
+        "endnotes": "przypisy końcowe",
+        "endnotesN": "przypisy końcowe",
+        "other": "inna część dokumentu",
+        "otherN": "inna część dokumentu"
+      },
+      "table": "tabela {n}",
+      "tableCaption": "tabela „{caption}”",
+      "row": "wiersz {n}",
+      "column": "kolumna {n}",
+      "paragraph": "akapit {n}",
+      "paragraphExcerpt": "akapit {n}: „{excerpt}”"
+    },
+    "issues": {
+      "suggestion": "Czy chodziło o",
+      "inLoop": "W pętli",
+      "available": "dostępne są: {fields}.",
+      "availableFields": "Dostępne pola: {fields}.",
+      "reason": "Szczegóły: {reason}",
+      "other": "Błąd szablonu ({code})",
+      "TEMPLATE_UNKNOWN_FIELD": {
+        "title": "Nieznane pole"
+      },
+      "TEMPLATE_UNKNOWN_LOOP": {
+        "title": "Nieznana pętla"
+      },
+      "TEMPLATE_FIELD_OUT_OF_SCOPE": {
+        "title": "Pole pętli poza pętlą",
+        "hint": "Pole pozycji działa tylko między otwarciem a zamknięciem swojej pętli."
+      },
+      "TEMPLATE_FIELD_TYPE": {
+        "title": "Pole logiczne albo lista wstawione jako tekst",
+        "hint": "Warunek zapisz jako '{#pole}…{/pole}', a listę jako pętlę."
+      },
+      "TEMPLATE_CONDITION_TYPE": {
+        "title": "Warunek na polu, które nie jest logiczne",
+        "hint": "Warunkiem może być tylko pole typu „warunek (tak/nie)” z listy pól."
+      },
+      "TEMPLATE_RAW_TAG": {
+        "title": "Znacznik HTML/XML jest niedozwolony",
+        "hint": "Znaczniki '{@…}' wstawiają surowy XML; szablon używa tylko pól z katalogu."
+      },
+      "TEMPLATE_EXPRESSION": {
+        "title": "Wyrażenie w znaczniku",
+        "hint": "Znacznik to sama ścieżka pola, bez obliczeń, porównań i filtrów."
+      },
+      "TEMPLATE_DELIMITERS": {
+        "title": "Zmiana ograniczników znaczników",
+        "hint": "Szablon używa tylko nawiasów klamrowych '{ }'."
+      },
+      "TEMPLATE_LOOP_UNCLOSED": {
+        "title": "Pętla nie ma zamknięcia",
+        "hint": "Zamknięcie pętli musi być w tym samym wierszu tabeli co otwarcie."
+      },
+      "TEMPLATE_LOOP_UNOPENED": {
+        "title": "Zamknięcie pętli bez otwarcia"
+      },
+      "TEMPLATE_LOOP_MISMATCH": {
+        "title": "Zamknięcie innej pętli niż otwarta",
+        "hint": "Pętle zamyka się w odwrotnej kolejności niż otwarcie."
+      },
+      "TEMPLATE_TAG_UNCLOSED": {
+        "title": "Znacznik bez nawiasu zamykającego"
+      },
+      "TEMPLATE_TAG_UNOPENED": {
+        "title": "Nawias zamykający bez otwarcia"
+      },
+      "TEMPLATE_SYNTAX_ERROR": {
+        "title": "Błąd składni szablonu"
+      },
+      "TEMPLATE_RENDER_FAILED": {
+        "title": "Próbne wypełnienie danymi przykładowymi się nie udało",
+        "hint": "Sprawdź pętle i warunki w tabelach."
+      },
+      "TEMPLATE_NOT_DOCX": {
+        "hint": "Zapisz plik w Wordzie jako „Dokument programu Word (.docx)”."
+      },
+      "TEMPLATE_MACROS": {
+        "hint": "Zapisz plik jako zwykły dokument .docx bez makr."
+      },
+      "TEMPLATE_TOO_LARGE": {
+        "hint": "Zmniejsz grafiki w pliku (logo, pieczęć); limit to 5 MB."
+      },
+      "TEMPLATE_TOO_LARGE_UNPACKED": {
+        "hint": "Zmniejsz grafiki w pliku; rozpakowany dokument jest za duży."
+      },
+      "TEMPLATE_FILE_INVALID": {
+        "hint": "Otwórz plik w Wordzie i zapisz go ponownie jako .docx."
+      }
+    },
+    "generated": {
+      "quick": {
+        "inProgress": "W toku",
+        "ready": "Gotowe",
+        "failed": "Błędy",
+        "deleted": "Pliki usunięte"
+      },
+      "readyAfter": "gotowy po {seconds} s",
+      "runningFor": "od {seconds} s",
+      "queuedFor": "w kolejce od {seconds} s",
+      "filesDeleted": "pliki usunięte {date}",
+      "customerApp": "{name} · aplikacja",
+      "download": "Pobierz",
+      "retry": "Ponów",
+      "regenerate": "Wygeneruj ponownie",
+      "customerDataHidden": "Dane klienta",
+      "customerDataHiddenHint": "Wydruk zawiera dane klienta: pobiera go i ponawia tylko operator z uprawnieniem odczytu użytkowników.",
+      "retried": "Zlecono ponownie: wydruk {id}.",
+      "retention": "Pliki DOCX i PDF usuwamy po 30 dniach; wpis zostaje. „Wygeneruj ponownie” bierze bieżące dane i aktywną wersję szablonu, więc dokument może różnić się od pierwotnego."
     }
   }
 }

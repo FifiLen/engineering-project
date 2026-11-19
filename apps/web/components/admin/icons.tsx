@@ -477,3 +477,112 @@ export const ImageIcon = (p: P) => (
     <circle cx="15.5" cy="9.5" r="1.3" />
   </Icon>
 );
+
+// --- Iteracja 7: treści (makiety 28-panel-tresci) ---------------------------------------------------
+
+export const UploadIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 16V5M7 9.5 12 5l5 4.5M5 20h14" />
+  </Icon>
+);
+
+export const GlobeIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M3.5 12h17M12 3.5c2.5 2.6 3.5 5.4 3.5 8.5s-1 5.9-3.5 8.5c-2.5-2.6-3.5-5.4-3.5-8.5s1-5.9 3.5-8.5Z" />
+  </Icon>
+);
+
+/** Uchwyt przeciągania wiersza (kolejność elementów i pytań). */
+export const GripIcon = (p: P) => (
+  <Icon {...p} strokeWidth={2.6}>
+    <path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" />
+  </Icon>
+);
+
+export const ArchiveIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="3.5" y="4.5" width="17" height="4" rx="1.2" />
+    <path d="M5 8.5v10a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-10M10 12.5h4" />
+  </Icon>
+);
+
+export const MoreIcon = (p: P) => (
+  <Icon {...p} strokeWidth={2.6}>
+    <path d="M6 12h.01M12 12h.01M18 12h.01" />
+  </Icon>
+);
+
+export const ReplaceIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" />
+  </Icon>
+);
+
+export const MailIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
+    <path d="m4 7 8 6 8-6" />
+  </Icon>
+);
+
+export const LinkIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+  </Icon>
+);
+
+export const BoldIcon = (p: P) => (
+  <Icon {...p} strokeWidth={2.4}>
+    <path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z" />
+  </Icon>
+);
+
+export const ItalicIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M14 5h-4M14 19h-4M14 5l-4 14" />
+  </Icon>
+);
+
+export const HeadingIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M6 5v14M18 5v14M6 12h12" />
+  </Icon>
+);
+
+export const ChevronUpIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="m6 15 6-6 6 6" />
+  </Icon>
+);
+
+// --- Iteracja 7: wydruki (makiety 29-panel-wydruki) -------------------------------------------------
+
+export const PrinterIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M7 9V3h10v6" />
+    <rect x="3" y="9" width="18" height="8" rx="2" />
+    <path d="M7 14h10v7H7z" />
+  </Icon>
+);
+
+export const QrIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="4" y="4" width="6" height="6" rx="1" />
+    <rect x="14" y="4" width="6" height="6" rx="1" />
+    <rect x="4" y="14" width="6" height="6" rx="1" />
+    <path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2" />
+  </Icon>
+);
+
+export const StarIcon = (p: P) => (
+  <Icon size={14} {...p}>
+    <path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z" />
+  </Icon>
+);
+
+export const RetryIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 12a8 8 0 0114-5.3L20 9M20 4v5h-5M20 12a8 8 0 01-14 5.3L4 15M4 20v-5h5" />
+  </Icon>
+);

@@ -24,6 +24,7 @@ import { Banner, initials } from '../access/common';
 import { rentalNumber, scooterNumber } from '../fleet/fleet-format';
 import { fileUrl } from '../service/service-format';
 import { BellIcon, ChevronRightIcon, MapIcon, ScooterIcon, StopIcon, UndoIcon } from '../icons';
+import { PrintButton } from '../prints/print-dialog';
 import { RentalSettlementCard, settlementPill } from './rental-settlement';
 import { RefundDialog } from './refund-dialog';
 import { valueLabel } from '../labels';
@@ -149,6 +150,7 @@ export function RentalDetailsPage({ id }: { id: string }) {
           <div className="sub">{sub.join(' · ')}</div>
         </div>
         <div className="actions">
+          <PrintButton documentType="RENTAL_CONFIRMATION" entityId={rental.id} entityLabel={number} />
           {can('scooters.command') && open && online && (
             <button type="button" className="btn" onClick={ring}>
               <BellIcon />

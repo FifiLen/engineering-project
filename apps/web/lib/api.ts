@@ -68,6 +68,41 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   }
 }
 
+/**
+ * Plik z punktu wymagającego tokenu (podgląd PDF szablonu, „Lista pól (DOCX)”): odpowiedź jako `Blob`, bo adres
+ * bez nagłówka `authorization` nie zadziała w `<iframe>` ani w odnośniku. Błąd ma format jak w `api()`.
+ */
+export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const once = async () => {
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}${path}`, {
+        ...init,
+        credentials: 'omit',
+        headers: { ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}), ...init.headers },
+      });
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') throw error;
+      throw new ApiRequestError(0, 'NETWORK');
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new ApiRequestError(res.status, body?.code ?? 'INTERNAL_ERROR', body?.details);
+    }
+    return res.blob();
+  };
+  try {
+    return await once();
+  } catch (error) {
+    if (!(error instanceof ApiRequestError) || error.code !== 'UNAUTHENTICATED') throw error;
+    if (!(await refreshSession())) throw error;
+    return once();
+  }
+}
+
+/** Pełny adres pliku z adresu względnego API (`/files/{id}?exp&sig`, ADR 0057). */
+export const fileUrl = (url: string) => (/^https?:\/\//.test(url) ? url : `${API_URL}${url}`);
+
 async function request<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
   const { json, ...rest } = init;
   let res: Response;

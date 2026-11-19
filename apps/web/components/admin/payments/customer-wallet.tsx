@@ -25,6 +25,7 @@ import { useSession } from '../../../lib/session';
 import { Banner } from '../access/common';
 import { rentalNumber } from '../fleet/fleet-format';
 import { AlertIcon, CardIcon, CheckIcon, DocumentIcon, MinusIcon, PhoneIcon, PlusIcon, WarningIcon } from '../icons';
+import { PrintButton } from '../prints/print-dialog';
 import { valueLabel } from '../labels';
 import { CardStatePill, expiry, LedgerDetails, LedgerType } from './payment-lists';
 import { cardLabel, CardMark, parseZloty, PAYMENTS_BASE, signedPln, useApiRecord } from './payment-format';
@@ -126,8 +127,16 @@ export function CustomerWalletTab({
               <span role="cell">
                 <LedgerType entry={entry} />
               </span>
-              <span role="cell">
+              <span role="cell" className="pr-ledger-details">
                 <LedgerDetails entry={entry} />
+                {(entry.type === 'ADJUSTMENT' || entry.type === 'REFUND') && (
+                  <PrintButton
+                    documentType="WALLET_ADJUSTMENT"
+                    entityId={String(entry.id)}
+                    entityLabel={t('prints.types.WALLET_ADJUSTMENT.entry', { id: entry.id })}
+                    compact
+                  />
+                )}
               </span>
               <span role="cell" className="num right">
                 {signedPln(entry.amount)}

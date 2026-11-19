@@ -24,6 +24,7 @@ import { useSession } from '../../../lib/session';
 import { Banner, initials } from '../access/common';
 import { rentalNumber, scooterNumber } from '../fleet/fleet-format';
 import { CheckIcon, ChevronRightIcon, InfoIcon, ScooterIcon, ServiceIcon, UndoIcon } from '../icons';
+import { PrintButton } from '../prints/print-dialog';
 import { valueLabel } from '../labels';
 import { cardLabel, PAYMENTS_BASE } from '../payments/payment-format';
 import { RefundDialog } from '../rentals/refund-dialog';
@@ -107,6 +108,7 @@ export function TicketDetailsPage({ id }: { id: string }) {
           <div className="sub">{sub.join(' · ')}</div>
         </div>
         <div className="actions">
+          <PrintButton documentType="INCIDENT_REPORT" entityId={ticket.id} entityLabel={number} />
           {can('service.manage') && ticket.status !== 'RESOLVED' && ticket.availableTaskTypes.length > 0 && (
             <button type="button" className="btn" onClick={() => setCreating(true)}>
               <ServiceIcon size={16} />

@@ -14,13 +14,16 @@ import { api, ApiRequestError, errorMessage } from '../../lib/api';
 import { t } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import { ConfirmDialog } from './confirm-dialog';
+import { MediaFieldInput } from './content/media-dialogs';
 import { HistoryCard } from './history-card';
 import { AlertIcon } from './icons';
 import { fieldLabel, valueLabel } from './labels';
 
 export interface FormFieldSpec {
   name: string;
-  kind: 'text' | 'integer' | 'decimal' | 'textarea' | 'chips' | 'select' | 'toggle';
+  kind: 'text' | 'integer' | 'decimal' | 'textarea' | 'chips' | 'select' | 'toggle' | 'media';
+  /** Pole `media`: pole rekordu z opisem grafiki (`MediaRef`), np. `photo` przy `photoMediaId`. */
+  mediaFrom?: string;
   options?: ReadonlyArray<{ value: string; label: string }>;
   /** Wartości dostępne przy tworzeniu, jeśli różnią się od wartości przy edycji. */
   createOptions?: ReadonlyArray<{ value: string; label: string }>;
@@ -232,7 +235,11 @@ export function ResourceForm<T extends { id: string; version: number }>(props: R
             {canWrite ? t('common.cancel') : t('form.backToList')}
           </Link>
           {canWrite && (
-            <button type="submit" className="btn primary" disabled={saving || (record !== null && changed.length === 0)}>
+            <button
+              type="submit"
+              className="btn primary"
+              disabled={saving || (record !== null && changed.length === 0)}
+            >
               {record ? t('common.save') : t('common.create')}
             </button>
           )}
@@ -296,7 +303,9 @@ export function ResourceForm<T extends { id: string; version: number }>(props: R
               <div key={spec.name} className={spec.wide || spec.kind === 'textarea' ? 'field wide' : 'field'}>
                 <label
                   className="label"
-                  htmlFor={spec.kind === 'chips' || spec.kind === 'toggle' ? undefined : inputId}
+                  htmlFor={
+                    spec.kind === 'chips' || spec.kind === 'toggle' || spec.kind === 'media' ? undefined : inputId
+                  }
                   id={`${inputId}-label`}
                 >
                   {fieldLabel(resource, spec.name)}{' '}
@@ -309,6 +318,22 @@ export function ResourceForm<T extends { id: string; version: number }>(props: R
                     inputMode={spec.kind === 'text' ? undefined : spec.kind === 'integer' ? 'numeric' : 'decimal'}
                     value={String(values[spec.name] ?? '')}
                     onChange={(e) => set(spec.name, e.target.value)}
+                  />
+                )}
+                {spec.kind === 'media' && (
+                  <MediaFieldInput
+                    id={inputId}
+                    value={String(values[spec.name] ?? '')}
+                    initial={
+                      record && spec.mediaFrom
+                        ? ((record as Record<string, unknown>)[spec.mediaFrom] as Parameters<
+                            typeof MediaFieldInput
+                          >[0]['initial'])
+                        : null
+                    }
+                    title={fieldLabel(resource, spec.name)}
+                    disabled={Boolean(disabled)}
+                    onChange={(next) => set(spec.name, next)}
                   />
                 )}
                 {spec.kind === 'textarea' && (

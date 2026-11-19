@@ -22,6 +22,7 @@ import { useSession } from '../../../lib/session';
 import { Banner } from '../access/common';
 import { scooterNumber } from '../fleet/fleet-format';
 import { AlertIcon, CheckIcon, CloseIcon, DocumentIcon, FlagIcon, PlusIcon, WarningIcon } from '../icons';
+import { PrintButton } from '../prints/print-dialog';
 import {
   categoryLabel,
   PriorityPill,
@@ -123,23 +124,42 @@ export function TaskDetailsPage({ id }: { id: string }) {
           </h1>
           <div className="sub">{sub.join(' · ')}</div>
         </div>
-        {manage && open && (
-          <div className="actions">
-            <button type="button" className="btn danger" onClick={() => setDialog('cancel')}>
-              {t('tasks.cancel.open')}
-            </button>
-            {task.status === 'OPEN' ? (
-              <button type="button" className="btn primary" disabled={busy} onClick={() => void start()}>
-                {t('tasks.start')}
+        <div className="actions">
+          <PrintButton
+            documentType="SERVICE_PROTOCOL"
+            entityId={task.id}
+            entityLabel={number}
+            summary={[
+              task.parts.length > 0
+                ? t('prints.types.SERVICE_PROTOCOL.partsSummary', {
+                    count: task.parts.length,
+                    cost: formatPln(task.partsCost),
+                  })
+                : t('prints.types.SERVICE_PROTOCOL.noParts'),
+              task.resultNote && t('prints.types.SERVICE_PROTOCOL.note'),
+              t('prints.types.SERVICE_PROTOCOL.outcome', { scooter: scooterNumber(task.scooter.number) }),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          />
+          {manage && open && (
+            <>
+              <button type="button" className="btn danger" onClick={() => setDialog('cancel')}>
+                {t('tasks.cancel.open')}
               </button>
-            ) : (
-              <button type="button" className="btn primary" onClick={() => setDialog('complete')}>
-                <CheckIcon size={15} />
-                {t('tasks.complete.open')}
-              </button>
-            )}
-          </div>
-        )}
+              {task.status === 'OPEN' ? (
+                <button type="button" className="btn primary" disabled={busy} onClick={() => void start()}>
+                  {t('tasks.start')}
+                </button>
+              ) : (
+                <button type="button" className="btn primary" onClick={() => setDialog('complete')}>
+                  <CheckIcon size={15} />
+                  {t('tasks.complete.open')}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {notice && <Banner kind="ok">{notice}</Banner>}

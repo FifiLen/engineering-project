@@ -22,6 +22,7 @@ import { Banner } from '../access/common';
 import type { FilterSpec } from '../filter-drawer';
 import { rentalNumber } from '../fleet/fleet-format';
 import { CardIcon, ChevronRightIcon, CloseIcon, ReceiptIcon } from '../icons';
+import { PrintButton } from '../prints/print-dialog';
 import { ResourceList, type Column, type QuickPreset } from '../resource-list';
 import { cardOf, PAYMENTS_BASE, PaymentsTabs, signedPln, sourceLabel, useApiRecord } from './payment-format';
 
@@ -350,6 +351,7 @@ function ReceiptLinks({ receipt, withDetails }: { receipt: ReceiptAdminDetails; 
   const { can } = useSession();
   return (
     <>
+      <PrintButton documentType="RECEIPT" entityId={receipt.id} entityLabel={receipt.number} />
       {receipt.paymentId && (
         <Link className="btn" href={`${PAYMENTS_BASE}/${receipt.paymentId}`}>
           <CardIcon size={16} />
