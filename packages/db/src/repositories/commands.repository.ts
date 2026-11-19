@@ -31,7 +31,8 @@ export class DrizzleCommandRepository implements CommandRepository {
 
   /**
    * `expiresAt`: termin z kontraktu MQTT 1.1.0, po którym hulajnoga nie wykona komendy (ADR 0038); `issuedByStaff`:
-   * operator komendy z panelu (komendy systemu i przejazdu go nie mają).
+   * operator komendy z panelu (komendy systemu i przejazdu go nie mają). Źródło komendy (migracja 0013, ADR 0076):
+   * operator albo system; komendy przejazdu i stref wstawia repozytorium przejazdów.
    */
   async create(
     scooterId: string,
@@ -42,7 +43,7 @@ export class DrizzleCommandRepository implements CommandRepository {
   ): Promise<CommandRecord> {
     const [row] = await this.db
       .insert(scooterCommands)
-      .values({ scooterId, type, payload, expiresAt, issuedByStaff })
+      .values({ scooterId, type, payload, expiresAt, issuedByStaff, source: issuedByStaff ? 'STAFF' : 'SYSTEM' })
       .returning(recordColumns);
     return toRecord(row!);
   }

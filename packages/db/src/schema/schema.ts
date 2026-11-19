@@ -2,17 +2,17 @@
 import {
   pgTable,
   index,
+  uniqueIndex,
+  foreignKey,
+  check,
   uuid,
   text,
-  smallint,
   timestamp,
   unique,
-  check,
   integer,
   boolean,
-  foreignKey,
+  smallint,
   geometry,
-  uniqueIndex,
   bigint,
   numeric,
   jsonb,
@@ -29,6 +29,7 @@ import { sql } from 'drizzle-orm';
 
 export const auditActor = pgEnum('audit_actor', ['STAFF', 'SYSTEM']);
 export const blockReason = pgEnum('block_reason', ['TERMS_VIOLATION', 'UNPAID_BALANCE', 'SUSPECTED_ABUSE']);
+export const commandSource = pgEnum('command_source', ['STAFF', 'RENTAL', 'ZONE', 'SYSTEM']);
 export const commandStatus = pgEnum('command_status', ['SENT', 'ACKED', 'REJECTED', 'TIMEOUT']);
 export const commandType = pgEnum('command_type', [
   'UNLOCK',
@@ -40,6 +41,7 @@ export const commandType = pgEnum('command_type', [
   'RELEASE_STOP',
   'BATTERY_SWAPPED',
 ]);
+export const consentSource = pgEnum('consent_source', ['REGISTRATION', 'APP', 'PANEL']);
 export const consentType = pgEnum('consent_type', ['TERMS', 'PRIVACY', 'MARKETING', 'AGE']);
 export const contentClient = pgEnum('content_client', ['WEB', 'MOBILE', 'ADMIN']);
 export const contentStatus = pgEnum('content_status', ['DRAFT', 'PUBLISHED', 'ARCHIVED']);
@@ -75,6 +77,7 @@ export const ledgerEntryType = pgEnum('ledger_entry_type', [
 export const ledgerReason = pgEnum('ledger_reason', ['COMPLAINT', 'SYSTEM_ERROR', 'GOODWILL', 'OTHER']);
 export const notificationChannel = pgEnum('notification_channel', ['PUSH', 'SMS']);
 export const notificationStatus = pgEnum('notification_status', ['QUEUED', 'SENT', 'FAILED', 'SKIPPED']);
+export const otpPurpose = pgEnum('otp_purpose', ['LOGIN', 'REGISTER']);
 export const partAdjustReason = pgEnum('part_adjust_reason', ['STOCKTAKE', 'DAMAGED', 'LOST', 'OTHER']);
 export const partMovementKind = pgEnum('part_movement_kind', ['RECEIPT', 'ADJUSTMENT', 'USE', 'RETURN']);
 export const paymentMethodKind = pgEnum('payment_method_kind', ['CARD', 'BLIK']);
@@ -136,6 +139,7 @@ export const scooterStatusReason = pgEnum('scooter_status_reason', [
 export const scooterVariant = pgEnum('scooter_variant', ['GRAFIT', 'BETON', 'KOBALT']);
 export const serviceTaskStatus = pgEnum('service_task_status', ['OPEN', 'IN_PROGRESS', 'DONE', 'CANCELLED']);
 export const serviceTaskType = pgEnum('service_task_type', ['REPAIR', 'BATTERY_SWAP', 'INSPECTION', 'RELOCATION']);
+export const sessionPlatform = pgEnum('session_platform', ['IOS', 'ANDROID', 'WEB']);
 export const taskPriority = pgEnum('task_priority', ['LOW', 'NORMAL', 'HIGH']);
 export const ticketAutoKind = pgEnum('ticket_auto_kind', ['OFFLINE', 'BATTERY_CRITICAL', 'OUT_OF_ZONE']);
 export const ticketCategory = pgEnum('ticket_category', [
@@ -196,23 +200,93 @@ export const ticketNumberSeq = pgSequence('ticket_number_seq', {
   cycle: false,
 });
 
-export const otpCodes = pgTable(
-  'otp_codes',
+export const consents = pgTable(
+  'consents',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    phone: text().notNull(),
-    codeHash: text('code_hash').notNull(),
-    attempts: smallint().default(0).notNull(),
-    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
-    consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'date' }),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    userId: uuid('user_id').notNull(),
+    type: consentType().notNull(),
+    documentVersion: text('document_version').notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+    pageVersionId: uuid('page_version_id'),
+    source: consentSource(),
+    revokedByStaff: uuid('revoked_by_staff'),
   },
   (table) => [
-    index('otp_codes_phone_idx').using(
+    index('consents_marketing_idx')
+      .using('btree', table.acceptedAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(type = 'MARKETING'::consent_type)`),
+    uniqueIndex('consents_one_active_per_version')
+      .using(
+        'btree',
+        table.userId.asc().nullsLast().op('uuid_ops'),
+        table.type.asc().nullsLast().op('enum_ops'),
+        table.documentVersion.asc().nullsLast().op('text_ops'),
+      )
+      .where(sql`(revoked_at IS NULL)`),
+    index('consents_user_idx').using(
       'btree',
-      table.phone.asc().nullsLast().op('text_ops'),
-      table.createdAt.desc().nullsFirst().op('text_ops'),
+      table.userId.asc().nullsLast().op('uuid_ops'),
+      table.type.asc().nullsLast().op('uuid_ops'),
     ),
+    foreignKey({
+      columns: [table.pageVersionId],
+      foreignColumns: [contentPageVersions.id],
+      name: 'consents_page_version_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.revokedByStaff],
+      foreignColumns: [staff.id],
+      name: 'consents_revoked_by_staff_fkey',
+    }),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: 'consents_user_id_fkey',
+    }),
+    check(
+      'consents_revoked_by_staff',
+      sql`(revoked_by_staff IS NULL) OR ((revoked_at IS NOT NULL) AND (type = 'MARKETING'::consent_type))`,
+    ),
+  ],
+);
+
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    userId: uuid('user_id').notNull(),
+    refreshTokenHash: text('refresh_token_hash').notNull(),
+    deviceName: text('device_name'),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    familyId: uuid('family_id').defaultRandom().notNull(),
+    replacedBy: uuid('replaced_by'),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date' }),
+    platform: sessionPlatform(),
+    appVersion: text('app_version'),
+  },
+  (table) => [
+    index('sessions_family_idx').using('btree', table.familyId.asc().nullsLast().op('uuid_ops')),
+    index('sessions_user_active_idx')
+      .using('btree', table.userId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(revoked_at IS NULL)`),
+    index('sessions_user_idx').using('btree', table.userId.asc().nullsLast().op('uuid_ops')),
+    foreignKey({
+      columns: [table.replacedBy],
+      foreignColumns: [table.id],
+      name: 'sessions_replaced_by_fkey',
+    }),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: 'sessions_user_id_fkey',
+    }),
+    unique('sessions_refresh_token_hash_key').on(table.refreshTokenHash),
+    check('sessions_app_version', sql`(btrim(app_version) <> ''::text) AND (char_length(app_version) <= 32)`),
+    check('sessions_replaced_is_revoked', sql`(replaced_by IS NULL) OR (revoked_at IS NOT NULL)`),
   ],
 );
 
@@ -234,6 +308,7 @@ export const users = pgTable(
     notifyReceipts: boolean('notify_receipts').default(true).notNull(),
   },
   (table) => [
+    index('users_created_idx').using('btree', table.createdAt.asc().nullsLast().op('timestamptz_ops')),
     unique('users_phone_key').on(table.phone),
     unique('users_email_key').on(table.email),
     check(
@@ -241,6 +316,28 @@ export const users = pgTable(
       sql`((status = 'BLOCKED'::user_status) = (blocked_at IS NOT NULL)) AND ((blocked_at IS NULL) = (blocked_reason IS NULL))`,
     ),
     check('users_check', sql`(status <> 'DELETED'::user_status) OR ((phone IS NULL) AND (email IS NULL))`),
+  ],
+);
+
+export const otpCodes = pgTable(
+  'otp_codes',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    phone: text().notNull(),
+    codeHash: text('code_hash').notNull(),
+    attempts: smallint().default(0).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    purpose: otpPurpose().default('LOGIN').notNull(),
+  },
+  (table) => [
+    index('otp_codes_created_idx').using('btree', table.createdAt.desc().nullsFirst().op('timestamptz_ops')),
+    index('otp_codes_phone_idx').using(
+      'btree',
+      table.phone.asc().nullsLast().op('text_ops'),
+      table.createdAt.desc().nullsFirst().op('text_ops'),
+    ),
   ],
 );
 
@@ -255,48 +352,15 @@ export const savedPlaces = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
+    index('saved_places_user_idx').using(
+      'btree',
+      table.userId.asc().nullsLast().op('uuid_ops'),
+      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
     foreignKey({
       columns: [table.userId],
       foreignColumns: [users.id],
       name: 'saved_places_user_id_fkey',
-    }),
-  ],
-);
-
-export const consents = pgTable(
-  'consents',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    userId: uuid('user_id').notNull(),
-    type: consentType().notNull(),
-    documentVersion: text('document_version').notNull(),
-    acceptedAt: timestamp('accepted_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
-    pageVersionId: uuid('page_version_id'),
-  },
-  (table) => [
-    uniqueIndex('consents_one_active_per_version')
-      .using(
-        'btree',
-        table.userId.asc().nullsLast().op('uuid_ops'),
-        table.type.asc().nullsLast().op('enum_ops'),
-        table.documentVersion.asc().nullsLast().op('text_ops'),
-      )
-      .where(sql`(revoked_at IS NULL)`),
-    index('consents_user_idx').using(
-      'btree',
-      table.userId.asc().nullsLast().op('uuid_ops'),
-      table.type.asc().nullsLast().op('uuid_ops'),
-    ),
-    foreignKey({
-      columns: [table.pageVersionId],
-      foreignColumns: [contentPageVersions.id],
-      name: 'consents_page_version_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: 'consents_user_id_fkey',
     }),
   ],
 );
@@ -343,41 +407,6 @@ export const tariffs = pgTable(
   ],
 );
 
-export const sessions = pgTable(
-  'sessions',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    userId: uuid('user_id').notNull(),
-    refreshTokenHash: text('refresh_token_hash').notNull(),
-    deviceName: text('device_name'),
-    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
-    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    familyId: uuid('family_id').defaultRandom().notNull(),
-    replacedBy: uuid('replaced_by'),
-    lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date' }),
-  },
-  (table) => [
-    index('sessions_family_idx').using('btree', table.familyId.asc().nullsLast().op('uuid_ops')),
-    index('sessions_user_active_idx')
-      .using('btree', table.userId.asc().nullsLast().op('uuid_ops'))
-      .where(sql`(revoked_at IS NULL)`),
-    index('sessions_user_idx').using('btree', table.userId.asc().nullsLast().op('uuid_ops')),
-    foreignKey({
-      columns: [table.replacedBy],
-      foreignColumns: [table.id],
-      name: 'sessions_replaced_by_fkey',
-    }),
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: 'sessions_user_id_fkey',
-    }),
-    unique('sessions_refresh_token_hash_key').on(table.refreshTokenHash),
-    check('sessions_replaced_is_revoked', sql`(replaced_by IS NULL) OR (revoked_at IS NOT NULL)`),
-  ],
-);
-
 export const pushTokens = pgTable(
   'push_tokens',
   {
@@ -405,64 +434,6 @@ export const pushTokens = pgTable(
       name: 'push_tokens_user_id_fkey',
     }),
     unique('push_tokens_expo_token_key').on(table.expoToken),
-  ],
-);
-
-export const scooterCommands = pgTable(
-  'scooter_commands',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    scooterId: uuid('scooter_id').notNull(),
-    rentalId: uuid('rental_id'),
-    type: commandType().notNull(),
-    payload: jsonb().default({}).notNull(),
-    status: commandStatus().default('SENT').notNull(),
-    issuedByStaff: uuid('issued_by_staff'),
-    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    ackedAt: timestamp('acked_at', { withTimezone: true, mode: 'date' }),
-    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
-    ackReason: text('ack_reason'),
-  },
-  (table) => [
-    uniqueIndex('scooter_commands_one_pending_per_rental')
-      .using('btree', table.rentalId.asc().nullsLast().op('uuid_ops'))
-      .where(
-        sql`((status = 'SENT'::command_status) AND (rental_id IS NOT NULL) AND (type = ANY (ARRAY['LOCK'::command_type, 'UNLOCK'::command_type])))`,
-      ),
-    index('scooter_commands_pending_expiry_idx')
-      .using('btree', table.expiresAt.asc().nullsLast().op('timestamptz_ops'))
-      .where(sql`(status = 'SENT'::command_status)`),
-    index('scooter_commands_pending_idx')
-      .using('btree', table.sentAt.asc().nullsLast().op('timestamptz_ops'))
-      .where(sql`(status = 'SENT'::command_status)`),
-    index('scooter_commands_rental_idx')
-      .using(
-        'btree',
-        table.rentalId.asc().nullsLast().op('uuid_ops'),
-        table.sentAt.asc().nullsLast().op('timestamptz_ops'),
-      )
-      .where(sql`(rental_id IS NOT NULL)`),
-    index('scooter_commands_scooter_idx').using(
-      'btree',
-      table.scooterId.asc().nullsLast().op('timestamptz_ops'),
-      table.sentAt.desc().nullsFirst().op('timestamptz_ops'),
-    ),
-    foreignKey({
-      columns: [table.issuedByStaff],
-      foreignColumns: [staff.id],
-      name: 'scooter_commands_issued_by_staff_fkey',
-    }),
-    foreignKey({
-      columns: [table.rentalId],
-      foreignColumns: [rentals.id],
-      name: 'scooter_commands_rental_fk',
-    }),
-    foreignKey({
-      columns: [table.scooterId],
-      foreignColumns: [scooters.id],
-      name: 'scooter_commands_scooter_id_fkey',
-    }),
-    check('scooter_commands_expiry_after_sent', sql`(expires_at IS NULL) OR (expires_at > sent_at)`),
   ],
 );
 
@@ -499,6 +470,77 @@ export const zones = pgTable(
     check('zones_check1', sql`(type = 'PARKING'::zone_type) OR (capacity IS NULL)`),
     check('zones_geom_check', sql`CHECK (st_isvalid(geom`),
     check('zones_speed_limit_only_slow', sql`(type = 'SLOW'::zone_type) OR (speed_limit_kmh IS NULL)`),
+  ],
+);
+
+export const scooterCommands = pgTable(
+  'scooter_commands',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    scooterId: uuid('scooter_id').notNull(),
+    rentalId: uuid('rental_id'),
+    type: commandType().notNull(),
+    payload: jsonb().default({}).notNull(),
+    status: commandStatus().default('SENT').notNull(),
+    issuedByStaff: uuid('issued_by_staff'),
+    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    ackedAt: timestamp('acked_at', { withTimezone: true, mode: 'date' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+    ackReason: text('ack_reason'),
+    source: commandSource().notNull(),
+    zoneId: uuid('zone_id'),
+  },
+  (table) => [
+    uniqueIndex('scooter_commands_one_pending_per_rental')
+      .using('btree', table.rentalId.asc().nullsLast().op('uuid_ops'))
+      .where(
+        sql`((status = 'SENT'::command_status) AND (rental_id IS NOT NULL) AND (type = ANY (ARRAY['LOCK'::command_type, 'UNLOCK'::command_type])))`,
+      ),
+    index('scooter_commands_pending_expiry_idx')
+      .using('btree', table.expiresAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(status = 'SENT'::command_status)`),
+    index('scooter_commands_pending_idx')
+      .using('btree', table.sentAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(status = 'SENT'::command_status)`),
+    index('scooter_commands_rental_idx')
+      .using(
+        'btree',
+        table.rentalId.asc().nullsLast().op('uuid_ops'),
+        table.sentAt.asc().nullsLast().op('timestamptz_ops'),
+      )
+      .where(sql`(rental_id IS NOT NULL)`),
+    index('scooter_commands_scooter_idx').using(
+      'btree',
+      table.scooterId.asc().nullsLast().op('timestamptz_ops'),
+      table.sentAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    index('scooter_commands_sent_idx').using('btree', table.sentAt.desc().nullsFirst().op('timestamptz_ops')),
+    index('scooter_commands_zone_idx')
+      .using('btree', table.zoneId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(zone_id IS NOT NULL)`),
+    foreignKey({
+      columns: [table.issuedByStaff],
+      foreignColumns: [staff.id],
+      name: 'scooter_commands_issued_by_staff_fkey',
+    }),
+    foreignKey({
+      columns: [table.rentalId],
+      foreignColumns: [rentals.id],
+      name: 'scooter_commands_rental_fk',
+    }),
+    foreignKey({
+      columns: [table.scooterId],
+      foreignColumns: [scooters.id],
+      name: 'scooter_commands_scooter_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.zoneId],
+      foreignColumns: [zones.id],
+      name: 'scooter_commands_zone_id_fkey',
+    }),
+    check('scooter_commands_expiry_after_sent', sql`(expires_at IS NULL) OR (expires_at > sent_at)`),
+    check('scooter_commands_staff_source', sql`(source = 'STAFF'::command_source) = (issued_by_staff IS NOT NULL)`),
+    check('scooter_commands_zone_source', sql`(zone_id IS NULL) OR (source = 'ZONE'::command_source)`),
   ],
 );
 
@@ -575,6 +617,9 @@ export const payments = pgTable(
     index('payments_rental_idx')
       .using('btree', table.rentalId.asc().nullsLast().op('uuid_ops'))
       .where(sql`(rental_id IS NOT NULL)`),
+    index('payments_succeeded_created_idx')
+      .using('btree', table.createdAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(status = ANY (ARRAY['SUCCEEDED'::payment_status, 'REFUNDED'::payment_status]))`),
     index('payments_user_idx').using(
       'btree',
       table.userId.asc().nullsLast().op('timestamptz_ops'),
@@ -607,16 +652,14 @@ export const rentalEvents = pgTable(
   'rental_events',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'rental_events_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'rental_events_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     rentalId: uuid('rental_id').notNull(),
     type: rentalEventType().notNull(),
     fromState: rentalState('from_state'),
@@ -626,6 +669,7 @@ export const rentalEvents = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (table) => [
+    index('rental_events_created_idx').using('btree', table.createdAt.desc().nullsFirst().op('timestamptz_ops')),
     index('rental_events_rental_idx').using(
       'btree',
       table.rentalId.asc().nullsLast().op('timestamptz_ops'),
@@ -726,6 +770,9 @@ export const rentals = pgTable(
   },
   (table) => [
     index('rentals_created_idx').using('btree', table.createdAt.desc().nullsFirst().op('timestamptz_ops')),
+    index('rentals_ended_idx')
+      .using('btree', table.endedAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(ended_at IS NOT NULL)`),
     uniqueIndex('rentals_one_open_per_scooter')
       .using('btree', table.scooterId.asc().nullsLast().op('uuid_ops'))
       .where(
@@ -747,11 +794,17 @@ export const rentals = pgTable(
       table.scooterId.asc().nullsLast().op('uuid_ops'),
       table.createdAt.desc().nullsFirst().op('uuid_ops'),
     ),
+    index('rentals_started_idx')
+      .using('btree', table.startedAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(started_at IS NOT NULL)`),
     index('rentals_state_created_idx').using(
       'btree',
       table.state.asc().nullsLast().op('enum_ops'),
       table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
     ),
+    index('rentals_unpaid_idx')
+      .using('btree', table.endedAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(state = 'UNPAID'::rental_state)`),
     index('rentals_user_idx').using(
       'btree',
       table.userId.asc().nullsLast().op('timestamptz_ops'),
@@ -810,16 +863,14 @@ export const walletLedger = pgTable(
   'wallet_ledger',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'wallet_ledger_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'wallet_ledger_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     userId: uuid('user_id').notNull(),
     type: ledgerEntryType().notNull(),
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -835,6 +886,7 @@ export const walletLedger = pgTable(
     refundId: uuid('refund_id'),
   },
   (table) => [
+    index('wallet_ledger_created_idx').using('btree', table.createdAt.asc().nullsLast().op('timestamptz_ops')),
     uniqueIndex('wallet_ledger_one_charge_per_rental')
       .using('btree', table.rentalId.asc().nullsLast().op('uuid_ops'))
       .where(sql`(type = 'RIDE_CHARGE'::ledger_entry_type)`),
@@ -852,6 +904,12 @@ export const walletLedger = pgTable(
     index('wallet_ledger_rental_idx')
       .using('btree', table.rentalId.asc().nullsLast().op('uuid_ops'))
       .where(sql`(rental_id IS NOT NULL)`),
+    index('wallet_ledger_user_created_idx').using(
+      'btree',
+      table.userId.asc().nullsLast().op('uuid_ops'),
+      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
+      table.id.desc().nullsFirst().op('int8_ops'),
+    ),
     index('wallet_ledger_user_idx').using(
       'btree',
       table.userId.asc().nullsLast().op('int8_ops'),
@@ -890,16 +948,14 @@ export const auditLog = pgTable(
   'audit_log',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'audit_log_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'audit_log_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     staffId: uuid('staff_id'),
     action: text().notNull(),
     entityType: text('entity_type').notNull(),
@@ -950,8 +1006,19 @@ export const permissions = pgTable(
     code: text().primaryKey().notNull(),
     module: text().notNull(),
     description: text().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedBy: uuid('updated_by'),
+    version: integer().default(1).notNull(),
   },
-  (table) => [check('permissions_code_check', sql`code ~ '^[a-z_]+\.[a-z_]+$'::text`)],
+  (table) => [
+    foreignKey({
+      columns: [table.updatedBy],
+      foreignColumns: [staff.id],
+      name: 'permissions_updated_by_fkey',
+    }),
+    check('permissions_code_check', sql`code ~ '^[a-z_]+\.[a-z_]+$'::text`),
+    check('permissions_description_check', sql`(btrim(description) <> ''::text) AND (char_length(description) <= 160)`),
+  ],
 );
 
 export const mediaAssets = pgTable(
@@ -1040,6 +1107,39 @@ export const contentPageVersions = pgTable(
     unique('content_page_versions_page_id_version_no_key').on(table.pageId, table.versionNo),
     check('content_page_versions_check', sql`(status = 'DRAFT'::content_status) OR (published_at IS NOT NULL)`),
     check('content_page_versions_version_no_check', sql`version_no > 0`),
+  ],
+);
+
+export const reportDefinitions = pgTable(
+  'report_definitions',
+  {
+    code: text().primaryKey().notNull(),
+    name: text().notNull(),
+    description: text(),
+    permissionCode: text('permission_code').notNull(),
+    parameters: jsonb().default({}).notNull(),
+    formats: reportFormat().array().default(['PDF', 'XLSX']).notNull(),
+    active: boolean().default(true).notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    updatedBy: uuid('updated_by'),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    version: integer().default(1).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.permissionCode],
+      foreignColumns: [permissions.code],
+      name: 'report_definitions_permission_code_fkey',
+    }).onUpdate('cascade'),
+    foreignKey({
+      columns: [table.updatedBy],
+      foreignColumns: [staff.id],
+      name: 'report_definitions_updated_by_fkey',
+    }),
+    check('report_definitions_code_check', sql`code ~ '^[a-z_]+$'::text`),
+    check('report_definitions_description_check', sql`char_length(description) <= 300`),
+    check('report_definitions_formats_check', sql`cardinality(formats) > 0`),
+    check('report_definitions_name_check', sql`(btrim(name) <> ''::text) AND (char_length(name) <= 80)`),
   ],
 );
 
@@ -1171,37 +1271,6 @@ export const faqItems = pgTable(
   ],
 );
 
-export const reportDefinitions = pgTable(
-  'report_definitions',
-  {
-    code: text().primaryKey().notNull(),
-    name: text().notNull(),
-    description: text(),
-    permissionCode: text('permission_code').notNull(),
-    parameters: jsonb().default({}).notNull(),
-    formats: reportFormat().array().default(['PDF', 'XLSX']).notNull(),
-    active: boolean().default(true).notNull(),
-    sortOrder: integer('sort_order').default(0).notNull(),
-    updatedBy: uuid('updated_by'),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    version: integer().default(1).notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.permissionCode],
-      foreignColumns: [permissions.code],
-      name: 'report_definitions_permission_code_fkey',
-    }).onUpdate('cascade'),
-    foreignKey({
-      columns: [table.updatedBy],
-      foreignColumns: [staff.id],
-      name: 'report_definitions_updated_by_fkey',
-    }),
-    check('report_definitions_code_check', sql`code ~ '^[a-z_]+$'::text`),
-    check('report_definitions_formats_check', sql`cardinality(formats) > 0`),
-  ],
-);
-
 export const reportRuns = pgTable(
   'report_runs',
   {
@@ -1216,8 +1285,18 @@ export const reportRuns = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
     finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
+    dataAsOf: timestamp('data_as_of', { withTimezone: true, mode: 'date' }),
+    errorCode: text('error_code'),
+    rowCount: integer('row_count'),
+    pageCount: integer('page_count'),
+    fileDeletedAt: timestamp('file_deleted_at', { withTimezone: true, mode: 'date' }),
+    retryOf: uuid('retry_of'),
   },
   (table) => [
+    index('report_runs_created_idx').using('btree', table.createdAt.desc().nullsFirst().op('timestamptz_ops')),
+    index('report_runs_open_idx')
+      .using('btree', table.createdAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(status = ANY (ARRAY['QUEUED'::job_status, 'RUNNING'::job_status]))`),
     index('report_runs_report_idx').using(
       'btree',
       table.reportCode.asc().nullsLast().op('timestamptz_ops'),
@@ -1228,6 +1307,12 @@ export const reportRuns = pgTable(
       table.requestedBy.asc().nullsLast().op('uuid_ops'),
       table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
     ),
+    index('report_runs_retention_idx')
+      .using('btree', table.finishedAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`((status = 'SUCCEEDED'::job_status) AND (file_deleted_at IS NULL))`),
+    index('report_runs_retry_idx')
+      .using('btree', table.retryOf.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(retry_of IS NOT NULL)`),
     foreignKey({
       columns: [table.fileId],
       foreignColumns: [files.id],
@@ -1243,8 +1328,23 @@ export const reportRuns = pgTable(
       foreignColumns: [staff.id],
       name: 'report_runs_requested_by_fkey',
     }),
+    foreignKey({
+      columns: [table.retryOf],
+      foreignColumns: [table.id],
+      name: 'report_runs_retry_of_fkey',
+    }),
     check('report_runs_check', sql`(status <> 'SUCCEEDED'::job_status) OR (file_id IS NOT NULL)`),
-    check('report_runs_check1', sql`(status <> 'FAILED'::job_status) OR (error IS NOT NULL)`),
+    check('report_runs_counts', sql`(row_count >= 0) AND (page_count > 0)`),
+    check('report_runs_data_as_of', sql`(status <> 'SUCCEEDED'::job_status) OR (data_as_of IS NOT NULL)`),
+    check('report_runs_error_code', sql`error_code ~ '^[A-Z_]+$'::text`),
+    check('report_runs_failed_code', sql`(status <> 'FAILED'::job_status) OR (error_code IS NOT NULL)`),
+    check('report_runs_file_deleted', sql`(file_deleted_at IS NULL) OR (status = 'SUCCEEDED'::job_status)`),
+    check(
+      'report_runs_finished',
+      sql`(status = ANY (ARRAY['SUCCEEDED'::job_status, 'FAILED'::job_status])) = (finished_at IS NOT NULL)`,
+    ),
+    check('report_runs_format_check', sql`format <> 'CSV'::report_format`),
+    check('report_runs_retry_other', sql`retry_of <> id`),
   ],
 );
 
@@ -1312,6 +1412,7 @@ export const documentTemplates = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     version: integer().default(1).notNull(),
+    deactivatedAt: timestamp('deactivated_at', { withTimezone: true, mode: 'date' }),
   },
   (table) => [
     uniqueIndex('document_templates_one_default')
@@ -1329,6 +1430,7 @@ export const documentTemplates = pgTable(
     }),
     unique('document_templates_document_type_name_key').on(table.documentType, table.name),
     check('document_templates_check', sql`active OR (NOT is_default)`),
+    check('document_templates_deactivated', sql`(deactivated_at IS NULL) = active`),
     check('document_templates_not_built_in', sql`(document_type)::text <> 'SCOOTER_LABEL'::text`),
   ],
 );
@@ -1477,6 +1579,7 @@ export const receipts = pgTable(
     buyerPhone: text('buyer_phone'),
   },
   (table) => [
+    index('receipts_issued_idx').using('btree', table.issuedAt.asc().nullsLast().op('timestamptz_ops')),
     uniqueIndex('receipts_one_sale_per_rental')
       .using('btree', table.rentalId.asc().nullsLast().op('uuid_ops'))
       .where(sql`((kind = 'SALE'::receipt_kind) AND (rental_id IS NOT NULL))`),
@@ -1556,6 +1659,10 @@ export const serviceTasks = pgTable(
     index('service_tasks_assignee_idx')
       .using('btree', table.assigneeId.asc().nullsLast().op('uuid_ops'))
       .where(sql`(status = ANY (ARRAY['OPEN'::service_task_status, 'IN_PROGRESS'::service_task_status]))`),
+    index('service_tasks_completed_idx')
+      .using('btree', table.completedAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(completed_at IS NOT NULL)`),
+    index('service_tasks_created_idx').using('btree', table.createdAt.asc().nullsLast().op('timestamptz_ops')),
     uniqueIndex('service_tasks_one_open_per_type')
       .using('btree', table.scooterId.asc().nullsLast().op('uuid_ops'), table.type.asc().nullsLast().op('enum_ops'))
       .where(sql`(status = ANY (ARRAY['OPEN'::service_task_status, 'IN_PROGRESS'::service_task_status]))`),
@@ -1629,40 +1736,6 @@ END)`,
   ],
 );
 
-export const staffSessions = pgTable(
-  'staff_sessions',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    staffId: uuid('staff_id').notNull(),
-    familyId: uuid('family_id').defaultRandom().notNull(),
-    refreshTokenHash: text('refresh_token_hash').notNull(),
-    userAgent: text('user_agent'),
-    replacedBy: uuid('replaced_by'),
-    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
-    lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date' }),
-    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-  },
-  (table) => [
-    index('staff_sessions_family_idx').using('btree', table.familyId.asc().nullsLast().op('uuid_ops')),
-    index('staff_sessions_staff_active_idx')
-      .using('btree', table.staffId.asc().nullsLast().op('uuid_ops'))
-      .where(sql`(revoked_at IS NULL)`),
-    foreignKey({
-      columns: [table.replacedBy],
-      foreignColumns: [table.id],
-      name: 'staff_sessions_replaced_by_fkey',
-    }),
-    foreignKey({
-      columns: [table.staffId],
-      foreignColumns: [staff.id],
-      name: 'staff_sessions_staff_id_fkey',
-    }),
-    unique('staff_sessions_refresh_token_hash_key').on(table.refreshTokenHash),
-    check('staff_sessions_check', sql`(replaced_by IS NULL) OR (revoked_at IS NOT NULL)`),
-  ],
-);
-
 export const staff = pgTable(
   'staff',
   {
@@ -1700,6 +1773,7 @@ export const staffInvitations = pgTable(
     acceptedAt: timestamp('accepted_at', { withTimezone: true, mode: 'date' }),
     revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    replacedBy: uuid('replaced_by'),
   },
   (table) => [
     uniqueIndex('staff_invitations_one_open')
@@ -1711,6 +1785,11 @@ export const staffInvitations = pgTable(
       name: 'staff_invitations_invited_by_fkey',
     }),
     foreignKey({
+      columns: [table.replacedBy],
+      foreignColumns: [table.id],
+      name: 'staff_invitations_replaced_by_fkey',
+    }),
+    foreignKey({
       columns: [table.staffId],
       foreignColumns: [staff.id],
       name: 'staff_invitations_staff_id_fkey',
@@ -1718,6 +1797,43 @@ export const staffInvitations = pgTable(
     unique('staff_invitations_token_hash_key').on(table.tokenHash),
     check('staff_invitations_check', sql`num_nonnulls(accepted_at, revoked_at) <= 1`),
     check('staff_invitations_check1', sql`expires_at > created_at`),
+    check('staff_invitations_replaced_is_revoked', sql`(replaced_by IS NULL) OR (revoked_at IS NOT NULL)`),
+    check('staff_invitations_replaced_other', sql`replaced_by <> id`),
+  ],
+);
+
+export const staffSessions = pgTable(
+  'staff_sessions',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    staffId: uuid('staff_id').notNull(),
+    familyId: uuid('family_id').defaultRandom().notNull(),
+    refreshTokenHash: text('refresh_token_hash').notNull(),
+    userAgent: text('user_agent'),
+    replacedBy: uuid('replaced_by'),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date' }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    remembered: boolean().default(false).notNull(),
+  },
+  (table) => [
+    index('staff_sessions_family_idx').using('btree', table.familyId.asc().nullsLast().op('uuid_ops')),
+    index('staff_sessions_staff_active_idx')
+      .using('btree', table.staffId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(revoked_at IS NULL)`),
+    foreignKey({
+      columns: [table.replacedBy],
+      foreignColumns: [table.id],
+      name: 'staff_sessions_replaced_by_fkey',
+    }),
+    foreignKey({
+      columns: [table.staffId],
+      foreignColumns: [staff.id],
+      name: 'staff_sessions_staff_id_fkey',
+    }),
+    unique('staff_sessions_refresh_token_hash_key').on(table.refreshTokenHash),
+    check('staff_sessions_check', sql`(replaced_by IS NULL) OR (revoked_at IS NOT NULL)`),
   ],
 );
 
@@ -1791,6 +1907,9 @@ export const refunds = pgTable(
     index('refunds_rental_idx')
       .using('btree', table.rentalId.asc().nullsLast().op('uuid_ops'))
       .where(sql`(rental_id IS NOT NULL)`),
+    index('refunds_succeeded_created_idx')
+      .using('btree', table.createdAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`(status = 'SUCCEEDED'::refund_status)`),
     index('refunds_ticket_idx')
       .using('btree', table.ticketId.asc().nullsLast().op('uuid_ops'))
       .where(sql`(ticket_id IS NOT NULL)`),
@@ -1833,16 +1952,14 @@ export const paymentWebhookEvents = pgTable(
   'payment_webhook_events',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'payment_webhook_events_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'payment_webhook_events_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     providerEventId: text('provider_event_id').notNull(),
     type: text().notNull(),
     payload: jsonb().notNull(),
@@ -1903,6 +2020,7 @@ export const tickets = pgTable(
     resolutionNote: text('resolution_note'),
   },
   (table) => [
+    index('tickets_created_idx').using('btree', table.createdAt.asc().nullsLast().op('timestamptz_ops')),
     uniqueIndex('tickets_one_open_auto_per_scooter')
       .using('btree', table.scooterId.asc().nullsLast().op('uuid_ops'), table.autoKind.asc().nullsLast().op('enum_ops'))
       .where(sql`(status <> 'RESOLVED'::ticket_status)`),
@@ -1990,16 +2108,14 @@ export const sparePartMovements = pgTable(
   'spare_part_movements',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'spare_part_movements_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'spare_part_movements_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     partId: uuid('part_id').notNull(),
     kind: partMovementKind().notNull(),
     delta: integer().notNull(),
@@ -2109,16 +2225,14 @@ export const notifications = pgTable(
   'notifications',
   {
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    id: bigint({ mode: 'number' })
-      .primaryKey()
-      .generatedAlwaysAsIdentity({
-        name: 'notifications_id_seq',
-        startWith: 1,
-        increment: 1,
-        minValue: 1,
-        maxValue: 9223372036854775807,
-        cache: 1,
-      }),
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'notifications_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
     userId: uuid('user_id').notNull(),
     templateCode: text('template_code').notNull(),
     payload: jsonb().default({}).notNull(),
@@ -2172,6 +2286,42 @@ export const notifications = pgTable(
     check('notifications_sent_at', sql`(status = 'SENT'::notification_status) = (sent_at IS NOT NULL)`),
     check('notifications_template_code', sql`template_code ~ '^[a-z_]+$'::text`),
     check('notifications_template_version_check', sql`template_version > 0`),
+  ],
+);
+
+export const scooterStatusHistory = pgTable(
+  'scooter_status_history',
+  {
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity({
+      name: 'scooter_status_history_id_seq',
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
+    scooterId: uuid('scooter_id').notNull(),
+    status: scooterStatus().notNull(),
+    online: boolean().notNull(),
+    validFrom: timestamp('valid_from', { withTimezone: true, mode: 'date' }).notNull(),
+    validTo: timestamp('valid_to', { withTimezone: true, mode: 'date' }),
+  },
+  (table) => [
+    uniqueIndex('scooter_status_history_one_open')
+      .using('btree', table.scooterId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`(valid_to IS NULL)`),
+    index('scooter_status_history_scooter_idx').using(
+      'btree',
+      table.scooterId.asc().nullsLast().op('uuid_ops'),
+      table.validFrom.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    foreignKey({
+      columns: [table.scooterId],
+      foreignColumns: [scooters.id],
+      name: 'scooter_status_history_scooter_id_fkey',
+    }).onDelete('cascade'),
+    check('scooter_status_history_range', sql`valid_to >= valid_from`),
   ],
 );
 
@@ -2769,17 +2919,6 @@ export const vCurrentDocuments = pgView('v_current_documents', {
   sql`SELECT p.id AS page_id, p.slug, p.consent_type, v.id AS version_id, v.version_no, v.title, v.body_md, v.published_at FROM content_pages p JOIN content_page_versions v ON v.page_id = p.id AND v.status = 'PUBLISHED'::content_status`,
 );
 
-export const vLowStockParts = pgView('v_low_stock_parts', {
-  id: uuid(),
-  sku: text(),
-  name: text(),
-  stockQty: integer('stock_qty'),
-  minStockQty: integer('min_stock_qty'),
-  shortage: integer(),
-}).as(
-  sql`SELECT id, sku, name, stock_qty, min_stock_qty, min_stock_qty - stock_qty AS shortage FROM spare_parts WHERE active AND stock_qty <= min_stock_qty`,
-);
-
 export const vZoneUsage = pgView('v_zone_usage', {
   zoneId: uuid('zone_id'),
   code: text(),
@@ -2793,6 +2932,17 @@ export const vZoneUsage = pgView('v_zone_usage', {
   revenue: bigint({ mode: 'number' }),
 }).as(
   sql`SELECT z.id AS zone_id, z.code, z.name, z.type, (r.ended_at AT TIME ZONE 'Europe/Warsaw'::text)::date AS day, count(*) AS rides_ended, avg(r.ride_seconds)::integer AS avg_ride_seconds, COALESCE(sum(r.total_amount), 0::numeric)::bigint AS revenue FROM rentals r JOIN zones z ON z.id = r.end_zone_id WHERE (r.state = ANY (ARRAY['ENDED'::rental_state, 'UNPAID'::rental_state])) AND r.ended_at IS NOT NULL GROUP BY z.id, ((r.ended_at AT TIME ZONE 'Europe/Warsaw'::text)::date)`,
+);
+
+export const vLowStockParts = pgView('v_low_stock_parts', {
+  id: uuid(),
+  sku: text(),
+  name: text(),
+  stockQty: integer('stock_qty'),
+  minStockQty: integer('min_stock_qty'),
+  shortage: integer(),
+}).as(
+  sql`SELECT id, sku, name, stock_qty, min_stock_qty, min_stock_qty - stock_qty AS shortage FROM spare_parts WHERE active AND stock_qty < min_stock_qty`,
 );
 
 export const vStaffOverview = pgView('v_staff_overview', {
@@ -3581,6 +3731,43 @@ export const vFileList = pgView('v_file_list', {
   sql`SELECT f.id, f.storage_key, f.purpose, f.status, f.content_type, f.size_bytes, f.sha256, f.original_name, f.uploaded_by, u.name AS uploaded_by_name, f.uploaded_by_staff, sf.name AS uploaded_by_staff_name, f.created_at, f.deleted_at, pr.id AS rental_id, pr.number AS rental_number, tp.ticket_id, tk.number AS ticket_number, pr.id IS NOT NULL OR tp.ticket_id IS NOT NULL AS attached FROM files f LEFT JOIN users u ON u.id = f.uploaded_by LEFT JOIN staff sf ON sf.id = f.uploaded_by_staff LEFT JOIN LATERAL ( SELECT r.id, r.number FROM rentals r WHERE r.parking_photo_id = f.id LIMIT 1) pr ON true LEFT JOIN LATERAL ( SELECT p.ticket_id FROM ticket_photos p WHERE p.file_id = f.id LIMIT 1) tp ON true LEFT JOIN tickets tk ON tk.id = tp.ticket_id`,
 );
 
+export const vScooterStatusHistory = pgView('v_scooter_status_history', {
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  id: bigint({ mode: 'number' }),
+  scooterId: uuid('scooter_id'),
+  scooterNumber: integer('scooter_number'),
+  modelId: uuid('model_id'),
+  status: scooterStatus(),
+  online: boolean(),
+  validFrom: timestamp('valid_from', { withTimezone: true, mode: 'date' }),
+  validTo: timestamp('valid_to', { withTimezone: true, mode: 'date' }),
+  isOpen: boolean('is_open'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  durationSeconds: bigint('duration_seconds', { mode: 'number' }),
+  category: text(),
+  reason: text(),
+  reasonRentalId: uuid('reason_rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  reasonRentalNumber: bigint('reason_rental_number', { mode: 'number' }),
+  reasonTaskId: uuid('reason_task_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  reasonTaskNumber: bigint('reason_task_number', { mode: 'number' }),
+  reasonTaskType: serviceTaskType('reason_task_type'),
+  reasonTaskAssigneeId: uuid('reason_task_assignee_id'),
+  reasonTaskAssigneeName: text('reason_task_assignee_name'),
+  reasonTicketId: uuid('reason_ticket_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  reasonTicketNumber: bigint('reason_ticket_number', { mode: 'number' }),
+  reasonTicketAutoKind: ticketAutoKind('reason_ticket_auto_kind'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  reasonAuditId: bigint('reason_audit_id', { mode: 'number' }),
+  reasonAuditAction: text('reason_audit_action'),
+  reasonStaffId: uuid('reason_staff_id'),
+  reasonStaffName: text('reason_staff_name'),
+}).as(
+  sql`SELECT h.id, h.scooter_id, sc.number AS scooter_number, sc.model_id, h.status, h.online, h.valid_from, h.valid_to, h.valid_to IS NULL AS is_open, floor(EXTRACT(epoch FROM COALESCE(h.valid_to, now()) - h.valid_from))::bigint AS duration_seconds, fn_scooter_time_category(h.status, h.online) AS category, CASE WHEN rn.id IS NOT NULL THEN CASE WHEN h.status = 'RESERVED'::scooter_status THEN 'RESERVATION'::text ELSE 'RENTAL'::text END WHEN tk.id IS NOT NULL THEN 'SERVICE_TASK'::text WHEN tc.id IS NOT NULL THEN CASE WHEN tc.auto_kind = 'OFFLINE'::ticket_auto_kind THEN 'AUTO_OFFLINE'::text ELSE 'TICKET'::text END WHEN au.id IS NOT NULL THEN 'STAFF'::text WHEN NOT h.online THEN 'NO_TELEMETRY'::text ELSE 'SYSTEM'::text END AS reason, rn.id AS reason_rental_id, rn.number AS reason_rental_number, tk.id AS reason_task_id, tk.number AS reason_task_number, tk.type AS reason_task_type, tk.assignee_id AS reason_task_assignee_id, ta.name AS reason_task_assignee_name, tc.id AS reason_ticket_id, tc.number AS reason_ticket_number, tc.auto_kind AS reason_ticket_auto_kind, au.id AS reason_audit_id, au.action AS reason_audit_action, au.staff_id AS reason_staff_id, ast.name AS reason_staff_name FROM scooter_status_history h JOIN scooters sc ON sc.id = h.scooter_id LEFT JOIN LATERAL ( SELECT r.id, r.number FROM rentals r WHERE (h.status = ANY (ARRAY['IN_USE'::scooter_status, 'RESERVED'::scooter_status])) AND r.scooter_id = h.scooter_id AND COALESCE(r.reserved_at, r.started_at, r.created_at) < COALESCE(h.valid_to, 'infinity'::timestamp with time zone) AND COALESCE(r.ended_at, 'infinity'::timestamp with time zone) > h.valid_from ORDER BY (COALESCE(r.reserved_at, r.started_at, r.created_at)) DESC LIMIT 1) rn ON true LEFT JOIN LATERAL ( SELECT t.id, t.number, t.type, t.assignee_id FROM service_tasks t WHERE h.status = 'MAINTENANCE'::scooter_status AND t.scooter_id = h.scooter_id AND t.created_at < COALESCE(h.valid_to, 'infinity'::timestamp with time zone) AND COALESCE(t.completed_at, 'infinity'::timestamp with time zone) > h.valid_from ORDER BY (t.status = 'CANCELLED'::service_task_status), t.created_at DESC LIMIT 1) tk ON true LEFT JOIN staff ta ON ta.id = tk.assignee_id LEFT JOIN LATERAL ( SELECT k.id, k.number, k.auto_kind FROM tickets k WHERE k.scooter_id = h.scooter_id AND (h.status = 'MAINTENANCE'::scooter_status OR NOT h.online AND k.auto_kind = 'OFFLINE'::ticket_auto_kind) AND k.created_at < COALESCE(h.valid_to, 'infinity'::timestamp with time zone) AND COALESCE(k.resolved_at, 'infinity'::timestamp with time zone) > h.valid_from ORDER BY ((NOT k.auto_kind IS DISTINCT FROM 'OFFLINE'::ticket_auto_kind) = (NOT h.online)) DESC, k.urgent DESC, k.created_at DESC LIMIT 1) tc ON true LEFT JOIN LATERAL ( SELECT a.id, a.action, a.staff_id FROM audit_log a WHERE a.entity_type = 'scooter'::text AND a.entity_id = h.scooter_id AND a.actor = 'STAFF'::audit_actor AND a.created_at >= (h.valid_from - '00:00:05'::interval) AND a.created_at <= (h.valid_from + '00:00:05'::interval) ORDER BY (abs(EXTRACT(epoch FROM a.created_at - h.valid_from))), a.id DESC LIMIT 1) au ON true LEFT JOIN staff ast ON ast.id = au.staff_id WHERE h.valid_to IS NULL OR h.valid_to > h.valid_from`,
+);
+
 export const vTicketTimeline = pgView('v_ticket_timeline', {
   ticketId: uuid('ticket_id'),
   at: timestamp({ withTimezone: true, mode: 'date' }),
@@ -3598,6 +3785,164 @@ export const vTicketTimeline = pgView('v_ticket_timeline', {
   data: jsonb(),
 }).as(
   sql`SELECT t.id AS ticket_id, t.created_at AS at, 'CREATED'::text AS kind, 0 AS kind_order, 0::bigint AS seq, t.number::text AS ref, 'ticket.created'::text AS action, 'ticket'::text AS entity_type, t.id AS entity_id, 'CUSTOMER'::text AS actor, NULL::uuid AS staff_id, NULL::text AS staff_name, jsonb_build_object('categories', t.categories, 'rentalId', t.rental_id, 'photos', ( SELECT count(*) AS count FROM ticket_photos p WHERE p.ticket_id = t.id)) AS data FROM tickets t WHERE t.source = 'USER'::ticket_source UNION ALL SELECT x.ticket_id, a.created_at AS at, 'AUDIT'::text AS kind, 1 AS kind_order, a.id AS seq, a.id::text AS ref, a.action, a.entity_type, a.entity_id, a.actor::text AS actor, a.staff_id, s.name AS staff_name, a.data FROM ( SELECT t.id AS ticket_id, 'ticket'::text AS entity_type, t.id AS entity_id FROM tickets t UNION ALL SELECT st.ticket_id, 'service_task'::text, st.id FROM service_tasks st WHERE st.ticket_id IS NOT NULL) x JOIN audit_log a ON a.entity_type = x.entity_type AND a.entity_id = x.entity_id LEFT JOIN staff s ON s.id = a.staff_id UNION ALL SELECT f.ticket_id, a.created_at AS at, 'AUDIT'::text AS kind, 1 AS kind_order, a.id AS seq, a.id::text AS ref, a.action, a.entity_type, a.entity_id, a.actor::text AS actor, a.staff_id, s.name AS staff_name, a.data FROM refunds f JOIN audit_log a ON a.entity_type = 'rental'::text AND a.entity_id = f.rental_id AND (a.data ->> 'refundId'::text) = f.id::text LEFT JOIN staff s ON s.id = a.staff_id WHERE f.ticket_id IS NOT NULL UNION ALL SELECT f.ticket_id, f.updated_at AS at, 'REFUND'::text AS kind, 2 AS kind_order, 0 AS seq, f.id::text AS ref, 'refund.'::text || lower(f.status::text) AS action, 'refund'::text AS entity_type, f.id AS entity_id, 'SYSTEM'::text AS actor, NULL::uuid AS staff_id, NULL::text AS staff_name, jsonb_build_object('amount', f.amount, 'source', f.source, 'status', f.status, 'failureReason', f.failure_reason) AS data FROM refunds f WHERE f.ticket_id IS NOT NULL AND f.status <> 'PENDING'::refund_status UNION ALL SELECT n.ticket_id, COALESCE(n.sent_at, n.created_at) AS at, 'NOTIFICATION'::text AS kind, 3 AS kind_order, n.id AS seq, n.id::text AS ref, n.template_code AS action, 'notification'::text AS entity_type, NULL::uuid AS entity_id, 'SYSTEM'::text AS actor, NULL::uuid AS staff_id, NULL::text AS staff_name, jsonb_build_object('status', n.status, 'channel', n.channel, 'templateVersion', n.template_version, 'error', n.error) AS data FROM notifications n WHERE n.ticket_id IS NOT NULL`,
+);
+
+export const vReportRunList = pgView('v_report_run_list', {
+  id: uuid(),
+  shortId: text('short_id'),
+  reportCode: text('report_code'),
+  reportName: text('report_name'),
+  permissionCode: text('permission_code'),
+  format: reportFormat(),
+  params: jsonb(),
+  status: jobStatus(),
+  state: text(),
+  requestedBy: uuid('requested_by'),
+  requestedByName: text('requested_by_name'),
+  requestedByRoles: text('requested_by_roles'),
+  fileId: uuid('file_id'),
+  fileSizeBytes: integer('file_size_bytes'),
+  rowCount: integer('row_count'),
+  pageCount: integer('page_count'),
+  dataAsOf: timestamp('data_as_of', { withTimezone: true, mode: 'date' }),
+  errorCode: text('error_code'),
+  error: text(),
+  retryOf: uuid('retry_of'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+  finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
+  durationMs: integer('duration_ms'),
+  fileDeletedAt: timestamp('file_deleted_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT rr.id, "left"(rr.id::text, 8) AS short_id, rr.report_code, d.name AS report_name, d.permission_code, rr.format, rr.params, rr.status, CASE WHEN rr.file_deleted_at IS NOT NULL THEN 'FILE_DELETED'::text ELSE rr.status::text END AS state, rr.requested_by, s.name AS requested_by_name, ( SELECT COALESCE(array_agg(r.name ORDER BY r.name), '{}'::text[]) AS "coalesce" FROM staff_roles sr JOIN roles r ON r.id = sr.role_id WHERE sr.staff_id = rr.requested_by) AS requested_by_roles, rr.file_id, f.size_bytes AS file_size_bytes, rr.row_count, rr.page_count, rr.data_as_of, rr.error_code, rr.error, rr.retry_of, rr.created_at, rr.started_at, rr.finished_at, CASE WHEN rr.finished_at IS NOT NULL AND rr.started_at IS NOT NULL THEN floor(EXTRACT(epoch FROM rr.finished_at - rr.started_at) * 1000::numeric)::integer ELSE NULL::integer END AS duration_ms, rr.file_deleted_at FROM report_runs rr JOIN report_definitions d ON d.code = rr.report_code JOIN staff s ON s.id = rr.requested_by LEFT JOIN files f ON f.id = rr.file_id`,
+);
+
+export const vReportDefinitions = pgView('v_report_definitions', {
+  code: text(),
+  name: text(),
+  description: text(),
+  permissionCode: text('permission_code'),
+  parameters: jsonb(),
+  formats: reportFormat(),
+  active: boolean(),
+  sortOrder: integer('sort_order'),
+  permissionRoles: text('permission_roles'),
+  updatedBy: uuid('updated_by'),
+  updatedByName: text('updated_by_name'),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  version: integer(),
+  runs: integer(),
+  lastRunId: uuid('last_run_id'),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true, mode: 'date' }),
+  lastRunFormat: reportFormat('last_run_format'),
+  lastRunState: text('last_run_state'),
+}).as(
+  sql`SELECT d.code, d.name, d.description, d.permission_code, d.parameters, d.formats, d.active, d.sort_order, ( SELECT COALESCE(array_agg(r.name ORDER BY r.name), '{}'::text[]) AS "coalesce" FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE rp.permission_code = d.permission_code) AS permission_roles, d.updated_by, s.name AS updated_by_name, d.updated_at, d.version, ( SELECT count(*)::integer AS count FROM report_runs rr WHERE rr.report_code = d.code) AS runs, lr.id AS last_run_id, lr.created_at AS last_run_at, lr.format AS last_run_format, CASE WHEN lr.file_deleted_at IS NOT NULL THEN 'FILE_DELETED'::text ELSE lr.status::text END AS last_run_state FROM report_definitions d LEFT JOIN staff s ON s.id = d.updated_by LEFT JOIN LATERAL ( SELECT rr.id, rr.created_at, rr.format, rr.status, rr.file_deleted_at FROM report_runs rr WHERE rr.report_code = d.code ORDER BY rr.created_at DESC LIMIT 1) lr ON true`,
+);
+
+export const vConsentList = pgView('v_consent_list', {
+  id: uuid(),
+  userId: uuid('user_id'),
+  userName: text('user_name'),
+  userPhone: text('user_phone'),
+  userStatus: userStatus('user_status'),
+  type: consentType(),
+  documentVersion: text('document_version'),
+  pageVersionId: uuid('page_version_id'),
+  versionNo: integer('version_no'),
+  documentSlug: text('document_slug'),
+  documentTitle: text('document_title'),
+  source: consentSource(),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true, mode: 'date' }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+  revokedByStaff: uuid('revoked_by_staff'),
+  revokedByName: text('revoked_by_name'),
+  currentVersionId: uuid('current_version_id'),
+  currentVersionNo: integer('current_version_no'),
+  isLatest: boolean('is_latest'),
+  state: text(),
+  stateAt: timestamp('state_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT c.id, c.user_id, u.name AS user_name, u.phone AS user_phone, u.status AS user_status, c.type, c.document_version, c.page_version_id, v.version_no, p.slug AS document_slug, v.title AS document_title, c.source, c.accepted_at, c.revoked_at, c.revoked_by_staff, s.name AS revoked_by_name, cur.version_id AS current_version_id, cur.version_no AS current_version_no, latest.id = c.id AS is_latest, CASE WHEN c.revoked_at IS NOT NULL THEN 'REVOKED'::text WHEN latest.id <> c.id THEN 'SUPERSEDED'::text WHEN c.type = 'AGE'::consent_type THEN 'CONFIRMED'::text WHEN cur.version_id IS NULL OR c.page_version_id = cur.version_id THEN 'CURRENT'::text ELSE 'OUTDATED'::text END AS state, COALESCE(c.revoked_at, c.accepted_at) AS state_at FROM consents c JOIN users u ON u.id = c.user_id LEFT JOIN content_page_versions v ON v.id = c.page_version_id LEFT JOIN content_pages p ON p.id = v.page_id LEFT JOIN v_current_documents cur ON cur.consent_type = c.type LEFT JOIN staff s ON s.id = c.revoked_by_staff JOIN LATERAL ( SELECT l.id FROM consents l WHERE l.user_id = c.user_id AND l.type = c.type ORDER BY l.accepted_at DESC, l.id DESC LIMIT 1) latest ON true`,
+);
+
+export const vSessionList = pgView('v_session_list', {
+  id: uuid(),
+  shortId: text('short_id'),
+  firstSessionId: uuid('first_session_id'),
+  currentSessionId: uuid('current_session_id'),
+  userId: uuid('user_id'),
+  userName: text('user_name'),
+  userPhone: text('user_phone'),
+  userStatus: userStatus('user_status'),
+  deviceName: text('device_name'),
+  platform: sessionPlatform(),
+  appVersion: text('app_version'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+  rotations: integer(),
+  state: text(),
+}).as(
+  sql`SELECT f.family_id AS id, "left"(fs.id::text, 8) AS short_id, fs.id AS first_session_id, cur.id AS current_session_id, f.user_id, u.name AS user_name, u.phone AS user_phone, u.status AS user_status, cur.device_name, cur.platform, cur.app_version, f.created_at, f.last_used_at, cur.expires_at, cur.revoked_at, f.tokens - 1 AS rotations, CASE WHEN cur.revoked_at IS NOT NULL THEN 'REVOKED'::text WHEN cur.expires_at <= now() THEN 'EXPIRED'::text ELSE 'ACTIVE'::text END AS state FROM ( SELECT s.family_id, s.user_id, min(s.created_at) AS created_at, count(*)::integer AS tokens, max(COALESCE(s.last_used_at, s.created_at)) AS last_used_at FROM sessions s GROUP BY s.family_id, s.user_id) f JOIN LATERAL ( SELECT s.id, s.device_name, s.platform, s.app_version, s.expires_at, s.revoked_at FROM sessions s WHERE s.family_id = f.family_id ORDER BY (s.replaced_by IS NULL) DESC, s.created_at DESC, s.id DESC LIMIT 1) cur ON true JOIN LATERAL ( SELECT s.id FROM sessions s WHERE s.family_id = f.family_id ORDER BY s.created_at, s.id LIMIT 1) fs ON true JOIN users u ON u.id = f.user_id`,
+);
+
+export const vStaffSessionList = pgView('v_staff_session_list', {
+  id: uuid(),
+  shortId: text('short_id'),
+  firstSessionId: uuid('first_session_id'),
+  currentSessionId: uuid('current_session_id'),
+  staffId: uuid('staff_id'),
+  staffName: text('staff_name'),
+  staffEmail: text('staff_email'),
+  userAgent: text('user_agent'),
+  remembered: boolean(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+  rotations: integer(),
+  state: text(),
+}).as(
+  sql`SELECT f.family_id AS id, "left"(fs.id::text, 8) AS short_id, fs.id AS first_session_id, cur.id AS current_session_id, f.staff_id, st.name AS staff_name, st.email AS staff_email, cur.user_agent, cur.remembered, f.created_at, f.last_used_at, cur.expires_at, cur.revoked_at, f.tokens - 1 AS rotations, CASE WHEN cur.revoked_at IS NOT NULL THEN 'REVOKED'::text WHEN cur.expires_at <= now() THEN 'EXPIRED'::text ELSE 'ACTIVE'::text END AS state FROM ( SELECT s.family_id, s.staff_id, min(s.created_at) AS created_at, count(*)::integer AS tokens, max(COALESCE(s.last_used_at, s.created_at)) AS last_used_at FROM staff_sessions s GROUP BY s.family_id, s.staff_id) f JOIN LATERAL ( SELECT s.id, s.user_agent, s.remembered, s.expires_at, s.revoked_at FROM staff_sessions s WHERE s.family_id = f.family_id ORDER BY (s.replaced_by IS NULL) DESC, s.created_at DESC, s.id DESC LIMIT 1) cur ON true JOIN LATERAL ( SELECT s.id FROM staff_sessions s WHERE s.family_id = f.family_id ORDER BY s.created_at, s.id LIMIT 1) fs ON true JOIN staff st ON st.id = f.staff_id`,
+);
+
+export const vStaffInvitationList = pgView('v_staff_invitation_list', {
+  id: uuid(),
+  staffId: uuid('staff_id'),
+  staffName: text('staff_name'),
+  staffEmail: text('staff_email'),
+  staffActive: boolean('staff_active'),
+  staffRoles: text('staff_roles'),
+  invitedBy: uuid('invited_by'),
+  invitedByName: text('invited_by_name'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true, mode: 'date' }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+  replacedBy: uuid('replaced_by'),
+  isResend: boolean('is_resend'),
+  state: text(),
+}).as(
+  sql`SELECT i.id, i.staff_id, st.name AS staff_name, st.email AS staff_email, st.active AS staff_active, ( SELECT COALESCE(array_agg(r.name ORDER BY r.name), '{}'::text[]) AS "coalesce" FROM staff_roles sr JOIN roles r ON r.id = sr.role_id WHERE sr.staff_id = i.staff_id) AS staff_roles, i.invited_by, inv.name AS invited_by_name, i.created_at, i.expires_at, i.accepted_at, i.revoked_at, i.replaced_by, (EXISTS ( SELECT 1 FROM staff_invitations e WHERE e.staff_id = i.staff_id AND e.created_at < i.created_at)) AS is_resend, CASE WHEN i.accepted_at IS NOT NULL THEN 'ACCEPTED'::text WHEN i.replaced_by IS NOT NULL THEN 'REPLACED'::text WHEN i.revoked_at IS NOT NULL THEN 'REVOKED'::text WHEN i.expires_at <= now() THEN 'EXPIRED'::text ELSE 'PENDING'::text END AS state FROM staff_invitations i JOIN staff st ON st.id = i.staff_id LEFT JOIN staff inv ON inv.id = i.invited_by`,
+);
+
+export const vOtpCodeList = pgView('v_otp_code_list', {
+  id: uuid(),
+  phoneMasked: text('phone_masked'),
+  phoneLast3: text('phone_last3'),
+  userId: uuid('user_id'),
+  userName: text('user_name'),
+  purpose: otpPurpose(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+  attempts: smallint(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'date' }),
+  state: text(),
+  purgeable: boolean(),
+}).as(
+  sql`SELECT o.id, CASE WHEN o.phone ~ '^\+48[0-9]{9}$'::text THEN '+48 ••• ••• '::text || "right"(o.phone, 3) ELSE '••• '::text || "right"(o.phone, 3) END AS phone_masked, "right"(o.phone, 3) AS phone_last3, u.id AS user_id, u.name AS user_name, o.purpose, o.created_at, o.expires_at, o.attempts, o.consumed_at, CASE WHEN o.consumed_at IS NOT NULL THEN 'CONSUMED'::text WHEN o.attempts >= 5 THEN 'BLOCKED'::text WHEN o.expires_at <= now() THEN 'EXPIRED'::text ELSE 'ACTIVE'::text END AS state, o.expires_at < (now() - '1 day'::interval) AS purgeable FROM otp_codes o LEFT JOIN users u ON u.phone = o.phone`,
 );
 
 export const vGeneratedDocuments = pgView('v_generated_documents', {
@@ -3867,29 +4212,6 @@ export const vMediaList = pgView('v_media_list', {
   sql`SELECT m.id, m.key, m.name, m.alt_text, m.caption, m.is_system, m.file_id, f.content_type, f.size_bytes, f.width, f.height, f.sha256, f.original_name, fn_media_path(m.id, f.sha256, f.content_type) AS path, ( SELECT count(*)::integer AS count FROM v_media_usages u WHERE u.media_id = m.id) AS usages, m.updated_by, s.name AS updated_by_name, m.created_at, m.updated_at, m.version FROM media_assets m JOIN files f ON f.id = m.file_id LEFT JOIN staff s ON s.id = m.updated_by`,
 );
 
-export const vDocumentTemplates = pgView('v_document_templates', {
-  id: uuid(),
-  documentType: documentType('document_type'),
-  name: text(),
-  description: text(),
-  isDefault: boolean('is_default'),
-  active: boolean(),
-  activeVersionId: uuid('active_version_id'),
-  activeVersionNo: integer('active_version_no'),
-  activeSince: timestamp('active_since', { withTimezone: true, mode: 'date' }),
-  versions: integer(),
-  pendingVersions: integer('pending_versions'),
-  lastGeneratedAt: timestamp('last_generated_at', { withTimezone: true, mode: 'date' }),
-  createdBy: uuid('created_by'),
-  updatedBy: uuid('updated_by'),
-  updatedByName: text('updated_by_name'),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
-  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
-  version: integer(),
-}).as(
-  sql`SELECT t.id, t.document_type, t.name, t.description, t.is_default, t.active, av.id AS active_version_id, av.version_no AS active_version_no, av.activated_at AS active_since, ( SELECT count(*)::integer AS count FROM document_template_versions v WHERE v.template_id = t.id) AS versions, ( SELECT count(*)::integer AS count FROM document_template_versions v WHERE v.template_id = t.id AND v.activated_at IS NULL) AS pending_versions, ( SELECT max(g.created_at) AS max FROM generated_documents g JOIN document_template_versions v ON v.id = g.template_version_id WHERE v.template_id = t.id) AS last_generated_at, t.created_by, t.updated_by, s.name AS updated_by_name, t.created_at, t.updated_at, t.version FROM document_templates t LEFT JOIN document_template_versions av ON av.template_id = t.id AND av.is_active LEFT JOIN staff s ON s.id = t.updated_by`,
-);
-
 export const vDocumentTemplateVersions = pgView('v_document_template_versions', {
   id: uuid(),
   templateId: uuid('template_id'),
@@ -3920,6 +4242,30 @@ export const vDocumentTemplateVersions = pgView('v_document_template_versions', 
   sql`SELECT v.id, v.template_id, t.document_type, t.name AS template_name, t.is_default AS template_is_default, v.version_no, CASE WHEN v.is_active THEN 'ACTIVE'::text WHEN v.activated_at IS NOT NULL THEN 'ARCHIVED'::text ELSE 'PENDING'::text END AS state, v.is_active, v.file_id, f.content_type, f.sha256, v.size_bytes, v.uncompressed_bytes, v.fields, v.warnings, v.note, v.uploaded_by, u.name AS uploaded_by_name, v.uploaded_at, v.activated_at, v.activated_by, a.name AS activated_by_name, v.preview_file_id, ( SELECT count(*)::integer AS count FROM generated_documents g WHERE g.template_version_id = v.id) AS documents FROM document_template_versions v JOIN document_templates t ON t.id = v.template_id JOIN files f ON f.id = v.file_id LEFT JOIN staff u ON u.id = v.uploaded_by LEFT JOIN staff a ON a.id = v.activated_by`,
 );
 
+export const vRentalEventList = pgView('v_rental_event_list', {
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  id: bigint({ mode: 'number' }),
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentalNumber: bigint('rental_number', { mode: 'number' }),
+  rentalState: rentalState('rental_state'),
+  scooterId: uuid('scooter_id'),
+  scooterNumber: integer('scooter_number'),
+  userId: uuid('user_id'),
+  userName: text('user_name'),
+  type: rentalEventType(),
+  fromState: rentalState('from_state'),
+  toState: rentalState('to_state'),
+  zoneId: uuid('zone_id'),
+  zoneCode: text('zone_code'),
+  zoneName: text('zone_name'),
+  zoneType: zoneType('zone_type'),
+  data: jsonb(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT e.id, e.rental_id, r.number AS rental_number, r.state AS rental_state, r.scooter_id, s.number AS scooter_number, r.user_id, u.name AS user_name, e.type, e.from_state, e.to_state, e.zone_id, z.code AS zone_code, z.name AS zone_name, z.type AS zone_type, e.data, e.created_at FROM rental_events e JOIN rentals r ON r.id = e.rental_id JOIN scooters s ON s.id = r.scooter_id JOIN users u ON u.id = r.user_id LEFT JOIN zones z ON z.id = e.zone_id`,
+);
+
 export const vDataExports = pgView('v_data_exports', {
   id: uuid(),
   userId: uuid('user_id'),
@@ -3937,6 +4283,44 @@ export const vDataExports = pgView('v_data_exports', {
   errorCode: text('error_code'),
 }).as(
   sql`SELECT e.id, e.user_id, u.name AS user_name, u.phone AS user_phone, e.status, CASE WHEN e.deleted_at IS NOT NULL THEN 'DELETED'::text WHEN e.status = 'SUCCEEDED'::job_status AND e.expires_at <= now() THEN 'EXPIRED'::text ELSE e.status::text END AS state, e.file_id, e.size_bytes, e.requested_at, e.started_at, e.finished_at, e.expires_at, e.deleted_at, e.error_code FROM data_exports e JOIN users u ON u.id = e.user_id`,
+);
+
+export const vZonePresenceList = pgView('v_zone_presence_list', {
+  scooterId: uuid('scooter_id'),
+  scooterNumber: integer('scooter_number'),
+  zoneId: uuid('zone_id'),
+  zoneCode: text('zone_code'),
+  zoneName: text('zone_name'),
+  zoneType: zoneType('zone_type'),
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentalNumber: bigint('rental_number', { mode: 'number' }),
+  enteredAt: timestamp('entered_at', { withTimezone: true, mode: 'date' }),
+  outsideCount: smallint('outside_count'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  secondsInZone: bigint('seconds_in_zone', { mode: 'number' }),
+}).as(
+  sql`SELECT p.scooter_id, s.number AS scooter_number, p.zone_id, z.code AS zone_code, z.name AS zone_name, z.type AS zone_type, p.rental_id, r.number AS rental_number, p.entered_at, p.outside_count, floor(EXTRACT(epoch FROM now() - p.entered_at))::bigint AS seconds_in_zone FROM scooter_zone_presence p JOIN scooters s ON s.id = p.scooter_id JOIN zones z ON z.id = p.zone_id JOIN rentals r ON r.id = p.rental_id`,
+);
+
+export const vZoneControlList = pgView('v_zone_control_list', {
+  scooterId: uuid('scooter_id'),
+  scooterNumber: integer('scooter_number'),
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentalNumber: bigint('rental_number', { mode: 'number' }),
+  speedLimitKmh: smallint('speed_limit_kmh'),
+  limitSynced: boolean('limit_synced'),
+  limitCommandId: uuid('limit_command_id'),
+  limitCommandStatus: commandStatus('limit_command_status'),
+  stopped: boolean(),
+  stopSynced: boolean('stop_synced'),
+  stopCommandId: uuid('stop_command_id'),
+  stopCommandStatus: commandStatus('stop_command_status'),
+  startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT c.scooter_id, s.number AS scooter_number, c.rental_id, r.number AS rental_number, c.speed_limit_kmh, c.limit_synced, c.limit_command_id, lc.status AS limit_command_status, c.stopped, c.stop_synced, c.stop_command_id, sc.status AS stop_command_status, c.started_at, c.updated_at FROM scooter_zone_control c JOIN scooters s ON s.id = c.scooter_id JOIN rentals r ON r.id = c.rental_id LEFT JOIN scooter_commands lc ON lc.id = c.limit_command_id LEFT JOIN scooter_commands sc ON sc.id = c.stop_command_id`,
 );
 
 export const vDocReceipt = pgView('v_doc_receipt', {
@@ -3972,8 +4356,89 @@ export const vDocReceipt = pgView('v_doc_receipt', {
   items: jsonb(),
   vatGroups: jsonb('vat_groups'),
   hasOutsideVat: boolean('has_outside_vat'),
+  correctionReason: refundReason('correction_reason'),
+  correctionNote: text('correction_note'),
 }).as(
-  sql`SELECT rc.id AS receipt_id, rc.number, rc.kind, rc.kind = 'CORRECTION'::receipt_kind AS is_correction, rc.issued_at, rc.user_id, rc.buyer_name, rc.buyer_phone, rc.buyer_email, rc.seller ->> 'name'::text AS seller_name, rc.seller ->> 'address'::text AS seller_address, rc.seller ->> 'taxId'::text AS seller_tax_id, rc.payment_source, l.card_brand, l.card_last4, rc.total_amount, rc.currency, l.vat_amount, l.net_amount, rc.rental_id, l.rental_number, rc.refund_id, rc.corrects_receipt_id, l.corrects_number, o.issued_at AS corrects_issued_at, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('lineNo', i.line_no, 'description', i.description, 'quantity', i.quantity, 'unitPrice', i.unit_price, 'vatRate', i.vat_rate, 'amount', i.amount) ORDER BY i.line_no), '[]'::jsonb) AS "coalesce" FROM receipt_items i WHERE i.receipt_id = rc.id) AS items, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('vatRate', g.vat_rate, 'gross', g.gross, 'vat', g.vat, 'net', g.gross - g.vat) ORDER BY g.vat_rate DESC NULLS LAST), '[]'::jsonb) AS "coalesce" FROM ( SELECT i.vat_rate, sum(i.amount)::bigint AS gross, COALESCE(fn_vat_from_gross(sum(i.amount)::bigint, i.vat_rate), 0::bigint) AS vat FROM receipt_items i WHERE i.receipt_id = rc.id GROUP BY i.vat_rate) g) AS vat_groups, (EXISTS ( SELECT 1 FROM receipt_items i WHERE i.receipt_id = rc.id AND i.vat_rate IS NULL)) AS has_outside_vat FROM receipts rc JOIN v_receipt_list l ON l.id = rc.id LEFT JOIN receipts o ON o.id = rc.corrects_receipt_id`,
+  sql`SELECT rc.id AS receipt_id, rc.number, rc.kind, rc.kind = 'CORRECTION'::receipt_kind AS is_correction, rc.issued_at, rc.user_id, rc.buyer_name, rc.buyer_phone, rc.buyer_email, rc.seller ->> 'name'::text AS seller_name, rc.seller ->> 'address'::text AS seller_address, rc.seller ->> 'taxId'::text AS seller_tax_id, rc.payment_source, l.card_brand, l.card_last4, rc.total_amount, rc.currency, l.vat_amount, l.net_amount, rc.rental_id, l.rental_number, rc.refund_id, rc.corrects_receipt_id, l.corrects_number, o.issued_at AS corrects_issued_at, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('lineNo', i.line_no, 'description', i.description, 'quantity', i.quantity, 'unitPrice', i.unit_price, 'vatRate', i.vat_rate, 'amount', i.amount) ORDER BY i.line_no), '[]'::jsonb) AS "coalesce" FROM receipt_items i WHERE i.receipt_id = rc.id) AS items, ( SELECT COALESCE(jsonb_agg(jsonb_build_object('vatRate', g.vat_rate, 'gross', g.gross, 'vat', g.vat, 'net', g.gross - g.vat) ORDER BY g.vat_rate DESC NULLS LAST), '[]'::jsonb) AS "coalesce" FROM ( SELECT i.vat_rate, sum(i.amount)::bigint AS gross, COALESCE(fn_vat_from_gross(sum(i.amount)::bigint, i.vat_rate), 0::bigint) AS vat FROM receipt_items i WHERE i.receipt_id = rc.id GROUP BY i.vat_rate) g) AS vat_groups, (EXISTS ( SELECT 1 FROM receipt_items i WHERE i.receipt_id = rc.id AND i.vat_rate IS NULL)) AS has_outside_vat, f.reason AS correction_reason, f.note AS correction_note FROM receipts rc JOIN v_receipt_list l ON l.id = rc.id LEFT JOIN receipts o ON o.id = rc.corrects_receipt_id LEFT JOIN refunds f ON f.id = rc.refund_id`,
+);
+
+export const vDocumentTemplates = pgView('v_document_templates', {
+  id: uuid(),
+  documentType: documentType('document_type'),
+  name: text(),
+  description: text(),
+  isDefault: boolean('is_default'),
+  active: boolean(),
+  activeVersionId: uuid('active_version_id'),
+  activeVersionNo: integer('active_version_no'),
+  activeSince: timestamp('active_since', { withTimezone: true, mode: 'date' }),
+  versions: integer(),
+  pendingVersions: integer('pending_versions'),
+  lastGeneratedAt: timestamp('last_generated_at', { withTimezone: true, mode: 'date' }),
+  createdBy: uuid('created_by'),
+  updatedBy: uuid('updated_by'),
+  updatedByName: text('updated_by_name'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  version: integer(),
+  activeFields: integer('active_fields'),
+  generated30D: integer('generated_30d'),
+  deactivatedAt: timestamp('deactivated_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT t.id, t.document_type, t.name, t.description, t.is_default, t.active, av.id AS active_version_id, av.version_no AS active_version_no, av.activated_at AS active_since, ( SELECT count(*)::integer AS count FROM document_template_versions v WHERE v.template_id = t.id) AS versions, ( SELECT count(*)::integer AS count FROM document_template_versions v WHERE v.template_id = t.id AND v.activated_at IS NULL) AS pending_versions, ( SELECT max(g.created_at) AS max FROM generated_documents g JOIN document_template_versions v ON v.id = g.template_version_id WHERE v.template_id = t.id) AS last_generated_at, t.created_by, t.updated_by, s.name AS updated_by_name, t.created_at, t.updated_at, t.version, COALESCE(cardinality(av.fields), 0) AS active_fields, ( SELECT count(*)::integer AS count FROM generated_documents g JOIN document_template_versions v ON v.id = g.template_version_id WHERE v.template_id = t.id AND g.created_at >= (now() - '30 days'::interval)) AS generated_30d, t.deactivated_at FROM document_templates t LEFT JOIN document_template_versions av ON av.template_id = t.id AND av.is_active LEFT JOIN staff s ON s.id = t.updated_by`,
+);
+
+export const vScooterCommandList = pgView('v_scooter_command_list', {
+  id: uuid(),
+  scooterId: uuid('scooter_id'),
+  scooterNumber: integer('scooter_number'),
+  type: commandType(),
+  payload: jsonb(),
+  source: commandSource(),
+  zoneId: uuid('zone_id'),
+  zoneCode: text('zone_code'),
+  zoneName: text('zone_name'),
+  issuedByStaff: uuid('issued_by_staff'),
+  staffName: text('staff_name'),
+  rentalId: uuid('rental_id'),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  rentalNumber: bigint('rental_number', { mode: 'number' }),
+  status: commandStatus(),
+  ackReason: text('ack_reason'),
+  sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }),
+  ackedAt: timestamp('acked_at', { withTimezone: true, mode: 'date' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+  responseMs: integer('response_ms'),
+}).as(
+  sql`SELECT c.id, c.scooter_id, s.number AS scooter_number, c.type, c.payload, c.source, c.zone_id, z.code AS zone_code, z.name AS zone_name, c.issued_by_staff, st.name AS staff_name, c.rental_id, r.number AS rental_number, c.status, c.ack_reason, c.sent_at, c.acked_at, c.expires_at, CASE WHEN c.acked_at IS NOT NULL THEN floor(EXTRACT(epoch FROM c.acked_at - c.sent_at) * 1000::numeric)::integer ELSE NULL::integer END AS response_ms FROM scooter_commands c JOIN scooters s ON s.id = c.scooter_id LEFT JOIN zones z ON z.id = c.zone_id LEFT JOIN staff st ON st.id = c.issued_by_staff LEFT JOIN rentals r ON r.id = c.rental_id`,
+);
+
+export const vPaymentCustomerList = pgView('v_payment_customer_list', {
+  userId: uuid('user_id'),
+  userName: text('user_name'),
+  userStatus: userStatus('user_status'),
+  provider: text(),
+  providerCustomerId: text('provider_customer_id'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  paymentMethods: integer('payment_methods'),
+  lastPaymentAt: timestamp('last_payment_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT pc.user_id, u.name AS user_name, u.status AS user_status, pc.provider, pc.provider_customer_id, pc.created_at, ( SELECT count(*)::integer AS count FROM payment_methods m WHERE m.user_id = pc.user_id AND m.provider = pc.provider AND m.removed_at IS NULL) AS payment_methods, ( SELECT max(p.created_at) AS max FROM payments p WHERE p.user_id = pc.user_id AND p.provider = pc.provider) AS last_payment_at FROM payment_customers pc JOIN users u ON u.id = pc.user_id`,
+);
+
+export const vPermissionList = pgView('v_permission_list', {
+  code: text(),
+  module: text(),
+  description: text(),
+  rolesCount: integer('roles_count'),
+  roleNames: text('role_names'),
+  inAdministrator: boolean('in_administrator'),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
+  updatedBy: uuid('updated_by'),
+  updatedByName: text('updated_by_name'),
+  version: integer(),
+}).as(
+  sql`SELECT p.code, p.module, p.description, count(r.id)::integer AS roles_count, COALESCE(array_agg(r.name ORDER BY r.name) FILTER (WHERE r.id IS NOT NULL), '{}'::text[]) AS role_names, COALESCE(bool_or(r.name = 'Administrator'::text AND r.is_system), false) AS in_administrator, p.updated_at, p.updated_by, s.name AS updated_by_name, p.version FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_code = p.code LEFT JOIN roles r ON r.id = rp.role_id LEFT JOIN staff s ON s.id = p.updated_by GROUP BY p.code, s.name`,
 );
 
 export const vDocRental = pgView('v_doc_rental', {
@@ -4161,4 +4626,17 @@ export const vDocWalletAdjustment = pgView('v_doc_wallet_adjustment', {
   receiptNumber: text('receipt_number'),
 }).as(
   sql`SELECT id AS entry_id, created_at, user_id, user_name, user_phone, type, amount, balance_after - amount AS balance_before, balance_after, reason, note, staff_id, staff_name, rental_id, rental_number, refund_id, refund_reason, receipt_id, receipt_number FROM v_wallet_ledger l WHERE type = ANY (ARRAY['ADJUSTMENT'::text, 'REFUND'::text])`,
+);
+
+export const vSavedPlaceList = pgView('v_saved_place_list', {
+  id: uuid(),
+  userId: uuid('user_id'),
+  userName: text('user_name'),
+  label: placeLabel(),
+  name: text(),
+  lon: doublePrecision(),
+  lat: doublePrecision(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+}).as(
+  sql`SELECT sp.id, sp.user_id, u.name AS user_name, sp.label, sp.name, st_x(sp."position") AS lon, st_y(sp."position") AS lat, sp.created_at FROM saved_places sp JOIN users u ON u.id = sp.user_id`,
 );

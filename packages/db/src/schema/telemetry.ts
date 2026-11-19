@@ -1,8 +1,9 @@
 /**
  * Tabela telemetrii jest partycjonowana (PARTITION BY RANGE), a drizzle-kit nie introspekuje
- * tabel partycjonowanych. Definicja utrzymywana ręcznie, zgodna z migrations/0001_init.sql.
+ * tabel partycjonowanych. Definicja utrzymywana ręcznie, zgodna z migrations/0001_init.sql
+ * (kolumny `locked` i `buffered` z migracji 0013, ADR 0076).
  */
-import { geometry, index, pgTable, primaryKey, real, smallint, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, geometry, index, pgTable, primaryKey, real, smallint, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { rentals, scooters } from './schema.js';
 
 export const telemetry = pgTable(
@@ -16,6 +17,8 @@ export const telemetry = pgTable(
     batteryPct: smallint('battery_pct').notNull(),
     speedKmh: real('speed_kmh').notNull(),
     rentalId: uuid('rental_id').references(() => rentals.id),
+    locked: boolean(),
+    buffered: boolean(),
   },
   (table) => [
     primaryKey({ columns: [table.scooterId, table.recordedAt] }),

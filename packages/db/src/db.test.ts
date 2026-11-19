@@ -91,6 +91,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
       '0010_towing_fee_outside_vat.sql',
       '0011_content_documents.sql',
       '0012_iteration7_fixes.sql',
+      '0013_reports.sql',
     ]);
     const second = await runMigrations(pool);
     expect(second.applied).toEqual([]);
@@ -185,7 +186,7 @@ describe.skipIf(!adminUrl)('baza danych', () => {
          (SELECT count(*)::int FROM pg_proc WHERE pronamespace = 'public'::regnamespace
            AND prokind = 'p' AND proname LIKE 'sp\\_%') AS procedures`,
     );
-    expect(rows[0]).toEqual({ tables: 57, views: 64, functions: 24, procedures: 22 });
+    expect(rows[0]).toEqual({ tables: 58, views: 79, functions: 58, procedures: 24 });
   });
 
   it('fn_zones_at_point zwraca strefy od najbardziej restrykcyjnej', async () => {

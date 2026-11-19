@@ -82,6 +82,11 @@ const DATABASE_RULES = [
   'TEMPLATE_INACTIVE',
   'TEMPLATE_NO_ACTIVE_VERSION',
   'DATA_EXPORT_LIMIT',
+  // Raporty i domknięcie panelu (migracja 0013, ADR 0071, 0074, 0076): dezaktywacja domyślnego szablonu z aktywną
+  // wersją, zmiana przedziału historii stanów i zła granulacja szeregu (szczegół: podana wartość).
+  'TEMPLATE_IS_DEFAULT',
+  'STATUS_HISTORY_APPEND_ONLY',
+  'REPORT_INVALID_GRANULARITY',
 ] as const;
 
 /** Szczegół błędu z bazy (`DETAIL`) w odpowiedzi API: kod strefy albo kwota do zwrotu. */
@@ -99,6 +104,7 @@ const RULE_DETAILS: Partial<Record<(typeof DATABASE_RULES)[number], (detail: str
   MEDIA_SYSTEM: (key) => ({ key }),
   MEDIA_KEY_IMMUTABLE: (key) => ({ key }),
   DATA_EXPORT_LIMIT: (nextAllowedAt) => ({ nextAllowedAt }),
+  REPORT_INVALID_GRANULARITY: (granularity) => ({ granularity }),
 };
 
 /** `OPEN->DONE` z wyzwalacza przejść; nowy rekord nie ma stanu wyjściowego (`->DONE`). */
@@ -120,6 +126,7 @@ const NOT_FOUND_RULES: Record<string, string> = {
   USER_NOT_FOUND: 'user',
   TEMPLATE_NOT_FOUND: 'document_template',
   TEMPLATE_VERSION_NOT_FOUND: 'document_template_version',
+  REPORT_NOT_FOUND: 'report',
 };
 
 /**
@@ -202,6 +209,12 @@ const CHECK_CONSTRAINTS: Record<string, string> = {
   company_profile_regon_check: 'VALIDATION_FAILED',
   company_profile_krs_check: 'VALIDATION_FAILED',
   company_profile_support_hours_check: 'VALIDATION_FAILED',
+  // Raporty i domknięcie panelu (migracja 0013): opis uprawnienia do 160 znaków, nazwa i opis definicji raportu,
+  // wycofanie przez operatora tylko zgody marketingowej.
+  permissions_description_check: 'VALIDATION_FAILED',
+  report_definitions_name_check: 'VALIDATION_FAILED',
+  report_definitions_description_check: 'VALIDATION_FAILED',
+  consents_revoked_by_staff: 'CONSENT_NOT_REVOCABLE',
 };
 
 export function rethrowDatabaseRule(error: unknown): never {

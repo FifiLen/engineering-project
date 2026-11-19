@@ -39,6 +39,8 @@ export const PERMISSIONS = [
   'reports.reliability',
   'reports.users',
   'reports.wallet',
+  // Nazwy, opisy, aktywność i kolejność definicji raportów: tylko Administrator (ADR 0071, migracja 0013).
+  'reports.manage',
   'templates.read',
   'templates.write',
   'documents.generate',
