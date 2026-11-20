@@ -1,6 +1,6 @@
 # Iteracja 8: raporty i domknięcie panelu
 
-**Status:** plan (19 listopada 2026); decyzje autora przyjęte 19 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-19-listopada-2026)); makiety gotowe 19 listopada 2026 (21 plansz panelu, przy implementacji doszła plansza `31-mobile-tresci/komunikat`); ADR 0071–0076 przyjęte 19 listopada 2026; zrealizowana 19 listopada 2026 na gałęzi `iteracja-8` ([dziennik](../dziennik.md#iteracja-8-implementacja-19-listopada-2026)); zielone CI: do uzupełnienia przy wypchnięciu; aplikacja natywna (komunikat na mapie, dane urządzenia) niesprawdzona do czasu development build
+**Status:** plan (19 listopada 2026); decyzje autora przyjęte 19 listopada 2026 ([odpowiedzi](#odpowiedzi-autora-19-listopada-2026)); makiety gotowe 19 listopada 2026 (21 plansz panelu, przy implementacji doszła plansza `31-mobile-tresci/komunikat`); ADR 0071–0076 przyjęte 19 listopada 2026; zrealizowana 19 listopada 2026 ([dziennik](../dziennik.md#iteracja-8-implementacja-19-listopada-2026)); zielone CI 20 listopada 2026 (commit `83d223f` na `main`); aplikacja natywna (komunikat na mapie, dane urządzenia) niesprawdzona do czasu development build
 
 ## Cel
 Operator wyciąga z systemu rozbudowane zestawienia i dostaje je jako PDF albo XLSX, a każda tabela bazy ma w panelu swoje miejsce z filtrowaniem i sortowaniem. Konkretnie:
@@ -258,7 +258,7 @@ Wersje starsze niż 3 dni; nic nie instalujemy przed akceptacją ADR.
 5. ~~`packages/core` i `packages/shared`: katalog raportów, parametry, wskaźniki, geometria wykresów, zasoby nowych list, z testami.~~ Zrobione 19 listopada 2026.
 6. ~~API: raporty (podgląd, eksport, historia, definicje), renderery PDF i XLSX, pulpit, eksport list, nowe listy i polecenia; testy API; `pnpm api:openapi`.~~ Zrobione 19 listopada 2026 (moduł Raporty, eksport list, nowe listy).
 7. ~~Panel (raporty i pulpit; listy i eksport, równolegle, każdy w swoim katalogu) i drobne długi aplikacji.~~ Zrobione 19 listopada 2026; odstępstwa od makiet w [dzienniku](../dziennik.md#iteracja-8-implementacja-19-listopada-2026).
-8. ~~Domknięcie: arc42, model danych z pełną macierzą, wymagania uczelni (12, 18), spis makiet, dziennik; scenariusz demo krok po kroku; `pnpm lint && pnpm typecheck && pnpm test && pnpm build`~~; zielone CI. Dokumentacja zrobiona 19 listopada 2026; lint, typy, testy i build przechodzą; zielone CI: do uzupełnienia przy wypchnięciu.
+8. ~~Domknięcie: arc42, model danych z pełną macierzą, wymagania uczelni (12, 18), spis makiet, dziennik; scenariusz demo krok po kroku; `pnpm lint && pnpm typecheck && pnpm test && pnpm build`~~; zielone CI. Dokumentacja zrobiona 19 listopada 2026; lint, typy, testy i build przechodzą; zielone CI 20 listopada 2026 (commit `83d223f`).
 
 ## Scenariusz demo
 Według faktycznej implementacji (19 listopada 2026). Wymaga:

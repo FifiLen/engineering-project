@@ -1915,4 +1915,4 @@ Dwa przeglądy kodu (raporty, pulpit, baza i generator; listy, eksport i aplikac
 - Generator nie działa na bazie deweloperskiej z przejazdami z przeklikania (odmowa), więc raporty z danymi pokazuje tylko osobna baza `hulajnogi_history`.
 
 **Wypchnięcie**
-- Iteracja 8 w commitach `80e66a5`–`692951e` na gałęzi `iteracja-8` (nie na `main`); dokumentacja domknięcia w kolejnym commicie. Zielone CI: do uzupełnienia przy wypchnięciu.
+- Iteracja 8 w commitach `80e66a5`–`83d223f` na gałęzi `iteracja-8`, scalona do `main` przewinięciem i wypchnięta 20 listopada 2026; CI zielone 20 listopada 2026 (przebieg 44716569333, zadanie „Lint, typy, testy, build”).
